@@ -8,13 +8,39 @@
     <artifactId>scichains-maps</artifactId>
     <version>4.1.2</version>
 
+    <name>SciChains maps (image pyramids)</name>
+    <description>Open-source libraries, providing the base functions for SciChains product in area of computer vision.</description>
+    <url>http://scichains.com/</url>
+
+    <licenses>
+        <license>
+            <name>The MIT License (MIT)</name>
+            <url>http://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Daniel Alievsky</name>
+            <email>daniel@iskrael.org</email>
+            <organization>AlgART laboratory</organization>
+            <organizationUrl>http://algart.net</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/scichains/scichains-maps.git</connection>
+        <developerConnection>scm:git:https://github.com/scichains/scichains-maps.git</developerConnection>
+        <url>https://github.com/scichains/scichains-maps.git</url>
+    </scm>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
 
-        <extension.name>${project.groupId}.${project.artifactId}</extension.name>
+        <extension.name>net.algart.executors.maps</extension.name>
 
         <home.directory>${env.EXECUTORS_HOME}</home.directory>
         <extension.server.home>${home.directory}/ext/${extension.name}</extension.server.home>
