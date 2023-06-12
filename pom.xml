@@ -40,10 +40,15 @@
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
 
+        <!-- SciChains extension folder name -->
         <extension.name>net.algart.executors.maps</extension.name>
 
+        <!-- SciChains base folder -->
         <home.directory>${env.EXECUTORS_HOME}</home.directory>
+
+        <!-- Folder of the extension under the base folder -->
         <extension.server.home>${home.directory}/ext/${extension.name}</extension.server.home>
+
         <buildDirectory>${project.build.directory}/build</buildDirectory>
 
         <net.algart.scichains-core.version>4.1.2</net.algart.scichains-core.version>
