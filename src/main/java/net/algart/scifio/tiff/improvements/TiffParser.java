@@ -335,7 +335,7 @@ public class TiffParser extends AbstractContextual {
 
         final long[] f = new long[offsets.size()];
         for (int i = 0; i < f.length; i++) {
-            f[i] = offsets.get(i).longValue();
+            f[i] = offsets.get(i);
         }
 
         return f;
@@ -376,7 +376,7 @@ public class TiffParser extends AbstractContextual {
             in.seek(offset + // The beginning of the IFD
                     (bigTiff ? 8 : 2) + // The width of the initial numEntries field
                     (bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                            : TiffConstants.BYTES_PER_ENTRY) * i);
+                            : TiffConstants.BYTES_PER_ENTRY) * (long) i);
 
             final TiffIFDEntry entry = readTiffIFDEntry();
             if (entry.getTag() == tag) {
@@ -402,9 +402,8 @@ public class TiffParser extends AbstractContextual {
         final IFD ifd = new IFD(log);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
-        ifd.put(new Integer(IFD.LITTLE_ENDIAN), Boolean.valueOf(in
-                .isLittleEndian()));
-        ifd.put(new Integer(IFD.BIG_TIFF), Boolean.valueOf(bigTiff));
+        ifd.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
+        ifd.put(IFD.BIG_TIFF, bigTiff);
 
         // read in directory entries for this IFD
         log.trace("getIFDs: seeking IFD at " + offset);
@@ -441,7 +440,7 @@ public class TiffParser extends AbstractContextual {
             Object value = null;
 
             final long inputLen = in.length();
-            if (count * bpe + pointer > inputLen) {
+            if (count * (long) bpe + pointer > inputLen) {
                 final int oldCount = count;
                 count = (int) ((inputLen - pointer) / bpe);
                 log.trace("getIFDs: truncated " + (oldCount - count) +
@@ -457,8 +456,8 @@ public class TiffParser extends AbstractContextual {
             }
             else value = getIFDValue(entry);
 
-            if (value != null && !ifd.containsKey(new Integer(tag))) {
-                ifd.put(new Integer(tag), value);
+            if (value != null && !ifd.containsKey(tag)) {
+                ifd.put(tag, value);
             }
         }
 
@@ -478,7 +477,7 @@ public class TiffParser extends AbstractContextual {
 
         for (final TiffIFDEntry entry : entries) {
             if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
-                ifd.put(new Integer(entry.getTag()), getIFDValue(entry));
+                ifd.put(entry.getTag(), getIFDValue(entry));
             }
         }
     }
@@ -502,7 +501,7 @@ public class TiffParser extends AbstractContextual {
 
         if (type == IFDType.BYTE) {
             // 8-bit unsigned integer
-            if (count == 1) return new Short(in.readByte());
+            if (count == 1) return (short) in.readByte();
             final byte[] bytes = new byte[count];
             in.readFully(bytes);
             // bytes are unsigned, so use shorts
@@ -543,7 +542,7 @@ public class TiffParser extends AbstractContextual {
         }
         else if (type == IFDType.SHORT) {
             // 16-bit (2-byte) unsigned integer
-            if (count == 1) return new Integer(in.readUnsignedShort());
+            if (count == 1) return in.readUnsignedShort();
             final int[] shorts = new int[count];
             for (int j = 0; j < count; j++) {
                 shorts[j] = in.readUnsignedShort();
@@ -552,7 +551,7 @@ public class TiffParser extends AbstractContextual {
         }
         else if (type == IFDType.LONG || type == IFDType.IFD) {
             // 32-bit (4-byte) unsigned integer
-            if (count == 1) return new Long(in.readInt());
+            if (count == 1) return (long) in.readInt();
             final long[] longs = new long[count];
             for (int j = 0; j < count; j++) {
                 if (in.offset() + 4 <= in.length()) {
@@ -564,7 +563,7 @@ public class TiffParser extends AbstractContextual {
         else if (type == IFDType.LONG8 || type == IFDType.SLONG8 ||
                 type == IFDType.IFD8)
         {
-            if (count == 1) return new Long(in.readLong());
+            if (count == 1) return in.readLong();
             long[] longs = null;
 
             if (equalStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS || entry
@@ -601,14 +600,14 @@ public class TiffParser extends AbstractContextual {
             // SBYTE: An 8-bit signed (twos-complement) integer
             // UNDEFINED: An 8-bit byte that may contain anything,
             // depending on the definition of the field
-            if (count == 1) return new Byte(in.readByte());
+            if (count == 1) return in.readByte();
             final byte[] sbytes = new byte[count];
             in.read(sbytes);
             return sbytes;
         }
         else if (type == IFDType.SSHORT) {
             // A 16-bit (2-byte) signed (twos-complement) integer
-            if (count == 1) return new Short(in.readShort());
+            if (count == 1) return in.readShort();
             final short[] sshorts = new short[count];
             for (int j = 0; j < count; j++)
                 sshorts[j] = in.readShort();
@@ -616,7 +615,7 @@ public class TiffParser extends AbstractContextual {
         }
         else if (type == IFDType.SLONG) {
             // A 32-bit (4-byte) signed (twos-complement) integer
-            if (count == 1) return new Integer(in.readInt());
+            if (count == 1) return in.readInt();
             final int[] slongs = new int[count];
             for (int j = 0; j < count; j++)
                 slongs[j] = in.readInt();
@@ -624,7 +623,7 @@ public class TiffParser extends AbstractContextual {
         }
         else if (type == IFDType.FLOAT) {
             // Single precision (4-byte) IEEE format
-            if (count == 1) return new Float(in.readFloat());
+            if (count == 1) return in.readFloat();
             final float[] floats = new float[count];
             for (int j = 0; j < count; j++)
                 floats[j] = in.readFloat();
@@ -632,7 +631,7 @@ public class TiffParser extends AbstractContextual {
         }
         else if (type == IFDType.DOUBLE) {
             // Double precision (8-byte) IEEE format
-            if (count == 1) return new Double(in.readDouble());
+            if (count == 1) return in.readDouble();
             final double[] doubles = new double[count];
             for (int j = 0; j < count; j++) {
                 doubles[j] = in.readDouble();
