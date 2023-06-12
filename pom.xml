@@ -9,9 +9,194 @@
     <version>4.1.2</version>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+        <maven.compiler.release>17</maven.compiler.release>
 
+        <extension.name>${project.groupId}.${project.artifactId}</extension.name>
+
+        <home.directory>${env.EXECUTORS_HOME}</home.directory>
+        <extension.server.home>${home.directory}/ext/${extension.name}</extension.server.home>
+        <buildDirectory>${project.build.directory}/build</buildDirectory>
+
+        <net.algart.scichains-core.version>4.1.2</net.algart.scichains-core.version>
+        <net.algart.scichains-cv.version>4.1.2</net.algart.scichains-cv.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>net.algart.executors</groupId>
+            <artifactId>scichains-cv</artifactId>
+            <version>${net.algart.scichains-cv.version}</version>
+        </dependency>
+        <!-- test scope dependency -->
+        <dependency>
+            <groupId>net.algart.executors</groupId>
+            <artifactId>scichains-core</artifactId>
+            <classifier>tests</classifier>
+            <type>test-jar</type>
+            <scope>test</scope>
+            <version>${net.algart.scichains-core.version}</version>
+        </dependency>
+        <dependency>
+            <!-- SCientific Image Format Input and Output -->
+            <groupId>io.scif</groupId>
+            <artifactId>scifio</artifactId>
+            <version>0.45.0</version>
+            <!--            <version>0.46.0-SNAPSHOT</version>-->
+        </dependency>
+
+        <!-- Allows to forget closing context (should be fixed in next versions);
+         note that it should be commented for correct work of assembly-descriptor -->
+        <!--
+        <dependency>
+            <groupId>org.scijava</groupId>
+            <artifactId>scijava-common</artifactId>
+            <version>2.92.1-SNAPSHOT</version>
+        </dependency>
+        -->
+    </dependencies>
+    <build>
+        <resources>
+            <resource>
+                <includes>
+                    <include>extension.json</include>
+                    <!-- added to perform filtering; note that we need to exclude this later in maven-jar-plugin  -->
+                </includes>
+                <filtering>true</filtering>
+                <directory>build</directory>
+            </resource>
+            <resource>
+                <includes>
+                    <include>**/*.*</include>
+                </includes>
+                <filtering>false</filtering>
+                <directory>src/main/resources</directory>
+            </resource>
+        </resources>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <addMavenDescriptor>true</addMavenDescriptor>
+                        <compress>false</compress>
+                    </archive>
+                    <excludes>
+                        <exclude>extension.json</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <finalName>build</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <descriptors>
+                        <descriptor>assembly-descriptor.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <!-- Installing executors extension if ${home.directory} exist -->
+            <id>executors-extension</id>
+            <activation>
+                <file>
+                    <exists>${home.directory}</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>executors-extension-clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <echo level="info"/>
+                                        <echo level="info">DELETING ${extension.server.home}</echo>
+                                        <echo level="info"/>
+                                        <delete dir="${extension.server.home}"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>executors-extension-install</id>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <echo level="info"/>
+                                        <echo level="info">INSTALLING jars into ${extension.server.home}</echo>
+                                        <echo level="info"/>
+
+                                        <delete dir="${extension.server.home}"/>
+
+                                        <copy todir="${extension.server.home}/java">
+                                            <fileset dir="${project.build.directory}/build/java"/>
+                                        </copy>
+
+                                        <copy todir="${extension.server.home}"
+                                              file="${project.build.directory}/build/extension.json"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <repositories>
+        <repository>
+            <!-- Repository of SCIFIO -->
+            <id>scijava.public</id>
+            <url>https://maven.scijava.org/content/groups/public</url>
+        </repository>
+    </repositories>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>${deploy-snapshots-id}</id>
+            <url>${deploy-snapshots-url}</url>
+        </snapshotRepository>
+        <repository>
+            <id>${deploy-id}</id>
+            <url>${deploy-url}</url>
+        </repository>
+    </distributionManagement>
 </project>

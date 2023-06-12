@@ -1,0 +1,164 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2014-2019 Daniel Alievsky, AlgART Laboratory (http://algart.net)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+package net.algart.matrices.libs.scifio.tiff.tests;
+
+import io.scif.FormatException;
+import io.scif.SCIFIO;
+import io.scif.formats.tiff.IFD;
+import io.scif.formats.tiff.PhotoInterp;
+import io.scif.formats.tiff.TiffSaver;
+import net.algart.scifio.tiff.SequentialTiffWriter;
+import net.algart.scifio.tiff.improvements.ExtendedIFD;
+import net.algart.scifio.tiff.improvements.ExtendedTiffParser;
+import net.algart.scifio.tiff.improvements.ExtendedTiffSaver;
+import org.scijava.Context;
+import org.scijava.io.location.FileLocation;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+
+public class ReadWriteTiffTest {
+    private static final int MAX_IMAGE_DIM = 20000;
+    private static final int START_X = 0;
+    private static final int START_Y = 0;
+
+    public static void main(String[] args) throws IOException, FormatException {
+        int startArgIndex = 0;
+        boolean bigTiff = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-big")) {
+            bigTiff = true;
+            startArgIndex++;
+        }
+        boolean singleStrip = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-singleStrip")) {
+            singleStrip = true;
+            startArgIndex++;
+        }
+        boolean planar = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planar")) {
+            planar = true;
+            startArgIndex++;
+        }
+        if (args.length < startArgIndex + 2) {
+            System.out.println("Usage:");
+            System.out.println("    " + ReadWriteTiffTest.class.getName()
+                    + " source.tif target.tif [firstIFDIndex lastIFDIndex]");
+            return;
+        }
+        final Path sourceFile = Paths.get(args[startArgIndex++]);
+        final Path targetFile = Paths.get(args[startArgIndex++]);
+        final int firstIFDIndex = startArgIndex < args.length ?
+                Integer.parseInt(args[startArgIndex]) :
+                0;
+        int lastIFDIndex = startArgIndex + 1 < args.length ?
+                Integer.parseInt(args[startArgIndex + 1]) :
+                Integer.MAX_VALUE;
+        final Path targetLowLevelFile = targetFile.getParent().resolve("raw_for_comparison.tiff");
+
+        TiffInfo.showTiffInfo(sourceFile);
+
+        System.out.printf("Opening %s...%n", sourceFile);
+
+        final SCIFIO scifio = new SCIFIO();
+        try (Context context = scifio.getContext()) {
+            ExtendedTiffParser reader = new ExtendedTiffParser(context, sourceFile)
+                    .setFiller((byte) 0xC0);
+            Files.deleteIfExists(targetFile);
+            Files.deleteIfExists(targetLowLevelFile);
+            // - strange, but necessary
+            TiffSaver saver = new ExtendedTiffSaver(context, new FileLocation(targetLowLevelFile.toFile()));
+            saver.setBigTiff(bigTiff);
+            saver.setWritingSequentially(true);
+            saver.setLittleEndian(true);
+            saver.writeHeader();
+            // - necessary; SequentialTiffWriter does it automatically
+            SequentialTiffWriter writer = new SequentialTiffWriter(context, targetFile)
+                    .setBigTiff(bigTiff)
+                    .setLittleEndian(true)
+                    .open();
+            System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
+            final List<IFD> ifdList = reader.getIFDs();
+            lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
+            for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
+                final ExtendedIFD ifd = ExtendedIFD.extend(ifdList.get(ifdIndex));
+                System.out.printf("Copying #%d/%d:%n%s", ifdIndex, ifdList.size(), ifd);
+                final int w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
+                final int h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
+                final int tileSizeX = ifd.getTileSizeX();
+                final int tileSizeY = ifd.getTileSizeY();
+                final int paddedW = ((w + tileSizeX - 1) / tileSizeX) * tileSizeX;
+                int paddedH = ((h + tileSizeY - 1) / tileSizeY) * tileSizeY;
+
+                final int bandCount = ifd.getSamplesPerPixel();
+                byte[] bytes = reader.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
+                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, paddedW * paddedH);
+                if (!planar) {
+                    bytes = ExtendedTiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
+                }
+                boolean last = ifdIndex == ifdList.size() - 1;
+                final IFD newIfd = new ExtendedIFD( ifd, null);
+
+//                newIfd.remove(IFD.JPEG_TABLES);
+                if (singleStrip) {
+                    newIfd.put(IFD.ROWS_PER_STRIP, h);
+                    paddedH = h;
+                }
+                writer.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
+                // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
+
+                writer.setInterleaved(!planar);
+                writer.setCompression(ifd.getCompression());
+                writer.setImageSizes(w, h);
+                if (ifd.isTiled()) {
+                    writer.setTiling(true);
+                    writer.setTileSizes((int) ifd.getTileWidth(), (int) ifd.getTileLength());
+                } else {
+                    writer.setTiling(false);
+                }
+                writer.writeSeveralTilesOrStrips(bytes, newIfd, ifd.getPixelType(), bandCount,
+                        START_X, START_Y, paddedW, paddedH, true, last);
+                System.out.printf("Effective IFD:%n%s%n", newIfd);
+//                saver.setBigTiff(true);
+
+//                newIfd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
+//                newIfd.remove(IFD.STRIP_BYTE_COUNTS);
+//                newIfd.remove(IFD.STRIP_OFFSETS);
+
+                saver.writeImage(bytes, newIfd, -1, ifd.getPixelType(), START_X, START_Y, paddedW, paddedH,
+                        last, bandCount, false);
+                // - does not write prefix
+                saver.getStream().seek(saver.getStream().length());
+                //TODO!! - why?
+            }
+            saver.getStream().close();
+            writer.close();
+        }
+        System.out.println("Done");
+    }
+
+}
