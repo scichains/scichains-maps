@@ -680,6 +680,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			value = new double[] {(Double) value};
 		}
 
+		final boolean bigTiff = this.bigTiff;
 		final int dataLength = bigTiff ? 8 : 4;
 
 		// write directory entry to output buffers
@@ -778,18 +779,19 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 					}
 				}
 			}
-			final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG
-				.getCode();
+			final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG.getCode();
 			out.writeShort(type);
 			writeIntValue(out, q.length);
 
 			final int div = bigTiff ? 8 : 4;
+			assert div == dataLength;
 
-			if (q.length <= dataLength / div) {
+			if (q.length <= 1) {
 				for (int i = 0; i < q.length; i++) {
 					writeIntValue(out, q[0]);
+					// - q[0]: it is actually performed 0 or 1 times
 				}
-				for (int i = q.length; i < dataLength / div; i++) {
+				for (int i = q.length; i < 1; i++) {
 					writeIntValue(out, 0);
 				}
 			}
@@ -819,8 +821,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			out.writeShort(IFDType.FLOAT.getCode()); // type
 			writeIntValue(out, q.length);
 			if (q.length <= dataLength / 4) {
-				for (int i = 0; i < q.length; i++) {
-					out.writeFloat(q[0]); // value
+				for (float v : q) {
+					out.writeFloat(v); // value
+					// - in old SCIFIO code, here was a bug (for a case bigTiff): q[0] was always written
 				}
 				for (int i = q.length; i < dataLength / 4; i++) {
 					out.writeInt(0); // padding
@@ -828,8 +831,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++) {
-					extraOut.writeFloat(q[i]); // values
+				for (float v : q) {
+					extraOut.writeFloat(v); // values
 				}
 			}
 		} else if (value instanceof double[]) { // DOUBLE
