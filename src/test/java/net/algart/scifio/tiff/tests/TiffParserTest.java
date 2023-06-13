@@ -28,20 +28,16 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
-import io.scif.util.FormatTools;
 import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.SimpleMemoryModel;
 import net.algart.arrays.UpdatablePArray;
 import net.algart.executors.api.data.SMat;
-import net.algart.scifio.tiff.improvements.CachingTiffParser;
-import net.algart.scifio.tiff.improvements.ExtendedTiffParser;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
+import net.algart.scifio.tiff.improvements.CachingTiffParser;
 import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
-import org.scijava.io.location.FileLocation;
-import org.scijava.util.Bytes;
 
 import javax.imageio.IIOException;
 import javax.imageio.ImageIO;
@@ -62,12 +58,7 @@ public class TiffParserTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
-        boolean pureScifio = false;
         boolean caching = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-pureScifio")) {
-            pureScifio = true;
-            startArgIndex++;
-        }
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-caching")) {
             caching = true;
             startArgIndex++;
@@ -94,9 +85,7 @@ public class TiffParserTest {
         final Context context = scifio.getContext();
         final TiffParser parser = caching ?
                 new CachingTiffParser(context, tiffFile).setFiller((byte) 0xC0) :
-                !pureScifio ?
-                        new ExtendedTiffParser(context, tiffFile).setFiller((byte) 0x80) :
-                        new TiffParser(context, new FileLocation(tiffFile.toFile()));
+                new TiffParser(context, tiffFile).setFiller((byte) 0x80);
         System.out.printf("Opening %s by %s...%n", tiffFile, parser);
         final IFDList ifds = parser.getIFDs();
         if (ifdIndex >= ifds.size()) {
@@ -119,36 +108,11 @@ public class TiffParserTest {
                 System.out.printf("Reading data %dx%dx%d from %s%n",
                         w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
             }
-            if (parser instanceof ExtendedTiffParser extendedParser) {
-                long t1 = System.nanoTime();
-                array = extendedParser.readSamplesArray(ifd, x, y, w, h, true);
-                long t2 = System.nanoTime();
-                System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
-                        test, w, h, (t2 - t1) * 1e-6);
-            } else {
-                long t1 = System.nanoTime();
-                byte[] bytes = new byte[ExtendedTiffParser.sizeOfIFDRegion(ifd, w, h)];
-                long t2 = System.nanoTime();
-                parser.getSamples(ifd, bytes, x, y, w, h);
-                long t3 = System.nanoTime();
-                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, w * h);
-                long t4 = System.nanoTime();
-                bytes = ExtendedTiffParser.interleaveSamples(ifd, bytes, w * h);
-                long t5 = System.nanoTime();
-                array = Bytes.makeArray(
-                        bytes,
-                        FormatTools.getBytesPerPixel(pixelType),
-                        FormatTools.isFloatingPoint(pixelType),
-                        ifd.isLittleEndian());
-                long t6 = System.nanoTime();
-                System.out.printf(Locale.US, "Test (usual) #%d: %dx%d (%.3f MB) loaded in %.3f ms = " +
-                                "%.3f ms allocate + %.3f get + %.3f correct + %.3f interleave + %.3f make, " +
-                                "%.3f MB/sec%n",
-                        test, w, h, bytes.length / 1048576.0,
-                        (t6 - t1) * 1e-6,
-                        (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6, (t5 - t4) * 1e-6, (t6 - t5) * 1e-6,
-                        (bytes.length / 1048576.0 / ((t2 - t1) * 1e-9)));
-            }
+            long t1 = System.nanoTime();
+            array = parser.readSamplesArray(ifd, x, y, w, h, true);
+            long t2 = System.nanoTime();
+            System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
+                    test, w, h, (t2 - t1) * 1e-6);
         }
 
 

@@ -29,7 +29,7 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
 import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.ExtendedTiffParser;
+import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
 
 import java.io.File;
@@ -59,7 +59,7 @@ public class TiffInfo {
 
     public static void showTiffInfo(Path tiffFile) throws IOException {
         try (Context context = new SCIFIO().getContext()) {
-            ExtendedTiffParser parser = new ExtendedTiffParser(context, tiffFile);
+            TiffParser parser = new TiffParser(context, tiffFile);
             IFDList ifdList = parser.getIFDs();
             final int ifdCount = ifdList.size();
             System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
@@ -84,7 +84,7 @@ public class TiffInfo {
                     offset == null ?
                             "" :
                             " (offset %d=0x%X)".formatted(offset, offset),
-                    ExtendedTiffParser.javaElementType(ifd.getPixelType()).getSimpleName(),
+                    TiffParser.javaElementType(ifd.getPixelType()).getSimpleName(),
                     ifd.getImageWidth(), ifd.getImageLength(),
                     ifd.isTiled() ?
                             "%dx%d=%d tiles".formatted(
@@ -93,7 +93,9 @@ public class TiffInfo {
                             "%d strips per %d lines (virtual \"tiles\" %dx%d)".formatted(
                                     ifd.getTilesPerColumn(), ifd.getTileLength(),
                                     ifd.getTileWidth(), ifd.getTileLength()),
-                    ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED ? "chunky" : "planar",
+                    ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED ?
+                            "chunky" :
+                            "planar",
                     ifd.toString());
         } catch (FormatException e) {
             return " IFD #%d/%d: parsing error! %s".formatted(ifdIndex, ifdCount, e.getMessage());

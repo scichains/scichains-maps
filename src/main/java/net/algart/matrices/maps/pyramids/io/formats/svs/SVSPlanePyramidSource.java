@@ -33,13 +33,13 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.scifio.tiff.improvements.CachingTiffParser;
-import net.algart.scifio.tiff.improvements.ExtendedTiffParser;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSImageDescription;
+import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
 
 import java.awt.*;
@@ -128,12 +128,12 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 throw new FormatException("Empty IFD list");
             }
             final IFD ifd0 = largeData.ifdList.get(0);
-            ExtendedTiffParser.checkSizesArePositive(ifd0);
+            TiffParser.checkSizesArePositive(ifd0);
             this.bandCount = ifd0.getSamplesPerPixel();
             if (bandCount <= 0) {
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
             }
-            this.elementType = ExtendedTiffParser.javaElementType(ifd0.getPixelType());
+            this.elementType = TiffParser.javaElementType(ifd0.getPixelType());
             final long imageDimX = ifd0.getImageWidth();
             final long imageDimY = ifd0.getImageLength();
             this.imageDescriptions = new ArrayList<SVSImageDescription>();
@@ -173,7 +173,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.combineWithWholeSlide = combineWithWholeSlideRequest
                     && ifdMacro != null
                     && geometrySupported
-                    && ExtendedTiffParser.javaElementType(ifdMacro.getPixelType()) == elementType
+                    && TiffParser.javaElementType(ifdMacro.getPixelType()) == elementType
                     && ifdMacro.getSamplesPerPixel() == bandCount;
             long levelDimX, levelDimY;
             if (combineWithWholeSlide) {
@@ -258,7 +258,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             SVSIFDClassifier.compressionToString(ifd)));
                     continue;
                 }
-                ExtendedTiffParser.checkSizesArePositive(ifd);
+                TiffParser.checkSizesArePositive(ifd);
                 final long newPyramidLevelDimX = ifd.getImageWidth();
                 final long newPyramidLevelDimY = ifd.getImageLength();
                 if (actualCompression == 0) {
@@ -317,7 +317,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     }
                     break;
                 }
-                final Class<?> elementType = ExtendedTiffParser.javaElementType(ifd.getPixelType());
+                final Class<?> elementType = TiffParser.javaElementType(ifd.getPixelType());
                 if (elementType != this.elementType) {
                     throw new FormatException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""

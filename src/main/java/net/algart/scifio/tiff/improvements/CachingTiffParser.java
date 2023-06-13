@@ -36,7 +36,7 @@ import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.util.*;
 
-public class CachingTiffParser extends ExtendedTiffParser {
+public class CachingTiffParser extends TiffParser {
     public static final long DEFAULT_MAX_CACHING_MEMORY = Math.max(0, getLongProperty(
             "net.algart.matrices.libs.scifio.tiff.defaultMaxCachingMemory", 256 * 1048576L));
     // - 256 MB maximal cache by default

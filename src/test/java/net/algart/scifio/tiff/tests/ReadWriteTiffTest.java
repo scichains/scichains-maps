@@ -31,7 +31,7 @@ import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffSaver;
 import net.algart.scifio.tiff.SequentialTiffWriter;
 import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.ExtendedTiffParser;
+import net.algart.scifio.tiff.improvements.TiffParser;
 import net.algart.scifio.tiff.improvements.ExtendedTiffSaver;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
@@ -86,8 +86,8 @@ public class ReadWriteTiffTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext()) {
-            ExtendedTiffParser reader = new ExtendedTiffParser(context, sourceFile)
-                    .setFiller((byte) 0xC0);
+            TiffParser reader = new TiffParser(context, sourceFile);
+            reader.setFiller((byte) 0xC0);
             Files.deleteIfExists(targetFile);
             Files.deleteIfExists(targetLowLevelFile);
             // - strange, but necessary
@@ -116,9 +116,9 @@ public class ReadWriteTiffTest {
 
                 final int bandCount = ifd.getSamplesPerPixel();
                 byte[] bytes = reader.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
-                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, paddedW * paddedH);
+                TiffParser.correctUnusualPrecisions(ifd, bytes, paddedW * paddedH);
                 if (!planar) {
-                    bytes = ExtendedTiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
+                    bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
                 }
                 boolean last = ifdIndex == ifdList.size() - 1;
                 final IFD newIfd = new ExtendedIFD( ifd, null);
