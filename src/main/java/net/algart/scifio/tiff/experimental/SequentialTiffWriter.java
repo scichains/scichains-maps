@@ -29,7 +29,6 @@ import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
-import io.scif.formats.tiff.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.Location;

@@ -27,7 +27,6 @@ package net.algart.scifio.tiff.experimental;
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDType;
-import io.scif.formats.tiff.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.FileLocation;
