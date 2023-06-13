@@ -50,7 +50,6 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 import org.scijava.log.LogService;
 import org.scijava.util.Bytes;
-import org.scijava.util.IntRect;
 
 /**
  * Parses TIFF data from an input source.
@@ -1260,7 +1259,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     @Override
     public void close() throws IOException {
-        getStream().close();
+        in.close();
     }
 
     // -- Helper methods --

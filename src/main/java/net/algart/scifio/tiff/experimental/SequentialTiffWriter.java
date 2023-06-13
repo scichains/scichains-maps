@@ -51,7 +51,7 @@ public final class SequentialTiffWriter {
     private volatile String software;
 
     public SequentialTiffWriter(Context context, Path tiffFile) throws IOException {
-        this.saver = new ExtendedTiffSaver(context, tiffFile);
+        this.saver = new TiffSaver(context, tiffFile);
         this.out = this.saver.getStream();
         this.saver.setWritingSequentially(true);
     }

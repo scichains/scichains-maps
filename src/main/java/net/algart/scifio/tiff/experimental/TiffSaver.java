@@ -32,8 +32,10 @@ import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,8 +62,9 @@ import org.scijava.plugin.Parameter;
  * @author Melissa Linkert
  * @author Chris Allan
  * @author Gabriel Einsdorf
+ * @author Daniel Alievsky
  */
-public class TiffSaver extends AbstractContextual {
+public class TiffSaver extends AbstractContextual implements Closeable {
 
 	// Below is a copy of SCIFIO license (placed here to avoid autocorrection by IntelliJ IDEA)
 	/*
@@ -93,6 +96,11 @@ public class TiffSaver extends AbstractContextual {
 	 * #L%
 	 */
 
+	private static final boolean AVOID_LONG8_FOR_ACTUAL_32_BITS = true;
+	// - If was necessary for some old programs (like Aperio Image Viewer), which
+	// did not understand LONG8 values for some popular tags like image sizes.
+	// In any case, real BigTIFF files usually store most tags in standard LONG type (32 bits), not in LONG8.
+
 	// -- Fields --
 
 	/** Output stream to use when saving TIFF data. */
@@ -121,6 +129,11 @@ public class TiffSaver extends AbstractContextual {
 	private DataHandleService dataHandleService;
 
 	// -- Constructors --
+
+	public TiffSaver(Context context, Path file) throws IOException {
+		this(context, new FileLocation(file.toFile()));
+	}
+
 
 	/**
 	 * Constructs a new TIFF saver from the given filename.
@@ -649,68 +662,87 @@ public class TiffSaver extends AbstractContextual {
 
 		// convert singleton objects into arrays, for simplicity
 		if (value instanceof Short) {
-			value = new short[] { ((Short) value).shortValue() };
+			value = new short[] {(Short) value};
 		}
 		else if (value instanceof Integer) {
-			value = new int[] { ((Integer) value).intValue() };
+			value = new int[] {(Integer) value};
 		}
 		else if (value instanceof Long) {
-			value = new long[] { ((Long) value).longValue() };
+			value = new long[] {(Long) value};
 		}
 		else if (value instanceof TiffRational) {
 			value = new TiffRational[] { (TiffRational) value };
 		}
 		else if (value instanceof Float) {
-			value = new float[] { ((Float) value).floatValue() };
+			value = new float[] {(Float) value};
 		}
 		else if (value instanceof Double) {
-			value = new double[] { ((Double) value).doubleValue() };
+			value = new double[] {(Double) value};
 		}
 
 		final int dataLength = bigTiff ? 8 : 4;
 
 		// write directory entry to output buffers
 		out.writeShort(tag); // tag
-		if (value instanceof short[]) {
+		if (value instanceof byte[] q) {
+			out.writeShort(IFDType.UNDEFINED.getCode());
+			// - Most probable type. Maybe in future we will support here some algorithm,
+			// determining necessary type on the base of the tag value.
+			writeIntValue(out, q.length);
+			if (q.length <= dataLength) {
+				for (byte b : q) {
+					out.writeByte(b);
+				}
+				for (int i = q.length; i < dataLength; i++)
+					out.writeByte(0);
+			} else {
+				writeIntValue(out, offset + extraOut.length());
+				extraOut.write(q);
+			}
+		} else if (value instanceof short[]) {
 			final short[] q = (short[]) value;
 			out.writeShort(IFDType.BYTE.getCode());
 			writeIntValue(out, q.length);
 			if (q.length <= dataLength) {
-				for (int i = 0; i < q.length; i++)
-					out.writeByte(q[i]);
-				for (int i = q.length; i < dataLength; i++)
+				for (short s : q) {
+					out.writeByte(s);
+				}
+				for (int i = q.length; i < dataLength; i++) {
 					out.writeByte(0);
+				}
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++)
-					extraOut.writeByte(q[i]);
+				for (short s : q) {
+					extraOut.writeByte(s);
+				}
 			}
-		}
-		else if (value instanceof String) { // ASCII
+		} else if (value instanceof String) { // ASCII
 			final char[] q = ((String) value).toCharArray();
 			out.writeShort(IFDType.ASCII.getCode()); // type
 			writeIntValue(out, q.length + 1);
 			if (q.length < dataLength) {
-				for (int i = 0; i < q.length; i++)
-					out.writeByte(q[i]); // value(s)
-				for (int i = q.length; i < dataLength; i++)
+				for (char c : q) {
+					out.writeByte(c); // value(s)
+				}
+				for (int i = q.length; i < dataLength; i++) {
 					out.writeByte(0); // padding
+				}
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++)
-					extraOut.writeByte(q[i]); // values
+				for (char c : q) {
+					extraOut.writeByte(c); // values
+				}
 				extraOut.writeByte(0); // concluding NULL byte
 			}
-		}
-		else if (value instanceof int[]) { // SHORT
+		} else if (value instanceof int[]) { // SHORT
 			final int[] q = (int[]) value;
 			out.writeShort(IFDType.SHORT.getCode()); // type
 			writeIntValue(out, q.length);
 			if (q.length <= dataLength / 2) {
-				for (int i = 0; i < q.length; i++) {
-					out.writeShort(q[i]); // value(s)
+				for (int j : q) {
+					out.writeShort(j); // value(s)
 				}
 				for (int i = q.length; i < dataLength / 2; i++) {
 					out.writeShort(0); // padding
@@ -718,14 +750,34 @@ public class TiffSaver extends AbstractContextual {
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++) {
-					extraOut.writeShort(q[i]); // values
+				for (int j : q) {
+					extraOut.writeShort(j); // values
 				}
 			}
-		}
-		else if (value instanceof long[]) { // LONG
+		} else if (value instanceof long[]) { // LONG
 			final long[] q = (long[]) value;
-
+			if (AVOID_LONG8_FOR_ACTUAL_32_BITS && q.length == 1 && bigTiff) {
+				// - note: inside TIFF, long[1] is saved in the same way as Long; we have a difference in Java only
+				final long v = q[0];
+				if (v == (int) v) {
+					// - it is very probable for the following tags
+					switch (tag) {
+						case IFD.IMAGE_WIDTH,
+								IFD.IMAGE_LENGTH,
+								IFD.TILE_WIDTH,
+								IFD.TILE_LENGTH,
+								IFD.ROWS_PER_STRIP,
+								IFD.NEW_SUBFILE_TYPE -> {
+							out.writeShort(IFDType.LONG.getCode());
+							out.writeLong(1L);
+							out.writeInt((int) v);
+							out.writeInt(0);
+							// - 4 bytes of padding until full length 20 bytes
+							return;
+						}
+					}
+				}
+			}
 			final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG
 				.getCode();
 			out.writeShort(type);
@@ -743,12 +795,11 @@ public class TiffSaver extends AbstractContextual {
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++) {
-					writeIntValue(extraOut, q[i]);
+				for (long l : q) {
+					writeIntValue(extraOut, l);
 				}
 			}
-		}
-		else if (value instanceof TiffRational[]) { // RATIONAL
+		} else if (value instanceof TiffRational[]) { // RATIONAL
 			final TiffRational[] q = (TiffRational[]) value;
 			out.writeShort(IFDType.RATIONAL.getCode()); // type
 			writeIntValue(out, q.length);
@@ -758,13 +809,12 @@ public class TiffSaver extends AbstractContextual {
 			}
 			else {
 				writeIntValue(out, offset + extraOut.length());
-				for (int i = 0; i < q.length; i++) {
-					extraOut.writeInt((int) q[i].getNumerator());
-					extraOut.writeInt((int) q[i].getDenominator());
+				for (TiffRational tiffRational : q) {
+					extraOut.writeInt((int) tiffRational.getNumerator());
+					extraOut.writeInt((int) tiffRational.getDenominator());
 				}
 			}
-		}
-		else if (value instanceof float[]) { // FLOAT
+		} else if (value instanceof float[]) { // FLOAT
 			final float[] q = (float[]) value;
 			out.writeShort(IFDType.FLOAT.getCode()); // type
 			writeIntValue(out, q.length);
@@ -782,8 +832,7 @@ public class TiffSaver extends AbstractContextual {
 					extraOut.writeFloat(q[i]); // values
 				}
 			}
-		}
-		else if (value instanceof double[]) { // DOUBLE
+		} else if (value instanceof double[]) { // DOUBLE
 			final double[] q = (double[]) value;
 			out.writeShort(IFDType.DOUBLE.getCode()); // type
 			writeIntValue(out, q.length);
@@ -791,8 +840,7 @@ public class TiffSaver extends AbstractContextual {
 			for (final double doubleVal : q) {
 				extraOut.writeDouble(doubleVal); // values
 			}
-		}
-		else {
+		} else {
 			throw new FormatException("Unknown IFD value type (" + value.getClass()
 				.getName() + "): " + value);
 		}
@@ -940,6 +988,11 @@ public class TiffSaver extends AbstractContextual {
 		final Object value) throws FormatException, IOException
 	{
 		overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
+	}
+
+	@Override
+	public void close() throws IOException {
+		out.close();
 	}
 
 	// -- Helper methods --
