@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff;
+package net.algart.scifio.tiff.experimental;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;

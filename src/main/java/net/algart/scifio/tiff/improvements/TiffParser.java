@@ -94,6 +94,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
+    private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
     private static final boolean BUILT_IN_TIMING = LOGGABLE_DEBUG && getBooleanProperty(
             "net.algart.matrices.libs.scifio.tiff.builtInTiming");
 
@@ -656,7 +657,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     public void fillInIFD(final IFD ifd) throws IOException {
         final HashSet<TiffIFDEntry> entries = new HashSet<>();
-        for (final Object key : ifd.keySet()) {
+        for (final Integer key : ifd.keySet()) {
             if (ifd.get(key) instanceof TiffIFDEntry) {
                 entries.add((TiffIFDEntry) ifd.get(key));
             }
@@ -677,7 +678,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int count = entry.getValueCount();
         final long offset = entry.getValueOffset();
 
-        log.trace("Reading entry " + entry.getTag() + " from " + offset +
+        LOG.log(System.Logger.Level.TRACE, () -> "Reading entry " + entry.getTag() + " from " + offset +
                 "; type=" + type + ", count=" + count);
 
         if (offset >= in.length()) {
@@ -847,8 +848,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final long numTileCols = ifd.getTilesPerRow();
 
-        final int pixel = ifd.getBytesPerSample()[0];
-        final int effectiveChannels = planarConfig == 2 ? 1 : samplesPerPixel;
+        final int bytesPerSample = getBytesPerSampleBasedOnBits(ifd);
+        final int effectiveChannels = planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
 
         final long[] stripByteCounts = ifd.getStripByteCounts();
         final long[] rowsPerStrip = ifd.getRowsPerStrip();
@@ -858,8 +859,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (equalStrips) {
             countIndex = 0;
         }
-        if (stripByteCounts[countIndex] == (rowsPerStrip[0] * tileWidth) && pixel > 1) {
-            stripByteCounts[countIndex] *= pixel;
+        if (stripByteCounts[countIndex] == (rowsPerStrip[0] * tileWidth) && bytesPerSample > 1) {
+            stripByteCounts[countIndex] *= bytesPerSample;
         }
 
         long stripOffset = 0;
@@ -875,7 +876,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             nStrips = stripOffsets.length;
         }
 
-        assert size == (int) (tileWidth * tileLength * pixel * effectiveChannels);
+        assert size == (int) (tileWidth * tileLength * bytesPerSample * effectiveChannels);
 
         if (stripByteCounts[countIndex] == 0 || stripOffset >= in.length()) {
             return samples;
@@ -896,7 +897,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
             System.arraycopy(jpegTable, 0, q, 0, jpegTable.length - 2);
             System.arraycopy(tile, 2, q, jpegTable.length - 2, tile.length - 2);
             tile = compression.decompress(scifio.codec(), q, codecOptions);
-        } else tile = compression.decompress(scifio.codec(), tile, codecOptions);
+        } else {
+            tile = compression.decompress(scifio.codec(), tile, codecOptions);
+        }
         scifio.tiff().undifference(tile, ifd);
         unpackBytes(samples, 0, tile, ifd);
 
@@ -904,18 +907,18 @@ public class TiffParser extends AbstractContextual implements Closeable {
             final int channel = (int) (row % nStrips);
             if (channel < ifd.getBytesPerSample().length) {
                 final int realBytes = ifd.getBytesPerSample()[channel];
-                if (realBytes != pixel) {
+                if (realBytes != bytesPerSample) {
                     // re-pack pixels to account for differing bits per sample
 
                     final boolean littleEndian = ifd.isLittleEndian();
-                    final int[] newSamples = new int[samples.length / pixel];
+                    final int[] newSamples = new int[samples.length / bytesPerSample];
                     for (int i = 0; i < newSamples.length; i++) {
                         newSamples[i] = Bytes.toInt(samples, i * realBytes, realBytes,
                                 littleEndian);
                     }
 
                     for (int i = 0; i < newSamples.length; i++) {
-                        Bytes.unpack(newSamples[i], samples, i * pixel, pixel, littleEndian);
+                        Bytes.unpack(newSamples[i], samples, i * bytesPerSample, bytesPerSample, littleEndian);
                     }
                 }
             }
@@ -1358,7 +1361,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * per sample, photometric interpretation and color map IFD directory entry
      * values, and the specified byte ordering. No error checking is performed.
      */
-    public void unpackBytes(final byte[] samples, final int startIndex,
+    public static void unpackBytes(final byte[] samples, final int startIndex,
                              final byte[] bytes, final IFD ifd) throws FormatException {
         final boolean planar = ifd.getPlanarConfiguration() == 2;
 
@@ -1377,9 +1380,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
             sampleCount /= nChannels;
         }
 
-        log.trace("unpacking " + sampleCount + " samples (startIndex=" +
-                startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
-                "; numBytes=" + bytes.length + ")");
+        if (LOGGABLE_TRACE) {
+            LOG.log(System.Logger.Level.TRACE, "unpacking " + sampleCount + " samples (startIndex=" +
+                    startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
+                    "; numBytes=" + bytes.length + ")");
+        }
 
         final long imageWidth = ifd.getImageWidth();
         final long imageHeight = ifd.getImageLength();
@@ -1396,10 +1401,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final BitBuffer bb = new BitBuffer(bytes);
 
-        // Hyper optimisation that takes any 8-bit or 16-bit data, where there
-        // is
-        // only one channel, the source byte buffer's size is less than or equal
-        // to
+        // Hyper optimisation that takes any 8-bit or 16-bit data, where there is
+        // only one channel, the source byte buffer's size is less than or equal to
         // that of the destination buffer and for which no special unpacking is
         // required and performs a simple array copy. Over the course of reading
         // semi-large datasets this can save **billions** of method calls.

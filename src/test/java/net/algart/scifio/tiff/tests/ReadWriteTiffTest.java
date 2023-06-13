@@ -29,10 +29,10 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffSaver;
-import net.algart.scifio.tiff.SequentialTiffWriter;
+import net.algart.scifio.tiff.experimental.ExtendedTiffSaver;
+import net.algart.scifio.tiff.experimental.SequentialTiffWriter;
 import net.algart.scifio.tiff.improvements.ExtendedIFD;
 import net.algart.scifio.tiff.improvements.TiffParser;
-import net.algart.scifio.tiff.improvements.ExtendedTiffSaver;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 

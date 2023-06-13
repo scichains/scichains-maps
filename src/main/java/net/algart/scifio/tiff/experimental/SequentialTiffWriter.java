@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff;
+package net.algart.scifio.tiff.experimental;
 
 import io.scif.FormatException;
 import io.scif.codec.CodecOptions;
@@ -30,7 +30,6 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.formats.tiff.TiffSaver;
-import net.algart.scifio.tiff.improvements.ExtendedTiffSaver;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.Location;
