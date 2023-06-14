@@ -79,8 +79,6 @@ public class ReadWriteTiffTest {
                 Integer.MAX_VALUE;
         final Path targetLowLevelFile = targetFile.getParent().resolve("raw_for_comparison.tiff");
 
-        TiffInfo.showTiffInfo(sourceFile);
-
         System.out.printf("Opening %s...%n", sourceFile);
 
         final SCIFIO scifio = new SCIFIO();
@@ -105,7 +103,7 @@ public class ReadWriteTiffTest {
             lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
             for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                 final ExtendedIFD ifd = ExtendedIFD.extend(ifdList.get(ifdIndex));
-                System.out.printf("Copying #%d/%d:%n%s", ifdIndex, ifdList.size(), ifd);
+                System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), ifd);
                 final int w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
                 final int h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
                 final int tileSizeX = ifd.getTileSizeX();
@@ -120,7 +118,7 @@ public class ReadWriteTiffTest {
                     bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
                 }
                 boolean last = ifdIndex == ifdList.size() - 1;
-                final IFD newIfd = new ExtendedIFD( ifd, null);
+                final IFD newIfd = ExtendedIFD.extend(ifd);
 
 //                newIfd.remove(IFD.JPEG_TABLES);
                 if (singleStrip) {

@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
 
+import net.algart.scifio.tiff.improvements.ExtendedIFD;
 import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
@@ -767,6 +768,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 								IFD.IMAGE_LENGTH,
 								IFD.TILE_WIDTH,
 								IFD.TILE_LENGTH,
+								ExtendedIFD.IMAGE_DEPTH,
 								IFD.ROWS_PER_STRIP,
 								IFD.NEW_SUBFILE_TYPE -> {
 							out.writeShort(IFDType.LONG.getCode());
@@ -881,7 +883,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			throw new FormatException("Invalid TIFF header");
 		}
 
-		final boolean little = valid.booleanValue();
+		final boolean little = valid;
 		final boolean bigTiff = parser.isBigTiff();
 
 		setLittleEndian(little);

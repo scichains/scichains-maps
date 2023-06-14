@@ -243,14 +243,14 @@ public class ExtendedIFD extends IFD {
                 sb.append(String.format("%n"));
             }
             final Integer tag = entry.getKey();
-            final Object value = entry.getValue();
+            final Object v = entry.getValue();
             Object additional = null;
             try {
                 switch (tag) {
                     case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation();
                     case IFD.COMPRESSION -> additional = getCompression();
                     case IFD.PLANAR_CONFIGURATION -> {
-                        if (value instanceof Number number) {
+                        if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED -> additional = "chunky";
                                 case PLANAR_CONFIG_SEPARATE -> additional = "planar";
@@ -258,7 +258,7 @@ public class ExtendedIFD extends IFD {
                         }
                     }
                     case IFD.SAMPLE_FORMAT -> {
-                        if (value instanceof Number number) {
+                        if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case SAMPLE_FORMAT_UINT -> additional = "unsigned integer";
                                 case SAMPLE_FORMAT_INT -> additional = "signed integer";
@@ -274,18 +274,29 @@ public class ExtendedIFD extends IFD {
                 additional = e;
             }
             sb.append("    ").append(ifdTagName(tag)).append(" = ");
-            if (value != null && value.getClass().isArray()) {
-                final int len = Array.getLength(value);
-                sb.append(value.getClass().getComponentType().getSimpleName()).append("[").append(len).append("]");
-                if (len <= 16) {
-                    sb.append(" {").append(Array.get(value, 0));
-                    for (int k = 1; k < len; k++) {
-                        sb.append("; ").append(Array.get(value, k));
+            if (v != null && v.getClass().isArray()) {
+                final int len = Array.getLength(v);
+                sb.append(v.getClass().getComponentType().getSimpleName()).append("[").append(len).append("]");
+                sb.append(" {");
+                final int limit = v instanceof byte[] || v instanceof short[] || v instanceof char[] ? 30 : 10;
+                final int mask = v instanceof byte[] ? 0xFF : v instanceof short[] ? 0xFFFF : 0;
+                for (int k = 0; k < len; k++) {
+                    if (k >= limit) {
+                        sb.append("...");
+                        break;
                     }
-                    sb.append("}");
+                    if (k > 0) {
+                        sb.append(", ");
+                    }
+                    Object o = Array.get(v, k);
+                    if (mask != 0) {
+                        o = ((Number) o).intValue() & mask;
+                    }
+                    sb.append(o);
                 }
+                sb.append("}");
             } else {
-                sb.append(value);
+                sb.append(v);
             }
             if (types != null) {
                 final IFDType ifdType = types.get(tag);

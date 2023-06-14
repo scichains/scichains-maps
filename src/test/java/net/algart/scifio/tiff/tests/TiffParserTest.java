@@ -67,12 +67,12 @@ public class TiffParserTest {
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
             System.out.println("    " + TiffParserTest.class.getName() + " [-pureScifio] [-caching] " +
-                    "some_tiff_file ifdIndex result.png [x y width height [number-of-tests]]");
+                    "some_tiff_file result.png ifdIndex [x y width height [number-of-tests]]");
             return;
         }
         final Path tiffFile = Paths.get(args[startArgIndex++]);
-        int ifdIndex = Integer.parseInt(args[startArgIndex++]);
         final File resultFile = new File(args[startArgIndex++]);
+        int ifdIndex = Integer.parseInt(args[startArgIndex++]);
         final int x = args.length <= startArgIndex ? 0 : Integer.parseInt(args[startArgIndex]);
         final int y = args.length <= ++startArgIndex ? 0 : Integer.parseInt(args[startArgIndex]);
         int w = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);

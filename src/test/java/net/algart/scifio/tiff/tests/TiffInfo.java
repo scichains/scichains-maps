@@ -41,23 +41,29 @@ public class TiffInfo {
     public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffInfo.class.getName() + " some_tiff_file.tif");
+            System.out.println("    " + TiffInfo.class.getName() + " some_tiff_file.tif [firstIFDIndex lastIFDIndex]");
             return;
         }
         final String fileName = args[0];
+        final int firstIFDIndex = args.length > 1 ? Integer.parseInt(args[1]) : 0;
+        final int lastIFDIndex = args.length > 2 ? Integer.parseInt(args[2]) : Integer.MAX_VALUE;
         if (fileName.equals("*")) {
             final File[] files = new File(".").listFiles();
             assert files != null;
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {
-                showTiffInfo(f.toPath());
+                showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex);
             }
         } else {
-            showTiffInfo(Paths.get(fileName));
+            showTiffInfo(Paths.get(fileName), firstIFDIndex, lastIFDIndex);
         }
     }
 
     public static void showTiffInfo(Path tiffFile) throws IOException {
+        showTiffInfo(tiffFile, 0, Integer.MAX_VALUE);
+    }
+
+    public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
         try (Context context = new SCIFIO().getContext()) {
             TiffParser parser = new TiffParser(context, tiffFile);
             IFDList ifdList = parser.getIFDs();
@@ -68,8 +74,10 @@ public class TiffInfo {
                     parser.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
                     parser.getStream().isLittleEndian() ? "little" : "big");
             for (int k = 0; k < ifdCount; k++) {
-                final IFD ifd = ifdList.get(k);
-                System.out.println(ifdInfo(ifd, k, ifdCount));
+                if (k >= firstIFDIndex && k <= lastIFDIndex) {
+                    final IFD ifd = ifdList.get(k);
+                    System.out.println(ifdInfo(ifd, k, ifdCount));
+                }
             }
             parser.close();
             System.out.println();
