@@ -28,12 +28,11 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDType;
+import io.scif.util.FormatTools;
 import org.scijava.log.LogService;
 
 import java.lang.reflect.Array;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeMap;
+import java.util.*;
 
 //!! Better analog of IFD (should be merged with the main IFD)
 public class ExtendedIFD extends IFD {
@@ -180,68 +179,113 @@ public class ExtendedIFD extends IFD {
     }
 
     //!! Better analog of IFD.getTilesPerRow() (but it makes sense to change result type to "int")
+    @Override
     public long getTilesPerRow() throws FormatException {
         return getTilesPerRow(getTileSizeX());
     }
 
-    public int getTilesPerRow(int tileWidth) throws FormatException {
-        if (tileWidth < 0) {
-            throw new IllegalArgumentException("Negative tile width = " + tileWidth);
+    public int getTilesPerRow(int tileSizeX) throws FormatException {
+        if (tileSizeX < 0) {
+            throw new IllegalArgumentException("Negative tile width = " + tileSizeX);
         }
         final long imageWidth = getImageWidth();
         if (imageWidth < 0) {
             throw new IllegalArgumentException("Negative image width = " + imageWidth);
         }
         assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        if (tileWidth == 0) {
+        if (tileSizeX == 0) {
             return 0;
             // - it is better than throwing exception in this case (probably it is result
             // of getTileWidth() logic in a strange case getImageWidth()==0)
         }
-        long n = imageWidth / tileWidth;
-        if (n * tileWidth < imageWidth) {
-            n++;
-        }
-        assert n <= Integer.MAX_VALUE : "ceil(" + imageWidth + "/" + tileWidth + ") > Integer.MAX_VALUE";
+        final long n = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
+        assert n <= Integer.MAX_VALUE : "ceil(" + imageWidth + "/" + tileSizeX + ") > Integer.MAX_VALUE";
         return (int) n;
     }
 
     //!! Better analog of IFD.getTilesPerColumn() (but it makes sense to change result type to "int")
+    @Override
     public long getTilesPerColumn() throws FormatException {
         return getTilesPerColumn(getTileSizeY());
     }
 
-    public int getTilesPerColumn(int tileHeight) throws FormatException {
-        if (tileHeight < 0) {
-            throw new IllegalArgumentException("Negative tile height = " + tileHeight);
+    public int getTilesPerColumn(int tileSizeY) throws FormatException {
+        if (tileSizeY < 0) {
+            throw new IllegalArgumentException("Negative tile height = " + tileSizeY);
         }
         final long imageLength = getImageLength();
         if (imageLength < 0) {
             throw new IllegalArgumentException("Negative image height = " + imageLength);
         }
         assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
-        if (tileHeight == 0) {
+        if (tileSizeY == 0) {
             return 0;
             // - it is better than throwing exception in this case (probably it is result
             // of getTileLength() logic in a strange case getImageLength()==0 or getRowsPerStrip()=={0,0,...})
         }
-        long n = imageLength / tileHeight;
-        if (n * tileHeight < imageLength) {
-            n++;
-        }
-        assert n <= Integer.MAX_VALUE : "ceil(" + imageLength + "/" + tileHeight + ") > Integer.MAX_VALUE";
+        final long n = (imageLength + (long) tileSizeY - 1) / tileSizeY;
+        assert n <= Integer.MAX_VALUE : "ceil(" + imageLength + "/" + tileSizeY + ") > Integer.MAX_VALUE";
         return (int) n;
+    }
+
+    public static Class<?> javaElementType(int ifdPixelType) throws FormatException {
+        return switch (ifdPixelType) {
+            case FormatTools.INT8, FormatTools.UINT8 -> byte.class;
+            case FormatTools.INT16, FormatTools.UINT16 -> short.class;
+            case FormatTools.INT32, FormatTools.UINT32 -> int.class;
+            case FormatTools.FLOAT -> float.class;
+            case FormatTools.DOUBLE -> double.class;
+            default -> throw new FormatException("Unknown pixel type: " + ifdPixelType);
+        };
     }
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder();
+        final StringBuilder sb = new StringBuilder("IFD");
+        try {
+            final long imageWidth = getImageWidth();
+            final long imageLength = getImageLength();
+            final int tileSizeX = getTileSizeX();
+            final int tileSizeY = getTileSizeY();
+            final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
+            final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
+            sb.append(" %s[%dx%d], ".formatted(
+                    javaElementType(getPixelType()).getSimpleName(),
+                    imageWidth, imageLength));
+            if (isTiled()) {
+                sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
+                        tilesPerRow,
+                        tilesPerColumn,
+                        tilesPerRow * tilesPerColumn,
+                        tileSizeX,
+                        tileSizeY,
+                        remainderToString(imageWidth, tileSizeX),
+                        remainderToString(imageLength, tileSizeY)));
+            } else {
+                sb.append("%d strips per %d lines (last strip %s, virtual \"tiles\" %dx%d)".formatted(
+                        tilesPerColumn,
+                        tileSizeY,
+                        imageLength == tilesPerColumn * tileSizeY ?
+                                "full" :
+                                remainderToString(imageLength, tileSizeY) + " lines",
+                        tileSizeX,
+                        tileSizeY));
+            }
+        } catch (Exception e) {
+            sb.append(" [cannot detect sizes information: ").append(e.getMessage()).append("]");
+        }
+        try {
+            sb.append(isContiguouslyChunked() ? ", chunked" : ", planar");
+        } catch (Exception e) {
+            sb.append(" [").append(e.getMessage()).append("]");
+        }
+        if (offset != null) {
+            sb.append(" (offset %d=0x%X)".formatted(offset, offset));
+        }
         final Map<Integer, IFDType> types = this.types;
         final Map<Integer, Object> sortedIFD = new TreeMap<>(this);
         for (Map.Entry<Integer, Object> entry : sortedIFD.entrySet()) {
-            if (!sb.isEmpty()) {
-                sb.append(String.format("%n"));
-            }
+            sb.append(String.format("%n"));
             final Integer tag = entry.getKey();
             final Object v = entry.getValue();
             Object additional = null;
@@ -270,7 +314,7 @@ public class ExtendedIFD extends IFD {
                         }
                     }
                 }
-            } catch (FormatException e) {
+            } catch (Exception e) {
                 additional = e;
             }
             sb.append("    ").append(ifdTagName(tag)).append(" = ");
@@ -321,5 +365,14 @@ public class ExtendedIFD extends IFD {
     public static String ifdTagName(int tag) {
         final String name = IFDFriendlyNames.IFD_TAG_NAMES.get(tag);
         return "%s (%d or 0x%X)".formatted(name == null ? "Unknown tag" : name, tag, tag);
+    }
+
+    private static String remainderToString(long a, long b) {
+        long r = a / b;
+        if (r * b == a) {
+            return String.valueOf(b);
+        } else {
+            return String.valueOf(a - r * b);
+        }
     }
 }

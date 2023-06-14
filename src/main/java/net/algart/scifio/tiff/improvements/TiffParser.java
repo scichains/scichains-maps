@@ -1540,26 +1540,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return offset;
     }
 
-    public static Class<?> javaElementType(int ifdPixelType) throws FormatException {
-        return switch (ifdPixelType) {
-            case FormatTools.INT8, FormatTools.UINT8 -> byte.class;
-            case FormatTools.INT16, FormatTools.UINT16 -> short.class;
-            case FormatTools.INT32, FormatTools.UINT32 -> int.class;
-            case FormatTools.FLOAT -> float.class;
-            case FormatTools.DOUBLE -> double.class;
-            default -> throw new FormatException("Unknown pixel type: " + ifdPixelType);
-        };
-    }
-
-    public static Optional<Class<?>> optionalElementType(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
-        try {
-            return Optional.of(javaElementType(ifd.getPixelType()));
-        } catch (FormatException e) {
-            return Optional.empty();
-        }
-    }
-
     public static int getBytesPerSampleBasedOnType(IFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         final int pixelType = ifd.getPixelType();
@@ -1847,6 +1827,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     " = " + product + " >= 2^31" + postfix.get());
         }
         return (int) result;
+    }
+
+    private static Optional<Class<?>> optionalElementType(IFD ifd) {
+        Objects.requireNonNull(ifd, "Null IFD");
+        try {
+            return Optional.of(ExtendedIFD.javaElementType(ifd.getPixelType()));
+        } catch (FormatException e) {
+            return Optional.empty();
+        }
     }
 
     private static boolean getBooleanProperty(String propertyName) {

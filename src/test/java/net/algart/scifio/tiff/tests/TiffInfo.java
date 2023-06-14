@@ -86,27 +86,6 @@ public class TiffInfo {
 
     public static String ifdInfo(IFD ifd, int ifdIndex, int ifdCount) {
         Long offset = ifd instanceof ExtendedIFD extendedIFD ? extendedIFD.getOffset() : null;
-        try {
-            return "IFD #%d/%d%s %s[%dx%d], %s, %s:%n%s%n".formatted(
-                    ifdIndex, ifdCount,
-                    offset == null ?
-                            "" :
-                            " (offset %d=0x%X)".formatted(offset, offset),
-                    TiffParser.javaElementType(ifd.getPixelType()).getSimpleName(),
-                    ifd.getImageWidth(), ifd.getImageLength(),
-                    ifd.isTiled() ?
-                            "%dx%d=%d tiles".formatted(
-                                    ifd.getTilesPerRow(), ifd.getTilesPerColumn(),
-                                    ifd.getTilesPerRow() * ifd.getTilesPerColumn()) :
-                            "%d strips per %d lines (virtual \"tiles\" %dx%d)".formatted(
-                                    ifd.getTilesPerColumn(), ifd.getTileLength(),
-                                    ifd.getTileWidth(), ifd.getTileLength()),
-                    ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED ?
-                            "chunky" :
-                            "planar",
-                    ifd.toString());
-        } catch (FormatException e) {
-            return " IFD #%d/%d: parsing error! %s".formatted(ifdIndex, ifdCount, e.getMessage());
-        }
+        return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ExtendedIFD.extend(ifd));
     }
 }

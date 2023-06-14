@@ -39,6 +39,7 @@ import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSImageDescription;
+import net.algart.scifio.tiff.improvements.ExtendedIFD;
 import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
 
@@ -133,7 +134,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (bandCount <= 0) {
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
             }
-            this.elementType = TiffParser.javaElementType(ifd0.getPixelType());
+            this.elementType = ExtendedIFD.javaElementType(ifd0.getPixelType());
             final long imageDimX = ifd0.getImageWidth();
             final long imageDimY = ifd0.getImageLength();
             this.imageDescriptions = new ArrayList<SVSImageDescription>();
@@ -173,7 +174,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.combineWithWholeSlide = combineWithWholeSlideRequest
                     && ifdMacro != null
                     && geometrySupported
-                    && TiffParser.javaElementType(ifdMacro.getPixelType()) == elementType
+                    && ExtendedIFD.javaElementType(ifdMacro.getPixelType()) == elementType
                     && ifdMacro.getSamplesPerPixel() == bandCount;
             long levelDimX, levelDimY;
             if (combineWithWholeSlide) {
@@ -317,7 +318,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     }
                     break;
                 }
-                final Class<?> elementType = TiffParser.javaElementType(ifd.getPixelType());
+                final Class<?> elementType = ExtendedIFD.javaElementType(ifd.getPixelType());
                 if (elementType != this.elementType) {
                     throw new FormatException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""

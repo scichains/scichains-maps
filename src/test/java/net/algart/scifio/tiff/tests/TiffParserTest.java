@@ -66,7 +66,7 @@ public class TiffParserTest {
 
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffParserTest.class.getName() + " [-pureScifio] [-caching] " +
+            System.out.println("    " + TiffParserTest.class.getName() + " [-caching] " +
                     "some_tiff_file result.png ifdIndex [x y width height [number-of-tests]]");
             return;
         }
@@ -100,7 +100,6 @@ public class TiffParserTest {
             h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
         }
         final int bandCount = ifd.getSamplesPerPixel();
-        final int pixelType = ifd.getPixelType();
 
         Object array = null;
         for (int test = 1; test <= numberOfTests; test++) {
