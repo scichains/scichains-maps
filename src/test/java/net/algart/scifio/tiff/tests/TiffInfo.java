@@ -47,8 +47,8 @@ public class TiffInfo {
         final String fileName = args[0];
         final int firstIFDIndex = args.length > 1 ? Integer.parseInt(args[1]) : 0;
         final int lastIFDIndex = args.length > 2 ? Integer.parseInt(args[2]) : Integer.MAX_VALUE;
-        if (fileName.equals("*")) {
-            final File[] files = new File(".").listFiles();
+        if (fileName.equals(".")) {
+            final File[] files = new File(".").listFiles(File::isFile);
             assert files != null;
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {

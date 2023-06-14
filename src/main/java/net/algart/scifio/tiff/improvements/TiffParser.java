@@ -887,9 +887,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.read(tile);
 
         codecOptions.maxBytes = Math.max(size, tile.length);
-        codecOptions.ycbcr = ifd
-                .getPhotometricInterpretation() == PhotoInterp.Y_CB_CR && ifd
-                .getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING) == 1 && ycbcrCorrection;
+        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
+        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
+        // see documentation on YCbCrSubSampling TIFF tag.
+        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
+        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
+        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+                && subSampleHorizontal == 1
+                && ycbcrCorrection;
 
         if (jpegTable != null) {
             final byte[] q = new byte[jpegTable.length + tile.length - 4];
