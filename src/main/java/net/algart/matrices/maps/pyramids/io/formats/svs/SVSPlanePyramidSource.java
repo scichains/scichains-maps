@@ -128,8 +128,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (ifdCount == 0) {
                 throw new FormatException("Empty IFD list");
             }
-            final IFD ifd0 = largeData.ifdList.get(0);
-            TiffParser.checkSizesArePositive(ifd0);
+            final ExtendedIFD ifd0 = ExtendedIFD.extend(largeData.ifdList.get(0));
+            ifd0.checkSizesArePositive();
             this.bandCount = ifd0.getSamplesPerPixel();
             if (bandCount <= 0) {
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
@@ -250,7 +250,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             long pyramidLevelDimY = imageDimY;
             for (int k = 1; k < ifdCount; k++) {
                 final int index = k;
-                final IFD ifd = largeData.ifdList.get(k);
+                final ExtendedIFD ifd = ExtendedIFD.extend(largeData.ifdList.get(k));
                 if (ifdClassifier.isSpecial(k)) {
                     LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                             "  SVS reader skips special IFD #%d/%d: %s, IFD compression method: %s",
@@ -259,7 +259,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             SVSIFDClassifier.compressionToString(ifd)));
                     continue;
                 }
-                TiffParser.checkSizesArePositive(ifd);
+                ifd.checkSizesArePositive();
                 final long newPyramidLevelDimX = ifd.getImageWidth();
                 final long newPyramidLevelDimY = ifd.getImageLength();
                 if (actualCompression == 0) {

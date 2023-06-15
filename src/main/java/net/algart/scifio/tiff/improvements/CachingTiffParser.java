@@ -80,7 +80,7 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    public byte[] getTile(IFD ifd, byte[] samples, int row, int col) throws FormatException, IOException {
+    public byte[] getTile(ExtendedIFD ifd, byte[] samples, int row, int col) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
             return getTileWithoutCache(ifd, samples, row, col);
         }
@@ -88,7 +88,8 @@ public class CachingTiffParser extends TiffParser {
     }
 
 
-    private byte[] getTileWithoutCache(IFD ifd, byte[] buf, int row, int col) throws FormatException, IOException {
+    private byte[] getTileWithoutCache(ExtendedIFD ifd, byte[] buf, int row, int col)
+            throws FormatException, IOException {
         return super.getTile(ifd, buf, row, col);
     }
 
@@ -128,7 +129,7 @@ public class CachingTiffParser extends TiffParser {
 
         public byte[] getData() throws FormatException, IOException {
             synchronized (onlyThisTileLock) {
-                final IFD ifd = tileIndex.ifd;
+                final var ifd = tileIndex.ifd;
                 final byte[] cachedData = cachedData();
                 if (cachedData != null) {
                     LOG.log(System.Logger.Level.TRACE, () -> "CACHED tile: " + tileIndex);
@@ -189,12 +190,12 @@ public class CachingTiffParser extends TiffParser {
      * usually we will not create new identical IFDs.
      */
     static final class TileIndex {
-        private final IFD ifd;
+        private final ExtendedIFD ifd;
         private final int ifdIdentity;
         private final int row;
         private final int col;
 
-        public TileIndex(IFD ifd, int row, int col) {
+        public TileIndex(ExtendedIFD ifd, int row, int col) {
             Objects.requireNonNull(ifd, "Null ifd");
             if (row < 0) {
                 throw new IllegalArgumentException("Negative row = " + row);

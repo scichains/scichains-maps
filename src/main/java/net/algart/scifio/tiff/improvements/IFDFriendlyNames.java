@@ -204,7 +204,11 @@ class IFDFriendlyNames {
                 "public static final int SUBJECT_DISTANCE_RANGE = 41996;",
 
                 "public static final int ICC_PROFILE = 34675;",
+                "public static final int MATTEING = 32995;",
+                "public static final int DATA_TYPE = 32996;",
                 "public static final int IMAGE_DEPTH = 32997;",
+                "public static final int TILE_DEPTH = 32998;",
+                "public static final int STO_NITS = 37439;",
         };
     }
 }

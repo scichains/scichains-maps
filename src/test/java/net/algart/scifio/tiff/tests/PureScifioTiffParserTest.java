@@ -67,7 +67,7 @@ public class PureScifioTiffParserTest {
         final int h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
         final int bandCount = ifd.getSamplesPerPixel();
 
-        System.out.printf("Reading data %dx%dx%d from IFD #%d/%d:%n%s",
+        System.out.printf("Reading data %dx%dx%d from IFD #%d/%d:%n%s%n",
                 w, h, bandCount, ifdIndex, ifDs.size(), ExtendedIFD.extend(ifd));
         final int pixelType = ifd.getPixelType();
         final int bytesPerBand = Math.max(1, FormatTools.getBytesPerPixel(pixelType));

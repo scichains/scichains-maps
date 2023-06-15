@@ -33,11 +33,17 @@ import org.scijava.log.LogService;
 
 import java.lang.reflect.Array;
 import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 //!! Better analog of IFD (should be merged with the main IFD)
 public class ExtendedIFD extends IFD {
     public static final int ICC_PROFILE = 34675;
+    public static final int MATTEING = 32995;
+    public static final int DATA_TYPE = 32996;
     public static final int IMAGE_DEPTH = 32997;
+    public static final int TILE_DEPTH = 32998;
+    public static final int STO_NITS = 37439;
 
     private final Long offset;
     private Map<Integer, IFDType> types = null;
@@ -228,6 +234,61 @@ public class ExtendedIFD extends IFD {
         return (int) n;
     }
 
+    public int getBytesPerSampleBasedOnType() throws FormatException {
+        final int pixelType = getPixelType();
+        return FormatTools.getBytesPerPixel(pixelType);
+    }
+
+    public int getBytesPerSampleBasedOnBits() throws FormatException {
+        final int[] bytesPerSample = getBytesPerSample();
+        final int result = bytesPerSample[0];
+        // - for example, if we have 5 bits R + 6 bits G + 4 bits B, it will be ceil(6/8) = 1 byte;
+        // usually the same for all components
+        checkDifferentBytesPerSample(bytesPerSample);
+        return result;
+    }
+
+    /**
+     * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
+     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
+     * This class does not require this condition, but it is a reasonable requirement for many applications.
+     *
+     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
+     */
+    public void checkSizesArePositive() throws FormatException {
+        long dimX = getImageWidth();
+        long dimY = getImageLength();
+        if (dimX <= 0 || dimY <= 0) {
+            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
+            // - important for some classes, processing IFD images, that cannot work with zero-size areas
+            // (for example, due to usage of AlgART IRectangularArea)
+        }
+        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
+        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
+    }
+
+    public int sizeOfIFDRegion(long sizeX, long sizeY) throws FormatException {
+        return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    public int sizeOfIFDRegionBasedOnBits(long sizeX, long sizeY) throws FormatException {
+        return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnBits(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    public int sizeOfIFDTileBasedOnBits() throws FormatException {
+        final int channels = isPlanarSeparated() ? 1 : getSamplesPerPixel();
+        // - if separate (RRR...GGG...BBB...),
+        // we have (for 3 channels) only 1 channel instead of 3, but number of tiles is greater:
+        // 3 * numTileRows effective rows of tiles instead of numTileRows
+        return checkedMul(getTileWidth(), getTileLength(), channels, getBytesPerSampleBasedOnBits(),
+                "tile width", "tile height", "effective number of channels", "bytes per sample",
+                () -> "Invalid TIFF tile sizes: ", () -> "");
+    }
+
     public static Class<?> javaElementType(int ifdPixelType) throws FormatException {
         return switch (ifdPixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> byte.class;
@@ -365,6 +426,62 @@ public class ExtendedIFD extends IFD {
     public static String ifdTagName(int tag) {
         final String name = IFDFriendlyNames.IFD_TAG_NAMES.get(tag);
         return "%s (%d or 0x%X)".formatted(name == null ? "Unknown tag" : name, tag, tag);
+    }
+
+    private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {
+        for (int k = 1; k < bytesPerSample.length; k++) {
+            if (bytesPerSample[k] != bytesPerSample[0]) {
+                throw new FormatException("Unsupported TIFF IFD: different number of bytes per samples: " +
+                        Arrays.toString(bytesPerSample) + ", based on the following number of bits: " +
+                        Arrays.toString(getBitsPerSample()));
+            }
+            // - note that LibTiff does not support different BitsPerSample values for different components;
+            // we do not support different number of BYTES for different components
+        }
+    }
+
+    static int checkedMul(
+            long v1, long v2, long v3, long v4,
+            String n1, String n2, String n3, String n4,
+            Supplier<String> prefix,
+            Supplier<String> postfix) {
+        return checkedMul(new long[]{v1, v2, v3, v4}, new String[]{n1, n2, n3, n4}, prefix, postfix);
+    }
+
+    static int checkedMul(
+            long[] values,
+            String[] names,
+            Supplier<String> prefix,
+            Supplier<String> postfix) {
+        Objects.requireNonNull(values);
+        Objects.requireNonNull(prefix);
+        Objects.requireNonNull(postfix);
+        Objects.requireNonNull(names);
+        if (values.length == 0) {
+            return 1;
+        }
+        long result = 1L;
+        double product = 1.0;
+        boolean overflow = false;
+        for (int i = 0; i < values.length; i++) {
+            long m = values[i];
+            if (m < 0) {
+                throw new IllegalArgumentException(prefix.get() + "negative " + names[i] + " = " + m + postfix.get());
+            }
+            result *= m;
+            product *= m;
+            if (result > Integer.MAX_VALUE) {
+                overflow = true;
+                // - we just indicate this, but still calculate the floating-point product
+            }
+        }
+        if (overflow) {
+            throw new IllegalArgumentException(prefix.get() + "too large " + String.join(" * ", names) +
+                    " = " + Arrays.stream(values).mapToObj(String::valueOf).collect(
+                    Collectors.joining(" * ")) +
+                    " = " + product + " >= 2^31" + postfix.get());
+        }
+        return (int) result;
     }
 
     private static String remainderToString(long a, long b) {
