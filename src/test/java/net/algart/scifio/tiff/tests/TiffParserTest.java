@@ -51,11 +51,6 @@ import java.util.Locale;
 public class TiffParserTest {
     private static final int MAX_IMAGE_DIM = 12000;
 
-    private static final int START_X = 0;
-    // - non-zero value allows to illustrate a bug in TiffParser.getSamples
-    private static final int START_Y = 0;
-
-
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
         boolean caching = false;
@@ -118,7 +113,7 @@ public class TiffParserTest {
         System.out.printf("Converting data to BufferedImage...%n");
         final BufferedImage image = arrayToImage(array, w, h, bandCount);
         System.out.printf("Saving result image into %s...%n", resultFile);
-        if (!ImageIO.write(image, "png", resultFile)) {
+        if (!ImageIO.write(image, extension(resultFile.getName()), resultFile)) {
             throw new IIOException("Cannot write " + resultFile);
         }
         context.close();
@@ -133,4 +128,11 @@ public class TiffParserTest {
         return SMat.valueOf(multiMatrix).toBufferedImage();
     }
 
+    public static String extension(String fileName) {
+        int p = fileName.lastIndexOf('.');
+        if (p == -1) {
+            return "bmp";
+        }
+        return fileName.substring(p + 1);
+    }
 }
