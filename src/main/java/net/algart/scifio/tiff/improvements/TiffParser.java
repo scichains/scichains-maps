@@ -177,7 +177,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if (checkHeader() != null) {
                 in.seek(fp);
             }
-        } catch (final IOException e) {
+        } catch (final IOException ignored) {
         }
     }
 
@@ -874,13 +874,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
             nStrips = stripOffsets.length;
         }
 
-
         if (stripByteCounts[countIndex] == 0 || stripOffset >= in.length()) {
             return samples;
         }
         byte[] tile = new byte[(int) stripByteCounts[countIndex]];
 
-        log.debug("Reading tile Length " + tile.length + " Offset " + stripOffset);
+//        log.debug("Reading tile Length " + tile.length + " Offset " + stripOffset);
         in.seek(stripOffset);
         in.read(tile);
 
