@@ -335,20 +335,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 		writeImage(buf, ifd, planeIndex, pixelType, x, y, w, h, last, null, false);
 	}
 
-	public void writeImage(final byte[] buf, final IFD ifd, final long planeIndex,
+	public void writeImage(final byte[] samples, final IFD ifd, final long planeIndex,
 		final int pixelType, final int x, final int y, final int w, final int h,
 		final boolean last, Integer nChannels, final boolean copyDirectly)
 		throws FormatException, IOException
 	{
-		log.debug("Attempting to write image.");
-		// b/c method is public should check parameters again
-		if (buf == null) {
-			throw new FormatException("Image data cannot be null");
-		}
-
-		if (ifd == null) {
-			throw new FormatException("IFD cannot be null");
-		}
+		Objects.requireNonNull(samples, "Null samples data");
+		Objects.requireNonNull(ifd, "Null IFD");
+		ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
+		// - will be used in getCompressionCodecOptions
 
 		// These operations are synchronized
 		TiffCompression compression;
@@ -359,7 +354,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
 			final int blockSize = w * h * bytesPerPixel;
 			if (nChannels == null) {
-				nChannels = buf.length / (w * h * bytesPerPixel);
+				nChannels = samples.length / (w * h * bytesPerPixel);
 			}
 			interleaved = ifd.getPlanarConfiguration() == 1;
 
@@ -391,7 +386,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 			// write pixel strips to output buffers
 			final int effectiveStrips = !interleaved ? nStrips / nChannels : nStrips;
 			if (effectiveStrips == 1 && copyDirectly) {
-				stripOut[0].write(buf);
+				stripOut[0].write(samples);
+				//TODO!! BUG! If !interleaved, it will be only 1st channel
 			}
 			else {
 				for (int strip = 0; strip < effectiveStrips; strip++) {
@@ -409,7 +405,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 											stripOut[strip].writeByte(0);
 										}
 										else {
-											stripOut[strip].writeByte(buf[off]);
+											stripOut[strip].writeByte(samples[off]);
 										}
 									}
 									else {
@@ -419,7 +415,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 										}
 										else {
 											stripOut[c * (nStrips / nChannels) + strip].writeByte(
-												buf[off]);
+												samples[off]);
 										}
 									}
 								}
@@ -603,9 +599,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 				toPrimitiveArray(byteCounts)));
 		}
 		writeIFD(ifd, last ? 0 : endFP);
-		if (log.isDebug()) {
-			log.debug("Offset after IFD write: " + out.offset());
-		}
+		// - rewriting IFD with already filled offsets (not too quick, but quick enough)
+		out.seek(endFP);
+		// - restoring correct file pointer at the end of tile
 	}
 
 	public void writeIFD(final IFD ifd, final long nextOffset)
@@ -618,7 +614,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 		if (ifd.containsKey(IFD.BIG_TIFF)) keyCount--;
 		if (ifd.containsKey(IFD.REUSE)) keyCount--;
 
-		final long fp = out.offset();
+		long fp = out.offset();
+		if ((fp & 0x1) != 0) {
+			// - Well-formed IFD requires even offsets
+			out.writeByte(0);
+			fp = out.offset();
+		}
 		final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
 			: TiffConstants.BYTES_PER_ENTRY;
 		final int ifdBytes = (bigTiff ? 16 : 6) + bytesPerEntry * keyCount;
@@ -851,6 +852,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 		}
 	}
 
+    /* These methods are never used and should be removed. No sense to optimize it.
 	public void overwriteLastIFDOffset(final DataHandle<Location> handle)
 		throws FormatException, IOException
 	{
@@ -861,14 +863,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 		writeIntValue(out, 0);
 	}
 
-	/**
+	/ **
 	 * Surgically overwrites an existing IFD value with the given one. This method
 	 * requires that the IFD directory entry already exist. It intelligently
 	 * updates the count field of the entry to match the new length. If the new
 	 * length is longer than the old length, it appends the new data to the end of
 	 * the file and updates the offset field; if not, or if the old data is
 	 * already at the end of the file, it overwrites the old data in place.
-	 */
+	 * /
 	public void overwriteIFDValue(final DataHandle<Location> raf, final int ifd,
 		final int tag, final Object value) throws FormatException, IOException
 	{
@@ -988,12 +990,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 		throw new FormatException("Tag not found (" + IFD.getIFDTagName(tag) + ")");
 	}
 
-	/** Convenience method for overwriting a file's first ImageDescription. */
+	/ ** Convenience method for overwriting a file's first ImageDescription. * /
 	public void overwriteComment(final DataHandle<Location> in,
 		final Object value) throws FormatException, IOException
 	{
 		overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
 	}
+
+ */
 
 	@Override
 	public void close() throws IOException {

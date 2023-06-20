@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDType;
+import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import org.scijava.log.LogService;
 
@@ -63,6 +64,15 @@ public class ExtendedIFD extends IFD {
         super(ifd, log);
         offset = ifd.offset;
         types = ifd.types;
+    }
+
+    public ExtendedIFD() {
+        this((LogService) null);
+    }
+
+    public ExtendedIFD(LogService log) {
+        super(log);
+        this.offset = null;
     }
 
     public ExtendedIFD(LogService log, long offset) {
@@ -121,6 +131,31 @@ public class ExtendedIFD extends IFD {
         return getFillOrder() == FillOrder.REVERSED;
     }
 
+    public long getImageWidth() throws FormatException {
+        final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
+        if (imageWidth <= 0) {
+            throw new IllegalArgumentException("Zero or negative image width = " + imageWidth);
+            // - impossible in a correct TIFF
+        }
+        if (imageWidth > Integer.MAX_VALUE) {
+            throw new FormatException("Very large image width " + imageWidth + " >= 2^31 is not supported");
+        }
+        return imageWidth;
+    }
+
+    public long getImageLength() throws FormatException {
+        final long imageLength = getIFDLongValue(IMAGE_LENGTH);
+        if (imageLength <= 0) {
+            throw new IllegalArgumentException("Zero or negative image height = " + imageLength);
+            // - impossible in a correct TIFF
+        }
+        if (imageLength > Integer.MAX_VALUE) {
+            throw new FormatException("Very large image height " + imageLength + " >= 2^31 is not supported");
+        }
+        return imageLength;
+    }
+
+
     //!! Better analog of IFD.getTileWidth()
     public int getTileSizeX() throws FormatException {
         final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH, 0);
@@ -136,10 +171,6 @@ public class ExtendedIFD extends IFD {
             return (int) tileWidth;
         }
         final long imageWidth = getImageWidth();
-        if (imageWidth < 0) {
-            throw new IllegalArgumentException("Negative image width = " + imageWidth);
-            // - impossible in a correct TIFF
-        }
         assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
         return (int) imageWidth;
     }
@@ -148,23 +179,17 @@ public class ExtendedIFD extends IFD {
     public int getTileSizeY() throws FormatException {
         final long tileLength = getIFDLongValue(IFD.TILE_LENGTH, 0);
         if (tileLength < 0) {
-            throw new IllegalArgumentException("Negative tile height = " + tileLength);
+            throw new FormatException("Negative tile height = " + tileLength);
             // - impossible in a correct TIFF
         }
         if (tileLength > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large tile height " + tileLength + " >= 2^31 is not supported");
+            throw new FormatException("Very large tile height " + tileLength + " >= 2^31 is not supported");
             // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
         }
         if (tileLength != 0) {
             return (int) tileLength;
         }
         final long imageLength = getImageLength();
-        if (imageLength < 0) {
-            // - we should check this before calling getRowsPerStrip()
-            // (because current version of getRowsPerStrip() does not check negative imageLength)
-            throw new IllegalArgumentException("Negative image height = " + imageLength);
-            // - impossible in a correct TIFF
-        }
         assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
         final long rowsPerStrip = getRowsPerStrip()[0];
         if (rowsPerStrip < 0) {
@@ -195,9 +220,6 @@ public class ExtendedIFD extends IFD {
             throw new IllegalArgumentException("Negative tile width = " + tileSizeX);
         }
         final long imageWidth = getImageWidth();
-        if (imageWidth < 0) {
-            throw new IllegalArgumentException("Negative image width = " + imageWidth);
-        }
         assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
         if (tileSizeX == 0) {
             return 0;
@@ -220,9 +242,6 @@ public class ExtendedIFD extends IFD {
             throw new IllegalArgumentException("Negative tile height = " + tileSizeY);
         }
         final long imageLength = getImageLength();
-        if (imageLength < 0) {
-            throw new IllegalArgumentException("Negative image height = " + imageLength);
-        }
         assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
         if (tileSizeY == 0) {
             return 0;
@@ -247,6 +266,36 @@ public class ExtendedIFD extends IFD {
         checkDifferentBytesPerSample(bytesPerSample);
         return result;
     }
+
+    public long getIFDLongValue(final int tag) throws FormatException {
+        final Number number = (Number) getIFDValue(tag, Number.class);
+        if (number == null) {
+            throw new FormatException("No tag " + tag + " in IFD");
+        }
+        return number.longValue();
+    }
+
+    public ExtendedIFD putImageSizes(int width, int height) {
+        if (width <= 0) {
+            throw new IllegalArgumentException("Zero or negative image width");
+        }
+        if (height <= 0) {
+            throw new IllegalArgumentException("Zero or negative image height");
+        }
+        putIFDValue(IFD.IMAGE_WIDTH, width);
+        putIFDValue(IFD.IMAGE_LENGTH, height);
+        return this;
+    }
+
+    public ExtendedIFD putCompression(TiffCompression compression) {
+        if (compression == null) {
+            remove(IFD.COMPRESSION);
+        } else {
+            putIFDValue(IFD.COMPRESSION, compression.getCode());
+        }
+        return this;
+    }
+
 
     /**
      * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
