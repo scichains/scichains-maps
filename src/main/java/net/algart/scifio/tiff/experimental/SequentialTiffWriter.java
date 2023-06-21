@@ -29,8 +29,10 @@ import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
+import io.scif.formats.tiff.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
+import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 
 import java.io.IOException;
@@ -51,7 +53,7 @@ public final class SequentialTiffWriter {
     private volatile String software;
 
     public SequentialTiffWriter(Context context, Path tiffFile) throws IOException {
-        this.saver = new TiffSaver(context, tiffFile);
+        this.saver = new TiffSaver(context, new FileLocation(tiffFile.toFile()));
         this.out = this.saver.getStream();
         this.saver.setWritingSequentially(true);
     }

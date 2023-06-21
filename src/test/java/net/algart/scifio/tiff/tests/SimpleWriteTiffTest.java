@@ -26,24 +26,18 @@ package net.algart.scifio.tiff.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.scifio.tiff.experimental.SequentialTiffWriter;
 import net.algart.scifio.tiff.experimental.TiffSaver;
 import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 public class SimpleWriteTiffTest {
     private final static int WIDTH = 501;
-    private final static int HEIGHT = 511;
+    private final static int HEIGHT = 512;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -63,6 +57,7 @@ public class SimpleWriteTiffTest {
             saver.setBigTiff(false);
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
+//            saver.setDefaultSingleStrip();
             saver.writeHeader();
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {

@@ -28,8 +28,8 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
+import io.scif.formats.tiff.TiffSaver;
 import net.algart.scifio.tiff.experimental.SequentialTiffWriter;
-import net.algart.scifio.tiff.experimental.TiffSaver;
 import net.algart.scifio.tiff.improvements.ExtendedIFD;
 import net.algart.scifio.tiff.improvements.TiffParser;
 import org.scijava.Context;
@@ -88,7 +88,7 @@ public class ReadWriteTiffTest {
             Files.deleteIfExists(targetFile);
             Files.deleteIfExists(targetLowLevelFile);
             // - strange, but necessary
-            TiffSaver saver = new TiffSaver(context, targetLowLevelFile);
+            TiffSaver saver = new TiffSaver(context, new FileLocation(targetLowLevelFile.toFile()));
             saver.setBigTiff(bigTiff);
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
