@@ -1099,9 +1099,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[]{getDefaultStripHeight()});
             }
         }
-        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
-            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
-        }
+//        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
+//            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
+//        }
     }
 
 }
