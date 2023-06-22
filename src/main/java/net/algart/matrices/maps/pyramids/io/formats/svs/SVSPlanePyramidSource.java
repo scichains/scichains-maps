@@ -32,15 +32,14 @@ import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
-import net.algart.scifio.tiff.improvements.CachingTiffParser;
+import net.algart.scifio.tiff.CachingTiffParser;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSImageDescription;
-import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.TiffParser;
+import net.algart.scifio.tiff.ExtendedIFD;
 import org.scijava.Context;
 
 import java.awt.*;

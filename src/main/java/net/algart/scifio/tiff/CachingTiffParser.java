@@ -22,10 +22,9 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.improvements;
+package net.algart.scifio.tiff;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.IFD;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.Location;

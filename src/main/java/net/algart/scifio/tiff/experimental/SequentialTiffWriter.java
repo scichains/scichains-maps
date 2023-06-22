@@ -35,10 +35,11 @@ import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public final class SequentialTiffWriter {
+public final class SequentialTiffWriter implements Closeable {
     private final TiffSaver saver;
     private final DataHandle<Location> out;
 

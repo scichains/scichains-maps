@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.improvements;
+package net.algart.scifio.tiff;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

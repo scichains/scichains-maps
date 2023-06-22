@@ -28,8 +28,8 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
-import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.TiffParser;
+import net.algart.scifio.tiff.ExtendedIFD;
+import net.algart.scifio.tiff.TiffParser;
 import org.scijava.Context;
 
 import java.io.File;

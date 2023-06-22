@@ -42,8 +42,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
 
-import net.algart.scifio.tiff.improvements.ExtendedIFD;
-import net.algart.scifio.tiff.improvements.TiffParser;
+import net.algart.scifio.tiff.ExtendedIFD;
+import net.algart.scifio.tiff.TiffParser;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -403,10 +403,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         boolean interleaved;
         ByteArrayOutputStream[] stripBuf;
         synchronized (this) {
-            final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
-            final int blockSize = w * h * bytesPerPixel;
+            final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
+            final int blockSize = w * h * bytesPerSample;
             if (nChannels == null) {
-                nChannels = samples.length / (w * h * bytesPerPixel);
+                nChannels = samples.length / (w * h * bytesPerSample);
             }
             interleaved = ifd.getPlanarConfiguration() == 1;
 
@@ -419,7 +419,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             tileHeight = (int) ifd.getTileLength();
             final int tilesPerRow = (int) ifd.getTilesPerRow();
             final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
-            int stripSize = rowsPerStrip * tileWidth * bytesPerPixel;
+            int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
             nStrips = ((w + tileWidth - 1) / tileWidth) * ((h + tileHeight - 1) /
                     tileHeight);
 
@@ -437,30 +437,30 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
             // write pixel strips to output buffers
             final int effectiveStrips = !interleaved ? nStrips / nChannels : nStrips;
-            if (effectiveStrips == 1 && copyDirectly) {
+            if (nStrips == 1 && copyDirectly) {
                 stripOut[0].write(samples);
-                //TODO!! BUG! If !interleaved, it will be only 1st channel
             } else {
                 for (int strip = 0; strip < effectiveStrips; strip++) {
                     final int xOffset = (strip % tilesPerRow) * tileWidth;
                     final int yOffset = (strip / tilesPerRow) * tileHeight;
                     for (int row = 0; row < tileHeight; row++) {
+                        int i = row + yOffset;
                         for (int col = 0; col < tileWidth; col++) {
-                            final int ndx = ((row + yOffset) * w + col + xOffset) *
-                                    bytesPerPixel;
+                            int j = col + xOffset;
+                            final int ndx = (i * w + j) * bytesPerSample;
                             for (int c = 0; c < nChannels; c++) {
                                 for (int n = 0; n < bps[c] / 8; n++) {
                                     if (interleaved) {
-                                        off = ndx * nChannels + c * bytesPerPixel + n;
-                                        if (row >= h || col >= w) {
+                                        off = ndx * nChannels + c * bytesPerSample + n;
+                                        if (i >= h || j >= w) {
                                             stripOut[strip].writeByte(0);
                                         } else {
                                             stripOut[strip].writeByte(samples[off]);
                                         }
                                     } else {
                                         off = c * blockSize + ndx + n;
-                                        if (row >= h || col >= w) {
-                                            stripOut[strip].writeByte(0);
+                                        if (i >= h || j >= w) {
+                                            stripOut[c * (nStrips / nChannels) + strip].writeByte(0);
                                         } else {
                                             stripOut[c * (nStrips / nChannels) + strip].writeByte(
                                                     samples[off]);
@@ -622,7 +622,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
             ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
         }
-        final long endFP = out.offset();
+        long endFP = out.offset();
+        if ((endFP & 0x1) != 0) {
+            out.writeByte(0);
+            endFP = out.offset();
+            // - Well-formed IFD requires even offsets
+        }
         if (log.isDebug()) {
             log.debug("Offset before IFD write: " + out.offset() + " Seeking to: " +
                     fp);
@@ -650,11 +655,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (ifd.containsKey(IFD.BIG_TIFF)) keyCount--;
         if (ifd.containsKey(IFD.REUSE)) keyCount--;
 
-        long fp = out.offset();
+        final long fp = out.offset();
         if ((fp & 0x1) != 0) {
-            // - Well-formed IFD requires even offsets
-            out.writeByte(0);
-            fp = out.offset();
+            throw new FormatException("Attempt to write IFD at odd offset " + fp + " is prohibited for valid TIFF");
         }
         final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
                 : TiffConstants.BYTES_PER_ENTRY;

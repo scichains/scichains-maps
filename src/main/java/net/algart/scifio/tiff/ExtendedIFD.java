@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.improvements;
+package net.algart.scifio.tiff;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
@@ -296,7 +296,6 @@ public class ExtendedIFD extends IFD {
         return this;
     }
 
-
     /**
      * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
      * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
@@ -407,7 +406,7 @@ public class ExtendedIFD extends IFD {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED -> additional = "chunky";
-                                case PLANAR_CONFIG_SEPARATE -> additional = "planar";
+                                case PLANAR_CONFIG_SEPARATE -> additional = "rarely-used planar";
                             }
                         }
                     }

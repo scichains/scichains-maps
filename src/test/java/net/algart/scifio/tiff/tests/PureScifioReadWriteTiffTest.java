@@ -75,7 +75,7 @@ public class PureScifioReadWriteTiffTest {
                         * ifd.getSamplesPerPixel() * FormatTools.getBytesPerPixel(ifd.getPixelType())];
                 parser.getSamples(ifd, bytes, 0, 0, w, h);
 //                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, w * h);
-                bytes = net.algart.scifio.tiff.improvements.TiffParser.interleaveSamples(
+                bytes = net.algart.scifio.tiff.TiffParser.interleaveSamples(
                         ifd, bytes, w * h);
                 boolean last = ifdIndex == ifdList.size() - 1;
                 final IFD newIfd = removeUndesirableTags(ifd);
