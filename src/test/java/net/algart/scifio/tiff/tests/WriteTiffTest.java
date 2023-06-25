@@ -28,7 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.scifio.tiff.experimental.TiffSaver;
+import net.algart.scifio.tiff.improvements.TiffSaver;
 import net.algart.scifio.tiff.ExtendedIFD;
 import org.scijava.Context;
 
@@ -53,6 +53,11 @@ public class WriteTiffTest {
             singleStrip = true;
             startArgIndex++;
         }
+        boolean tiled = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-tiled")) {
+            tiled = true;
+            startArgIndex++;
+        }
         boolean planarSeparate = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planarSeparate")) {
             planarSeparate = true;
@@ -75,6 +80,7 @@ public class WriteTiffTest {
             saver.setBigTiff(false);
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
+            saver.setAutoInterleave(true);
             if (singleStrip) {
                 saver.setDefaultSingleStrip();
             } else {
@@ -84,16 +90,20 @@ public class WriteTiffTest {
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                 final int bandCount = color ? 3 : 1;
-                byte[] bytes = new byte[WIDTH * HEIGHT * bandCount];
+                final int matrixSize = WIDTH * HEIGHT;
+                byte[] bytes = new byte[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < HEIGHT; y++) {
                     final int c = (y / 32) % bandCount;
-                    for (int x = 0; x < WIDTH; x++, disp += bandCount) {
+                    for (int x = 0; x < WIDTH; x++, disp++) {
                         byte b = (byte) (50 * ifdIndex + x + y);
-                        bytes[disp + c] = b;
+                        bytes[disp + c * matrixSize] = b;
                     }
                 }
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
+                if (tiled) {
+                    ifd.putTileSizes(64, 64);
+                }
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparate) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);

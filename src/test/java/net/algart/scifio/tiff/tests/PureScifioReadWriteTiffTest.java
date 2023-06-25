@@ -88,7 +88,7 @@ public class PureScifioReadWriteTiffTest {
         System.out.println("Done");
     }
 
-    private static IFD removeUndesirableTags(IFD ifd) {
+    static IFD removeUndesirableTags(IFD ifd) {
         IFD newIFD = new IFD(ifd, null);
         for (Map.Entry<Integer, Object> entry : ifd.entrySet()) {
             switch (entry.getKey()) {

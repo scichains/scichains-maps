@@ -28,10 +28,10 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
-import io.scif.formats.tiff.TiffSaver;
 import net.algart.scifio.tiff.experimental.SequentialTiffWriter;
 import net.algart.scifio.tiff.ExtendedIFD;
 import net.algart.scifio.tiff.TiffParser;
+import net.algart.scifio.tiff.improvements.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 
@@ -77,7 +77,7 @@ public class ReadWriteTiffTest {
         int lastIFDIndex = startArgIndex + 1 < args.length ?
                 Integer.parseInt(args[startArgIndex + 1]) :
                 Integer.MAX_VALUE;
-        final Path targetLowLevelFile = targetFile.getParent().resolve("raw_for_comparison.tiff");
+        final Path targetExperimentalFile = targetFile.getParent().resolve("experimental_for_comparison.tiff");
 
         System.out.printf("Opening %s...%n", sourceFile);
 
@@ -86,15 +86,16 @@ public class ReadWriteTiffTest {
             TiffParser reader = new TiffParser(context, sourceFile);
             reader.setFiller((byte) 0xC0);
             Files.deleteIfExists(targetFile);
-            Files.deleteIfExists(targetLowLevelFile);
+            Files.deleteIfExists(targetExperimentalFile);
             // - strange, but necessary
-            TiffSaver saver = new TiffSaver(context, new FileLocation(targetLowLevelFile.toFile()));
+            TiffSaver saver = new TiffSaver(context, new FileLocation(targetFile.toFile()));
             saver.setBigTiff(bigTiff);
             saver.setWritingSequentially(true);
+            saver.setAutoInterleave(true);
             saver.setLittleEndian(true);
             saver.writeHeader();
             // - necessary; SequentialTiffWriter does it automatically
-            SequentialTiffWriter writer = new SequentialTiffWriter(context, targetFile)
+            SequentialTiffWriter writer = new SequentialTiffWriter(context, targetExperimentalFile)
                     .setBigTiff(bigTiff)
                     .setLittleEndian(true)
                     .open();
@@ -114,13 +115,13 @@ public class ReadWriteTiffTest {
                 final int bandCount = ifd.getSamplesPerPixel();
                 byte[] bytes = reader.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
                 TiffParser.correctUnusualPrecisions(ifd, bytes, paddedW * paddedH);
-                if (!planar) {
-                    bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
-                }
                 boolean last = ifdIndex == ifdList.size() - 1;
-                final IFD newIfd = ExtendedIFD.extend(ifd);
+                IFD newIfd = ExtendedIFD.extend(ifd);
+                newIfd = PureScifioReadWriteTiffTest.removeUndesirableTags(newIfd);
 
-//                newIfd.remove(IFD.JPEG_TABLES);
+                saver.writeImage(bytes, ifd, -1, ifd.getPixelType(), START_X, START_Y, paddedW, paddedH,
+                        last, bandCount, false);
+
                 if (singleStrip) {
                     newIfd.put(IFD.ROWS_PER_STRIP, h);
                     paddedH = h;
@@ -137,6 +138,9 @@ public class ReadWriteTiffTest {
                 } else {
                     writer.setTiling(false);
                 }
+                if (!planar) {
+                    bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
+                }
                 writer.writeSeveralTilesOrStrips(bytes, newIfd, ifd.getPixelType(), bandCount,
                         START_X, START_Y, paddedW, paddedH, true, last);
                 System.out.printf("Effective IFD:%n%s%n", newIfd);
@@ -145,12 +149,6 @@ public class ReadWriteTiffTest {
 //                newIfd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
 //                newIfd.remove(IFD.STRIP_BYTE_COUNTS);
 //                newIfd.remove(IFD.STRIP_OFFSETS);
-
-                saver.writeImage(bytes, newIfd, -1, ifd.getPixelType(), START_X, START_Y, paddedW, paddedH,
-                        last, bandCount, false);
-                // - does not write prefix
-                saver.getStream().seek(saver.getStream().length());
-                //TODO!! - why?
             }
             saver.getStream().close();
             writer.close();

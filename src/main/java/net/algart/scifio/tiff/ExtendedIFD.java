@@ -287,6 +287,22 @@ public class ExtendedIFD extends IFD {
         return this;
     }
 
+    public ExtendedIFD putTileSizes(int tileSizeX, int tileSizeY) {
+        if (tileSizeX <= 0) {
+            throw new IllegalArgumentException("Zero or negative tile X-size");
+        }
+        if (tileSizeY <= 0) {
+            throw new IllegalArgumentException("Zero or negative tile Y-size");
+        }
+        if ((tileSizeX & 15) != 0 || (tileSizeY & 15) != 0) {
+            throw new IllegalArgumentException("Illegal tile sizes " + tileSizeX + "x" + tileSizeY
+                + ": they must be multiples of 16");
+        }
+        putIFDValue(IFD.TILE_WIDTH, tileSizeX);
+        putIFDValue(IFD.TILE_LENGTH, tileSizeY);
+        return this;
+    }
+
     public ExtendedIFD putCompression(TiffCompression compression) {
         if (compression == null) {
             remove(IFD.COMPRESSION);
