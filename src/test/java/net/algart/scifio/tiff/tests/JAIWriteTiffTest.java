@@ -25,7 +25,10 @@
 package net.algart.scifio.tiff.tests;
 
 
+import com.github.jaiimageio.impl.plugins.tiff.TIFFIFD;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFYCbCrColorConverter;
 import com.github.jaiimageio.plugins.tiff.BaselineTIFFTagSet;
 import com.github.jaiimageio.plugins.tiff.TIFFImageWriteParam;
 
@@ -34,6 +37,7 @@ import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -64,9 +68,11 @@ public class JAIWriteTiffTest {
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
         writer.setOutput(ios);
         TIFFImageWriteParam writeParam = (TIFFImageWriteParam) writer.getDefaultWriteParam();
-
+        TIFFImageMetadata tiffImageMetadata = new TIFFImageMetadata(new ArrayList());
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        writeParam.setColorConverter(writeParam.getColorConverter(), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
+        writeParam.setColorConverter(
+                new TIFFYCbCrColorConverter(tiffImageMetadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
+        System.out.printf("PhotometricInterpretation: %s%n", writeParam.getPhotometricInterpretation());
         System.out.printf("Compression types: %s%n",
                 Arrays.toString(writeParam.getCompressionTypes()));
         writeParam.setCompressionType("JPEG");
