@@ -22,9 +22,10 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
+package net.algart.matrices.io.formats.tests;
 
 
+import com.github.jaiimageio.impl.plugins.tiff.TIFFIFD;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFYCbCrColorConverter;
@@ -40,12 +41,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class JAIReadWriteJpegTest {
+public class JAIWriteTiffTest {
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + JAIReadWriteJpegTest.class.getName()
-                    + " some_image.jpeg result.jpeg");
+            System.out.println("    " + JAIWriteTiffTest.class.getName()
+                    + " some_image.bmp result.tiff");
             return;
         }
 
@@ -62,12 +63,17 @@ public class JAIReadWriteJpegTest {
         if (!writers.hasNext()) {
             throw new IIOException("Cannot write TIFF");
         }
-        TIFFImageWriter writer = new TIFFImageWriter(null);
+        ImageWriter writer = writers.next();
+        System.out.printf("Registered writer is %s%n", writer.getClass());
+//        com.sun.imageio.plugins.tiff.TIFFImageWriter registeredWriter =
+//                (com.sun.imageio.plugins.tiff.TIFFImageWriter) writer;
+
+        TIFFImageWriter tiffWriter = new TIFFImageWriter(null);
         resultFile.delete();
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
-        writer.setOutput(ios);
-        TIFFImageWriteParam writeParam = (TIFFImageWriteParam) writer.getDefaultWriteParam();
-        TIFFImageMetadata tiffImageMetadata = new TIFFImageMetadata(new ArrayList());
+        tiffWriter.setOutput(ios);
+        TIFFImageWriteParam writeParam = (TIFFImageWriteParam) tiffWriter.getDefaultWriteParam();
+        TIFFImageMetadata tiffImageMetadata = new TIFFImageMetadata(new ArrayList<>());
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
         writeParam.setColorConverter(
                 new TIFFYCbCrColorConverter(tiffImageMetadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
@@ -75,7 +81,13 @@ public class JAIReadWriteJpegTest {
         System.out.printf("Compression types: %s%n",
                 Arrays.toString(writeParam.getCompressionTypes()));
         writeParam.setCompressionType("JPEG");
-        IIOImage iioImage = new IIOImage(bi, null, null);
-        writer.write(null, iioImage, writeParam);
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi.getColorModel(), bi.getSampleModel());
+        TIFFImageMetadata metadata = (TIFFImageMetadata)
+                tiffWriter.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
+        TIFFIFD rootIFD = metadata.getRootIFD();
+        System.out.printf("Photometric: %s%n", rootIFD.getTIFFField(262).getAsInt(0));
+        //TODO!! change it!
+        IIOImage iioImage = new IIOImage(bi, null, metadata);
+        tiffWriter.write(null, iioImage, writeParam);
     }
 }
