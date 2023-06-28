@@ -22,16 +22,16 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
-import net.algart.scifio.tiff.experimental.SequentialTiffWriter;
-import net.algart.scifio.tiff.ExtendedIFD;
-import net.algart.scifio.tiff.TiffParser;
-import net.algart.scifio.tiff.improvements.TiffSaver;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.improvements.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 

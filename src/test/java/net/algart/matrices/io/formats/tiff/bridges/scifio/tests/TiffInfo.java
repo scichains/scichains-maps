@@ -22,14 +22,14 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
-import net.algart.scifio.tiff.ExtendedIFD;
-import net.algart.scifio.tiff.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import org.scijava.Context;
 
 import java.io.File;

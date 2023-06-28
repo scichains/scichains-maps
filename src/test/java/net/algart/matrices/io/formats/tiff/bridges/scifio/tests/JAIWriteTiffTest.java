@@ -22,10 +22,9 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 
-import com.github.jaiimageio.impl.plugins.tiff.TIFFIFD;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFYCbCrColorConverter;

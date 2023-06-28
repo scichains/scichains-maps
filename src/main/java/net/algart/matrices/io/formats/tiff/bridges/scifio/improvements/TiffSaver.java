@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff.improvements;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.improvements;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
@@ -42,8 +42,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
 
-import net.algart.scifio.tiff.ExtendedIFD;
-import net.algart.scifio.tiff.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;

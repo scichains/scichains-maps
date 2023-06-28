@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.scifio.tiff;
+package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
