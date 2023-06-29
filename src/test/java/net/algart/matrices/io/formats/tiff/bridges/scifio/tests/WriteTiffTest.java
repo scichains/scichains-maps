@@ -28,7 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.improvements.TiffSaver;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import org.scijava.Context;
 
@@ -65,8 +65,9 @@ public class WriteTiffTest {
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
-            System.out.println("    " + WriteTiffTest.class.getName()
-                    + " target.tif [number_of_images [compression]]");
+            System.out.println("    " + WriteTiffTest.class.getName() +
+                    " [-color] [-singleStrip] [-tiled] [-planarSeparate] " +
+                    "target.tif [number_of_images [compression]]");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex]);

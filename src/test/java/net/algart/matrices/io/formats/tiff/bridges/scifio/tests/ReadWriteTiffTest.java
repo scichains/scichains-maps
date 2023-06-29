@@ -31,7 +31,7 @@ import io.scif.formats.tiff.PhotoInterp;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.improvements.TiffSaver;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 

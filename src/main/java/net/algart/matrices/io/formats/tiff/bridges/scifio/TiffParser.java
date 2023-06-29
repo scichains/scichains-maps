@@ -528,8 +528,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             TiffIFDEntry entry;
             try {
                 entry = readTiffIFDEntry();
-            }
-            catch (final EnumException e) {
+            } catch (final EnumException e) {
                 continue;
                 //!! - In the previous SCIFIO code, here is "break" operator, but why?
                 // Maybe this is a type, added in future versions of TIFF format.
@@ -832,100 +831,80 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (samples == null) {
             samples = new byte[size];
         }
-        final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
 
-        codecOptions.interleaved = true;
-        codecOptions.littleEndian = ifd.isLittleEndian();
-
-        final int tileSizeX = ifd.getTileSizeX();
-        final int tileSizeY = ifd.getTileSizeY();
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
-        final int planarConfig = ifd.getPlanarConfiguration();
-        final TiffCompression compression = ifd.getCompression();
-
-        final long numTileCols = ifd.getTilesPerRow();
-
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int effectiveChannels = planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
-        assert size == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
-
-        final long[] stripByteCounts = ifd.getStripByteCounts();
-        final long[] rowsPerStrip = ifd.getRowsPerStrip();
-
-        final int offsetIndex = (int) (row * numTileCols + col);
-        int countIndex = offsetIndex;
-        if (equalStrips) {
-            countIndex = 0;
-        }
-        if (stripByteCounts[countIndex] == (rowsPerStrip[0] * tileSizeX) && bytesPerSample > 1) {
-            stripByteCounts[countIndex] *= bytesPerSample;
-        }
-
-        long stripOffset;
-        long nStrips;
-
-        if (ifd.getOnDemandStripOffsets() != null) {
-            final OnDemandLongArray stripOffsets = ifd.getOnDemandStripOffsets();
-            stripOffset = stripOffsets.get(offsetIndex);
-            nStrips = stripOffsets.size();
-        } else {
-            final long[] stripOffsets = ifd.getStripOffsets();
-            stripOffset = stripOffsets[offsetIndex];
-            nStrips = stripOffsets.length;
-        }
-
-        if (stripByteCounts[countIndex] == 0 || stripOffset >= in.length()) {
+        byte[] tile = readTileRawBytes(ifd, row, col);
+        if (tile == null) {
             return samples;
         }
-        byte[] tile = new byte[(int) stripByteCounts[countIndex]];
 
-//        log.debug("Reading tile Length " + tile.length + " Offset " + stripOffset);
-        in.seek(stripOffset);
-        in.read(tile);
-
-        codecOptions.maxBytes = Math.max(size, tile.length);
-        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
-        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
-        // see documentation on YCbCrSubSampling TIFF tag.
-        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
-        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
-        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                && subSampleHorizontal == 1
-                && ycbcrCorrection;
-
-        if (jpegTable != null) {
-            final byte[] q = new byte[jpegTable.length + tile.length - 4];
-            System.arraycopy(jpegTable, 0, q, 0, jpegTable.length - 2);
-            System.arraycopy(tile, 2, q, jpegTable.length - 2, tile.length - 2);
-            tile = compression.decompress(scifio.codec(), q, codecOptions);
-        } else {
-            tile = compression.decompress(scifio.codec(), tile, codecOptions);
-        }
+        tile = decompressTile(ifd, tile, row, col, size);
         scifio.tiff().undifference(tile, ifd);
         unpackBytes(samples, 0, tile, ifd);
 
-        if (planarConfig == 2 && !ifd.isTiled() && ifd.getSamplesPerPixel() > 1) {
-            final int channel = (int) (row % nStrips);
-            if (channel < ifd.getBytesPerSample().length) {
-                final int realBytes = ifd.getBytesPerSample()[channel];
-                if (realBytes != bytesPerSample) {
-                    // re-pack pixels to account for differing bits per sample
-
-                    final boolean littleEndian = ifd.isLittleEndian();
-                    final int[] newSamples = new int[samples.length / bytesPerSample];
-                    for (int i = 0; i < newSamples.length; i++) {
-                        newSamples[i] = Bytes.toInt(samples, i * realBytes, realBytes,
-                                littleEndian);
-                    }
-
-                    for (int i = 0; i < newSamples.length; i++) {
-                        Bytes.unpack(newSamples[i], samples, i * bytesPerSample, bytesPerSample, littleEndian);
-                    }
-                }
-            }
-        }
+        postProcessTile(ifd, samples, row, col, size);
 
         return samples;
+    }
+
+    public byte[] readTileRawBytes(final ExtendedIFD ifd, int row, int col) throws FormatException, IOException {
+        Objects.requireNonNull(ifd, "Null IFD");
+
+        final int tileSizeX = ifd.getTileSizeX();
+        final int tileSizeY = ifd.getTileSizeY();
+        final int numTileCols = ifd.getTilesPerRow(tileSizeX);
+        final int numTileRows = ifd.getTilesPerColumn(tileSizeY);
+        if (row < 0 || row >= numTileRows || col < 0 || col >= numTileCols) {
+            throw new IndexOutOfBoundsException("Tile/strip position (col, row) = (" + col + ", " + row
+                    + ") is out of bounds 0 <= col < " + numTileCols + ", 0 <= row < " + numTileRows);
+        }
+        final long numberOfTiles = (long) numTileRows * (long) numTileCols;
+        if (numberOfTiles > Integer.MAX_VALUE) {
+            throw new FormatException("Too large number of tiles/strips: "
+                    + numTileRows + "*" + numTileCols + ">2^31-1");
+        }
+        final long[] byteCounts = ifd.getStripByteCounts();
+        final long[] rowsPerStrip = ifd.getRowsPerStrip();
+        // - newly allocated arrays (not too quick solution)
+
+        final int tileIndex = row * numTileCols + col;
+        int countIndex = tileIndex;
+        if (equalStrips) {
+            countIndex = 0;
+        }
+        if (countIndex >= byteCounts.length) {
+            throw new FormatException("Too short " + (ifd.isTiled() ? "TileByteCounts" : "StripByteCounts")
+                    + " array: " + byteCounts.length
+                    + " elements, it is not enough for the tile byte-count index " + countIndex
+                    + " (this image contains " + numTileCols + "x" + numTileRows + " tiles)");
+        }
+        long byteCount = byteCounts[countIndex];
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        if (byteCount == (rowsPerStrip[0] * tileSizeX) && bytesPerSample > 1) {
+            // - what situation is checked here??
+            byteCount *= bytesPerSample;
+        }
+        if (byteCount >= Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile/strip #" + tileIndex + ": " + byteCount + " bytes > 2^31-1");
+        }
+
+        final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
+        final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
+        final long numberOfOffsets = onDemandOffsets != null ? onDemandOffsets.size() : offsets.length;
+        if (tileIndex >= numberOfOffsets) {
+            throw new FormatException("Too short " + (ifd.isTiled() ? "TileOffsets" : "StripOffsets")
+                    + " array: " + numberOfOffsets
+                    + " elements, it is not enough for the tile offset index " + tileIndex
+                    + " (this image contain " + numTileCols + "x" + numTileRows + " tiles)");
+        }
+        final long stripOffset = onDemandOffsets != null ? onDemandOffsets.get(tileIndex) : offsets[tileIndex];
+
+        if (byteCount == 0 || stripOffset >= in.length()) {
+            return null;
+        }
+        byte[] tile = new byte[(int) byteCount];
+        in.seek(stripOffset);
+        in.read(tile);
+        return tile;
     }
 
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
@@ -951,7 +930,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     public byte[] getSamples(ExtendedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
-        throws FormatException, IOException {
+            throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         checkRequestedArea(fromX, fromY, sizeX, sizeY);
         final int size = ifd.sizeOfIFDRegion(sizeX, sizeY);
@@ -1271,6 +1250,73 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.close();
     }
 
+    private byte[] decompressTile(ExtendedIFD ifd, byte[] tile, int row, int col, int size) throws FormatException {
+        final TiffCompression compression = ifd.getCompression();
+        final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
+
+        codecOptions.interleaved = true;
+        codecOptions.littleEndian = ifd.isLittleEndian();
+        codecOptions.maxBytes = Math.max(size, tile.length);
+        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
+        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
+        // see documentation on YCbCrSubSampling TIFF tag.
+        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
+        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
+        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+                && subSampleHorizontal == 1
+                && ycbcrCorrection;
+
+        if (jpegTable != null) {
+            if ((long) jpegTable.length + (long) tile.length - 4 >= Integer.MAX_VALUE) {
+                throw new FormatException("Too large tile/strip (row = " + row + ", col = " + col + "): "
+                        + "JPEG table length " + jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
+
+            }
+            final byte[] q = new byte[jpegTable.length + tile.length - 4];
+            System.arraycopy(jpegTable, 0, q, 0, jpegTable.length - 2);
+            System.arraycopy(tile, 2, q, jpegTable.length - 2, tile.length - 2);
+            return compression.decompress(scifio.codec(), q, codecOptions);
+        } else {
+            return compression.decompress(scifio.codec(), tile, codecOptions);
+        }
+    }
+
+    private static void postProcessTile(ExtendedIFD ifd, byte[] samples, int row, int col, int size)
+            throws FormatException {
+        final int tileSizeX = ifd.getTileSizeX();
+        final int tileSizeY = ifd.getTileSizeY();
+        final int samplesPerPixel = ifd.getSamplesPerPixel();
+        final int planarConfig = ifd.getPlanarConfiguration();
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int effectiveChannels = planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
+        assert size == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
+        if (planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE && !ifd.isTiled() && ifd.getSamplesPerPixel() > 1) {
+            final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
+            final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
+            final long numberOfStrips = onDemandOffsets != null ? onDemandOffsets.size() : offsets.length;
+            final int channel = (int) (row % numberOfStrips);
+            int[] differentBytesPerSample = ifd.getBytesPerSample();
+            if (channel < differentBytesPerSample.length) {
+                final int realBytes = differentBytesPerSample[channel];
+                if (realBytes != bytesPerSample) {
+                    //TODO!! - it seems that this branch is impossible! See ExtendedIFD.getBytesPerSampleBasedOnBits
+
+                    // re-pack pixels to account for differing bits per sample
+                    final boolean littleEndian = ifd.isLittleEndian();
+                    final int[] newSamples = new int[samples.length / bytesPerSample];
+                    for (int i = 0; i < newSamples.length; i++) {
+                        newSamples[i] = Bytes.toInt(samples, i * realBytes, realBytes,
+                                littleEndian);
+                    }
+
+                    for (int i = 0; i < newSamples.length; i++) {
+                        Bytes.unpack(newSamples[i], samples, i * bytesPerSample, bytesPerSample, littleEndian);
+                    }
+                }
+            }
+        }
+    }
+
     // -- Helper methods --
     private void readTiles(ExtendedIFD ifd, byte[] buf, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
@@ -1368,12 +1414,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * values, and the specified byte ordering. No error checking is performed.
      */
     public static void unpackBytes(final byte[] samples, final int startIndex,
-                             final byte[] bytes, final IFD ifd) throws FormatException {
+                                   final byte[] bytes, final IFD ifd) throws FormatException {
         final boolean planar = ifd.getPlanarConfiguration() == 2;
 
         final TiffCompression compression = ifd.getCompression();
         PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        if (compression == TiffCompression.JPEG) photoInterp = PhotoInterp.RGB;
+        if (compression == TiffCompression.JPEG) {
+            photoInterp = PhotoInterp.RGB;
+        }
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
         int nChannels = bitsPerSample.length;
@@ -1489,8 +1537,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     }
                 } else {
                     // unpack YCbCr samples; these need special handling, as
-                    // each of
-                    // the RGB components depends upon two or more of the YCbCr
+                    // each of the RGB components depends upon two or more of the YCbCr
                     // components
                     if (channel == nChannels - 1) {
                         final int lumaIndex = sample + (2 * (sample / block));
