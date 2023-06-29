@@ -30,6 +30,7 @@ import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFYCbCrColorConverter;
 import com.github.jaiimageio.plugins.tiff.BaselineTIFFTagSet;
+import com.github.jaiimageio.plugins.tiff.TIFFField;
 import com.github.jaiimageio.plugins.tiff.TIFFImageWriteParam;
 
 import javax.imageio.*;
@@ -58,7 +59,7 @@ public class JAIWriteTiffTest {
         if (bi == null) {
             throw new IIOException("Unsupported image format: " + srcFile);
         }
-        System.out.printf("Writing TIFF image into %s...%n", resultFile);
+        System.out.printf("%nWriting TIFF image into %s...%n", resultFile);
         Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("tiff");
         if (!writers.hasNext()) {
             throw new IIOException("Cannot write TIFF");
@@ -77,6 +78,7 @@ public class JAIWriteTiffTest {
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
         writeParam.setColorConverter(
                 new TIFFYCbCrColorConverter(tiffImageMetadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
+        //TODO!! How to use it correctly?
         System.out.printf("PhotometricInterpretation: %s%n", writeParam.getPhotometricInterpretation());
         System.out.printf("Compression types: %s%n",
                 Arrays.toString(writeParam.getCompressionTypes()));
@@ -85,9 +87,15 @@ public class JAIWriteTiffTest {
         TIFFImageMetadata metadata = (TIFFImageMetadata)
                 tiffWriter.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
         TIFFIFD rootIFD = metadata.getRootIFD();
-        System.out.printf("Photometric: %s%n", rootIFD.getTIFFField(262).getAsInt(0));
-        //TODO!! change it!
+        System.out.printf("Default photometric: %s%n", rootIFD.getTIFFField(262).getAsInt(0));
+        rootIFD.addTIFFField(new TIFFField(
+                rootIFD.getTag(BaselineTIFFTagSet.TAG_PHOTOMETRIC_INTERPRETATION),
+                BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB));
+        System.out.printf("New photometric: %s%n",
+                metadata.getRootIFD().getTIFFField(262).getAsInt(0));
         IIOImage iioImage = new IIOImage(bi, null, metadata);
         tiffWriter.write(null, iioImage, writeParam);
+        System.out.printf("New photometric: %s%n",
+                ((TIFFImageMetadata) iioImage.getMetadata()).getRootIFD().getTIFFField(262).getAsInt(0));
     }
 }
