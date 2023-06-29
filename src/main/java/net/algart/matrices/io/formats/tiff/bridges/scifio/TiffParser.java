@@ -333,22 +333,28 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Returns all IFDs in the file.
      */
     public IFDList getIFDs() throws IOException {
-        if (ifdList != null) return ifdList;
+        if (ifdList != null) {
+            return ifdList;
+        }
 
         final long[] offsets = getIFDOffsets();
         final IFDList ifds = new IFDList();
 
         for (final long offset : offsets) {
             final IFD ifd = getIFD(offset);
-            if (ifd == null) continue;
-            if (ifd.containsKey(IFD.IMAGE_WIDTH)) ifds.add(ifd);
+            if (ifd == null) {
+                continue;
+            }
+            if (ifd.containsKey(IFD.IMAGE_WIDTH)) {
+                ifds.add(ifd);
+            }
             long[] subOffsets = null;
             try {
                 if (!doCaching && ifd.containsKey(IFD.SUB_IFD)) {
                     fillInIFD(ifd);
                 }
                 subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
-            } catch (final FormatException e) {
+            } catch (final FormatException ignored) {
             }
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
@@ -359,9 +365,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 }
             }
         }
-        if (doCaching) ifdList = ifds;
-
+        if (doCaching) {
+            ifdList = ifds;
+        }
         return ifds;
+    }
+
+    public ExtendedIFD ifd(int ifdIndex) throws IOException {
+        IFDList ifdList = getIFDs();
+        if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
+            throw new IndexOutOfBoundsException("IFD index " +
+                    ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
+        }
+        return ExtendedIFD.extend(ifdList.get(ifdIndex));
+        // - theoretically possible that it is not ExtendedIFD, if you modified IFDList manually
     }
 
     /**
@@ -832,7 +849,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             samples = new byte[size];
         }
 
-        byte[] tile = readTileRawBytes(ifd, row, col);
+        byte[] tile = readTileBytes(ifd, row, col);
         if (tile == null) {
             return samples;
         }
@@ -905,6 +922,23 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.seek(stripOffset);
         in.read(tile);
         return tile;
+    }
+
+    public byte[] readTileBytes(final ExtendedIFD ifd, int row, int col) throws FormatException, IOException {
+        byte[] tile = readTileRawBytes(ifd, row, col);
+        final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
+        if (jpegTable == null) {
+            return tile;
+        }
+        if ((long) jpegTable.length + (long) tile.length - 4 >= Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile/strip (row = " + row + ", col = " + col + "): "
+                    + "JPEG table length " + jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
+
+        }
+        final byte[] q = new byte[jpegTable.length + tile.length - 4];
+        System.arraycopy(jpegTable, 0, q, 0, jpegTable.length - 2);
+        System.arraycopy(tile, 2, q, jpegTable.length - 2, tile.length - 2);
+        return q;
     }
 
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
@@ -1252,7 +1286,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private byte[] decompressTile(ExtendedIFD ifd, byte[] tile, int row, int col, int size) throws FormatException {
         final TiffCompression compression = ifd.getCompression();
-        final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
 
         codecOptions.interleaved = true;
         codecOptions.littleEndian = ifd.isLittleEndian();
@@ -1266,19 +1299,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 && subSampleHorizontal == 1
                 && ycbcrCorrection;
 
-        if (jpegTable != null) {
-            if ((long) jpegTable.length + (long) tile.length - 4 >= Integer.MAX_VALUE) {
-                throw new FormatException("Too large tile/strip (row = " + row + ", col = " + col + "): "
-                        + "JPEG table length " + jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
-
-            }
-            final byte[] q = new byte[jpegTable.length + tile.length - 4];
-            System.arraycopy(jpegTable, 0, q, 0, jpegTable.length - 2);
-            System.arraycopy(tile, 2, q, jpegTable.length - 2, tile.length - 2);
-            return compression.decompress(scifio.codec(), q, codecOptions);
-        } else {
-            return compression.decompress(scifio.codec(), tile, codecOptions);
-        }
+        return compression.decompress(scifio.codec(), tile, codecOptions);
     }
 
     private static void postProcessTile(ExtendedIFD ifd, byte[] samples, int row, int col, int size)
