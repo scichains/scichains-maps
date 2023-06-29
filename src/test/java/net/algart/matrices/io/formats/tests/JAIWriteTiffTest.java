@@ -73,29 +73,32 @@ public class JAIWriteTiffTest {
         resultFile.delete();
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
         tiffWriter.setOutput(ios);
-        TIFFImageWriteParam writeParam = (TIFFImageWriteParam) tiffWriter.getDefaultWriteParam();
-        TIFFImageMetadata tiffImageMetadata = new TIFFImageMetadata(new ArrayList<>());
-        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        writeParam.setColorConverter(
-                new TIFFYCbCrColorConverter(tiffImageMetadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
-        //TODO!! How to use it correctly?
-        System.out.printf("PhotometricInterpretation: %s%n", writeParam.getPhotometricInterpretation());
-        System.out.printf("Compression types: %s%n",
-                Arrays.toString(writeParam.getCompressionTypes()));
-        writeParam.setCompressionType("JPEG");
+
         ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi.getColorModel(), bi.getSampleModel());
+        TIFFImageWriteParam writeParam = (TIFFImageWriteParam) tiffWriter.getDefaultWriteParam();
+        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setCompressionType("JPEG");
+        writeParam.setDestinationType(imageTypeSpecifier);
         TIFFImageMetadata metadata = (TIFFImageMetadata)
                 tiffWriter.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
         TIFFIFD rootIFD = metadata.getRootIFD();
         System.out.printf("Default photometric: %s%n", rootIFD.getTIFFField(262).getAsInt(0));
-        rootIFD.addTIFFField(new TIFFField(
-                rootIFD.getTag(BaselineTIFFTagSet.TAG_PHOTOMETRIC_INTERPRETATION),
-                BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB));
+//        rootIFD.addTIFFField(new TIFFField(
+//                rootIFD.getTag(BaselineTIFFTagSet.TAG_PHOTOMETRIC_INTERPRETATION),
+//                BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB));
         System.out.printf("New photometric: %s%n",
                 metadata.getRootIFD().getTIFFField(262).getAsInt(0));
+
+//        writeParam.setColorConverter(
+//                new TIFFYCbCrColorConverter(metadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
+//        System.out.printf("PhotometricInterpretation: %s%n", writeParam.getPhotometricInterpretation());
+        //TODO!! How to use it correctly?
+
         IIOImage iioImage = new IIOImage(bi, null, metadata);
         tiffWriter.write(null, iioImage, writeParam);
         System.out.printf("New photometric: %s%n",
                 ((TIFFImageMetadata) iioImage.getMetadata()).getRootIFD().getTIFFField(262).getAsInt(0));
+        System.out.printf("Compression types: %s%n",
+                Arrays.toString(writeParam.getCompressionTypes()));
     }
 }

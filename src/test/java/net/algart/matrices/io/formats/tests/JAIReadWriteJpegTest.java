@@ -82,12 +82,22 @@ public class JAIReadWriteJpegTest {
 
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
         writer.setOutput(ios);
+
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi.getColorModel(), bi.getSampleModel());
         ImageWriteParam writeParam = writer.getDefaultWriteParam();
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setCompressionType("JPEG");
+        writeParam.setDestinationType(imageTypeSpecifier);
+        // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
+        // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
+
+        IIOMetadata metadata = writer.getDefaultImageMetadata(null, writeParam);
+        // - imageType = null, in other case setDestinationType will be ignored!
+
+        IIOImage iioImage = new IIOImage(bi, null, metadata);
+        // - metadata necessary (with necessary markers)
+        writer.write(null, iioImage, writeParam);
         System.out.printf("Compression types: %s%n",
                 Arrays.toString(writeParam.getCompressionTypes()));
-        writeParam.setCompressionType("JPEG");
-        IIOImage iioImage = new IIOImage(bi, null, null);
-        writer.write(null, iioImage, writeParam);
     }
 }
