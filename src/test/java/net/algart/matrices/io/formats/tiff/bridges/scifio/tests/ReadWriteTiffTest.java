@@ -83,8 +83,8 @@ public class ReadWriteTiffTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext()) {
-            TiffParser reader = new TiffParser(context, sourceFile);
-            reader.setFiller((byte) 0xC0);
+            TiffParser parser = new TiffParser(context, sourceFile).setAutoUnpackUnusualPrecisions(true);
+            parser.setFiller((byte) 0xC0);
             Files.deleteIfExists(targetFile);
             Files.deleteIfExists(targetExperimentalFile);
             // - strange, but necessary
@@ -100,7 +100,7 @@ public class ReadWriteTiffTest {
                     .setLittleEndian(true)
                     .open();
             System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
-            final List<IFD> ifdList = reader.getIFDs();
+            final List<IFD> ifdList = parser.getIFDs();
             lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
             for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                 final ExtendedIFD ifd = ExtendedIFD.extend(ifdList.get(ifdIndex));
@@ -113,8 +113,7 @@ public class ReadWriteTiffTest {
                 int paddedH = ((h + tileSizeY - 1) / tileSizeY) * tileSizeY;
 
                 final int bandCount = ifd.getSamplesPerPixel();
-                byte[] bytes = reader.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
-                TiffParser.correctUnusualPrecisions(ifd, bytes, paddedW * paddedH);
+                byte[] bytes = parser.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
                 boolean last = ifdIndex == ifdList.size() - 1;
                 IFD newIfd = ExtendedIFD.extend(ifd);
                 newIfd = PureScifioReadWriteTiffTest.removeUndesirableTags(newIfd);

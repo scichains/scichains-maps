@@ -117,6 +117,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     private byte filler = 0;
 
+    private boolean autoInterleave = false;
+
+    private boolean autoUnpackUnusualPrecisions = false;
+
     /**
      * Whether or not 64-bit offsets are used for non-BigTIFF files.
      */
@@ -198,6 +202,32 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     public byte getFiller() {
         return filler;
+    }
+
+    public boolean isAutoInterleave() {
+        return autoInterleave;
+    }
+
+    /**
+     * Sets the interleave mode: the loaded samples will be returned in chunked form, for example, RGBRGBRGB...
+     * in a case of RGB image. If not set (default behaviour), the samples are returned in unpacked form:
+     * RRR...GGG...BBB...
+     *
+     * @param autoInterleave new interleavcing mode.
+     * @return a reference to this object.
+     */
+    public TiffParser setAutoInterleave(boolean autoInterleave) {
+        this.autoInterleave = autoInterleave;
+        return this;
+    }
+
+    public boolean isAutoUnpackUnusualPrecisions() {
+        return autoUnpackUnusualPrecisions;
+    }
+
+    public TiffParser setAutoUnpackUnusualPrecisions(boolean autoUnpackUnusualPrecisions) {
+        this.autoUnpackUnusualPrecisions = autoUnpackUnusualPrecisions;
+        return this;
     }
 
     /**
@@ -854,7 +884,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             return samples;
         }
 
-        tile = decompressTile(ifd, tile, row, col, size);
+        tile = decode(ifd, tile, size);
         scifio.tiff().undifference(tile, ifd);
         unpackBytes(samples, 0, tile, ifd);
 
@@ -941,6 +971,26 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return q;
     }
 
+    public byte[] decode(ExtendedIFD ifd, byte[] stripSamples, int samplesLength) throws FormatException {
+        final TiffCompression compression = ifd.getCompression();
+
+        codecOptions.interleaved = true;
+        codecOptions.littleEndian = ifd.isLittleEndian();
+        codecOptions.maxBytes = Math.max(samplesLength, stripSamples.length);
+        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
+        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
+        // see documentation on YCbCrSubSampling TIFF tag.
+        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
+        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
+        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+                && subSampleHorizontal == 1
+                && ycbcrCorrection;
+
+        return compression.decompress(scifio.codec(), stripSamples, codecOptions);
+    }
+
+
+
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
         final long width = ifd.getImageWidth();
         final long length = ifd.getImageLength();
@@ -963,6 +1013,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return getSamples(ExtendedIFD.extend(ifd), samples, fromX, fromY, sizeX, sizeY);
     }
 
+    /**
+     * Reads samples in <tt>byte[]</tt> array.
+     *
+     * @param samples work array for reading data; may be <tt>null</tt>.
+     * @return loaded samples; will be a reference to passed samples, if it is not <tt>null</tt>.
+     */
     public byte[] getSamples(ExtendedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
@@ -972,6 +1028,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         if (samples == null) {
             samples = new byte[size];
+        } else if (size > samples.length) {
+            throw new IllegalArgumentException("Insufficient length of the result samples array: " + samples.length
+                    + " < necessary " + size + " bytes");
         }
         if (sizeX == 0 || sizeY == 0) {
             return samples;
@@ -979,46 +1038,44 @@ public class TiffParser extends AbstractContextual implements Closeable {
         ifd.sizeOfIFDTileBasedOnBits();
         // - checks that results of ifd.getTileWidth(), ifd.getTileLength() are non-negative and <2^31,
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
+        long t1 = BUILT_IN_TIMING ? System.nanoTime() : 0;
         Arrays.fill(samples, 0, size, filler);
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results
 
         readTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
 
-        adjustFillOrder(ifd, samples);
-        return samples;
-    }
-
-    public byte[] readSamples(IFD ifd, int fromX, int fromY, int sizeX, int sizeY, boolean interleave)
-            throws IOException, FormatException {
-        long t1 = BUILT_IN_TIMING ? System.nanoTime() : 0;
-        byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
         long t2 = BUILT_IN_TIMING ? System.nanoTime() : 0;
-        correctUnusualPrecisions(ifd, samples, sizeX * sizeY);
+        adjustFillOrder(ifd, samples);
+        if (autoUnpackUnusualPrecisions) {
+            correctUnusualPrecisions(ifd, samples, sizeX * sizeY);
+        }
         long t3 = BUILT_IN_TIMING ? System.nanoTime() : 0;
-        byte[] result = interleave ?
-                interleaveSamples(ifd, samples, sizeX * sizeY) :
-                samples;
+        if (autoInterleave) {
+            byte[] buffer = interleaveSamples(ifd, samples, sizeX * sizeY);
+            System.arraycopy(buffer, 0, samples, 0, size);
+        }
         if (BUILT_IN_TIMING) {
             long t4 = System.nanoTime();
             LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US,
-                    "%s read %dx%d (%.3f MB) in %.3f ms = %.3f get + %.3f unusual + %.3f interleave, %.3f MB/s",
+                    "%s read %dx%d (%.3f MB) in %.3f ms = " +
+                            "%.3f get + %.3f corrections + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
-                    sizeX, sizeY, result.length / 1048576.0,
+                    sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
-                    result.length / 1048576.0 / ((t4 - t1) * 1e-9)));
+                    size / 1048576.0 / ((t4 - t1) * 1e-9)));
         }
-        return result;
+        return samples;
     }
 
-    public Object readSamplesArray(IFD ifd, int fromX, int fromY, int sizeX, int sizeY, boolean interleave)
+    public Object getSamplesArray(IFD ifd, int fromX, int fromY, int sizeX, int sizeY, boolean interleave)
             throws IOException, FormatException {
-        return readSamplesArray(
+        return getSamplesArray(
                 ifd, fromX, fromY, sizeX, sizeY, interleave, null, null);
     }
 
-    public Object readSamplesArray(
+    public Object getSamplesArray(
             IFD ifd,
             final int fromX,
             final int fromY,
@@ -1040,10 +1097,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     + optionalElementType(ifd).map(Class::getName).orElse("unknown")
                     + "[] elements");
         }
-        byte[] resultBytes = readSamples(ifd, fromX, fromY, sizeX, sizeY, interleave);
+        byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
         final int pixelType = ifd.getPixelType();
         return Bytes.makeArray(
-                resultBytes,
+                samples,
                 FormatTools.getBytesPerPixel(pixelType),
                 FormatTools.isFloatingPoint(pixelType),
                 ifd.isLittleEndian());
@@ -1282,24 +1339,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     @Override
     public void close() throws IOException {
         in.close();
-    }
-
-    private byte[] decompressTile(ExtendedIFD ifd, byte[] tile, int row, int col, int size) throws FormatException {
-        final TiffCompression compression = ifd.getCompression();
-
-        codecOptions.interleaved = true;
-        codecOptions.littleEndian = ifd.isLittleEndian();
-        codecOptions.maxBytes = Math.max(size, tile.length);
-        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
-        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
-        // see documentation on YCbCrSubSampling TIFF tag.
-        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
-        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
-        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                && subSampleHorizontal == 1
-                && ycbcrCorrection;
-
-        return compression.decompress(scifio.codec(), tile, codecOptions);
     }
 
     private static void postProcessTile(ExtendedIFD ifd, byte[] samples, int row, int col, int size)

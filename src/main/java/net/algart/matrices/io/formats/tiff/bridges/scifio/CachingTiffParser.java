@@ -52,14 +52,17 @@ public class CachingTiffParser extends TiffParser {
 
     public CachingTiffParser(Context context, Path file) throws IOException {
         super(context, file);
+        this.setAutoUnpackUnusualPrecisions(true);
     }
 
     public CachingTiffParser(Context context, Location location) throws IOException {
         super(context, location);
+        this.setAutoUnpackUnusualPrecisions(true);
     }
 
     public CachingTiffParser(Context context, DataHandle<Location> in) {
         super(context, in);
+        this.setAutoUnpackUnusualPrecisions(true);
     }
 
     public long getMaxCachingMemory() {

@@ -519,21 +519,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         for (int strip = 0; strip < nStrips; strip++) {
             strips[strip] = stripBuf[strip].toByteArray();
             scifio.tiff().difference(strips[strip], ifd);
-            final CodecOptions codecOptions = compression.getCompressionCodecOptions(
-                    ifd, this.codecOptions);
-            codecOptions.width = tileWidth;
-            codecOptions.height = tileHeight;
+            int sizeX = tileWidth;
+            int sizeY = tileHeight;
             if (!tiled) {
                 final int yOffset = ((strip % effectiveStrips) / tilesPerRow) * tileHeight;
                 if (yOffset + tileHeight > imageHeight) {
-                    codecOptions.height = Math.max(0, imageHeight - yOffset);
+                    sizeY = Math.max(0, imageHeight - yOffset);
                     // - last strip should have exact height, in other case TIFF may be read with a warning
                 }
             }
-            codecOptions.channels = interleaved ? nChannels : 1;
+            strips[strip] = encode(ifd, strips[strip], sizeX, sizeY);
 
-            strips[strip] = compression.compress(scifio.codec(), strips[strip],
-                    codecOptions);
             if (log.isDebug()) {
                 log.debug(String.format("Compressed strip %d/%d length %d", strip + 1,
                         nStrips, strips[strip].length));
@@ -545,6 +541,21 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             writeImageIFD(ifd, planeIndex, strips, nChannels, last, x, y);
         }
     }
+
+    public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
+        Objects.requireNonNull(stripSamples, "Null stripSamples data");
+        Objects.requireNonNull(ifd, "Null IFD");
+        TiffCompression compression = ifd.getCompression();
+
+        final CodecOptions codecOptions = compression.getCompressionCodecOptions(
+                ifd, this.codecOptions);
+        codecOptions.width = sizeX;
+        codecOptions.height = sizeY;
+        codecOptions.channels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
+        //TODO!! special branch for JPEG, based on JAI
+        return compression.compress(scifio.codec(), stripSamples, codecOptions);
+    }
+
 
     /**
      * Performs the actual work of dealing with IFD data and writing it to the

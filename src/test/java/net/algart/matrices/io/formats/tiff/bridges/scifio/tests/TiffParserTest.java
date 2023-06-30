@@ -81,6 +81,7 @@ public class TiffParserTest {
             final TiffParser parser = caching ?
                     new CachingTiffParser(context, tiffFile).setFiller((byte) 0xC0) :
                     new TiffParser(context, tiffFile).setFiller((byte) 0x80);
+            parser.setAutoInterleave(true);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final IFDList ifds = parser.getIFDs();
             if (ifdIndex >= ifds.size()) {
@@ -103,7 +104,7 @@ public class TiffParserTest {
                             w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
                 }
                 long t1 = System.nanoTime();
-                array = parser.readSamplesArray(ifd, x, y, w, h, true);
+                array = parser.getSamplesArray(ifd, x, y, w, h, true);
                 long t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);

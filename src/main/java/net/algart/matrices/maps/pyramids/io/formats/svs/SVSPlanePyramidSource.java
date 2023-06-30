@@ -813,7 +813,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(
             int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        final Object data = largeData.tiffParser.readSamplesArray(
+        final Object data = largeData.tiffParser.getSamplesArray(
                 largeData.ifdList.get(ifdIndex), fromX, fromY, sizeX, sizeY, true, bandCount, elementType);
         return Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
@@ -921,6 +921,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (tiffParser == null) {
                 long t1 = System.nanoTime();
                 tiffParser = new CachingTiffParser(sciContext, svsFile);
+                tiffParser.setAutoInterleave(true);
                 ifdList = tiffParser.getIFDs();
                 long t2 = System.nanoTime();
                 LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
