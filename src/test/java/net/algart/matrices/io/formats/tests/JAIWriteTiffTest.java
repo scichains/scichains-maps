@@ -28,17 +28,15 @@ package net.algart.matrices.io.formats.tests;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFIFD;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFYCbCrColorConverter;
-import com.github.jaiimageio.plugins.tiff.BaselineTIFFTagSet;
-import com.github.jaiimageio.plugins.tiff.TIFFField;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFJPEGCompressor;
 import com.github.jaiimageio.plugins.tiff.TIFFImageWriteParam;
 
 import javax.imageio.*;
+import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -74,9 +72,18 @@ public class JAIWriteTiffTest {
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
         tiffWriter.setOutput(ios);
 
-        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi.getColorModel(), bi.getSampleModel());
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi);
+
+        ImageWriter jpegWriter = JAIReadWriteJpegTest.getJPEGWriter();
+
+        ImageWriteParam jpegWriteParam = JAIReadWriteJpegTest.getJPEGWriteParam(jpegWriter, imageTypeSpecifier);
+        TIFFJPEGCompressor compressor = new TIFFJPEGCompressor(jpegWriteParam);
+        IIOMetadata jpegMetadata = jpegWriter.getDefaultImageMetadata(null, jpegWriteParam);
+        compressor.setMetadata(jpegMetadata);
+
         TIFFImageWriteParam writeParam = (TIFFImageWriteParam) tiffWriter.getDefaultWriteParam();
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setTIFFCompressor(compressor);
         writeParam.setCompressionType("JPEG");
         writeParam.setDestinationType(imageTypeSpecifier);
         TIFFImageMetadata metadata = (TIFFImageMetadata)
@@ -86,8 +93,6 @@ public class JAIWriteTiffTest {
 //        rootIFD.addTIFFField(new TIFFField(
 //                rootIFD.getTag(BaselineTIFFTagSet.TAG_PHOTOMETRIC_INTERPRETATION),
 //                BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB));
-        System.out.printf("New photometric: %s%n",
-                metadata.getRootIFD().getTIFFField(262).getAsInt(0));
 
 //        writeParam.setColorConverter(
 //                new TIFFYCbCrColorConverter(metadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
@@ -96,8 +101,8 @@ public class JAIWriteTiffTest {
 
         IIOImage iioImage = new IIOImage(bi, null, metadata);
         tiffWriter.write(null, iioImage, writeParam);
-        System.out.printf("New photometric: %s%n",
-                ((TIFFImageMetadata) iioImage.getMetadata()).getRootIFD().getTIFFField(262).getAsInt(0));
+//        System.out.printf("New photometric: %s%n",
+//                ((TIFFImageMetadata) iioImage.getMetadata()).getRootIFD().getTIFFField(262).getAsInt(0));
         System.out.printf("Compression types: %s%n",
                 Arrays.toString(writeParam.getCompressionTypes()));
     }

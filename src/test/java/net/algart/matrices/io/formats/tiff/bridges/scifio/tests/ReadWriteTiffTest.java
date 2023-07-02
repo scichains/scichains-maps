@@ -42,7 +42,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 public class ReadWriteTiffTest {
-    private static final int MAX_IMAGE_DIM = 20000;
+    private static final int MAX_IMAGE_DIM = 3000;
     private static final int START_X = 0;
     private static final int START_Y = 0;
 
@@ -61,6 +61,11 @@ public class ReadWriteTiffTest {
         boolean planar = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planar")) {
             planar = true;
+            startArgIndex++;
+        }
+        boolean legacy = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-legacy")) {
+            legacy = true;
             startArgIndex++;
         }
         if (args.length < startArgIndex + 2) {
@@ -93,12 +98,14 @@ public class ReadWriteTiffTest {
             saver.setWritingSequentially(true);
             saver.setAutoInterleave(true);
             saver.setLittleEndian(true);
+            saver.setCustomJpeg(true).setJpegInPhotometricRGB(true);
             saver.writeHeader();
             // - necessary; SequentialTiffWriter does it automatically
-            SequentialTiffWriter writer = new SequentialTiffWriter(context, targetExperimentalFile)
+            SequentialTiffWriter writer = legacy ? new SequentialTiffWriter(context, targetExperimentalFile)
                     .setBigTiff(bigTiff)
                     .setLittleEndian(true)
-                    .open();
+                    .open() :
+                    null;
             System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
             final List<IFD> ifdList = parser.getIFDs();
             lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
@@ -116,41 +123,45 @@ public class ReadWriteTiffTest {
                 byte[] bytes = parser.getSamples(ifd, null, START_X, START_Y, paddedW, paddedH);
                 boolean last = ifdIndex == ifdList.size() - 1;
                 IFD newIfd = ExtendedIFD.extend(ifd);
-                newIfd = PureScifioReadWriteTiffTest.removeUndesirableTags(newIfd);
 
                 saver.writeImage(bytes, ifd, -1, ifd.getPixelType(), START_X, START_Y, paddedW, paddedH,
                         last, bandCount, false);
 
-                if (singleStrip) {
-                    newIfd.put(IFD.ROWS_PER_STRIP, h);
-                    paddedH = h;
-                }
-                writer.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
-                // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
+                if (legacy) {
+                    newIfd = PureScifioReadWriteTiffTest.removeUndesirableTags(newIfd);
+                    if (singleStrip) {
+                        newIfd.put(IFD.ROWS_PER_STRIP, h);
+                        paddedH = h;
+                    }
+                    writer.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
+                    // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
 
-                writer.setInterleaved(!planar);
-                writer.setCompression(ifd.getCompression());
-                writer.setImageSizes(w, h);
-                if (ifd.isTiled()) {
-                    writer.setTiling(true);
-                    writer.setTileSizes((int) ifd.getTileWidth(), (int) ifd.getTileLength());
-                } else {
-                    writer.setTiling(false);
-                }
-                if (!planar) {
-                    bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
-                }
-                writer.writeSeveralTilesOrStrips(bytes, newIfd, ifd.getPixelType(), bandCount,
-                        START_X, START_Y, paddedW, paddedH, true, last);
-                System.out.printf("Effective IFD:%n%s%n", newIfd);
+                    writer.setInterleaved(!planar);
+                    writer.setCompression(ifd.getCompression());
+                    writer.setImageSizes(w, h);
+                    if (ifd.isTiled()) {
+                        writer.setTiling(true);
+                        writer.setTileSizes((int) ifd.getTileWidth(), (int) ifd.getTileLength());
+                    } else {
+                        writer.setTiling(false);
+                    }
+                    if (!planar) {
+                        bytes = TiffParser.interleaveSamples(ifd, bytes, paddedW * paddedH);
+                    }
+                    writer.writeSeveralTilesOrStrips(bytes, newIfd, ifd.getPixelType(), bandCount,
+                            START_X, START_Y, paddedW, paddedH, true, last);
+                    System.out.printf("Effective IFD:%n%s%n", newIfd);
 //                saver.setBigTiff(true);
 
 //                newIfd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
 //                newIfd.remove(IFD.STRIP_BYTE_COUNTS);
 //                newIfd.remove(IFD.STRIP_OFFSETS);
+                }
             }
             saver.getStream().close();
-            writer.close();
+            if (legacy) {
+                writer.close();
+            }
         }
         System.out.println("Done");
     }

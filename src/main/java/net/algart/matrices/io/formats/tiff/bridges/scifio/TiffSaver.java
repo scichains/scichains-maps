@@ -29,19 +29,8 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
+import io.scif.gui.AWTImageTools;
 import io.scif.util.FormatTools;
-
-import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.TreeSet;
-
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -52,6 +41,17 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
+
+import javax.imageio.*;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * Writes TIFF data to an output location.
@@ -132,6 +132,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * The codec options if set.
      */
     private CodecOptions codecOptions;
+
+    private boolean customJpeg = false;
+
+    private boolean jpegInPhotometricRGB = false;
+
+    private double jpegQuality = 1.0;
 
     private SCIFIO scifio;
 
@@ -325,10 +331,77 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * Sets the codec options.
      *
      * @param options The value to set.
+     * @return a reference to this object.
      */
     public TiffSaver setCodecOptions(final CodecOptions options) {
         this.codecOptions = options;
         return this;
+    }
+
+    public boolean isCustomJpeg() {
+        return customJpeg;
+    }
+
+    /**
+     * Sets whether you need special optimized codec for a case of JPEG compression type.
+     * Must be <tt>true</tt> if you want to use any of the further parameters.
+     * Default value is <tt>false</tt>.
+     *
+     * @param customJpeg whether you want to use special optimized codec for JPEG compression.
+     * @return a reference to this object.
+     */
+    public TiffSaver setCustomJpeg(boolean customJpeg) {
+        this.customJpeg = customJpeg;
+        return this;
+    }
+
+    public boolean isJpegInPhotometricRGB() {
+        return jpegInPhotometricRGB;
+    }
+
+    /**
+     * Sets whether you need to compress JPEG tiles/stripes with photometric interpretation RGB.
+     * Default value is <tt>false</tt>, that means using YCbCr photometric interpretation &mdash;
+     * standard encoding for JPEG, but not so popular in TIFF.
+     *
+     * <p>This parameter is ignored (as if it is <tt>false</tt>), unless {@link #isCustomJpeg()}.
+     *
+     * @param jpegInPhotometricRGB whether you want to compress JPEG in RGB encoding.
+     * @return a reference to this object.
+     */
+    public TiffSaver setJpegInPhotometricRGB(boolean jpegInPhotometricRGB) {
+        this.jpegInPhotometricRGB = jpegInPhotometricRGB;
+        return this;
+    }
+
+    public boolean compressJPEGInPhotometricRGB() {
+        return customJpeg && jpegInPhotometricRGB;
+    }
+
+    public double getJpegQuality() {
+        return jpegQuality;
+    }
+
+    /**
+     * Sets the compression quality for JPEG tiles/strips to a value between {@code 0} and {@code 1}.
+     * Default value is <tt>1.0</tt>, like in {@link ImageWriteParam#setCompressionQuality(float)} method.
+     *
+     * <p>Note that {@link CodecOptions#quality} is ignored by default, unless you call {@link #setJpegCodecQuality()}.
+     * In any case, the quality, specified by this method, overrides the settings in {@link CodecOptions}.
+     *
+     * @param jpegQuality quality a {@code float} between {@code 0} and {@code 1} indicating the desired quality level.
+     * @return a reference to this object.
+     */
+    public TiffSaver setJpegQuality(double jpegQuality) {
+        this.jpegQuality = jpegQuality;
+        return this;
+    }
+
+    public TiffSaver setJpegCodecQuality() {
+        if (codecOptions == null) {
+            throw new IllegalStateException("Codec options was not set yet");
+        }
+        return setJpegQuality(codecOptions.quality);
     }
 
     /**
@@ -547,15 +620,64 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         TiffCompression compression = ifd.getCompression();
 
-        final CodecOptions codecOptions = compression.getCompressionCodecOptions(
-                ifd, this.codecOptions);
+        final CodecOptions codecOptions = compression.getCompressionCodecOptions(ifd, this.codecOptions);
         codecOptions.width = sizeX;
         codecOptions.height = sizeY;
         codecOptions.channels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
-        //TODO!! special branch for JPEG, based on JAI
-        return compression.compress(scifio.codec(), stripSamples, codecOptions);
+        if (customJpeg && compression == TiffCompression.JPEG) {
+            return compressJPEG(stripSamples, codecOptions);
+        } else {
+            return compression.compress(scifio.codec(), stripSamples, codecOptions);
+        }
     }
 
+    // Optimized version of io.scif.codec.JPEGCodec.compress() method
+    private byte[] compressJPEG(final byte[] data, CodecOptions options) throws FormatException {
+        Objects.requireNonNull(data, "Null data");
+        Objects.requireNonNull(options, "Null codec options");
+        if (data.length == 0) {
+            return data;
+        }
+
+        if (options.bitsPerSample > 8) {
+            throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
+                    "(only 8-bit samples allowed)");
+        }
+
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final BufferedImage image = AWTImageTools.makeImage(data, options.width,
+                options.height, options.channels, options.interleaved,
+                options.bitsPerSample / 8, false, options.littleEndian, options.signed);
+
+        try {
+            final ImageOutputStream ios = ImageIO.createImageOutputStream(out);
+            final ImageWriter jpegWriter = getJPEGWriter();
+            jpegWriter.setOutput(ios);
+
+            final ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
+            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            writeParam.setCompressionType("JPEG");
+            writeParam.setCompressionQuality((float) jpegQuality);
+            final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
+            if (jpegInPhotometricRGB) {
+                writeParam.setDestinationType(imageTypeSpecifier);
+                // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
+                // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
+            }
+            final IIOMetadata metadata = jpegWriter.getDefaultImageMetadata(
+                    jpegInPhotometricRGB ? null : imageTypeSpecifier,
+                    writeParam);
+            // - Important! imageType = null necessary for RGB, in other case setDestinationType will be ignored!
+
+            final IIOImage iioImage = new IIOImage(image, null, metadata);
+            // - metadata necessary (with necessary markers)
+            jpegWriter.write(null, iioImage, writeParam);
+        }
+        catch (final IOException e) {
+            throw new FormatException("Cannot compress JPEG data", e);
+        }
+        return out.toByteArray();
+    }
 
     /**
      * Performs the actual work of dealing with IFD data and writing it to the
@@ -1136,7 +1258,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE : nChannels == 1
                 ? PhotoInterp.BLACK_IS_ZERO :
                 compressionValue.equals(TiffCompression.JPEG.getCode())
-                        && ifd.getPlanarConfiguration() == 1 ?
+                        && ifd.getPlanarConfiguration() == 1
+                        && !compressJPEGInPhotometricRGB()?
                         PhotoInterp.Y_CB_CR :
                         PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
@@ -1162,4 +1285,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 //        }
     }
 
+    private static ImageWriter getJPEGWriter() throws IIOException {
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (!writers.hasNext()) {
+            throw new IIOException("Cannot write JPEG");
+        }
+        return writers.next();
+    }
 }

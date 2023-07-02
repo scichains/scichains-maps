@@ -36,6 +36,28 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 public class JAIReadWriteJpegTest {
+    public static final boolean ENFORCE_RGB = true;
+
+    public static ImageWriter getJPEGWriter() throws IIOException {
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (!writers.hasNext()) {
+            throw new IIOException("Cannot write JPEG");
+        }
+        return writers.next();
+    }
+
+    public static ImageWriteParam getJPEGWriteParam(ImageWriter writer, ImageTypeSpecifier imageTypeSpecifier) {
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setCompressionType("JPEG");
+        if (imageTypeSpecifier != null) {
+            writeParam.setDestinationType(imageTypeSpecifier);
+            // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
+            // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
+        }
+        return writeParam;
+    }
+
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
@@ -73,25 +95,17 @@ public class JAIReadWriteJpegTest {
 
         System.out.printf("Writing JPEG image into %s...%n", resultFile);
         resultFile.delete();
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-        if (!writers.hasNext()) {
-            throw new IIOException("Cannot write TIFF");
-        }
-        ImageWriter writer = writers.next();
+        ImageWriter writer = getJPEGWriter();
         System.out.printf("Registered writer is %s%n", writer.getClass());
 
         ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
         writer.setOutput(ios);
 
-        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi.getColorModel(), bi.getSampleModel());
-        ImageWriteParam writeParam = writer.getDefaultWriteParam();
-        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        writeParam.setCompressionType("JPEG");
-        writeParam.setDestinationType(imageTypeSpecifier);
-        // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
-        // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi);
 
-        IIOMetadata metadata = writer.getDefaultImageMetadata(null, writeParam);
+        ImageWriteParam writeParam = getJPEGWriteParam(writer, ENFORCE_RGB ? imageTypeSpecifier : null);
+
+        IIOMetadata metadata = writer.getDefaultImageMetadata(ENFORCE_RGB ? null : imageTypeSpecifier, writeParam);
         // - imageType = null, in other case setDestinationType will be ignored!
 
         IIOImage iioImage = new IIOImage(bi, null, metadata);

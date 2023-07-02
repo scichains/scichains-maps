@@ -48,6 +48,11 @@ public class WriteTiffTest {
             color = true;
             startArgIndex++;
         }
+        boolean jpegRGB = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-jpegRGB")) {
+            jpegRGB = true;
+            startArgIndex++;
+        }
         boolean singleStrip = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-singleStrip")) {
             singleStrip = true;
@@ -82,6 +87,7 @@ public class WriteTiffTest {
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);
+            saver.setCustomJpeg(true).setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.2);
             if (singleStrip) {
                 saver.setDefaultSingleStrip();
             } else {
