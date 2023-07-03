@@ -615,15 +615,32 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
+    // Note: stripSamples is always interleaved (RGBRGB...) or monochrome.
     public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
         Objects.requireNonNull(stripSamples, "Null stripSamples data");
         Objects.requireNonNull(ifd, "Null IFD");
-        TiffCompression compression = ifd.getCompression();
+        if (sizeX < 0 || sizeY < 0) {
+            throw new IllegalArgumentException("Negative matrix sizes " + sizeX + "x" + sizeY);
+        }
+        final int effectiveChannels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
+        final int bytesPerSample = ifd.getBytesPerSample()[0];
+        if (effectiveChannels < 1) {
+            throw new FormatException("Invalid format: zero or negative samples per pixel = " + effectiveChannels);
+        }
+        if (bytesPerSample < 1) {
+            throw new FormatException("Invalid format: zero or negative bytes per sample = " + bytesPerSample);
+        }
+        final long size = (long) sizeX * (long) sizeY;
+        if (size > stripSamples.length || size * effectiveChannels > stripSamples.length / bytesPerSample) {
+            throw new IllegalArgumentException("Too short stripSamples array: " + stripSamples.length + " < " +
+                    size * effectiveChannels * bytesPerSample);
+        }
 
+        TiffCompression compression = ifd.getCompression();
         final CodecOptions codecOptions = compression.getCompressionCodecOptions(ifd, this.codecOptions);
         codecOptions.width = sizeX;
         codecOptions.height = sizeY;
-        codecOptions.channels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
+        codecOptions.channels = effectiveChannels;
         if (customJpeg && compression == TiffCompression.JPEG) {
             return compressJPEG(stripSamples, codecOptions);
         } else {

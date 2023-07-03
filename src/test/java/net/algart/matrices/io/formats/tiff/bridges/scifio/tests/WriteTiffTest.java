@@ -87,7 +87,7 @@ public class WriteTiffTest {
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);
-            saver.setCustomJpeg(true).setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.2);
+            saver.setCustomJpeg(true).setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
             if (singleStrip) {
                 saver.setDefaultSingleStrip();
             } else {

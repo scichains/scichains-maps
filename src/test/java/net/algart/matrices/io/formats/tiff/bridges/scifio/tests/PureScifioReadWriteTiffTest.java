@@ -31,6 +31,7 @@ import io.scif.formats.tiff.IFDList;
 import io.scif.formats.tiff.TiffParser;
 import io.scif.formats.tiff.TiffSaver;
 import io.scif.util.FormatTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 
@@ -92,7 +93,7 @@ public class PureScifioReadWriteTiffTest {
         IFD newIFD = new IFD(ifd, null);
         for (Map.Entry<Integer, Object> entry : ifd.entrySet()) {
             switch (entry.getKey()) {
-                case IFD.JPEG_TABLES -> {
+                case IFD.JPEG_TABLES, ExtendedIFD.ICC_PROFILE -> {
                     System.out.println("Removing " + entry);
                     newIFD.remove(entry.getKey());
                 }

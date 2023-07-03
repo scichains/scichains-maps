@@ -956,6 +956,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     public byte[] readTileBytes(final ExtendedIFD ifd, int row, int col) throws FormatException, IOException {
         byte[] tile = readTileRawBytes(ifd, row, col);
+        if (tile == null) {
+            return null;
+        }
         final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
         if (jpegTable == null) {
             return tile;
@@ -971,6 +974,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return q;
     }
 
+    // Note: result is always interleaved (RGBRGB...) or monochrome.
     public byte[] decode(ExtendedIFD ifd, byte[] stripSamples, int samplesLength) throws FormatException {
         final TiffCompression compression = ifd.getCompression();
 
@@ -980,15 +984,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
         // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
         // see documentation on YCbCrSubSampling TIFF tag.
+        // Default is [2,2].
         // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
         // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
         codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
                 && subSampleHorizontal == 1
                 && ycbcrCorrection;
+        // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
         return compression.decompress(scifio.codec(), stripSamples, codecOptions);
     }
-
 
 
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
@@ -1744,11 +1749,17 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (bytesPerSample <= 0) {
             throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
         }
+        final int size = ExtendedIFD.checkedMul(new long[]{numberOfPixels, samplesPerPixel, bytesPerSample},
+                new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
+                () -> "Invalid sizes: ", () -> "");
+        if (samples.length < size) {
+            throw new IllegalArgumentException("Too short samples array: " + samples.length + " < " + size);
+        }
         if (samplesPerPixel == 1) {
             return samples;
         }
         final int bandSize = numberOfPixels * bytesPerSample;
-        final byte[] interleavedBytes = new byte[samples.length];
+        final byte[] interleavedBytes = new byte[size];
         if (bytesPerSample == 1) {
             // optimization
             for (int i = 0, disp = 0; i < bandSize; i++) {
