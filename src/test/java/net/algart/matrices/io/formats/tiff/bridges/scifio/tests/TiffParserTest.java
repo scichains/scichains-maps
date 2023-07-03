@@ -84,6 +84,10 @@ public class TiffParserTest {
             parser.setAutoInterleave(true);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final IFDList ifds = parser.getIFDs();
+            if (ifds.isEmpty()) {
+                System.out.println("No IFDs");
+                return;
+            }
             if (ifdIndex >= ifds.size()) {
                 System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, ifds.size() - 1);
                 ifdIndex = ifds.size() - 1;

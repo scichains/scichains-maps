@@ -551,7 +551,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (offset < 0 || offset >= in.length()) {
             return null;
         }
-        final Map<Integer, IFDType> types = new LinkedHashMap<>();
+        final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
         final ExtendedIFD ifd = new ExtendedIFD(log, offset);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -613,11 +613,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 value = getIFDValue(entry);
             }
             if (value != null && !ifd.containsKey(tag)) {
-                types.put(tag, entry.getType());
+                entries.put(tag, entry);
                 ifd.put(tag, value);
             }
         }
-        ifd.setTypes(types);
+        ifd.setEntries(entries);
 
         in.seek(offset + baseOffset + bytesPerEntry * numEntries);
         long t2 = System.nanoTime();

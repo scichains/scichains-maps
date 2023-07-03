@@ -25,10 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.FillOrder;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDType;
-import io.scif.formats.tiff.TiffCompression;
+import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 import org.scijava.log.LogService;
 
@@ -47,7 +44,7 @@ public class ExtendedIFD extends IFD {
     public static final int STO_NITS = 37439;
 
     private final Long offset;
-    private Map<Integer, IFDType> types = null;
+    private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
 
     public ExtendedIFD(IFD ifd) {
@@ -57,13 +54,13 @@ public class ExtendedIFD extends IFD {
     public ExtendedIFD(IFD ifd, LogService log) {
         super(ifd, log);
         offset = null;
-        types = null;
+        entries = null;
     }
 
     public ExtendedIFD(ExtendedIFD ifd, LogService log) {
         super(ifd, log);
         offset = ifd.offset;
-        types = ifd.types;
+        entries = ifd.entries;
     }
 
     public ExtendedIFD() {
@@ -108,13 +105,13 @@ public class ExtendedIFD extends IFD {
         return offset;
     }
 
-    public ExtendedIFD setTypes(Map<Integer, IFDType> types) {
-        this.types = Objects.requireNonNull(types, "Null types");
+    public ExtendedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
+        this.entries = Objects.requireNonNull(entries, "Null entries");
         return this;
     }
 
-    public Map<Integer, IFDType> getTypes() {
-        return types;
+    public Map<Integer, TiffIFDEntry> getEntries() {
+        return entries;
     }
 
     // Usually false: PlanarConfiguration=2 is not in widespread use
@@ -405,9 +402,9 @@ public class ExtendedIFD extends IFD {
             sb.append(" [").append(e.getMessage()).append("]");
         }
         if (offset != null) {
-            sb.append(" (offset %d=0x%X)".formatted(offset, offset));
+            sb.append(" (offset @%d=0x%X)".formatted(offset, offset));
         }
-        final Map<Integer, IFDType> types = this.types;
+        final Map<Integer, TiffIFDEntry> entries = this.entries;
         final Map<Integer, Object> sortedIFD = new TreeMap<>(this);
         for (Map.Entry<Integer, Object> entry : sortedIFD.entrySet()) {
             sb.append(String.format("%n"));
@@ -443,7 +440,8 @@ public class ExtendedIFD extends IFD {
                 additional = e;
             }
             sb.append("    ").append(ifdTagName(tag)).append(" = ");
-            if (v != null && v.getClass().isArray()) {
+            boolean manyValues = v != null && v.getClass().isArray();
+            if (manyValues) {
                 final int len = Array.getLength(v);
                 sb.append(v.getClass().getComponentType().getSimpleName()).append("[").append(len).append("]");
                 sb.append(" {");
@@ -467,10 +465,17 @@ public class ExtendedIFD extends IFD {
             } else {
                 sb.append(v);
             }
-            if (types != null) {
-                final IFDType ifdType = types.get(tag);
-                if (ifdType != null) {
-                    sb.append(" : ").append(ifdType);
+            if (entries != null) {
+                final TiffIFDEntry ifdEntry = entries.get(tag);
+                if (ifdEntry != null) {
+                    sb.append(" : ").append(ifdEntry.getType());
+                    int valueCount = ifdEntry.getValueCount();
+                    if (valueCount != 1) {
+                        sb.append("[").append(valueCount).append("]");
+                    }
+                    if (manyValues) {
+                        sb.append(" at @").append(ifdEntry.getValueOffset());
+                    }
                 }
             }
             if (additional != null) {
