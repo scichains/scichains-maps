@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class ReadWriteTiffTest {
-    private static final int MAX_IMAGE_DIM = 3000;
+    private static final int MAX_IMAGE_DIM = 8000;
     private static final int START_X = 0;
     private static final int START_Y = 0;
 
@@ -136,7 +136,7 @@ public class ReadWriteTiffTest {
                         saverIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
                     }
-
+                    saverIFD.putImageSizes(w, h);
                     saver.writeImage(bytes, saverIFD, -1, parserIFD.getPixelType(), START_X, START_Y, w, h,
                             last, bandCount, false);
                     long t3 = System.nanoTime();
