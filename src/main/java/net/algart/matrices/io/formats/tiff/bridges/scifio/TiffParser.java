@@ -1816,11 +1816,19 @@ public class TiffParser extends AbstractContextual implements Closeable {
             -0x49, 0x77, -0x09, 0x0f, -0x71, 0x4f, -0x31, 0x2f, -0x51, 0x6f, -0x11,
             0x1f, -0x61, 0x5f, -0x21, 0x3f, -0x41, 0x7f, -0x01};
 
+    /**
+     * Changes bits order inside the passed array if FillOrder=2.
+     * Note that {@link TiffSaver} does not support this. GIMP and most viewers also do not support this feature.
+     *
+     * @param ifd IFD
+     * @param buf bytes
+     * @throws FormatException in a case of error in IFD
+     */
     public static void adjustFillOrder(final IFD ifd, final byte[] buf)
             throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (ifd.getFillOrder() == FillOrder.REVERSED) {
-            // swap bit order of all bytes
+            // swap bits order of all bytes
             for (int i = 0; i < buf.length; i++) {
                 buf[i] = REVERSE[buf[i] & 0xFF];
             }

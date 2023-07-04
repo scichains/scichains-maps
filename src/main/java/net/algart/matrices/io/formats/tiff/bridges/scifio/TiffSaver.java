@@ -177,6 +177,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         setContext(ctx);
         this.loc = loc;
         this.out = dataHandleService.create(loc);
+        if (out == null) {
+            throw new NullPointerException("Data handle service created null out");
+        }
         scifio = new SCIFIO(ctx);
         log = scifio.log();
     }
@@ -743,7 +746,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     public void writeImage(final byte[] samples, final IFD ifd, final long planeIndex,
                            final int pixelType, final int x, final int y, final int w, final int h,
-                           final boolean last, Integer nChannels, final boolean copyDirectly)
+                           final boolean last, Integer numberOfChannels, final boolean copyDirectly)
             throws FormatException, IOException {
         Objects.requireNonNull(samples, "Null samples data");
         Objects.requireNonNull(ifd, "Null IFD");
@@ -752,45 +755,48 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         // These operations are synchronized
         TiffCompression compression;
-        int tileWidth, tileHeight, tilesPerRow, nStrips, effectiveStrips;
+        int tileWidth, tileHeight, tilesPerRow, numberOfStrips, effectiveStrips;
         final ByteArrayOutputStream[] stripBuf;
         final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
-        final boolean interleaved;
+        // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
+        // (IFD is not well-formed yet)
+        final boolean chunked;
         synchronized (this) {
             final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
             final int blockSize = w * h * bytesPerSample;
-            if (nChannels == null) {
-                nChannels = samples.length / (w * h * bytesPerSample);
+            if (numberOfChannels == null) {
+                numberOfChannels = samples.length / (w * h * bytesPerSample);
             }
-            interleaved = ifd.getPlanarConfiguration() == 1;
+            chunked = ifd.getPlanarConfiguration() == 1;
 
-            prepareValidIFD(ifd, pixelType, nChannels);
+            prepareValidIFD(ifd, pixelType, numberOfChannels);
 
             // create pixel output buffers
 
-            compression = ifd.getCompression();
             tileWidth = (int) ifd.getTileWidth();
             tileHeight = (int) ifd.getTileLength();
             tilesPerRow = (int) ifd.getTilesPerRow();
             final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
             int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
-            nStrips = ((w + tileWidth - 1) / tileWidth) * ((h + tileHeight - 1) /
-                    tileHeight);
+            numberOfStrips = ((w + tileWidth - 1) / tileWidth) * ((h + tileHeight - 1) / tileHeight);
 
-            if (interleaved) stripSize *= nChannels;
-            else nStrips *= nChannels;
+            if (chunked) {
+                stripSize *= numberOfChannels;
+            } else {
+                numberOfStrips *= numberOfChannels;
+            }
 
-            stripBuf = new ByteArrayOutputStream[nStrips];
-            final DataOutputStream[] stripOut = new DataOutputStream[nStrips];
-            for (int strip = 0; strip < nStrips; strip++) {
+            stripBuf = new ByteArrayOutputStream[numberOfStrips];
+            final DataOutputStream[] stripOut = new DataOutputStream[numberOfStrips];
+            for (int strip = 0; strip < numberOfStrips; strip++) {
                 stripBuf[strip] = new ByteArrayOutputStream(stripSize);
                 stripOut[strip] = new DataOutputStream(stripBuf[strip]);
             }
             final int[] bps = ifd.getBitsPerSample();
 
             // write pixel strips to output buffers
-            effectiveStrips = interleaved ? nStrips : nStrips / nChannels;
-            if (nStrips == 1 && copyDirectly && !autoInterleave) {
+            effectiveStrips = chunked ? numberOfStrips : numberOfStrips / numberOfChannels;
+            if (numberOfStrips == 1 && copyDirectly && !autoInterleave) {
                 stripOut[0].write(samples);
             } else {
                 for (int strip = 0; strip < effectiveStrips; strip++) {
@@ -801,14 +807,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                         for (int col = 0; col < tileWidth; col++) {
                             int j = col + xOffset;
                             final int ndx = (i * w + j) * bytesPerSample;
-                            for (int c = 0; c < nChannels; c++) {
+                            for (int c = 0; c < numberOfChannels; c++) {
                                 for (int n = 0; n < bps[c] / 8; n++) {
-                                    if (interleaved) {
+                                    if (chunked) {
                                         int off;
                                         if (autoInterleave) {
                                             off = c * blockSize + ndx + n;
                                         } else {
-                                            off = ndx * nChannels + c * bytesPerSample + n;
+                                            off = ndx * numberOfChannels + c * bytesPerSample + n;
                                         }
                                         if (i >= h || j >= w) {
                                             stripOut[strip].writeByte(0);
@@ -819,9 +825,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                                     } else {
                                         int off = c * blockSize + ndx + n;
                                         if (i >= h || j >= w) {
-                                            stripOut[c * (nStrips / nChannels) + strip].writeByte(0);
+                                            stripOut[c * (numberOfStrips / numberOfChannels) + strip].writeByte(0);
                                         } else {
-                                            stripOut[c * (nStrips / nChannels) + strip].writeByte(
+                                            stripOut[c * (numberOfStrips / numberOfChannels) + strip].writeByte(
                                                     samples[off]);
                                         }
                                     }
@@ -838,9 +844,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        final byte[][] strips = new byte[nStrips][];
+        final byte[][] strips = new byte[numberOfStrips][];
         final int imageHeight = (int) ifd.getImageLength();
-        for (int strip = 0; strip < nStrips; strip++) {
+        for (int strip = 0; strip < numberOfStrips; strip++) {
             strips[strip] = stripBuf[strip].toByteArray();
             scifio.tiff().difference(strips[strip], ifd);
             int sizeX = tileWidth;
@@ -856,13 +862,13 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
             if (log.isDebug()) {
                 log.debug(String.format("Compressed strip %d/%d length %d", strip + 1,
-                        nStrips, strips[strip].length));
+                        numberOfStrips, strips[strip].length));
             }
         }
 
         // This operation is synchronized
         synchronized (this) {
-            writeImageIFD(ifd, planeIndex, strips, nChannels, last, x, y);
+            writeImageIFD(ifd, planeIndex, strips, numberOfChannels, last, x, y);
         }
     }
 
@@ -912,13 +918,13 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     "(only 8-bit samples allowed)");
         }
 
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final ByteArrayOutputStream result = new ByteArrayOutputStream();
         final BufferedImage image = AWTImageTools.makeImage(data, options.width,
                 options.height, options.channels, options.interleaved,
                 options.bitsPerSample / 8, false, options.littleEndian, options.signed);
 
         try {
-            final ImageOutputStream ios = ImageIO.createImageOutputStream(out);
+            final ImageOutputStream ios = ImageIO.createImageOutputStream(result);
             final ImageWriter jpegWriter = getJPEGWriter();
             jpegWriter.setOutput(ios);
 
@@ -943,7 +949,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         } catch (final IOException e) {
             throw new FormatException("Cannot compress JPEG data", e);
         }
-        return out.toByteArray();
+        return result.toByteArray();
     }
 
     /* These methods are never used and should be removed. No sense to optimize it.
@@ -1117,23 +1123,18 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     private void writeImageIFD(IFD ifd, final long planeIndex,
                                final byte[][] strips, final int nChannels, final boolean last, final int x,
                                final int y) throws FormatException, IOException {
-        log.debug("Attempting to write image IFD.");
         final int tilesPerRow = (int) ifd.getTilesPerRow();
         final int tilesPerColumn = (int) ifd.getTilesPerColumn();
         final boolean interleaved = ifd.getPlanarConfiguration() == 1;
         final boolean isTiled = ifd.isTiled();
+        assert out != null : "must be checked in the constructor";
 
         if (!writingSequentially) {
             DataHandle<Location> in = null;
             if (loc != null) {
                 in = dataHandleService.create(loc);
-            } else if (out != null) {
-                in = dataHandleService.create(out.get());
-            } else if (bytes != null) {
-                in = dataHandleService.create(bytes);
             } else {
-                throw new IllegalArgumentException(
-                        "Filename and bytes are null, cannot create new input stream!");
+                in = dataHandleService.create(out.get());
             }
             try {
                 final TiffParser parser = new TiffParser(getContext(), in);
@@ -1154,7 +1155,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         final List<Long> byteCounts = new ArrayList<>();
         final List<Long> offsets = new ArrayList<>();
-        long totalTiles = tilesPerRow * tilesPerColumn;
+        long totalTiles = (long) tilesPerRow * (long) tilesPerColumn;
 
         if (!interleaved) {
             totalTiles *= nChannels;
@@ -1274,10 +1275,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
 
-    private void prepareValidIFD(final IFD ifd, final int pixelType, final int nChannels) throws FormatException {
+    private void prepareValidIFD(final IFD ifd, int pixelType, int numberOfChannels) throws FormatException {
         final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
         final int bps = 8 * bytesPerPixel;
-        final int[] bpsArray = new int[nChannels];
+        final int[] bpsArray = new int[numberOfChannels];
         Arrays.fill(bpsArray, bps);
         ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
 
@@ -1290,17 +1291,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             ifd.putIFDValue(IFD.COMPRESSION, compressionValue);
         }
 
-        final boolean indexed = nChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
-        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE : nChannels == 1
-                ? PhotoInterp.BLACK_IS_ZERO :
-                compressionValue.equals(TiffCompression.JPEG.getCode())
-                        && ifd.getPlanarConfiguration() == 1
-                        && !compressJPEGInPhotometricRGB() ?
-                        PhotoInterp.Y_CB_CR :
-                        PhotoInterp.RGB;
+        final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
+        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE :
+                numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
+                        compressionValue.equals(TiffCompression.JPEG.getCode())
+                                && ifd.getPlanarConfiguration() == 1
+                                && !compressJPEGInPhotometricRGB() ?
+                                PhotoInterp.Y_CB_CR :
+                                PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
 
-        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, nChannels);
+        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
 
 //        if (ifd.get(IFD.X_RESOLUTION) == null) {
 //            ifd.putIFDValue(IFD.X_RESOLUTION, new TiffRational(1, 1));
