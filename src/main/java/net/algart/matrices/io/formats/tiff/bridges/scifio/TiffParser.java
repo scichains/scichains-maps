@@ -899,13 +899,22 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int tileSizeX = ifd.getTileSizeX();
         final int tileSizeY = ifd.getTileSizeY();
         final int numTileCols = ifd.getTilesPerRow(tileSizeX);
-        final int numTileRows = ifd.getTilesPerColumn(tileSizeY);
+        int numTileRows = ifd.getTilesPerColumn(tileSizeY);
+        if (ifd.isPlanarSeparated()) {
+            int channelsInSeparated = ifd.getSamplesPerPixel();
+            if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Too large image: number of tiles in column " + numTileCols
+                        + " * samples per pixel " + channelsInSeparated + " >= 2^31");
+            }
+            numTileRows *= channelsInSeparated;
+        }
         if (row < 0 || row >= numTileRows || col < 0 || col >= numTileCols) {
             throw new IndexOutOfBoundsException("Tile/strip position (col, row) = (" + col + ", " + row
                     + ") is out of bounds 0 <= col < " + numTileCols + ", 0 <= row < " + numTileRows);
         }
         final long numberOfTiles = (long) numTileRows * (long) numTileCols;
         if (numberOfTiles > Integer.MAX_VALUE) {
+            // - this check allows to be sure that tileIndex below is 31-bit
             throw new FormatException("Too large number of tiles/strips: "
                     + numTileRows + "*" + numTileCols + ">2^31-1");
         }

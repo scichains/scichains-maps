@@ -114,7 +114,7 @@ public class TiffSaverTest {
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
-                    ifd.putTileSizes(64, 64);
+                    ifd.putTileSizes(256, 256);
                 }
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparate) {

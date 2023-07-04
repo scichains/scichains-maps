@@ -744,7 +744,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         writeImage(samples, ifd, planeIndex, pixelType, x, y, w, h, last, null, false);
     }
 
-    public void writeImage(final byte[] samples, final IFD ifd, final long planeIndex,
+    public void writeImage(byte[] samples, final IFD ifd, final long planeIndex,
                            final int pixelType, final int fromX, final int fromY, final int sizeX, final int sizeY,
                            final boolean last, Integer numberOfChannels, final boolean copyDirectly)
             throws FormatException, IOException {
@@ -758,12 +758,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             throw new IllegalArgumentException("Too short samples array, even for 1 channel: " + samples.length
                     + " < " + size * bytesPerSample);
         }
-        final int blockSize = (int) size * bytesPerSample;
+        final int channelSize = (int) size * bytesPerSample;
         if (numberOfChannels == null) {
-            numberOfChannels = samples.length / blockSize;
-        } else if (blockSize * numberOfChannels > samples.length) {
+            numberOfChannels = samples.length / channelSize;
+        } else if (channelSize * numberOfChannels > samples.length) {
             throw new IllegalArgumentException("Too short samples array for " + numberOfChannels +
-                    " channels: " + samples.length + " < " + blockSize * numberOfChannels);
+                    " channels: " + samples.length + " < " + channelSize * numberOfChannels);
         }
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
@@ -771,7 +771,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         // These operations are synchronized
         TiffCompression compression;
-        int tileWidth, tileHeight, tilesPerRow, numberOfStrips, effectiveStrips;
+        int tileWidth, tileHeight, tilesPerRow, numberOfActualStrips, numberOfEncodedStrips;
         final ByteArrayOutputStream[] stripBuf;
         final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
         // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
@@ -789,17 +789,18 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             tilesPerRow = (int) ifd.getTilesPerRow();
             final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
             int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
-            numberOfStrips = ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
+            numberOfActualStrips = ((sizeX + tileWidth - 1) / tileWidth)  * ((sizeY + tileHeight - 1) / tileHeight);
+            numberOfEncodedStrips = numberOfActualStrips;
 
             if (chunked) {
                 stripSize *= numberOfChannels;
             } else {
-                numberOfStrips *= numberOfChannels;
+                numberOfEncodedStrips *= numberOfChannels;
             }
 
-            stripBuf = new ByteArrayOutputStream[numberOfStrips];
-            final DataOutputStream[] stripOut = new DataOutputStream[numberOfStrips];
-            for (int strip = 0; strip < numberOfStrips; strip++) {
+            stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
+            final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
+            for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
                 stripBuf[strip] = new ByteArrayOutputStream(stripSize);
                 stripOut[strip] = new DataOutputStream(stripBuf[strip]);
             }
@@ -807,14 +808,13 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             // - not necessary: correct BITS_PER_SAMPLE, based on pixelType, was written into IFD by prepareValidIFD()
 
             // write pixel strips to output buffers
-            effectiveStrips = chunked ? numberOfStrips : numberOfStrips / numberOfChannels;
-//            if (autoInterleave) {
-//                samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, )
-//            }
-            if (numberOfStrips == 1 && copyDirectly && !autoInterleave) {
+            if (chunked && autoInterleave) {
+                samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) size);
+            }
+            if (numberOfEncodedStrips == 1 && copyDirectly) {
                 stripOut[0].write(samples);
             } else {
-                for (int strip = 0; strip < effectiveStrips; strip++) {
+                for (int strip = 0; strip < numberOfActualStrips; strip++) {
                     final int xOffset = (strip % tilesPerRow) * tileWidth;
                     final int yOffset = (strip / tilesPerRow) * tileHeight;
                     for (int row = 0; row < tileHeight; row++) {
@@ -825,12 +825,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                             for (int c = 0; c < numberOfChannels; c++) {
                                 for (int n = 0; n < bytesPerSample; n++) {
                                     if (chunked) {
-                                        int off;
-                                        if (autoInterleave) {
-                                            off = c * blockSize + ndx + n;
-                                        } else {
-                                            off = ndx * numberOfChannels + c * bytesPerSample + n;
-                                        }
+                                        int off = ndx * numberOfChannels + c * bytesPerSample + n;
                                         if (i >= sizeY || j >= sizeX) {
                                             stripOut[strip].writeByte(0);
                                         } else {
@@ -838,11 +833,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                                         }
 
                                     } else {
-                                        int off = c * blockSize + ndx + n;
+                                        int off = c * channelSize + ndx + n;
                                         if (i >= sizeY || j >= sizeX) {
-                                            stripOut[c * (numberOfStrips / numberOfChannels) + strip].writeByte(0);
+                                            stripOut[c * (numberOfEncodedStrips / numberOfChannels) + strip].writeByte(0);
                                         } else {
-                                            stripOut[c * (numberOfStrips / numberOfChannels) + strip].writeByte(
+                                            stripOut[c * (numberOfEncodedStrips / numberOfChannels) + strip].writeByte(
                                                     samples[off]);
                                         }
                                     }
@@ -859,15 +854,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        final byte[][] strips = new byte[numberOfStrips][];
+        final byte[][] strips = new byte[numberOfEncodedStrips][];
         final int imageHeight = (int) ifd.getImageLength();
-        for (int strip = 0; strip < numberOfStrips; strip++) {
+        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
             strips[strip] = stripBuf[strip].toByteArray();
             scifio.tiff().difference(strips[strip], ifd);
             int tileSizeX = tileWidth;
             int tileSizeY = tileHeight;
             if (!tiled) {
-                final int yOffset = ((strip % effectiveStrips) / tilesPerRow) * tileHeight;
+                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
                 if (yOffset + tileHeight > imageHeight) {
                     tileSizeY = Math.max(0, imageHeight - yOffset);
                     // - last strip should have exact height, in other case TIFF may be read with a warning
