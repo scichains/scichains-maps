@@ -506,6 +506,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final int tag,
             Object value) throws FormatException, IOException {
         extraOut.setLittleEndian(isLittleEndian());
+        if ((extraOut.offset() & 0x1) != 0) {
+            extraOut.writeByte(0);
+            // - Well-formed IFD requires even offsets
+        }
 
         // convert singleton objects into arrays, for simplicity
         if (value instanceof Short) {
@@ -533,11 +537,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             // determining necessary type on the base of the tag value.
             writeIntValue(out, q.length);
             if (q.length <= dataLength) {
-                for (byte b : q) {
-                    out.writeByte(b);
+                for (byte byteValue : q) {
+                    out.writeByte(byteValue);
                 }
-                for (int i = q.length; i < dataLength; i++)
+                for (int i = q.length; i < dataLength; i++) {
                     out.writeByte(0);
+                }
             } else {
                 writeIntValue(out, offset + extraOut.length());
                 extraOut.write(q);
@@ -555,8 +560,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 }
             } else {
                 writeIntValue(out, offset + extraOut.length());
-                for (short s : q) {
-                    extraOut.writeByte(s);
+                for (short shortValue : q) {
+                    extraOut.writeByte(shortValue);
                 }
             }
         } else if (value instanceof String) { // ASCII
@@ -572,8 +577,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 }
             } else {
                 writeIntValue(out, offset + extraOut.length());
-                for (char c : q) {
-                    extraOut.writeByte(c); // values
+                for (char charValue : q) {
+                    extraOut.writeByte(charValue); // values
                 }
                 extraOut.writeByte(0); // concluding NULL byte
             }
@@ -582,16 +587,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(IFDType.SHORT.getCode()); // type
             writeIntValue(out, q.length);
             if (q.length <= dataLength / 2) {
-                for (int j : q) {
-                    out.writeShort(j); // value(s)
+                for (int intValue : q) {
+                    out.writeShort(intValue); // value(s)
                 }
                 for (int i = q.length; i < dataLength / 2; i++) {
                     out.writeShort(0); // padding
                 }
             } else {
                 writeIntValue(out, offset + extraOut.length());
-                for (int j : q) {
-                    extraOut.writeShort(j); // values
+                for (int intValue : q) {
+                    extraOut.writeShort(intValue); // values
                 }
             }
         } else if (value instanceof long[]) { // LONG
@@ -623,9 +628,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(type);
             writeIntValue(out, q.length);
 
-            final int div = bigTiff ? 8 : 4;
-            assert div == dataLength;
-
             if (q.length <= 1) {
                 for (int i = 0; i < q.length; i++) {
                     writeIntValue(out, q[0]);
@@ -636,8 +638,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 }
             } else {
                 writeIntValue(out, offset + extraOut.length());
-                for (long l : q) {
-                    writeIntValue(extraOut, l);
+                for (long longValue : q) {
+                    writeIntValue(extraOut, longValue);
                 }
             }
         } else if (value instanceof TiffRational[]) { // RATIONAL
@@ -659,8 +661,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(IFDType.FLOAT.getCode()); // type
             writeIntValue(out, q.length);
             if (q.length <= dataLength / 4) {
-                for (float v : q) {
-                    out.writeFloat(v); // value
+                for (float floatValue : q) {
+                    out.writeFloat(floatValue); // value
                     // - in old SCIFIO code, here was a bug (for a case bigTiff): q[0] was always written
                 }
                 for (int i = q.length; i < dataLength / 4; i++) {
@@ -668,8 +670,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 }
             } else {
                 writeIntValue(out, offset + extraOut.length());
-                for (float v : q) {
-                    extraOut.writeFloat(v); // values
+                for (float floatValue : q) {
+                    extraOut.writeFloat(floatValue); // values
                 }
             }
         } else if (value instanceof double[]) { // DOUBLE
@@ -677,8 +679,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(IFDType.DOUBLE.getCode()); // type
             writeIntValue(out, q.length);
             writeIntValue(out, offset + extraOut.length());
-            for (final double doubleVal : q) {
-                extraOut.writeDouble(doubleVal); // values
+            for (final double doubleValue : q) {
+                extraOut.writeDouble(doubleValue); // values
             }
         } else {
             throw new FormatException("Unknown IFD value type (" + value.getClass()

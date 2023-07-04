@@ -43,6 +43,11 @@ public class WriteTiffTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
+        boolean bigTiff = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
+            bigTiff = true;
+            startArgIndex++;
+        }
         boolean color = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-color")) {
             color = true;
@@ -71,7 +76,7 @@ public class WriteTiffTest {
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + WriteTiffTest.class.getName() +
-                    " [-color] [-singleStrip] [-tiled] [-planarSeparate] " +
+                    " [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparate] " +
                     "target.tif [number_of_images [compression]]");
             return;
         }
@@ -83,7 +88,7 @@ public class WriteTiffTest {
         Files.deleteIfExists(targetFile);
         try (Context context = scifio.getContext();
             TiffSaver saver = new TiffSaver(context, targetFile)) {
-            saver.setBigTiff(false);
+            saver.setBigTiff(bigTiff);
             saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);
