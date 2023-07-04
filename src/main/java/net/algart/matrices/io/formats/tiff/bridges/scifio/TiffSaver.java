@@ -437,6 +437,255 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
+    public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
+        final TreeSet<Integer> keys = new TreeSet<>(ifd.keySet());
+        int keyCount = keys.size();
+
+        if (ifd.containsKey(IFD.LITTLE_ENDIAN)) {
+            keyCount--;
+        }
+        if (ifd.containsKey(IFD.BIG_TIFF)) {
+            keyCount--;
+        }
+        if (ifd.containsKey(IFD.REUSE)) {
+            keyCount--;
+        }
+        // - Not counting pseudo-fields (not actually saved in TIFF)
+
+        final long fp = out.offset();
+        if ((fp & 0x1) != 0) {
+            throw new FormatException("Attempt to write IFD at odd offset " + fp + " is prohibited for valid TIFF");
+        }
+        final int keyCountLimit = bigTiff ? 10_000_000 : 65535;
+        if (keyCount > keyCountLimit) {
+            throw new FormatException("Too many number of IFD entries: " + keyCount + " > " + keyCountLimit);
+            // - theoretically BigTIFF allows to write more, but we prefer to make some restriction and
+            // guarantee 32-bit number of bytes
+        }
+        final int bytesPerEntry = bigTiff ?
+                TiffConstants.BIG_TIFF_BYTES_PER_ENTRY :
+                TiffConstants.BYTES_PER_ENTRY;
+        final int ifdBytes = (bigTiff ? 16 : 6) + bytesPerEntry * keyCount;
+
+        if (bigTiff) {
+            out.writeLong(keyCount);
+        } else {
+            out.writeShort(keyCount);
+        }
+
+        final BytesLocation extra = new BytesLocation(0); // NB: autoresizes
+        try (final DataHandle<Location> extraHandle = dataHandleService.create(extra)) {
+            for (final Integer key : keys) {
+                if (key.equals(IFD.LITTLE_ENDIAN) || key.equals(IFD.BIG_TIFF) || key.equals(IFD.REUSE)) {
+                    continue;
+                }
+
+                final Object value = ifd.get(key);
+                writeIFDValue(extraHandle, ifdBytes + fp, key, value);
+            }
+
+            writeIntValue(out, nextOffset);
+            final int ifdLen = (int) extraHandle.offset();
+            extraHandle.seek(0l);
+            DataHandles.copy(extraHandle, out, ifdLen);
+        }
+    }
+
+    /**
+     * Writes the given IFD value to the given output object.
+     *
+     * @param extraOut buffer to which "extra" IFD information should be written
+     *                 (any data, for which IFD contains its offsets instead of data itself)
+     * @param offset   global offset to use for IFD offset values
+     * @param tag      IFD tag to write
+     * @param value    IFD value to write
+     */
+    public void writeIFDValue(
+            final DataHandle<Location> extraOut,
+            final long offset,
+            final int tag,
+            Object value) throws FormatException, IOException {
+        extraOut.setLittleEndian(isLittleEndian());
+
+        // convert singleton objects into arrays, for simplicity
+        if (value instanceof Short) {
+            value = new short[]{(Short) value};
+        } else if (value instanceof Integer) {
+            value = new int[]{(Integer) value};
+        } else if (value instanceof Long) {
+            value = new long[]{(Long) value};
+        } else if (value instanceof TiffRational) {
+            value = new TiffRational[]{(TiffRational) value};
+        } else if (value instanceof Float) {
+            value = new float[]{(Float) value};
+        } else if (value instanceof Double) {
+            value = new double[]{(Double) value};
+        }
+
+        final boolean bigTiff = this.bigTiff;
+        final int dataLength = bigTiff ? 8 : 4;
+
+        // write directory entry to output buffers
+        out.writeShort(tag); // tag
+        if (value instanceof byte[] q) {
+            out.writeShort(IFDType.UNDEFINED.getCode());
+            // - Most probable type. Maybe in future we will support here some algorithm,
+            // determining necessary type on the base of the tag value.
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength) {
+                for (byte b : q) {
+                    out.writeByte(b);
+                }
+                for (int i = q.length; i < dataLength; i++)
+                    out.writeByte(0);
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                extraOut.write(q);
+            }
+        } else if (value instanceof short[]) {
+            final short[] q = (short[]) value;
+            out.writeShort(IFDType.BYTE.getCode());
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength) {
+                for (short s : q) {
+                    out.writeByte(s);
+                }
+                for (int i = q.length; i < dataLength; i++) {
+                    out.writeByte(0);
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (short s : q) {
+                    extraOut.writeByte(s);
+                }
+            }
+        } else if (value instanceof String) { // ASCII
+            final char[] q = ((String) value).toCharArray();
+            out.writeShort(IFDType.ASCII.getCode()); // type
+            writeIntValue(out, q.length + 1);
+            if (q.length < dataLength) {
+                for (char c : q) {
+                    out.writeByte(c); // value(s)
+                }
+                for (int i = q.length; i < dataLength; i++) {
+                    out.writeByte(0); // padding
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (char c : q) {
+                    extraOut.writeByte(c); // values
+                }
+                extraOut.writeByte(0); // concluding NULL byte
+            }
+        } else if (value instanceof int[]) { // SHORT
+            final int[] q = (int[]) value;
+            out.writeShort(IFDType.SHORT.getCode()); // type
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength / 2) {
+                for (int j : q) {
+                    out.writeShort(j); // value(s)
+                }
+                for (int i = q.length; i < dataLength / 2; i++) {
+                    out.writeShort(0); // padding
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int j : q) {
+                    extraOut.writeShort(j); // values
+                }
+            }
+        } else if (value instanceof long[]) { // LONG
+            final long[] q = (long[]) value;
+            if (AVOID_LONG8_FOR_ACTUAL_32_BITS && q.length == 1 && bigTiff) {
+                // - note: inside TIFF, long[1] is saved in the same way as Long; we have a difference in Java only
+                final long v = q[0];
+                if (v == (int) v) {
+                    // - it is very probable for the following tags
+                    switch (tag) {
+                        case IFD.IMAGE_WIDTH,
+                                IFD.IMAGE_LENGTH,
+                                IFD.TILE_WIDTH,
+                                IFD.TILE_LENGTH,
+                                ExtendedIFD.IMAGE_DEPTH,
+                                IFD.ROWS_PER_STRIP,
+                                IFD.NEW_SUBFILE_TYPE -> {
+                            out.writeShort(IFDType.LONG.getCode());
+                            out.writeLong(1L);
+                            out.writeInt((int) v);
+                            out.writeInt(0);
+                            // - 4 bytes of padding until full length 20 bytes
+                            return;
+                        }
+                    }
+                }
+            }
+            final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG.getCode();
+            out.writeShort(type);
+            writeIntValue(out, q.length);
+
+            final int div = bigTiff ? 8 : 4;
+            assert div == dataLength;
+
+            if (q.length <= 1) {
+                for (int i = 0; i < q.length; i++) {
+                    writeIntValue(out, q[0]);
+                    // - q[0]: it is actually performed 0 or 1 times
+                }
+                for (int i = q.length; i < 1; i++) {
+                    writeIntValue(out, 0);
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (long l : q) {
+                    writeIntValue(extraOut, l);
+                }
+            }
+        } else if (value instanceof TiffRational[]) { // RATIONAL
+            final TiffRational[] q = (TiffRational[]) value;
+            out.writeShort(IFDType.RATIONAL.getCode()); // type
+            writeIntValue(out, q.length);
+            if (bigTiff && q.length == 1) {
+                out.writeInt((int) q[0].getNumerator());
+                out.writeInt((int) q[0].getDenominator());
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (TiffRational tiffRational : q) {
+                    extraOut.writeInt((int) tiffRational.getNumerator());
+                    extraOut.writeInt((int) tiffRational.getDenominator());
+                }
+            }
+        } else if (value instanceof float[]) { // FLOAT
+            final float[] q = (float[]) value;
+            out.writeShort(IFDType.FLOAT.getCode()); // type
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength / 4) {
+                for (float v : q) {
+                    out.writeFloat(v); // value
+                    // - in old SCIFIO code, here was a bug (for a case bigTiff): q[0] was always written
+                }
+                for (int i = q.length; i < dataLength / 4; i++) {
+                    out.writeInt(0); // padding
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (float v : q) {
+                    extraOut.writeFloat(v); // values
+                }
+            }
+        } else if (value instanceof double[]) { // DOUBLE
+            final double[] q = (double[]) value;
+            out.writeShort(IFDType.DOUBLE.getCode()); // type
+            writeIntValue(out, q.length);
+            writeIntValue(out, offset + extraOut.length());
+            for (final double doubleVal : q) {
+                extraOut.writeDouble(doubleVal); // values
+            }
+        } else {
+            throw new FormatException("Unknown IFD value type (" + value.getClass()
+                    .getName() + "): " + value);
+        }
+    }
+
     /**
      *
      */
@@ -689,386 +938,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final IIOImage iioImage = new IIOImage(image, null, metadata);
             // - metadata necessary (with necessary markers)
             jpegWriter.write(null, iioImage, writeParam);
-        }
-        catch (final IOException e) {
+        } catch (final IOException e) {
             throw new FormatException("Cannot compress JPEG data", e);
         }
         return out.toByteArray();
-    }
-
-    /**
-     * Performs the actual work of dealing with IFD data and writing it to the
-     * TIFF for a given image or sub-image.
-     *
-     * @param ifd        The Image File Directories. Mustn't be {@code null}.
-     * @param planeIndex The image index within the current file, starting from 0.
-     * @param strips     The strips to write to the file.
-     * @param last       Pass {@code true} if it is the last image, {@code false}
-     *                   otherwise.
-     * @param x          The initial X offset of the strips/tiles to write.
-     * @param y          The initial Y offset of the strips/tiles to write.
-     * @throws FormatException
-     * @throws IOException
-     */
-    private void writeImageIFD(IFD ifd, final long planeIndex,
-                               final byte[][] strips, final int nChannels, final boolean last, final int x,
-                               final int y) throws FormatException, IOException {
-        log.debug("Attempting to write image IFD.");
-        final int tilesPerRow = (int) ifd.getTilesPerRow();
-        final int tilesPerColumn = (int) ifd.getTilesPerColumn();
-        final boolean interleaved = ifd.getPlanarConfiguration() == 1;
-        final boolean isTiled = ifd.isTiled();
-
-        if (!writingSequentially) {
-            DataHandle<Location> in = null;
-            if (loc != null) {
-                in = dataHandleService.create(loc);
-            } else if (out != null) {
-                in = dataHandleService.create(out.get());
-            } else if (bytes != null) {
-                in = dataHandleService.create(bytes);
-            } else {
-                throw new IllegalArgumentException(
-                        "Filename and bytes are null, cannot create new input stream!");
-            }
-            try {
-                final TiffParser parser = new TiffParser(getContext(), in);
-                final long[] ifdOffsets = parser.getIFDOffsets();
-                log.debug("IFD offsets: " + Arrays.toString(ifdOffsets));
-                if (planeIndex < ifdOffsets.length) {
-                    out.seek(ifdOffsets[(int) planeIndex]);
-                    log.debug("Reading IFD from " + ifdOffsets[(int) planeIndex] +
-                            " in non-sequential write.");
-                    ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
-                }
-            } finally {
-                in.close();
-            }
-        }
-
-        // record strip byte counts and offsets
-
-        final List<Long> byteCounts = new ArrayList<>();
-        final List<Long> offsets = new ArrayList<>();
-        long totalTiles = tilesPerRow * tilesPerColumn;
-
-        if (!interleaved) {
-            totalTiles *= nChannels;
-        }
-
-        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(
-                IFD.TILE_BYTE_COUNTS)) {
-            final long[] ifdByteCounts = isTiled ? ifd.getIFDLongArray(
-                    IFD.TILE_BYTE_COUNTS) : ifd.getStripByteCounts();
-            for (final long stripByteCount : ifdByteCounts) {
-                byteCounts.add(stripByteCount);
-            }
-        } else {
-            while (byteCounts.size() < totalTiles) {
-                byteCounts.add(0L);
-            }
-        }
-        final int tileOrStripOffsetX = x / (int) ifd.getTileWidth();
-        final int tileOrStripOffsetY = y / (int) ifd.getTileLength();
-        final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
-                tileOrStripOffsetX;
-        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(
-                IFD.TILE_OFFSETS)) {
-            final long[] ifdOffsets = isTiled ? ifd.getIFDLongArray(IFD.TILE_OFFSETS)
-                    : ifd.getStripOffsets();
-            for (final long ifdOffset : ifdOffsets) {
-                offsets.add(ifdOffset);
-            }
-        } else {
-            while (offsets.size() < totalTiles) {
-                offsets.add(0L);
-            }
-        }
-
-        if (isTiled) {
-            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
-            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
-        } else {
-            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
-            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
-        }
-
-        final long fp = out.offset();
-        writeIFD(ifd, 0);
-
-        for (int i = 0; i < strips.length; i++) {
-            out.seek(out.length());
-            final int thisOffset = firstOffset + i;
-            offsets.set(thisOffset, out.offset());
-            byteCounts.set(thisOffset, (long) strips[i].length);
-            if (log.isDebug()) {
-                log.debug(String.format("Writing tile/strip %d/%d size: %d offset: %d",
-                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(
-                                thisOffset)));
-            }
-            out.write(strips[i]);
-        }
-        if (isTiled) {
-            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
-            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
-        } else {
-            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
-            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
-        }
-        long endFP = out.offset();
-        if ((endFP & 0x1) != 0) {
-            out.writeByte(0);
-            endFP = out.offset();
-            // - Well-formed IFD requires even offsets
-        }
-        if (log.isDebug()) {
-            log.debug("Offset before IFD write: " + out.offset() + " Seeking to: " +
-                    fp);
-        }
-        out.seek(fp);
-
-        if (log.isDebug()) {
-            log.debug("Writing tile/strip offsets: " + Arrays.toString(
-                    toPrimitiveArray(offsets)));
-            log.debug("Writing tile/strip byte counts: " + Arrays.toString(
-                    toPrimitiveArray(byteCounts)));
-        }
-        writeIFD(ifd, last ? 0 : endFP);
-        // - rewriting IFD with already filled offsets (not too quick, but quick enough)
-        out.seek(endFP);
-        // - restoring correct file pointer at the end of tile
-    }
-
-    public void writeIFD(final IFD ifd, final long nextOffset)
-            throws FormatException, IOException {
-        final TreeSet<Integer> keys = new TreeSet<>(ifd.keySet());
-        int keyCount = keys.size();
-
-        if (ifd.containsKey(IFD.LITTLE_ENDIAN)) keyCount--;
-        if (ifd.containsKey(IFD.BIG_TIFF)) keyCount--;
-        if (ifd.containsKey(IFD.REUSE)) keyCount--;
-
-        final long fp = out.offset();
-        if ((fp & 0x1) != 0) {
-            throw new FormatException("Attempt to write IFD at odd offset " + fp + " is prohibited for valid TIFF");
-        }
-        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                : TiffConstants.BYTES_PER_ENTRY;
-        final int ifdBytes = (bigTiff ? 16 : 6) + bytesPerEntry * keyCount;
-
-        if (bigTiff) out.writeLong(keyCount);
-        else out.writeShort(keyCount);
-
-        final BytesLocation extra = new BytesLocation(0); // NB: autoresizes
-        try (final DataHandle<Location> extraHandle = dataHandleService.create(
-                extra)) {
-            for (final Integer key : keys) {
-                if (key.equals(IFD.LITTLE_ENDIAN) || key.equals(IFD.BIG_TIFF) || key
-                        .equals(IFD.REUSE)) continue;
-
-                final Object value = ifd.get(key);
-                writeIFDValue(extraHandle, ifdBytes + fp, key.intValue(), value);
-            }
-
-//			if (bigTiff) out.seek(out.offset());
-
-            writeIntValue(out, nextOffset);
-            final int ifdLen = (int) extraHandle.offset();
-            extraHandle.seek(0l);
-            DataHandles.copy(extraHandle, out, ifdLen);
-        }
-    }
-
-    /**
-     * Writes the given IFD value to the given output object.
-     *
-     * @param extraOut buffer to which "extra" IFD information should be written
-     * @param offset   global offset to use for IFD offset values
-     * @param tag      IFD tag to write
-     * @param value    IFD value to write
-     */
-    public void writeIFDValue(final DataHandle<Location> extraOut,
-                              final long offset, final int tag, Object value) throws FormatException,
-            IOException {
-        extraOut.setLittleEndian(isLittleEndian());
-
-        // convert singleton objects into arrays, for simplicity
-        if (value instanceof Short) {
-            value = new short[]{(Short) value};
-        } else if (value instanceof Integer) {
-            value = new int[]{(Integer) value};
-        } else if (value instanceof Long) {
-            value = new long[]{(Long) value};
-        } else if (value instanceof TiffRational) {
-            value = new TiffRational[]{(TiffRational) value};
-        } else if (value instanceof Float) {
-            value = new float[]{(Float) value};
-        } else if (value instanceof Double) {
-            value = new double[]{(Double) value};
-        }
-
-        final boolean bigTiff = this.bigTiff;
-        final int dataLength = bigTiff ? 8 : 4;
-
-        // write directory entry to output buffers
-        out.writeShort(tag); // tag
-        if (value instanceof byte[] q) {
-            out.writeShort(IFDType.UNDEFINED.getCode());
-            // - Most probable type. Maybe in future we will support here some algorithm,
-            // determining necessary type on the base of the tag value.
-            writeIntValue(out, q.length);
-            if (q.length <= dataLength) {
-                for (byte b : q) {
-                    out.writeByte(b);
-                }
-                for (int i = q.length; i < dataLength; i++)
-                    out.writeByte(0);
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                extraOut.write(q);
-            }
-        } else if (value instanceof short[]) {
-            final short[] q = (short[]) value;
-            out.writeShort(IFDType.BYTE.getCode());
-            writeIntValue(out, q.length);
-            if (q.length <= dataLength) {
-                for (short s : q) {
-                    out.writeByte(s);
-                }
-                for (int i = q.length; i < dataLength; i++) {
-                    out.writeByte(0);
-                }
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (short s : q) {
-                    extraOut.writeByte(s);
-                }
-            }
-        } else if (value instanceof String) { // ASCII
-            final char[] q = ((String) value).toCharArray();
-            out.writeShort(IFDType.ASCII.getCode()); // type
-            writeIntValue(out, q.length + 1);
-            if (q.length < dataLength) {
-                for (char c : q) {
-                    out.writeByte(c); // value(s)
-                }
-                for (int i = q.length; i < dataLength; i++) {
-                    out.writeByte(0); // padding
-                }
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (char c : q) {
-                    extraOut.writeByte(c); // values
-                }
-                extraOut.writeByte(0); // concluding NULL byte
-            }
-        } else if (value instanceof int[]) { // SHORT
-            final int[] q = (int[]) value;
-            out.writeShort(IFDType.SHORT.getCode()); // type
-            writeIntValue(out, q.length);
-            if (q.length <= dataLength / 2) {
-                for (int j : q) {
-                    out.writeShort(j); // value(s)
-                }
-                for (int i = q.length; i < dataLength / 2; i++) {
-                    out.writeShort(0); // padding
-                }
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (int j : q) {
-                    extraOut.writeShort(j); // values
-                }
-            }
-        } else if (value instanceof long[]) { // LONG
-            final long[] q = (long[]) value;
-            if (AVOID_LONG8_FOR_ACTUAL_32_BITS && q.length == 1 && bigTiff) {
-                // - note: inside TIFF, long[1] is saved in the same way as Long; we have a difference in Java only
-                final long v = q[0];
-                if (v == (int) v) {
-                    // - it is very probable for the following tags
-                    switch (tag) {
-                        case IFD.IMAGE_WIDTH,
-                                IFD.IMAGE_LENGTH,
-                                IFD.TILE_WIDTH,
-                                IFD.TILE_LENGTH,
-                                ExtendedIFD.IMAGE_DEPTH,
-                                IFD.ROWS_PER_STRIP,
-                                IFD.NEW_SUBFILE_TYPE -> {
-                            out.writeShort(IFDType.LONG.getCode());
-                            out.writeLong(1L);
-                            out.writeInt((int) v);
-                            out.writeInt(0);
-                            // - 4 bytes of padding until full length 20 bytes
-                            return;
-                        }
-                    }
-                }
-            }
-            final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG.getCode();
-            out.writeShort(type);
-            writeIntValue(out, q.length);
-
-            final int div = bigTiff ? 8 : 4;
-            assert div == dataLength;
-
-            if (q.length <= 1) {
-                for (int i = 0; i < q.length; i++) {
-                    writeIntValue(out, q[0]);
-                    // - q[0]: it is actually performed 0 or 1 times
-                }
-                for (int i = q.length; i < 1; i++) {
-                    writeIntValue(out, 0);
-                }
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (long l : q) {
-                    writeIntValue(extraOut, l);
-                }
-            }
-        } else if (value instanceof TiffRational[]) { // RATIONAL
-            final TiffRational[] q = (TiffRational[]) value;
-            out.writeShort(IFDType.RATIONAL.getCode()); // type
-            writeIntValue(out, q.length);
-            if (bigTiff && q.length == 1) {
-                out.writeInt((int) q[0].getNumerator());
-                out.writeInt((int) q[0].getDenominator());
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (TiffRational tiffRational : q) {
-                    extraOut.writeInt((int) tiffRational.getNumerator());
-                    extraOut.writeInt((int) tiffRational.getDenominator());
-                }
-            }
-        } else if (value instanceof float[]) { // FLOAT
-            final float[] q = (float[]) value;
-            out.writeShort(IFDType.FLOAT.getCode()); // type
-            writeIntValue(out, q.length);
-            if (q.length <= dataLength / 4) {
-                for (float v : q) {
-                    out.writeFloat(v); // value
-                    // - in old SCIFIO code, here was a bug (for a case bigTiff): q[0] was always written
-                }
-                for (int i = q.length; i < dataLength / 4; i++) {
-                    out.writeInt(0); // padding
-                }
-            } else {
-                writeIntValue(out, offset + extraOut.length());
-                for (float v : q) {
-                    extraOut.writeFloat(v); // values
-                }
-            }
-        } else if (value instanceof double[]) { // DOUBLE
-            final double[] q = (double[]) value;
-            out.writeShort(IFDType.DOUBLE.getCode()); // type
-            writeIntValue(out, q.length);
-            writeIntValue(out, offset + extraOut.length());
-            for (final double doubleVal : q) {
-                extraOut.writeDouble(doubleVal); // values
-            }
-        } else {
-            throw new FormatException("Unknown IFD value type (" + value.getClass()
-                    .getName() + "): " + value);
-        }
     }
 
     /* These methods are never used and should be removed. No sense to optimize it.
@@ -1226,6 +1099,150 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     // -- Helper methods --
 
     /**
+     * Performs the actual work of dealing with IFD data and writing it to the
+     * TIFF for a given image or sub-image.
+     *
+     * @param ifd        The Image File Directories. Mustn't be {@code null}.
+     * @param planeIndex The image index within the current file, starting from 0.
+     * @param strips     The strips to write to the file.
+     * @param last       Pass {@code true} if it is the last image, {@code false}
+     *                   otherwise.
+     * @param x          The initial X offset of the strips/tiles to write.
+     * @param y          The initial Y offset of the strips/tiles to write.
+     * @throws FormatException
+     * @throws IOException
+     */
+    private void writeImageIFD(IFD ifd, final long planeIndex,
+                               final byte[][] strips, final int nChannels, final boolean last, final int x,
+                               final int y) throws FormatException, IOException {
+        log.debug("Attempting to write image IFD.");
+        final int tilesPerRow = (int) ifd.getTilesPerRow();
+        final int tilesPerColumn = (int) ifd.getTilesPerColumn();
+        final boolean interleaved = ifd.getPlanarConfiguration() == 1;
+        final boolean isTiled = ifd.isTiled();
+
+        if (!writingSequentially) {
+            DataHandle<Location> in = null;
+            if (loc != null) {
+                in = dataHandleService.create(loc);
+            } else if (out != null) {
+                in = dataHandleService.create(out.get());
+            } else if (bytes != null) {
+                in = dataHandleService.create(bytes);
+            } else {
+                throw new IllegalArgumentException(
+                        "Filename and bytes are null, cannot create new input stream!");
+            }
+            try {
+                final TiffParser parser = new TiffParser(getContext(), in);
+                final long[] ifdOffsets = parser.getIFDOffsets();
+                log.debug("IFD offsets: " + Arrays.toString(ifdOffsets));
+                if (planeIndex < ifdOffsets.length) {
+                    out.seek(ifdOffsets[(int) planeIndex]);
+                    log.debug("Reading IFD from " + ifdOffsets[(int) planeIndex] +
+                            " in non-sequential write.");
+                    ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
+                }
+            } finally {
+                in.close();
+            }
+        }
+
+        // record strip byte counts and offsets
+
+        final List<Long> byteCounts = new ArrayList<>();
+        final List<Long> offsets = new ArrayList<>();
+        long totalTiles = tilesPerRow * tilesPerColumn;
+
+        if (!interleaved) {
+            totalTiles *= nChannels;
+        }
+
+        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(
+                IFD.TILE_BYTE_COUNTS)) {
+            final long[] ifdByteCounts = isTiled ? ifd.getIFDLongArray(
+                    IFD.TILE_BYTE_COUNTS) : ifd.getStripByteCounts();
+            for (final long stripByteCount : ifdByteCounts) {
+                byteCounts.add(stripByteCount);
+            }
+        } else {
+            while (byteCounts.size() < totalTiles) {
+                byteCounts.add(0L);
+            }
+        }
+        final int tileOrStripOffsetX = x / (int) ifd.getTileWidth();
+        final int tileOrStripOffsetY = y / (int) ifd.getTileLength();
+        final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
+                tileOrStripOffsetX;
+        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(
+                IFD.TILE_OFFSETS)) {
+            final long[] ifdOffsets = isTiled ? ifd.getIFDLongArray(IFD.TILE_OFFSETS)
+                    : ifd.getStripOffsets();
+            for (final long ifdOffset : ifdOffsets) {
+                offsets.add(ifdOffset);
+            }
+        } else {
+            while (offsets.size() < totalTiles) {
+                offsets.add(0L);
+            }
+        }
+
+        if (isTiled) {
+            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
+        } else {
+            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
+        }
+
+        final long fp = out.offset();
+        writeIFD(ifd, 0);
+
+        for (int i = 0; i < strips.length; i++) {
+            out.seek(out.length());
+            final int thisOffset = firstOffset + i;
+            offsets.set(thisOffset, out.offset());
+            byteCounts.set(thisOffset, (long) strips[i].length);
+            if (log.isDebug()) {
+                log.debug(String.format("Writing tile/strip %d/%d size: %d offset: %d",
+                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(
+                                thisOffset)));
+            }
+            out.write(strips[i]);
+        }
+        if (isTiled) {
+            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
+        } else {
+            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
+        }
+        long endFP = out.offset();
+        if ((endFP & 0x1) != 0) {
+            out.writeByte(0);
+            endFP = out.offset();
+            // - Well-formed IFD requires even offsets
+        }
+        if (log.isDebug()) {
+            log.debug("Offset before IFD write: " + out.offset() + " Seeking to: " +
+                    fp);
+        }
+        out.seek(fp);
+
+        if (log.isDebug()) {
+            log.debug("Writing tile/strip offsets: " + Arrays.toString(
+                    toPrimitiveArray(offsets)));
+            log.debug("Writing tile/strip byte counts: " + Arrays.toString(
+                    toPrimitiveArray(byteCounts)));
+        }
+        writeIFD(ifd, last ? 0 : endFP);
+        // - rewriting IFD with already filled offsets (not too quick, but quick enough)
+        out.seek(endFP);
+        // - restoring correct file pointer at the end of tile
+    }
+
+
+    /**
      * Coverts a list to a primitive array.
      *
      * @param l The list of {@code Long} to convert.
@@ -1276,7 +1293,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 ? PhotoInterp.BLACK_IS_ZERO :
                 compressionValue.equals(TiffCompression.JPEG.getCode())
                         && ifd.getPlanarConfiguration() == 1
-                        && !compressJPEGInPhotometricRGB()?
+                        && !compressJPEGInPhotometricRGB() ?
                         PhotoInterp.Y_CB_CR :
                         PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
