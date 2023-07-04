@@ -39,7 +39,7 @@ import java.nio.file.Paths;
 
 public class TiffSaverTest {
     private final static int WIDTH = 501;
-    private final static int HEIGHT = 513;
+    private final static int HEIGHT = 521;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -114,7 +114,7 @@ public class TiffSaverTest {
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
-                    ifd.putTileSizes(256, 256);
+                    ifd.putTileSizes(64, 64);
                 }
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparate) {
