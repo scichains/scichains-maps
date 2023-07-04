@@ -26,11 +26,10 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
 
 import java.io.IOException;
@@ -38,7 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class WriteTiffTest {
+public class TiffSaverTest {
     private final static int WIDTH = 501;
     private final static int HEIGHT = 513;
 
@@ -76,7 +75,7 @@ public class WriteTiffTest {
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
-            System.out.println("    " + WriteTiffTest.class.getName() +
+            System.out.println("    " + TiffSaverTest.class.getName() +
                     " [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparate] " +
                     "target.tif [number_of_images [compression]]");
             return;

@@ -1835,7 +1835,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    private static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY) {
+    static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY) {
         if (fromX < 0 || fromY < 0) {
             throw new IllegalArgumentException("Negative fromX = " + fromX + " or fromY = " + fromY);
         }
