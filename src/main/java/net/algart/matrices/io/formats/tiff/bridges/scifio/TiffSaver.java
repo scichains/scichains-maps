@@ -101,6 +101,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     // did not understand LONG8 values for some popular tags like image sizes.
     // In any case, real BigTIFF files usually store most tags in standard LONG type (32 bits), not in LONG8.
 
+    private static final System.Logger LOG = System.getLogger(TiffSaver.class.getName());
+
     // -- Fields --
 
     /**
@@ -752,6 +754,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Objects.requireNonNull(samples, "Null samples data");
         Objects.requireNonNull(ifd, "Null IFD");
         // - we should not convert ifd into ExtendedIFD, because it can make changes inside IFD invisible outside
+        long t1 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
         TiffParser.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         assert bytesPerSample >= 1;
@@ -771,24 +774,45 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used in getCompressionCodecOptions
 
+        prepareValidIFD(ifd, pixelType, numberOfChannels);
+
         // These operations are synchronized
+        long t2 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        if (ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
+            samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) size);
+        }
+        long t3 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
         final byte[][] tiles;
         synchronized (this) {
-            prepareValidIFD(ifd, pixelType, numberOfChannels);
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
-            tiles = prepareTiles(samples, ExtendedIFD.extend(ifd), numberOfChannels, bytesPerSample, sizeX, sizeY);
+            tiles = splitTiles(samples, ExtendedIFD.extend(ifd), numberOfChannels, bytesPerSample, sizeX, sizeY);
         }
+        long t4 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
 
         // Compress tiles according to given differencing and compression
         // schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        writeTiles(ExtendedIFD.extend(ifd), numberOfChannels, tiles);
+        encodeTiles(ExtendedIFD.extend(ifd), numberOfChannels, tiles);
+        long t5 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
 
         // This operation is synchronized
         synchronized (this) {
             writeImageIFD(ifd, planeIndex, tiles, numberOfChannels, last, fromX, fromY);
+        }
+        if (TiffParser.BUILT_IN_TIMING) {
+            long t6 = System.nanoTime();
+            LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US,
+                    "%s wrote %dx%d (%.3f MB) in %.3f ms = " +
+                            "%.3f prepare + %.3f interleave + %.3f splitting " +
+                            "+ %.3f encoding + %.3f writing, %.3f MB/s",
+                    getClass().getSimpleName(),
+                    sizeX, sizeY, size / 1048576.0,
+                    (t6 - t1) * 1e-6,
+                    (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
+                    (t5 - t4) * 1e-6, (t6 - t5) * 1e-6,
+                    size / 1048576.0 / ((t6 - t1) * 1e-9)));
         }
     }
 
@@ -1103,7 +1127,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 //        }
     }
 
-    private byte[][] prepareTiles(
+    private byte[][] splitTiles(
             byte[] samples,
             ExtendedIFD ifd,
             int numberOfChannels,
@@ -1111,7 +1135,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             int sizeX,
             int sizeY) throws FormatException, IOException {
         final byte[][] tiles;
-        final boolean chunked = ifd.getPlanarConfiguration() == 1;
+        final boolean chunked = ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
         assert numberOfChannels == ifd.getSamplesPerPixel() : "SamplesPerPixel not correctly set by prepareValidIFD";
@@ -1146,10 +1170,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // - not necessary: correct BITS_PER_SAMPLE, based on pixelType, was written into IFD by prepareValidIFD()
 
         // write pixel tiles to output buffers
-        if (chunked && autoInterleave) {
-            samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, sizeX * sizeY);
-        }
-        for (int tileIndex = 0; tileIndex < numberOfActualStrips; tileIndex++) {
+       for (int tileIndex = 0; tileIndex < numberOfActualStrips; tileIndex++) {
             final int xOffset = (tileIndex % tilesPerRow) * tileSizeX;
             final int yOffset = (tileIndex / tilesPerRow) * tileSizeY;
             for (int row = 0; row < tileSizeY; row++) {
@@ -1188,7 +1209,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return tiles;
     }
 
-    private void writeTiles(ExtendedIFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
+    private void encodeTiles(ExtendedIFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
         final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
         // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
         // (IFD is not well-formed yet)

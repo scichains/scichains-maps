@@ -92,8 +92,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
-    private static final boolean BUILT_IN_TIMING = LOGGABLE_DEBUG && getBooleanProperty(
-            "net.algart.matrices.libs.scifio.tiff.builtInTiming");
+    static final boolean BUILT_IN_TIMING = LOGGABLE_DEBUG && getBooleanProperty(
+            "net.algart.matrices.io.formats.tiff.builtInTiming");
 
     // -- Fields --
 
