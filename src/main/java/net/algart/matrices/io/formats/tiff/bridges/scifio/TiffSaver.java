@@ -692,8 +692,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     /**
      *
      */
-    public void writeImage(final byte[][] samples, final IFDList ifds,
-                           final int pixelType) throws FormatException, IOException {
+    public void writeImage(
+            final byte[][] samples, final IFDList ifds,
+            final int pixelType) throws FormatException, IOException {
         if (ifds == null) {
             throw new FormatException("IFD cannot be null");
         }
@@ -707,11 +708,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    /**
-     *
-     */
-    public void writeImage(final byte[] samples, final IFD ifd, final int no,
-                           final int pixelType, final boolean last) throws FormatException, IOException {
+    public void writeImage(
+            final byte[] samples, final IFD ifd, final int no,
+            final int pixelType, final boolean last) throws FormatException, IOException {
         if (ifd == null) {
             throw new FormatException("IFD cannot be null");
         }
@@ -736,15 +735,19 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws FormatException
      * @throws IOException
      */
-    public void writeImage(final byte[] samples, final IFD ifd, final long planeIndex,
-                           final int pixelType, final int x, final int y, final int w, final int h,
-                           final boolean last) throws FormatException, IOException {
+    public void writeImage(
+            final byte[] samples, final IFD ifd, final long planeIndex,
+            final int pixelType, final int x, final int y, final int w, final int h,
+            final boolean last) throws FormatException, IOException {
         writeImage(samples, ifd, planeIndex, pixelType, x, y, w, h, last, null, false);
     }
 
-    public void writeImage(byte[] samples, final IFD ifd, final long planeIndex,
-                           final int pixelType, final int fromX, final int fromY, final int sizeX, final int sizeY,
-                           final boolean last, Integer numberOfChannels, final boolean copyDirectly)
+    public void writeImage(
+            byte[] samples, final IFD ifd, final long planeIndex,
+            final int pixelType, final int fromX, final int fromY, final int sizeX, final int sizeY,
+            final boolean last,
+            Integer numberOfChannels,
+            final boolean copyDirectly)
             throws FormatException, IOException {
         Objects.requireNonNull(samples, "Null samples data");
         Objects.requireNonNull(ifd, "Null IFD");
@@ -768,117 +771,22 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // - will be used in getCompressionCodecOptions
 
         // These operations are synchronized
-        final byte[][] strips;
+        final byte[][] tiles;
         synchronized (this) {
-            final boolean chunked = ifd.getPlanarConfiguration() == 1;
-
             prepareValidIFD(ifd, pixelType, numberOfChannels);
-
-            // create pixel output buffers
-
-            final int tileWidth = (int) ifd.getTileWidth();
-            final int tileHeight = (int) ifd.getTileLength();
-            final int tilesPerRow = (int) ifd.getTilesPerRow();
-            final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
-            int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
-            final int numberOfActualStrips =
-                    ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
-            int numberOfEncodedStrips = numberOfActualStrips;
-
-            if (chunked) {
-                stripSize *= numberOfChannels;
-            } else {
-                numberOfEncodedStrips *= numberOfChannels;
-            }
-
-            final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
-            final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
-            for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-                stripBuf[strip] = new ByteArrayOutputStream(stripSize);
-                stripOut[strip] = new DataOutputStream(stripBuf[strip]);
-            }
-            // final int[] bps = ifd.getBitsPerSample();
-            // - not necessary: correct BITS_PER_SAMPLE, based on pixelType, was written into IFD by prepareValidIFD()
-
-            // write pixel strips to output buffers
-            if (chunked && autoInterleave) {
-                samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) size);
-            }
-            if (numberOfEncodedStrips == 1 && copyDirectly) {
-                stripOut[0].write(samples);
-            } else {
-                for (int strip = 0; strip < numberOfActualStrips; strip++) {
-                    final int xOffset = (strip % tilesPerRow) * tileWidth;
-                    final int yOffset = (strip / tilesPerRow) * tileHeight;
-                    for (int row = 0; row < tileHeight; row++) {
-                        int i = row + yOffset;
-                        for (int col = 0; col < tileWidth; col++) {
-                            int j = col + xOffset;
-                            final int ndx = (i * sizeX + j) * bytesPerSample;
-                            for (int c = 0; c < numberOfChannels; c++) {
-                                for (int n = 0; n < bytesPerSample; n++) {
-                                    if (chunked) {
-                                        int off = ndx * numberOfChannels + c * bytesPerSample + n;
-                                        if (i >= sizeY || j >= sizeX) {
-                                            stripOut[strip].writeByte(0);
-                                        } else {
-                                            stripOut[strip].writeByte(samples[off]);
-                                        }
-
-                                    } else {
-                                        int off = c * channelSize + ndx + n;
-                                        if (i >= sizeY || j >= sizeX) {
-                                            stripOut[c * (numberOfEncodedStrips / numberOfChannels) + strip].writeByte(0);
-                                        } else {
-                                            stripOut[c * (numberOfEncodedStrips / numberOfChannels) + strip].writeByte(
-                                                    samples[off]);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            strips = new byte[numberOfEncodedStrips][];
-            for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-                strips[strip] = stripBuf[strip].toByteArray();
-            }
+            tiles = prepareTiles(samples, ifd, numberOfChannels, bytesPerSample, sizeX, sizeY, copyDirectly);
         }
 
-        // Compress strips according to given differencing and compression
+        // Compress tiles according to given differencing and compression
         // schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        {
-            final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
-            // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
-            // (IFD is not well-formed yet)
-            final boolean chunked = ifd.getPlanarConfiguration() == 1;
-            final int numberOfActualStrips = chunked ? strips.length : strips.length / numberOfChannels;
-            final int imageHeight = (int) ifd.getImageLength();
-            int tileWidth = (int) ifd.getTileWidth();
-            int tileHeight = (int) ifd.getTileLength();
-            int tilesPerRow = (int) ifd.getTilesPerRow();
-            for (int strip = 0; strip < strips.length; strip++) {
-                scifio.tiff().difference(strips[strip], ifd);
-                int tileSizeX = tileWidth;
-                int tileSizeY = tileHeight;
-                if (!tiled) {
-                    final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
-                    if (yOffset + tileHeight > imageHeight) {
-                        tileSizeY = Math.max(0, imageHeight - yOffset);
-                        // - last strip should have exact height, in other case TIFF may be read with a warning
-                    }
-                }
-                strips[strip] = encode(ifd, strips[strip], tileSizeX, tileSizeY);
-            }
-        }
+        writeTiles(ifd, numberOfChannels, tiles);
 
         // This operation is synchronized
         synchronized (this) {
-            writeImageIFD(ifd, planeIndex, strips, numberOfChannels, last, fromX, fromY);
+            writeImageIFD(ifd, planeIndex, tiles, numberOfChannels, last, fromX, fromY);
         }
     }
 
@@ -1117,6 +1025,194 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     // -- Helper methods --
 
     /**
+     * Coverts a list to a primitive array.
+     *
+     * @param l The list of {@code Long} to convert.
+     * @return A primitive array of type {@code long[]} with the values from
+     * </code>l</code>.
+     */
+    private long[] toPrimitiveArray(final List<Long> l) {
+        final long[] toReturn = new long[l.size()];
+        for (int i = 0; i < l.size(); i++) {
+            toReturn[i] = l.get(i);
+        }
+        return toReturn;
+    }
+
+    /**
+     * Write the given value to the given RandomAccessOutputStream. If the
+     * 'bigTiff' flag is set, then the value will be written as an 8 byte long;
+     * otherwise, it will be written as a 4 byte integer.
+     */
+    private void writeIntValue(final DataHandle<Location> handle,
+                               final long offset) throws IOException {
+        if (bigTiff) {
+            handle.writeLong(offset);
+        } else {
+            handle.writeInt((int) offset);
+        }
+    }
+
+
+    private void prepareValidIFD(final IFD ifd, int pixelType, int numberOfChannels) throws FormatException {
+        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        final int bps = 8 * bytesPerPixel;
+        final int[] bpsArray = new int[numberOfChannels];
+        Arrays.fill(bpsArray, bps);
+        ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+
+        if (FormatTools.isFloatingPoint(pixelType)) {
+            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 3);
+        }
+        Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
+        if (compressionValue == null) {
+            compressionValue = TiffCompression.UNCOMPRESSED.getCode();
+            ifd.putIFDValue(IFD.COMPRESSION, compressionValue);
+        }
+
+        final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
+        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE :
+                numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
+                        compressionValue.equals(TiffCompression.JPEG.getCode())
+                                && ifd.getPlanarConfiguration() == 1
+                                && !compressJPEGInPhotometricRGB() ?
+                                PhotoInterp.Y_CB_CR :
+                                PhotoInterp.RGB;
+        ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
+
+        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
+
+//        if (ifd.get(IFD.X_RESOLUTION) == null) {
+//            ifd.putIFDValue(IFD.X_RESOLUTION, new TiffRational(1, 1));
+//        }
+//        if (ifd.get(IFD.Y_RESOLUTION) == null) {
+//            ifd.putIFDValue(IFD.Y_RESOLUTION, new TiffRational(1, 1));
+//        }
+//        if (ifd.get(IFD.SOFTWARE) == null) {
+//            ifd.putIFDValue(IFD.SOFTWARE, "SCIFIO");
+//        }
+        if (ifd.get(IFD.ROWS_PER_STRIP) == null && ifd.get(IFD.TILE_LENGTH) == null) {
+            if (!isDefaultSingleStrip()) {
+                ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[]{getDefaultStripHeight()});
+            }
+        }
+//        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
+//            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
+//        }
+    }
+
+    private byte[][] prepareTiles(
+            byte[] samples,
+            IFD ifd,
+            int numberOfChannels,
+            int bytesPerSample,
+            int sizeX,
+            int sizeY,
+            boolean copyDirectly) throws FormatException, IOException {
+        final byte[][] tiles;
+        final boolean chunked = ifd.getPlanarConfiguration() == 1;
+        final int channelSize = sizeX * sizeY * bytesPerSample;
+
+        // create pixel output buffers
+
+        final int tileWidth = (int) ifd.getTileWidth();
+        final int tileHeight = (int) ifd.getTileLength();
+        final int tilesPerRow = (int) ifd.getTilesPerRow();
+        final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
+        //??
+        int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
+        final int numberOfActualStrips =
+                ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
+        int numberOfEncodedStrips = numberOfActualStrips;
+
+        if (chunked) {
+            stripSize *= numberOfChannels;
+        } else {
+            numberOfEncodedStrips *= numberOfChannels;
+        }
+
+        final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
+        final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
+        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
+            stripBuf[strip] = new ByteArrayOutputStream(stripSize);
+            stripOut[strip] = new DataOutputStream(stripBuf[strip]);
+        }
+        // final int[] bps = ifd.getBitsPerSample();
+        // - not necessary: correct BITS_PER_SAMPLE, based on pixelType, was written into IFD by prepareValidIFD()
+
+        // write pixel tiles to output buffers
+        if (chunked && autoInterleave) {
+            samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, sizeX * sizeY);
+        }
+        if (numberOfEncodedStrips == 1 && copyDirectly) {
+            stripOut[0].write(samples);
+        } else {
+            for (int tileIndex = 0; tileIndex < numberOfActualStrips; tileIndex++) {
+                final int xOffset = (tileIndex % tilesPerRow) * tileWidth;
+                final int yOffset = (tileIndex / tilesPerRow) * tileHeight;
+                for (int row = 0; row < tileHeight; row++) {
+                    int i = row + yOffset;
+                    for (int col = 0; col < tileWidth; col++) {
+                        int j = col + xOffset;
+                        final int ndx = (i * sizeX + j) * bytesPerSample;
+                        for (int c = 0; c < numberOfChannels; c++) {
+                            for (int n = 0; n < bytesPerSample; n++) {
+                                if (chunked) {
+                                    int off = ndx * numberOfChannels + c * bytesPerSample + n;
+                                    if (i >= sizeY || j >= sizeX) {
+                                        stripOut[tileIndex].writeByte(0);
+                                    } else {
+                                        stripOut[tileIndex].writeByte(samples[off]);
+                                    }
+
+                                } else {
+                                    int off = c * channelSize + ndx + n;
+                                    if (i >= sizeY || j >= sizeX) {
+                                        stripOut[c * (numberOfEncodedStrips / numberOfChannels) + tileIndex].writeByte(0);
+                                    } else {
+                                        stripOut[c * (numberOfEncodedStrips / numberOfChannels) + tileIndex].writeByte(
+                                                samples[off]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        tiles = new byte[numberOfEncodedStrips][];
+        for (int tileIndex = 0; tileIndex < numberOfEncodedStrips; tileIndex++) {
+            tiles[tileIndex] = stripBuf[tileIndex].toByteArray();
+        }
+        return tiles;
+    }
+
+    private void writeTiles(IFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
+        final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
+        // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
+        // (IFD is not well-formed yet)
+        final boolean chunked = ifd.getPlanarConfiguration() == 1;
+        final int numberOfActualStrips = chunked ? strips.length : strips.length / numberOfChannels;
+        final int imageHeight = (int) ifd.getImageLength();
+        int tileWidth = (int) ifd.getTileWidth();
+        int tileHeight = (int) ifd.getTileLength();
+        int tilesPerRow = (int) ifd.getTilesPerRow();
+        for (int strip = 0; strip < strips.length; strip++) {
+            scifio.tiff().difference(strips[strip], ifd);
+            int tileSizeX = tileWidth;
+            int tileSizeY = tileHeight;
+            if (!tiled) {
+                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
+                if (yOffset + tileHeight > imageHeight) {
+                    tileSizeY = Math.max(0, imageHeight - yOffset);
+                    // - last strip should have exact height, in other case TIFF may be read with a warning
+                }
+            }
+            strips[strip] = encode(ifd, strips[strip], tileSizeX, tileSizeY);
+        }
+    }
+
+    /**
      * Performs the actual work of dealing with IFD data and writing it to the
      * TIFF for a given image or sub-image.
      *
@@ -1255,84 +1351,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // - rewriting IFD with already filled offsets (not too quick, but quick enough)
         out.seek(endFP);
         // - restoring correct file pointer at the end of tile
-    }
-
-
-    /**
-     * Coverts a list to a primitive array.
-     *
-     * @param l The list of {@code Long} to convert.
-     * @return A primitive array of type {@code long[]} with the values from
-     * </code>l</code>.
-     */
-    private long[] toPrimitiveArray(final List<Long> l) {
-        final long[] toReturn = new long[l.size()];
-        for (int i = 0; i < l.size(); i++) {
-            toReturn[i] = l.get(i);
-        }
-        return toReturn;
-    }
-
-    /**
-     * Write the given value to the given RandomAccessOutputStream. If the
-     * 'bigTiff' flag is set, then the value will be written as an 8 byte long;
-     * otherwise, it will be written as a 4 byte integer.
-     */
-    private void writeIntValue(final DataHandle<Location> handle,
-                               final long offset) throws IOException {
-        if (bigTiff) {
-            handle.writeLong(offset);
-        } else {
-            handle.writeInt((int) offset);
-        }
-    }
-
-
-    private void prepareValidIFD(final IFD ifd, int pixelType, int numberOfChannels) throws FormatException {
-        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
-        final int bps = 8 * bytesPerPixel;
-        final int[] bpsArray = new int[numberOfChannels];
-        Arrays.fill(bpsArray, bps);
-        ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
-
-        if (FormatTools.isFloatingPoint(pixelType)) {
-            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 3);
-        }
-        Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
-        if (compressionValue == null) {
-            compressionValue = TiffCompression.UNCOMPRESSED.getCode();
-            ifd.putIFDValue(IFD.COMPRESSION, compressionValue);
-        }
-
-        final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
-        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE :
-                numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
-                        compressionValue.equals(TiffCompression.JPEG.getCode())
-                                && ifd.getPlanarConfiguration() == 1
-                                && !compressJPEGInPhotometricRGB() ?
-                                PhotoInterp.Y_CB_CR :
-                                PhotoInterp.RGB;
-        ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
-
-        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
-
-//        if (ifd.get(IFD.X_RESOLUTION) == null) {
-//            ifd.putIFDValue(IFD.X_RESOLUTION, new TiffRational(1, 1));
-//        }
-//        if (ifd.get(IFD.Y_RESOLUTION) == null) {
-//            ifd.putIFDValue(IFD.Y_RESOLUTION, new TiffRational(1, 1));
-//        }
-//        if (ifd.get(IFD.SOFTWARE) == null) {
-//            ifd.putIFDValue(IFD.SOFTWARE, "SCIFIO");
-//        }
-        if (ifd.get(IFD.ROWS_PER_STRIP) == null && ifd.get(IFD.TILE_LENGTH) == null) {
-            if (!isDefaultSingleStrip()) {
-                ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[]{getDefaultStripHeight()});
-            }
-        }
-//        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
-//            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
-//        }
     }
 
     private static ImageWriter getJPEGWriter() throws IIOException {
