@@ -408,31 +408,33 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      */
     public void writeHeader() throws IOException {
         // write endianness indicator
-        out.seek(0);
-        if (isLittleEndian()) {
-            out.writeByte(TiffConstants.LITTLE);
-            out.writeByte(TiffConstants.LITTLE);
-        } else {
-            out.writeByte(TiffConstants.BIG);
-            out.writeByte(TiffConstants.BIG);
-        }
-        // write magic number
-        if (bigTiff) {
-            out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
-        } else out.writeShort(TiffConstants.MAGIC_NUMBER);
+        synchronized (this) {
+            out.seek(0);
+            if (isLittleEndian()) {
+                out.writeByte(TiffConstants.LITTLE);
+                out.writeByte(TiffConstants.LITTLE);
+            } else {
+                out.writeByte(TiffConstants.BIG);
+                out.writeByte(TiffConstants.BIG);
+            }
+            // write magic number
+            if (bigTiff) {
+                out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
+            } else out.writeShort(TiffConstants.MAGIC_NUMBER);
 
-        // write the offset to the first IFD
+            // write the offset to the first IFD
 
-        // for vanilla TIFFs, 8 is the offset to the first IFD
-        // for BigTIFFs, 8 is the number of bytes in an offset
-        if (bigTiff) {
-            out.writeShort(8);
-            out.writeShort(0);
+            // for vanilla TIFFs, 8 is the offset to the first IFD
+            // for BigTIFFs, 8 is the number of bytes in an offset
+            if (bigTiff) {
+                out.writeShort(8);
+                out.writeShort(0);
 
-            // write the offset to the first IFD for BigTIFF files
-            out.writeLong(16);
-        } else {
-            out.writeInt(8);
+                // write the offset to the first IFD for BigTIFF files
+                out.writeLong(16);
+            } else {
+                out.writeInt(8);
+            }
         }
     }
 
@@ -785,7 +787,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             tilesPerRow = (int) ifd.getTilesPerRow();
             final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
             int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
-            numberOfActualStrips = ((sizeX + tileWidth - 1) / tileWidth)  * ((sizeY + tileHeight - 1) / tileHeight);
+            numberOfActualStrips = ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
             numberOfEncodedStrips = numberOfActualStrips;
 
             if (chunked) {
@@ -1165,10 +1167,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             totalTiles *= nChannels;
         }
 
-        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(
-                IFD.TILE_BYTE_COUNTS)) {
-            final long[] ifdByteCounts = isTiled ? ifd.getIFDLongArray(
-                    IFD.TILE_BYTE_COUNTS) : ifd.getStripByteCounts();
+        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS)) {
+            final long[] ifdByteCounts = isTiled ?
+                    ifd.getIFDLongArray(IFD.TILE_BYTE_COUNTS) :
+                    ifd.getStripByteCounts();
             for (final long stripByteCount : ifdByteCounts) {
                 byteCounts.add(stripByteCount);
             }
@@ -1181,10 +1183,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final int tileOrStripOffsetY = y / (int) ifd.getTileLength();
         final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
                 tileOrStripOffsetX;
-        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(
-                IFD.TILE_OFFSETS)) {
-            final long[] ifdOffsets = isTiled ? ifd.getIFDLongArray(IFD.TILE_OFFSETS)
-                    : ifd.getStripOffsets();
+        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(IFD.TILE_OFFSETS)) {
+            final long[] ifdOffsets = isTiled ?
+                    ifd.getIFDLongArray(IFD.TILE_OFFSETS) :
+                    ifd.getStripOffsets();
             for (final long ifdOffset : ifdOffsets) {
                 offsets.add(ifdOffset);
             }
