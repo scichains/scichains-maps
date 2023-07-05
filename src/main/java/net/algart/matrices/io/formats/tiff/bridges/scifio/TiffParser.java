@@ -919,7 +919,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (numberOfTiles > Integer.MAX_VALUE) {
             // - this check allows to be sure that tileIndex below is 31-bit
             throw new FormatException("Too large number of tiles/strips: "
-                    + numTileRows + "*" + numTileCols + ">2^31-1");
+                    + numTileRows + " * " + numTileCols + " > 2^31-1");
         }
         final long[] byteCounts = ifd.getStripByteCounts();
         final long[] rowsPerStrip = ifd.getRowsPerStrip();

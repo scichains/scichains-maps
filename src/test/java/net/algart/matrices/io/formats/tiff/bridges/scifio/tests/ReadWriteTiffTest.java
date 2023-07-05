@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class ReadWriteTiffTest {
-    private static final int MAX_IMAGE_DIM = 8000;
+    private static final int MAX_IMAGE_DIM = 15000;
     private static final int START_X = 0;
     private static final int START_Y = 0;
 

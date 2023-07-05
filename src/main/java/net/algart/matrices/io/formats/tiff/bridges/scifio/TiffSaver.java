@@ -1144,19 +1144,25 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         final int tileSizeX = ifd.getTileSizeX();
         final int tileSizeY = ifd.getTileSizeY();
-        final int tilesPerRow = ifd.getTilesPerRow(tileSizeX);
-        final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
-
-        //TODO!! ??
-
-        int tileSize = rowsPerStrip * tileSizeX * bytesPerSample;
-        final int numberOfActualStrips =
-                ((sizeX + tileSizeX - 1) / tileSizeX) * ((sizeY + tileSizeY - 1) / tileSizeY);
+        final int tilesPerRow = tileSizeX == 0 ? 1 : (sizeX + tileSizeX - 1) / tileSizeX;
+        final int tilesPerColumn = tileSizeY == 0 ? 1 : (sizeY + tileSizeY - 1) / tileSizeY;
+        // Not ifd.getTilesPerColumn/Row()! Probably we write not full image!
+        // Note: tileSizeX/Y should not be 0, but it is more simple to check this
+        if ((long) tilesPerRow * (long) tilesPerColumn > Integer.MAX_VALUE) {
+            throw new FormatException("Too large number of tiles/strips: "
+                    + tilesPerColumn + " * " + tilesPerRow + " > 2^31-1");
+        }
+        int tileSize = tileSizeX * tileSizeY * bytesPerSample;
+        final int numberOfActualStrips = tilesPerRow * tilesPerColumn;
         int numberOfEncodedStrips = numberOfActualStrips;
-
         if (chunked) {
             tileSize *= numberOfChannels;
         } else {
+            if ((long) numberOfChannels * (long) numberOfEncodedStrips > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Too large number of tiles/strips " +
+                        tilesPerColumn + " * " + tilesPerRow +
+                        " * number of channels " + numberOfChannels + " >= 2^31");
+            }
             numberOfEncodedStrips *= numberOfChannels;
         }
 
