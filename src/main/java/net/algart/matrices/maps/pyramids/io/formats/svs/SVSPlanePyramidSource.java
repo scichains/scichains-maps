@@ -920,8 +920,9 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         private synchronized void init() throws IOException, FormatException {
             if (tiffParser == null) {
                 long t1 = System.nanoTime();
-                tiffParser = new CachingTiffParser(sciContext, svsFile);
+                tiffParser = CachingTiffParser.getInstance(sciContext, svsFile);
                 tiffParser.setAutoInterleave(true);
+                // - should be removed in future versions, returning unpacked planes
                 ifdList = tiffParser.getIFDs();
                 long t2 = System.nanoTime();
                 LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,

@@ -28,10 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
-import net.algart.arrays.Matrices;
-import net.algart.arrays.Matrix;
-import net.algart.arrays.SimpleMemoryModel;
-import net.algart.arrays.UpdatablePArray;
+import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
@@ -46,6 +43,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class TiffParserTest {
@@ -79,9 +78,8 @@ public class TiffParserTest {
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {
             final TiffParser parser = caching ?
-                    new CachingTiffParser(context, tiffFile).setFiller((byte) 0xC0) :
-                    new TiffParser(context, tiffFile).setFiller((byte) 0x80);
-            parser.setAutoInterleave(true);
+                    CachingTiffParser.getInstance(context, tiffFile).setFiller((byte) 0xC0) :
+                    TiffParser.getInstance(context, tiffFile).setFiller((byte) 0x80);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final IFDList ifds = parser.getIFDs();
             if (ifds.isEmpty()) {
@@ -116,7 +114,7 @@ public class TiffParserTest {
 
 
             System.out.printf("Converting data to BufferedImage...%n");
-            final BufferedImage image = arrayToImage(array, w, h, bandCount);
+            final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
             System.out.printf("Saving result image into %s...%n", resultFile);
             if (!ImageIO.write(image, extension(resultFile.getName()), resultFile)) {
                 throw new IIOException("Cannot write " + resultFile);
@@ -125,11 +123,16 @@ public class TiffParserTest {
         System.out.println("Done");
     }
 
-    private static BufferedImage arrayToImage(Object data, int sizeX, int sizeY, int bandCount) {
+    private static BufferedImage unpackedArrayToImage(Object data, int sizeX, int sizeY, int bandCount) {
         Matrix<UpdatablePArray> matrix = Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
-                bandCount, sizeX, sizeY);
-        MultiMatrix2D multiMatrix = MultiMatrix.valueOf2DRGBA(SMat.unpackBandsFromSequentialSamples(matrix));
+                sizeX, sizeY, bandCount);
+        List<Matrix<? extends PArray>> channels = new ArrayList<>();
+        for (int k = 0; k < bandCount; k++) {
+            UpdatablePArray array = matrix.subMatr(0, 0, k, sizeX, sizeY, 1).array();
+            channels.add(Matrices.matrix(array, sizeX, sizeY));
+        }
+        MultiMatrix2D multiMatrix = MultiMatrix.valueOf2DRGBA(channels);
         return SMat.valueOf(multiMatrix).toBufferedImage();
     }
 

@@ -50,11 +50,6 @@ public class CachingTiffParser extends TiffParser {
     private long currentCacheMemory = 0;
     private final Object tileCacheLock = new Object();
 
-    public CachingTiffParser(Context context, Path file) throws IOException {
-        super(context, file);
-        this.setAutoUnpackUnusualPrecisions(true);
-    }
-
     public CachingTiffParser(Context context, Location location) throws IOException {
         super(context, location);
         this.setAutoUnpackUnusualPrecisions(true);
@@ -63,6 +58,15 @@ public class CachingTiffParser extends TiffParser {
     public CachingTiffParser(Context context, DataHandle<Location> in) {
         super(context, in);
         this.setAutoUnpackUnusualPrecisions(true);
+    }
+
+    public static CachingTiffParser getInstance(Context context, Location location) throws IOException {
+        return new CachingTiffParser(context, location);
+
+    }
+
+    public static CachingTiffParser getInstance(final Context context, Path file) throws IOException {
+        return getInstance(context, existingFileToLocation(file));
     }
 
     public long getMaxCachingMemory() {

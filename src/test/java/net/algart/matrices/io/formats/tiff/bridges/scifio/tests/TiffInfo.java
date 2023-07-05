@@ -65,7 +65,7 @@ public class TiffInfo {
 
     public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
         try (Context context = new SCIFIO().getContext()) {
-            TiffParser parser = new TiffParser(context, tiffFile);
+            TiffParser parser = TiffParser.getInstance(context, tiffFile);
             IFDList ifdList = parser.getIFDs();
             final int ifdCount = ifdList.size();
             System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",

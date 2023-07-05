@@ -85,14 +85,12 @@ public class TiffSaverTest {
         final String compression = startArgIndex + 2 < args.length ? args[startArgIndex + 2] : null;
 
         final SCIFIO scifio = new SCIFIO();
-        Files.deleteIfExists(targetFile);
         try (Context context = scifio.getContext();
-            TiffSaver saver = new TiffSaver(context, targetFile)) {
+            TiffSaver saver = TiffSaver.getInstance(context, targetFile, true)) {
             saver.setBigTiff(bigTiff);
-            saver.setWritingSequentially(true);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);
-            saver.setCustomJpeg(true).setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+            saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
             if (singleStrip) {
                 saver.setDefaultSingleStrip();
             } else {
@@ -120,7 +118,7 @@ public class TiffSaverTest {
                 if (planarSeparate) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
-                saver.writeImage(bytes, ifd, -1, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
+                saver.writeImage(bytes, ifd, ifdIndex, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1, bandCount, true);
             }
         }

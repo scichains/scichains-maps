@@ -69,7 +69,7 @@ public class TiffExtractTileContent {
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {
-            final TiffParser parser = new TiffParser(context, tiffFile);
+            final TiffParser parser = TiffParser.getInstance(context, tiffFile);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final ExtendedIFD ifd = parser.ifd(ifdIndex);
             byte[] bytes = parser.readTileBytes(ifd, row, col);

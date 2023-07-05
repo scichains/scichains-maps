@@ -154,13 +154,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     // -- Constructors --
 
     /**
-     * Constructs a new TIFF parser from the given file name.
-     */
-    public TiffParser(final Context context, final Path file) throws IOException {
-        this(context, existingFileToLocation(file));
-    }
-
-    /**
      * Constructs a new TIFF parser from the given file location.
      */
     public TiffParser(final Context context, final Location loc) {
@@ -184,6 +177,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
         } catch (final IOException ignored) {
         }
     }
+
+    public static TiffParser getInstance(Context context, Location location) throws IOException {
+        return new TiffParser(context, location)
+                .setAutoUnpackUnusualPrecisions(true);
+    }
+
+    public static TiffParser getInstance(final Context context, Path file) throws IOException {
+        return getInstance(context, existingFileToLocation(file));
+    }
+
 
     // -- TiffParser methods --
 
@@ -1789,7 +1792,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return interleavedBytes;
     }
 
-    private static FileLocation existingFileToLocation(Path file) throws FileNotFoundException {
+    static FileLocation existingFileToLocation(Path file) throws FileNotFoundException {
         if (!Files.isRegularFile(file)) {
             throw new FileNotFoundException("File " + file
                     + (Files.exists(file) ? " is not a regular file" : " does not exist"));

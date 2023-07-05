@@ -97,19 +97,13 @@ public class ReadWriteTiffTest {
         for (int test = 1; test <= numberOfTests; test++) {
             System.out.printf("Test #%d%n", test);
             try (Context context = scifio.getContext()) {
-                TiffParser parser = new TiffParser(context, sourceFile).setAutoUnpackUnusualPrecisions(true);
+                TiffParser parser = TiffParser.getInstance(context, sourceFile);
                 parser.setFiller((byte) 0xC0);
-                Files.deleteIfExists(targetFile);
-                Files.deleteIfExists(targetExperimentalFile);
-                // - strange, but necessary
-                TiffSaver saver = new TiffSaver(context, new FileLocation(targetFile.toFile()));
+                TiffSaver saver = TiffSaver.getInstance(context, targetFile);
                 saver.setBigTiff(bigTiff);
-                saver.setWritingSequentially(true);
-                saver.setAutoInterleave(true);
                 saver.setLittleEndian(true);
-                saver.setCustomJpeg(true).setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+                saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
                 saver.writeHeader();
-                // - necessary; SequentialTiffWriter does it automatically
                 SequentialTiffWriter writer = legacy ? new SequentialTiffWriter(context, targetExperimentalFile)
                         .setBigTiff(bigTiff)
                         .setLittleEndian(true)

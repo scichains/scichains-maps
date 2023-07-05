@@ -37,7 +37,9 @@ import org.scijava.io.location.Location;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 
 public final class SequentialTiffWriter implements Closeable {
     private final TiffSaver saver;
@@ -53,8 +55,11 @@ public final class SequentialTiffWriter implements Closeable {
     private volatile PhotoInterp photometricInterpretation = null;
     private volatile String software;
 
-    public SequentialTiffWriter(Context context, Path tiffFile) throws IOException {
-        this.saver = new TiffSaver(context, new FileLocation(tiffFile.toFile()));
+    public SequentialTiffWriter(Context context, Path file) throws IOException {
+        Objects.requireNonNull(file, "Null file");
+        Files.deleteIfExists(file);
+        // - strange, but necessary
+        this.saver = new TiffSaver(context, new FileLocation(file.toFile()));
         this.out = this.saver.getStream();
         this.saver.setWritingSequentially(true);
     }

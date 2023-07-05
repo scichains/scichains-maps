@@ -50,6 +50,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -149,38 +150,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     // -- Constructors --
 
-    public TiffSaver(Context context, Path file) throws IOException {
-        this(context, new FileLocation(file.toFile()));
-    }
+    public TiffSaver(Context context, Location location) throws IOException {
+        Objects.requireNonNull(context, "Null context");
+        Objects.requireNonNull(location, "Null location");
 
-
-    /**
-     * Constructs a new TIFF saver from the given filename.
-     *
-     * @param filename Filename of the output stream that we may use to create
-     *                 extra input or output streams as required.
-     */
-    public TiffSaver(final Context ctx, final String filename)
-            throws IOException {
-        this(ctx, new FileLocation(filename));
-    }
-
-    /**
-     * @param ctx
-     * @param loc
-     * @throws IOException
-     */
-    public TiffSaver(final Context ctx, final Location loc) throws IOException {
-        Objects.requireNonNull(loc);
-        Objects.requireNonNull(ctx);
-
-        setContext(ctx);
-        this.loc = loc;
-        this.out = dataHandleService.create(loc);
-        if (out == null) {
-            throw new NullPointerException("Data handle service created null out");
-        }
-        scifio = new SCIFIO(ctx);
+        setContext(context);
+        this.loc = location;
+        this.out = dataHandleService.create(location);
+        Objects.requireNonNull(out, "Data handle service created null output stream");
+        // - just in case: maybe this implementation of DataHandleService is incorrect
+        scifio = new SCIFIO(context);
         log = scifio.log();
     }
 
@@ -189,16 +168,33 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      *
      * @param out Output stream to save TIFF data to.
      */
-    public TiffSaver(final Context ctx, final DataHandle<Location> out) {
-        if (out == null) {
-            throw new IllegalArgumentException(
-                    "Output stream expected to be not-null");
-        }
+    public TiffSaver(Context context, DataHandle<Location> out) {
+        Objects.requireNonNull(context, "Null context");
+        Objects.requireNonNull(out, "Null output stream");
         this.out = out;
         this.loc = out.get();
-        setContext(ctx);
-        scifio = new SCIFIO(ctx);
+        setContext(context);
+        scifio = new SCIFIO(context);
         log = scifio.log();
+    }
+
+    public static TiffSaver getInstance(Context context, Location location) throws IOException {
+        return new TiffSaver(context, location)
+                .setWritingSequentially(true)
+                .setAutoInterleave(true)
+                .setCustomJpeg(true);
+    }
+
+    public static TiffSaver getInstance(Context context, Path file) throws IOException {
+        return getInstance(context, file, true);
+    }
+
+    public static TiffSaver getInstance(Context context, Path file, boolean deleteExistingFile) throws IOException {
+        Objects.requireNonNull(file, "Null file");
+        if (deleteExistingFile) {
+            Files.deleteIfExists(file);
+        }
+        return getInstance(context, new FileLocation(file.toFile()));
     }
 
     /**
@@ -1135,7 +1131,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         assert out != null : "must be checked in the constructor";
 
         if (!writingSequentially) {
-            DataHandle<Location> in = null;
+            if (planeIndex < 0) {
+                throw new IllegalArgumentException("Negative planeIndex = " + planeIndex);
+            }
+            DataHandle<Location> in;
             if (loc != null) {
                 in = dataHandleService.create(loc);
             } else {
