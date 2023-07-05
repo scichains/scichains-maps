@@ -768,27 +768,22 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // - will be used in getCompressionCodecOptions
 
         // These operations are synchronized
-        TiffCompression compression;
-        int tileWidth, tileHeight, tilesPerRow, numberOfActualStrips, numberOfEncodedStrips;
-        final ByteArrayOutputStream[] stripBuf;
-        final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
-        // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
-        // (IFD is not well-formed yet)
-        final boolean chunked;
+        final byte[][] strips;
         synchronized (this) {
-            chunked = ifd.getPlanarConfiguration() == 1;
+            final boolean chunked = ifd.getPlanarConfiguration() == 1;
 
             prepareValidIFD(ifd, pixelType, numberOfChannels);
 
             // create pixel output buffers
 
-            tileWidth = (int) ifd.getTileWidth();
-            tileHeight = (int) ifd.getTileLength();
-            tilesPerRow = (int) ifd.getTilesPerRow();
+            final int tileWidth = (int) ifd.getTileWidth();
+            final int tileHeight = (int) ifd.getTileLength();
+            final int tilesPerRow = (int) ifd.getTilesPerRow();
             final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
             int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
-            numberOfActualStrips = ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
-            numberOfEncodedStrips = numberOfActualStrips;
+            final int numberOfActualStrips =
+                    ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
+            int numberOfEncodedStrips = numberOfActualStrips;
 
             if (chunked) {
                 stripSize *= numberOfChannels;
@@ -796,7 +791,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 numberOfEncodedStrips *= numberOfChannels;
             }
 
-            stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
+            final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
             final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
             for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
                 stripBuf[strip] = new ByteArrayOutputStream(stripSize);
@@ -845,6 +840,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     }
                 }
             }
+            strips = new byte[numberOfEncodedStrips][];
+            for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
+                strips[strip] = stripBuf[strip].toByteArray();
+            }
         }
 
         // Compress strips according to given differencing and compression
@@ -852,21 +851,29 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        final byte[][] strips = new byte[numberOfEncodedStrips][];
-        final int imageHeight = (int) ifd.getImageLength();
-        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-            strips[strip] = stripBuf[strip].toByteArray();
-            scifio.tiff().difference(strips[strip], ifd);
-            int tileSizeX = tileWidth;
-            int tileSizeY = tileHeight;
-            if (!tiled) {
-                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
-                if (yOffset + tileHeight > imageHeight) {
-                    tileSizeY = Math.max(0, imageHeight - yOffset);
-                    // - last strip should have exact height, in other case TIFF may be read with a warning
+        {
+            final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
+            // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
+            // (IFD is not well-formed yet)
+            final boolean chunked = ifd.getPlanarConfiguration() == 1;
+            final int numberOfActualStrips = chunked ? strips.length : strips.length / numberOfChannels;
+            final int imageHeight = (int) ifd.getImageLength();
+            int tileWidth = (int) ifd.getTileWidth();
+            int tileHeight = (int) ifd.getTileLength();
+            int tilesPerRow = (int) ifd.getTilesPerRow();
+            for (int strip = 0; strip < strips.length; strip++) {
+                scifio.tiff().difference(strips[strip], ifd);
+                int tileSizeX = tileWidth;
+                int tileSizeY = tileHeight;
+                if (!tiled) {
+                    final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
+                    if (yOffset + tileHeight > imageHeight) {
+                        tileSizeY = Math.max(0, imageHeight - yOffset);
+                        // - last strip should have exact height, in other case TIFF may be read with a warning
+                    }
                 }
+                strips[strip] = encode(ifd, strips[strip], tileSizeX, tileSizeY);
             }
-            strips[strip] = encode(ifd, strips[strip], tileSizeX, tileSizeY);
         }
 
         // This operation is synchronized

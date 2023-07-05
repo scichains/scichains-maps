@@ -68,15 +68,15 @@ public class TiffSaverTest {
             tiled = true;
             startArgIndex++;
         }
-        boolean planarSeparate = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planarSeparate")) {
-            planarSeparate = true;
+        boolean planarSeparated = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planarSeparated")) {
+            planarSeparated = true;
             startArgIndex++;
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
-                    " [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparate] " +
+                    " [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
                     "target.tif [number_of_images [compression]]");
             return;
         }
@@ -115,7 +115,7 @@ public class TiffSaverTest {
                     ifd.putTileSizes(64, 64);
                 }
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
-                if (planarSeparate) {
+                if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
                 saver.writeImage(bytes, ifd, ifdIndex, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
