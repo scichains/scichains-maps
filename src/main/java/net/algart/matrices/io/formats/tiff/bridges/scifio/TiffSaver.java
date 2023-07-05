@@ -751,6 +751,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(samples, "Null samples data");
         Objects.requireNonNull(ifd, "Null IFD");
+        // - we should not convert ifd into ExtendedIFD, because it can make changes inside IFD invisible outside
         TiffParser.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         assert bytesPerSample >= 1;
@@ -774,7 +775,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final byte[][] tiles;
         synchronized (this) {
             prepareValidIFD(ifd, pixelType, numberOfChannels);
-            tiles = prepareTiles(samples, ifd, numberOfChannels, bytesPerSample, sizeX, sizeY);
+            // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
+            tiles = prepareTiles(samples, ExtendedIFD.extend(ifd), numberOfChannels, bytesPerSample, sizeX, sizeY);
         }
 
         // Compress tiles according to given differencing and compression
@@ -782,7 +784,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
-        writeTiles(ifd, numberOfChannels, tiles);
+        writeTiles(ExtendedIFD.extend(ifd), numberOfChannels, tiles);
 
         // This operation is synchronized
         synchronized (this) {
@@ -1103,7 +1105,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private byte[][] prepareTiles(
             byte[] samples,
-            IFD ifd,
+            ExtendedIFD ifd,
             int numberOfChannels,
             int bytesPerSample,
             int sizeX,
@@ -1112,20 +1114,24 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final boolean chunked = ifd.getPlanarConfiguration() == 1;
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
-        // create pixel output buffers
-
-        final int tileWidth = (int) ifd.getTileWidth();
-        final int tileHeight = (int) ifd.getTileLength();
-        final int tilesPerRow = (int) ifd.getTilesPerRow();
+        assert numberOfChannels == ifd.getSamplesPerPixel() : "SamplesPerPixel not correctly set by prepareValidIFD";
+        ifd.sizeOfIFDTile(bytesPerSample);
+        // - checks that tile sizes are non-negative and <2^31,
+        // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
+        final int tileSizeX = ifd.getTileSizeX();
+        final int tileSizeY = ifd.getTileSizeY();
+        final int tilesPerRow = ifd.getTilesPerRow(tileSizeX);
         final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
-        //??
-        int stripSize = rowsPerStrip * tileWidth * bytesPerSample;
+
+        //TODO!! ??
+
+        int tileSize = rowsPerStrip * tileSizeX * bytesPerSample;
         final int numberOfActualStrips =
-                ((sizeX + tileWidth - 1) / tileWidth) * ((sizeY + tileHeight - 1) / tileHeight);
+                ((sizeX + tileSizeX - 1) / tileSizeX) * ((sizeY + tileSizeY - 1) / tileSizeY);
         int numberOfEncodedStrips = numberOfActualStrips;
 
         if (chunked) {
-            stripSize *= numberOfChannels;
+            tileSize *= numberOfChannels;
         } else {
             numberOfEncodedStrips *= numberOfChannels;
         }
@@ -1133,7 +1139,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
         final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
         for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-            stripBuf[strip] = new ByteArrayOutputStream(stripSize);
+            stripBuf[strip] = new ByteArrayOutputStream(tileSize);
             stripOut[strip] = new DataOutputStream(stripBuf[strip]);
         }
         // final int[] bps = ifd.getBitsPerSample();
@@ -1144,11 +1150,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, sizeX * sizeY);
         }
         for (int tileIndex = 0; tileIndex < numberOfActualStrips; tileIndex++) {
-            final int xOffset = (tileIndex % tilesPerRow) * tileWidth;
-            final int yOffset = (tileIndex / tilesPerRow) * tileHeight;
-            for (int row = 0; row < tileHeight; row++) {
+            final int xOffset = (tileIndex % tilesPerRow) * tileSizeX;
+            final int yOffset = (tileIndex / tilesPerRow) * tileSizeY;
+            for (int row = 0; row < tileSizeY; row++) {
                 int i = row + yOffset;
-                for (int col = 0; col < tileWidth; col++) {
+                for (int col = 0; col < tileSizeX; col++) {
                     int j = col + xOffset;
                     final int ndx = (i * sizeX + j) * bytesPerSample;
                     for (int c = 0; c < numberOfChannels; c++) {
@@ -1182,28 +1188,27 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return tiles;
     }
 
-    private void writeTiles(IFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
+    private void writeTiles(ExtendedIFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
         final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
         // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
         // (IFD is not well-formed yet)
-        final boolean chunked = ifd.getPlanarConfiguration() == 1;
+        final boolean chunked = ifd.isContiguouslyChunked();
         final int numberOfActualStrips = chunked ? strips.length : strips.length / numberOfChannels;
         final int imageHeight = (int) ifd.getImageLength();
-        int tileWidth = (int) ifd.getTileWidth();
-        int tileHeight = (int) ifd.getTileLength();
-        int tilesPerRow = (int) ifd.getTilesPerRow();
+        final int tileSizeX = ifd.getTileSizeX();
+        final int tileSizeY = ifd.getTileSizeY();
+        final int tilesPerRow = ifd.getTilesPerRow(tileSizeX);
         for (int strip = 0; strip < strips.length; strip++) {
             scifio.tiff().difference(strips[strip], ifd);
-            int tileSizeX = tileWidth;
-            int tileSizeY = tileHeight;
+            int reducedTileSizeY = tileSizeY;
             if (!tiled) {
-                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileHeight;
-                if (yOffset + tileHeight > imageHeight) {
-                    tileSizeY = Math.max(0, imageHeight - yOffset);
+                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileSizeY;
+                if (yOffset + tileSizeY > imageHeight) {
+                    reducedTileSizeY = Math.max(0, imageHeight - yOffset);
                     // - last strip should have exact height, in other case TIFF may be read with a warning
                 }
             }
-            strips[strip] = encode(ifd, strips[strip], tileSizeX, tileSizeY);
+            strips[strip] = encode(ifd, strips[strip], tileSizeX, reducedTileSizeY);
         }
     }
 

@@ -341,11 +341,15 @@ public class ExtendedIFD extends IFD {
     }
 
     public int sizeOfIFDTileBasedOnBits() throws FormatException {
+        return sizeOfIFDTile(getBytesPerSampleBasedOnBits());
+    }
+
+    public int sizeOfIFDTile(int bytesPerSample) throws FormatException {
         final int channels = isPlanarSeparated() ? 1 : getSamplesPerPixel();
         // - if separate (RRR...GGG...BBB...),
         // we have (for 3 channels) only 1 channel instead of 3, but number of tiles is greater:
         // 3 * numTileRows effective rows of tiles instead of numTileRows
-        return checkedMul(getTileWidth(), getTileLength(), channels, getBytesPerSampleBasedOnBits(),
+        return checkedMul(getTileWidth(), getTileLength(), channels, bytesPerSample,
                 "tile width", "tile height", "effective number of channels", "bytes per sample",
                 () -> "Invalid TIFF tile sizes: ", () -> "");
     }
