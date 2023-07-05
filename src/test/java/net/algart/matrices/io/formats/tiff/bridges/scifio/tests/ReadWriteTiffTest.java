@@ -131,8 +131,8 @@ public class ReadWriteTiffTest {
                         // - not remove! Removing means default value!
                     }
                     saverIFD.putImageSizes(w, h);
-                    saver.writeImage(bytes, saverIFD, -1, parserIFD.getPixelType(), START_X, START_Y, w, h,
-                            last, bandCount, false);
+                    saver.writeImage(bytes, saverIFD, -1, bandCount,
+                            parserIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", saverIFD);
                     System.out.printf(Locale.US,
