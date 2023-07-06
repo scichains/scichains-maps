@@ -53,11 +53,13 @@ public class CachingTiffParser extends TiffParser {
     public CachingTiffParser(Context context, Location location) throws IOException {
         super(context, location);
         this.setAutoUnpackUnusualPrecisions(true);
+        this.setExtendedCodec(true);
     }
 
     public CachingTiffParser(Context context, DataHandle<Location> in) {
         super(context, in);
         this.setAutoUnpackUnusualPrecisions(true);
+        this.setExtendedCodec(true);
     }
 
     public static CachingTiffParser getInstance(Context context, Location location) throws IOException {

@@ -27,19 +27,13 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.codec.BitBuffer;
+import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
-
-import java.io.Closeable;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
-
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEG2000Codec;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -48,6 +42,13 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 import org.scijava.log.LogService;
 import org.scijava.util.Bytes;
+
+import java.io.Closeable;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * Parses TIFF data from an input source.
@@ -121,6 +122,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private boolean autoUnpackUnusualPrecisions = false;
 
+    private boolean extendedCodec = false;
+
     /**
      * Whether or not 64-bit offsets are used for non-BigTIFF files.
      */
@@ -180,7 +183,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     public static TiffParser getInstance(Context context, Location location) throws IOException {
         return new TiffParser(context, location)
-                .setAutoUnpackUnusualPrecisions(true);
+                .setAutoUnpackUnusualPrecisions(true)
+                .setExtendedCodec(true);
     }
 
     public static TiffParser getInstance(final Context context, Path file) throws IOException {
@@ -230,6 +234,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     public TiffParser setAutoUnpackUnusualPrecisions(boolean autoUnpackUnusualPrecisions) {
         this.autoUnpackUnusualPrecisions = autoUnpackUnusualPrecisions;
+        return this;
+    }
+
+    public boolean isExtendedCodec() {
+        return extendedCodec;
+    }
+
+    public TiffParser setExtendedCodec(boolean extendedCodec) {
+        this.extendedCodec = extendedCodec;
         return this;
     }
 
@@ -1004,7 +1017,19 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 && ycbcrCorrection;
         // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
-        return compression.decompress(scifio.codec(), stripSamples, codecOptions);
+        Codec codec = null;
+        if (extendedCodec) {
+            switch (compression) {
+                case JPEG_2000, JPEG_2000_LOSSY, ALT_JPEG2000 -> {
+                    codec = new ExtendedJPEG2000Codec();
+                }
+            }
+        }
+        if (codec != null) {
+            return codec.decompress(stripSamples, codecOptions);
+        } else {
+            return compression.decompress(scifio.codec(), stripSamples, codecOptions);
+        }
     }
 
 

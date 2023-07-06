@@ -27,10 +27,11 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
+import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
-import io.scif.gui.AWTImageTools;
 import io.scif.util.FormatTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -43,9 +44,6 @@ import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 
 import javax.imageio.*;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.stream.ImageOutputStream;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.DataOutputStream;
@@ -136,7 +134,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      */
     private CodecOptions codecOptions;
 
-    private boolean customJpeg = false;
+    private boolean extendedCodec = false;
 
     private boolean jpegInPhotometricRGB = false;
 
@@ -184,7 +182,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return new TiffSaver(context, location)
                 .setWritingSequentially(true)
                 .setAutoInterleave(true)
-                .setCustomJpeg(true);
+                .setExtendedCodec(true);
     }
 
     public static TiffSaver getInstance(Context context, Path file) throws IOException {
@@ -339,20 +337,20 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isCustomJpeg() {
-        return customJpeg;
+    public boolean isExtendedCodec() {
+        return extendedCodec;
     }
 
     /**
-     * Sets whether you need special optimized codec for a case of JPEG compression type.
+     * Sets whether you need special optimized codecs for some cases, including JPEG compression type.
      * Must be <tt>true</tt> if you want to use any of the further parameters.
      * Default value is <tt>false</tt>.
      *
-     * @param customJpeg whether you want to use special optimized codec for JPEG compression.
+     * @param extendedCodec whether you want to use special optimized codecs.
      * @return a reference to this object.
      */
-    public TiffSaver setCustomJpeg(boolean customJpeg) {
-        this.customJpeg = customJpeg;
+    public TiffSaver setExtendedCodec(boolean extendedCodec) {
+        this.extendedCodec = extendedCodec;
         return this;
     }
 
@@ -365,7 +363,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * Default value is <tt>false</tt>, that means using YCbCr photometric interpretation &mdash;
      * standard encoding for JPEG, but not so popular in TIFF.
      *
-     * <p>This parameter is ignored (as if it is <tt>false</tt>), unless {@link #isCustomJpeg()}.
+     * <p>This parameter is ignored (as if it is <tt>false</tt>), unless {@link #isExtendedCodec()}.
      *
      * @param jpegInPhotometricRGB whether you want to compress JPEG in RGB encoding.
      * @return a reference to this object.
@@ -376,7 +374,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     public boolean compressJPEGInPhotometricRGB() {
-        return customJpeg && jpegInPhotometricRGB;
+        return extendedCodec && jpegInPhotometricRGB;
     }
 
     public double getJpegQuality() {
@@ -487,9 +485,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 writeIFDValue(extraHandle, ifdBytes + fp, key, value);
             }
 
-            writeIntValue(out, nextOffset);
+            writeIntOffset(out, nextOffset);
             final int ifdLen = (int) extraHandle.offset();
-            extraHandle.seek(0l);
+            extraHandle.seek(0L);
             DataHandles.copy(extraHandle, out, ifdLen);
         }
     }
@@ -547,7 +545,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 extraOut.write(q);
             }
         } else if (value instanceof short[]) {
@@ -562,7 +560,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (short shortValue : q) {
                     extraOut.writeByte(shortValue);
                 }
@@ -579,7 +577,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0); // padding
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (char charValue : q) {
                     extraOut.writeByte(charValue); // values
                 }
@@ -597,7 +595,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeShort(0); // padding
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (int intValue : q) {
                     extraOut.writeShort(intValue); // values
                 }
@@ -640,7 +638,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     writeIntValue(out, 0);
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (long longValue : q) {
                     writeIntValue(extraOut, longValue);
                 }
@@ -653,7 +651,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 out.writeInt((int) q[0].getNumerator());
                 out.writeInt((int) q[0].getDenominator());
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (TiffRational tiffRational : q) {
                     extraOut.writeInt((int) tiffRational.getNumerator());
                     extraOut.writeInt((int) tiffRational.getDenominator());
@@ -672,7 +670,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeInt(0); // padding
                 }
             } else {
-                writeIntValue(out, offset + extraOut.length());
+                writeIntOffset(out, offset + extraOut.length());
                 for (float floatValue : q) {
                     extraOut.writeFloat(floatValue); // values
                 }
@@ -681,7 +679,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final double[] q = (double[]) value;
             out.writeShort(IFDType.DOUBLE.getCode()); // type
             writeIntValue(out, q.length);
-            writeIntValue(out, offset + extraOut.length());
+            writeIntOffset(out, offset + extraOut.length());
             for (final double doubleValue : q) {
                 extraOut.writeDouble(doubleValue); // values
             }
@@ -842,58 +840,19 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         codecOptions.width = sizeX;
         codecOptions.height = sizeY;
         codecOptions.channels = effectiveChannels;
-        if (customJpeg && compression == TiffCompression.JPEG) {
-            return compressJPEG(stripSamples, codecOptions);
+        Codec codec = null;
+        if (extendedCodec) {
+            if (compression == TiffCompression.JPEG) {
+                codec = new ExtendedJPEGCodec()
+                        .setJpegInPhotometricRGB(jpegInPhotometricRGB)
+                        .setJpegQuality(jpegQuality);
+            }
+        }
+        if (codec != null) {
+            return codec.compress(stripSamples, codecOptions);
         } else {
             return compression.compress(scifio.codec(), stripSamples, codecOptions);
         }
-    }
-
-    // Optimized version of io.scif.codec.JPEGCodec.compress() method
-    private byte[] compressJPEG(final byte[] data, CodecOptions options) throws FormatException {
-        Objects.requireNonNull(data, "Null data");
-        Objects.requireNonNull(options, "Null codec options");
-        if (data.length == 0) {
-            return data;
-        }
-
-        if (options.bitsPerSample > 8) {
-            throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
-                    "(only 8-bit samples allowed)");
-        }
-
-        final ByteArrayOutputStream result = new ByteArrayOutputStream();
-        final BufferedImage image = AWTImageTools.makeImage(data, options.width,
-                options.height, options.channels, options.interleaved,
-                options.bitsPerSample / 8, false, options.littleEndian, options.signed);
-
-        try {
-            final ImageOutputStream ios = ImageIO.createImageOutputStream(result);
-            final ImageWriter jpegWriter = getJPEGWriter();
-            jpegWriter.setOutput(ios);
-
-            final ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            writeParam.setCompressionType("JPEG");
-            writeParam.setCompressionQuality((float) jpegQuality);
-            final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
-            if (jpegInPhotometricRGB) {
-                writeParam.setDestinationType(imageTypeSpecifier);
-                // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
-                // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
-            }
-            final IIOMetadata metadata = jpegWriter.getDefaultImageMetadata(
-                    jpegInPhotometricRGB ? null : imageTypeSpecifier,
-                    writeParam);
-            // - Important! imageType = null necessary for RGB, in other case setDestinationType will be ignored!
-
-            final IIOImage iioImage = new IIOImage(image, null, metadata);
-            // - metadata necessary (with necessary markers)
-            jpegWriter.write(null, iioImage, writeParam);
-        } catch (final IOException e) {
-            throw new FormatException("Cannot compress JPEG data", e);
-        }
-        return result.toByteArray();
     }
 
     /* These methods are never used and should be removed. No sense to optimize it.
@@ -1065,16 +1024,37 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return toReturn;
     }
 
+    private void writeIntValue(final DataHandle<Location> handle, final int value) throws IOException {
+        if (bigTiff) {
+            handle.writeLong(value);
+        } else {
+            handle.writeInt(value);
+        }
+    }
+
     /**
      * Write the given value to the given RandomAccessOutputStream. If the
      * 'bigTiff' flag is set, then the value will be written as an 8 byte long;
      * otherwise, it will be written as a 4 byte integer.
      */
-    private void writeIntValue(final DataHandle<Location> handle,
-                               final long offset) throws IOException {
+    private void writeIntValue(final DataHandle<Location> handle, final long value) throws IOException {
+        if (bigTiff) {
+            handle.writeLong(value);
+        } else {
+            if (value != (int) value) {
+                throw new IOException("Attempt to write 64-bit value as 32-bit: " + value);
+            }
+            handle.writeInt((int) value);
+        }
+    }
+
+    private void writeIntOffset(final DataHandle<Location> handle, final long offset) throws IOException {
         if (bigTiff) {
             handle.writeLong(offset);
         } else {
+            if (offset != (int) offset) {
+                throw new IOException("Attempt to write 64-bit offset as 32-bit: " + offset);
+            }
             handle.writeInt((int) offset);
         }
     }
@@ -1368,23 +1348,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
         out.seek(fp);
 
-        if (log.isDebug()) {
-            log.debug("Writing tile/strip offsets: " + Arrays.toString(
-                    toPrimitiveArray(offsets)));
-            log.debug("Writing tile/strip byte counts: " + Arrays.toString(
-                    toPrimitiveArray(byteCounts)));
-        }
         writeIFD(ifd, last ? 0 : endFP);
         // - rewriting IFD with already filled offsets (not too quick, but quick enough)
         out.seek(endFP);
         // - restoring correct file pointer at the end of tile
-    }
-
-    private static ImageWriter getJPEGWriter() throws IIOException {
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-        if (!writers.hasNext()) {
-            throw new IIOException("Cannot write JPEG");
-        }
-        return writers.next();
     }
 }

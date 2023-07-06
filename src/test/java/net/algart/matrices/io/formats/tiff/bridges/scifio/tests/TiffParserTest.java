@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class TiffParserTest {
-    private static final int MAX_IMAGE_DIM = 12000;
+    private static final int MAX_IMAGE_DIM = 10000;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
