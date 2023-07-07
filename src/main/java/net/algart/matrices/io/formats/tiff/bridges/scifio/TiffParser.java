@@ -1558,17 +1558,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     final int partSizeY = Math.min(toY - tileStartY, tileSizeY - yInTile);
                     assert partSizeY > 0 : "partSizeY=" + partSizeY;
 
-                    final int partWidthInBytes = partSizeX * bytesPerSample;
-
+                    final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int cu = 0; cu < channelsUsual; cu++) {
-                        int srcOfs = (((cu * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
-                        int destOfs = (((cu + cs) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
+                        int srcOffset = (((cu * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
+                        int destOffset = (((cu + cs) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
                         for (int tileRow = 0; tileRow < partSizeY; tileRow++) {
                             if (tileBuffer != null) {
-                                System.arraycopy(tileBuffer, srcOfs, buf, destOfs, partWidthInBytes);
+                                System.arraycopy(tileBuffer, srcOffset, buf, destOffset, partSizeXInBytes);
                             }
-                            srcOfs += tileRowSizeInBytes;
-                            destOfs += outputRowSizeInBytes;
+                            srcOffset += tileRowSizeInBytes;
+                            destOffset += outputRowSizeInBytes;
                         }
                     }
                 }

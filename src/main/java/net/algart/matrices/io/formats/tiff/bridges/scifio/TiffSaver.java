@@ -1162,43 +1162,29 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 final int xOffset = col * tileSizeX;
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (chunked) {
+                    final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
                     final byte[] tile = tiles[tileIndex];
                     for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
-                        int i = yInTile + yOffset;
-                        int disp = yInTile * tileRowSizeInBytes;
-                        int j = xOffset;
-                        int ndx = (i * sizeX + xOffset) * bytesPerSample;
-                        for (int xInTile = 0; xInTile < partSizeX; xInTile++, j++, ndx++) {
-                            for (int c = 0; c < numberOfChannels; c++) {
-                                for (int n = 0; n < bytesPerSample; n++) {
-                                    int off = ndx * numberOfChannels + c * bytesPerSample + n;
-                                    tile[disp++] = samples[off];
-                                }
-                            }
-                        }
+                        final int i = yInTile + yOffset;
+                        final int tileOffset = yInTile * tileRowSizeInBytes;
+                        final int samplesOffset = (i * sizeX + xOffset) * bytesPerSample * numberOfChannels;
+                        System.arraycopy(samples, samplesOffset, tile, tileOffset, partSizeXInBytes);
                     }
                 } else {
+                    final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int c = 0, strip = tileIndex; c < numberOfChannels; c++, strip += numberOfActualStrips) {
                         final byte[] tile = tiles[strip];
+                        final int channelOffset = c * channelSize;
                         for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
-                            int i = yInTile + yOffset;
-                            int disp = yInTile * tileRowSizeInBytes;
-                            int j = xOffset;
-                            int ndx = (i * sizeX + xOffset) * bytesPerSample;
-                            for (int xInTile = 0; xInTile < partSizeX; xInTile++, j++, ndx++) {
-                                for (int n = 0; n < bytesPerSample; n++) {
-                                    int off = c * channelSize + ndx + n;
-                                    tile[disp++] = samples[off];
-                                }
-                            }
+                            final int i = yInTile + yOffset;
+                            final int tileOffset = yInTile * tileRowSizeInBytes;
+                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
+                            System.arraycopy(samples, samplesOffset, tile, tileOffset, partSizeXInBytes);
                         }
                     }
                 }
             }
         }
-//        for (int tileIndex = 0; tileIndex < numberOfEncodedStrips; tileIndex++) {
-//            tiles[tileIndex] = stripBuf[tileIndex].toByteArray();
-//        }
         return tiles;
     }
 
