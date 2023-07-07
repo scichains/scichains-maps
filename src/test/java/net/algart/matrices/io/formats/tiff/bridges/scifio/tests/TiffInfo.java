@@ -64,22 +64,25 @@ public class TiffInfo {
     }
 
     public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
-        try (Context context = new SCIFIO().getContext()) {
-            TiffParser parser = TiffParser.getInstance(context, tiffFile);
-            IFDList ifdList = parser.getIFDs();
-            final int ifdCount = ifdList.size();
-            System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
-                    tiffFile,
-                    ifdCount,
-                    parser.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
-                    parser.getStream().isLittleEndian() ? "little" : "big");
-            for (int k = 0; k < ifdCount; k++) {
-                if (k >= firstIFDIndex && k <= lastIFDIndex) {
-                    final IFD ifd = ifdList.get(k);
-                    System.out.println(ifdInfo(ifd, k, ifdCount));
+        try (Context context = new SCIFIO().getContext();
+             TiffParser parser = TiffParser.getInstance(context, tiffFile, false)) {
+            if (!parser.isValidHeader()) {
+                System.out.printf("%nFile %s: not TIFF%n", tiffFile);
+            } else {
+                IFDList ifdList = parser.getIFDs();
+                final int ifdCount = ifdList.size();
+                System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
+                        tiffFile,
+                        ifdCount,
+                        parser.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
+                        parser.getStream().isLittleEndian() ? "little" : "big");
+                for (int k = 0; k < ifdCount; k++) {
+                    if (k >= firstIFDIndex && k <= lastIFDIndex) {
+                        final IFD ifd = ifdList.get(k);
+                        System.out.println(ifdInfo(ifd, k, ifdCount));
+                    }
                 }
             }
-            parser.close();
             System.out.println();
         }
     }

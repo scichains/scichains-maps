@@ -206,14 +206,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    public static TiffParser getInstance(Context context, Location location) throws IOException {
-        return new TiffParser(context, location, true)
+    public static TiffParser getInstance(Context context, Location location, boolean requireValidTiff)
+            throws IOException {
+        return new TiffParser(context, location, requireValidTiff)
                 .setAutoUnpackUnusualPrecisions(true)
                 .setExtendedCodec(true);
     }
 
+    public static TiffParser getInstance(final Context context, Path file, boolean requireValidTiff)
+            throws IOException {
+        return getInstance(context, existingFileToLocation(file), requireValidTiff);
+    }
+
     public static TiffParser getInstance(final Context context, Path file) throws IOException {
-        return getInstance(context, existingFileToLocation(file));
+        return getInstance(context, file, true);
     }
 
 
@@ -445,7 +451,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             }
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
-                    final IFD sub = getIFD(subOffset);
+                    final IFD sub = getIFD(subOffset, IFD.SUB_IFD);
                     if (sub != null) {
                         ifds.add(sub);
                     }
@@ -509,7 +515,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         for (final IFD ifd : ifds) {
             final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
             if (offset != 0) {
-                final IFD exifIFD = getIFD(offset);
+                final IFD exifIFD = getIFD(offset, IFD.EXIF);
                 if (exifIFD != null) {
                     exif.add(exifIFD);
                 }
@@ -526,14 +532,17 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
                 : TiffConstants.BYTES_PER_ENTRY;
 
-        final Vector<Long> offsets = new Vector<>();
+        final List<Long> offsets = new ArrayList<>();
         long offset = getFirstOffset();
         while (offset > 0 && offset < in.length()) {
             in.seek(offset);
             offsets.add(offset);
-            final int nEntries = bigTiff ? (int) in.readLong() : in
-                    .readUnsignedShort();
-            in.skipBytes(nEntries * bytesPerEntry);
+            final long nEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
+            if (nEntries > Integer.MAX_VALUE / bytesPerEntry) {
+                throw new IOException("Too many number of IFD entries in Big TIFF: " + nEntries
+                    + " (it is not supported, probably file is broken)");
+            }
+            in.skipBytes((int) (nEntries * bytesPerEntry));
             offset = getNextOffset(offset);
         }
 
@@ -550,10 +559,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * a valid TIFF file.
      */
     public IFD getFirstIFD() throws IOException {
-        if (firstIFD != null) return firstIFD;
+        if (firstIFD != null) {
+            return firstIFD;
+        }
         final long offset = getFirstOffset();
         final IFD ifd = getIFD(offset);
-        if (doCaching) firstIFD = ifd;
+        if (doCaching) {
+            firstIFD = ifd;
+        }
         return ifd;
     }
 
@@ -570,7 +583,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
     public TiffIFDEntry getFirstIFDEntry(final int tag) throws IOException {
         // Get the offset of the first IFD
         final long offset = getFirstOffset();
-        if (offset < 0) return null;
+        if (offset < 0) {
+            return null;
+        }
 
         // The following loosely resembles the logic of getIFD()...
         in.seek(offset);
@@ -595,8 +610,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     public long getFirstOffset() throws IOException {
         final Boolean header = checkHeader();
-        if (header == null) return -1;
-        if (bigTiff) in.skipBytes(4);
+        if (header == null) {
+            return -1;
+        }
+        if (bigTiff) {
+            in.skipBytes(4);
+        }
         return getNextOffset(0);
     }
 
@@ -604,12 +623,17 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Gets the IFD stored at the given offset.
      */
     public ExtendedIFD getIFD(long offset) throws IOException {
+        return getIFD(offset, null);
+    }
+
+    public ExtendedIFD getIFD(long offset, Integer subIFDType) throws IOException {
         long t1 = System.nanoTime();
         if (offset < 0 || offset >= in.length()) {
             return null;
         }
         final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
         final ExtendedIFD ifd = new ExtendedIFD(log, offset);
+        ifd.setSubIFDType(subIFDType);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
         ifd.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
@@ -1415,7 +1439,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, offset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
-                "Reading IFD entry: %s - %s", result, ExtendedIFD.ifdTagName(result.getTag())));
+                "Reading IFD entry: %s - %s", result, ExtendedIFD.ifdTagName(result.getTag(), true)));
         return result;
     }
 

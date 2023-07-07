@@ -46,6 +46,7 @@ public class ExtendedIFD extends IFD {
     private final Long offset;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
+    private Integer subIFDType = null;
 
     public ExtendedIFD(IFD ifd) {
         this(ifd, null);
@@ -105,13 +106,27 @@ public class ExtendedIFD extends IFD {
         return offset;
     }
 
+    public Map<Integer, TiffIFDEntry> getEntries() {
+        return entries;
+    }
+
     public ExtendedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
         this.entries = Objects.requireNonNull(entries, "Null entries");
         return this;
     }
 
-    public Map<Integer, TiffIFDEntry> getEntries() {
-        return entries;
+
+    public boolean isMainIFD() {
+        return subIFDType == null;
+    }
+
+    public Integer getSubIFDType() {
+        return subIFDType;
+    }
+
+    public ExtendedIFD setSubIFDType(Integer subIFDType) {
+        this.subIFDType = subIFDType;
+        return this;
     }
 
     // Usually false: PlanarConfiguration=2 is not in widespread use
@@ -293,7 +308,7 @@ public class ExtendedIFD extends IFD {
         }
         if ((tileSizeX & 15) != 0 || (tileSizeY & 15) != 0) {
             throw new IllegalArgumentException("Illegal tile sizes " + tileSizeX + "x" + tileSizeY
-                + ": they must be multiples of 16");
+                    + ": they must be multiples of 16");
         }
         putIFDValue(IFD.TILE_WIDTH, tileSizeX);
         putIFDValue(IFD.TILE_LENGTH, tileSizeY);
@@ -368,6 +383,7 @@ public class ExtendedIFD extends IFD {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("IFD");
+        sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
         try {
             final long imageWidth = getImageWidth();
             final long imageLength = getImageLength();
@@ -443,7 +459,7 @@ public class ExtendedIFD extends IFD {
             } catch (Exception e) {
                 additional = e;
             }
-            sb.append("    ").append(ifdTagName(tag)).append(" = ");
+            sb.append("    ").append(ifdTagName(tag, true)).append(" = ");
             boolean manyValues = v != null && v.getClass().isArray();
             if (manyValues) {
                 final int len = Array.getLength(v);
@@ -493,12 +509,16 @@ public class ExtendedIFD extends IFD {
      * Returns user-friendly name of the given TIFF tag.
      * It is used, in particular, in {@link #toString()} function.
      *
-     * @param tag entry Tag value.
+     * @param tag            entry Tag value.
+     * @param includeNumeric include numeric value into the result.
      * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
      */
-    public static String ifdTagName(int tag) {
-        final String name = IFDFriendlyNames.IFD_TAG_NAMES.get(tag);
-        return "%s (%d or 0x%X)".formatted(name == null ? "Unknown tag" : name, tag, tag);
+    public static String ifdTagName(int tag, boolean includeNumeric) {
+        String name = Objects.requireNonNullElse(IFDFriendlyNames.IFD_TAG_NAMES.get(tag), "Unknown tag");
+        if (!includeNumeric) {
+            return name;
+        }
+        return "%s (%d or 0x%X)".formatted(name, tag, tag);
     }
 
     private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {
