@@ -100,6 +100,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     // In any case, real BigTIFF files usually store most tags in standard LONG type (32 bits), not in LONG8.
 
     private static final System.Logger LOG = System.getLogger(TiffSaver.class.getName());
+    private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
 
     // -- Fields --
 
@@ -756,18 +757,19 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         TiffParser.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         assert bytesPerSample >= 1;
-        final long size = (long) sizeX * (long) sizeY;
-        if (size > samples.length || size * bytesPerSample > samples.length) {
+        final long numberOfPixels = (long) sizeX * (long) sizeY;
+        if (numberOfPixels > samples.length || numberOfPixels * bytesPerSample > samples.length) {
             throw new IllegalArgumentException("Too short samples array, even for 1 channel: " + samples.length
-                    + " < " + size * bytesPerSample);
+                    + " < " + numberOfPixels * bytesPerSample);
         }
-        final int channelSize = (int) size * bytesPerSample;
+        final int channelSize = (int) numberOfPixels * bytesPerSample;
         if (numberOfChannels == null) {
             numberOfChannels = samples.length / channelSize;
         } else if (channelSize * numberOfChannels > samples.length) {
             throw new IllegalArgumentException("Too short samples array for " + numberOfChannels +
                     " channels: " + samples.length + " < " + channelSize * numberOfChannels);
         }
+        final int numberOfBytes = channelSize * numberOfChannels;
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used in getCompressionCodecOptions
@@ -777,7 +779,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // These operations are synchronized
         long t2 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
         if (ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
-            samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) size);
+            samples = TiffParser.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
         }
         long t3 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
         final byte[][] tiles;
@@ -799,18 +801,18 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         synchronized (this) {
             writeImageIFD(ifd, planeIndex, tiles, numberOfChannels, last, fromX, fromY);
         }
-        if (TiffParser.BUILT_IN_TIMING) {
+        if (TiffParser.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t6 = System.nanoTime();
-            LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US,
-                    "%s wrote %dx%d (%.3f MB) in %.3f ms = " +
+            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
+                    "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f prepare + %.3f interleave + %.3f splitting " +
                             "+ %.3f encoding + %.3f writing, %.3f MB/s",
                     getClass().getSimpleName(),
-                    sizeX, sizeY, size / 1048576.0,
+                    numberOfChannels, sizeX, sizeY, numberOfBytes / 1048576.0,
                     (t6 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
                     (t5 - t4) * 1e-6, (t6 - t5) * 1e-6,
-                    size / 1048576.0 / ((t6 - t1) * 1e-9)));
+                    numberOfBytes / 1048576.0 / ((t6 - t1) * 1e-9)));
         }
     }
 
@@ -1124,63 +1126,83 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         final int tileSizeX = ifd.getTileSizeX();
         final int tileSizeY = ifd.getTileSizeY();
-        final int tilesPerRow = tileSizeX == 0 ? 1 : (sizeX + tileSizeX - 1) / tileSizeX;
-        final int tilesPerColumn = tileSizeY == 0 ? 1 : (sizeY + tileSizeY - 1) / tileSizeY;
+        final int numTileCols = tileSizeX == 0 ? 0 : (sizeX + tileSizeX - 1) / tileSizeX;
+        final int numTileRows = tileSizeY == 0 ? 0 : (sizeY + tileSizeY - 1) / tileSizeY;
         // Not ifd.getTilesPerColumn/Row()! Probably we write not full image!
         // Note: tileSizeX/Y should not be 0, but it is more simple to check this
-        if ((long) tilesPerRow * (long) tilesPerColumn > Integer.MAX_VALUE) {
+        if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
             throw new FormatException("Too large number of tiles/strips: "
-                    + tilesPerColumn + " * " + tilesPerRow + " > 2^31-1");
+                    + numTileRows + " * " + numTileCols + " > 2^31-1");
         }
         int tileSize = tileSizeX * tileSizeY * bytesPerSample;
-        final int numberOfActualStrips = tilesPerRow * tilesPerColumn;
+        final int numberOfActualStrips = numTileCols * numTileRows;
         int numberOfEncodedStrips = numberOfActualStrips;
         if (chunked) {
             tileSize *= numberOfChannels;
         } else {
             if ((long) numberOfChannels * (long) numberOfEncodedStrips > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Too large number of tiles/strips " +
-                        tilesPerColumn + " * " + tilesPerRow +
+                        numTileRows + " * " + numTileCols +
                         " * number of channels " + numberOfChannels + " >= 2^31");
             }
             numberOfEncodedStrips *= numberOfChannels;
         }
 
-        final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
-        final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
-        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-            stripBuf[strip] = new ByteArrayOutputStream(tileSize);
-            stripOut[strip] = new DataOutputStream(stripBuf[strip]);
-        }
+//        final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
+//        final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
+//        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
+//            stripBuf[strip] = new ByteArrayOutputStream(tileSize);
+//            stripOut[strip] = new DataOutputStream(stripBuf[strip]);
+//        }
+        tiles = new byte[numberOfEncodedStrips][tileSize];
+        // - zero-filled by Java
+
         // final int[] bps = ifd.getBitsPerSample();
         // - not necessary: correct BITS_PER_SAMPLE, based on pixelType, was written into IFD by prepareValidIFD()
 
         // write pixel tiles to output buffers
-       for (int tileIndex = 0; tileIndex < numberOfActualStrips; tileIndex++) {
-            final int xOffset = (tileIndex % tilesPerRow) * tileSizeX;
-            final int yOffset = (tileIndex / tilesPerRow) * tileSizeY;
-            for (int row = 0; row < tileSizeY; row++) {
-                int i = row + yOffset;
-                for (int col = 0; col < tileSizeX; col++) {
-                    int j = col + xOffset;
-                    final int ndx = (i * sizeX + j) * bytesPerSample;
-                    for (int c = 0; c < numberOfChannels; c++) {
-                        for (int n = 0; n < bytesPerSample; n++) {
-                            if (chunked) {
-                                int off = ndx * numberOfChannels + c * bytesPerSample + n;
-                                if (i >= sizeY || j >= sizeX) {
-                                    stripOut[tileIndex].writeByte(0);
-                                } else {
-                                    stripOut[tileIndex].writeByte(samples[off]);
-                                }
+        final int tileRowSizeInBytes = tileSizeX * (chunked ? numberOfChannels : 1) * bytesPerSample;
+        for (int row = 0, tileIndex = 0; row < numTileRows; row++) {
+            for (int col = 0; col < numTileCols; col++, tileIndex++) {
+                final int xOffset = col * tileSizeX;
+                final int yOffset = row * tileSizeY;
+                if (chunked) {
+                    final byte[] tile = tiles[tileIndex];
+                    for (int yInTile = 0; yInTile < tileSizeY; yInTile++) {
+                        int disp = yInTile * tileRowSizeInBytes;
+                        int i = yInTile + yOffset;
+                        int j = xOffset;
+                        int ndx = (i * sizeX + j) * bytesPerSample;
+                        for (int xInTile = 0; xInTile < tileSizeX; xInTile++, j++, ndx++) {
+                            for (int c = 0; c < numberOfChannels; c++) {
+                                for (int n = 0; n < bytesPerSample; n++) {
+                                    int off = ndx * numberOfChannels + c * bytesPerSample + n;
+                                    if (i >= sizeY || j >= sizeX) {
+                                        disp++;
+                                    } else {
+                                        tile[disp++] = samples[off];
+                                    }
 
-                            } else {
-                                int off = c * channelSize + ndx + n;
-                                if (i >= sizeY || j >= sizeX) {
-                                    stripOut[c * (numberOfEncodedStrips / numberOfChannels) + tileIndex].writeByte(0);
-                                } else {
-                                    stripOut[c * (numberOfEncodedStrips / numberOfChannels) + tileIndex].writeByte(
-                                            samples[off]);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    for (int c = 0, strip = tileIndex; c < numberOfChannels; c++, strip += numberOfActualStrips) {
+                        final byte[] tile = tiles[strip];
+                        for (int yInTile = 0; yInTile < tileSizeY; yInTile++) {
+                            int disp = yInTile * tileRowSizeInBytes;
+                            int i = yInTile + yOffset;
+                            for (int xInTile = 0; xInTile < tileSizeX; xInTile++) {
+                                int j = xInTile + xOffset;
+                                final int ndx = (i * sizeX + j) * bytesPerSample;
+                                for (int n = 0; n < bytesPerSample; n++) {
+                                    int off = c * channelSize + ndx + n;
+                                    if (i >= sizeY || j >= sizeX) {
+                                        disp++;
+                                    } else {
+                                        tile[disp++] = samples[off];
+                                    }
                                 }
                             }
                         }
@@ -1188,10 +1210,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 }
             }
         }
-        tiles = new byte[numberOfEncodedStrips][];
-        for (int tileIndex = 0; tileIndex < numberOfEncodedStrips; tileIndex++) {
-            tiles[tileIndex] = stripBuf[tileIndex].toByteArray();
-        }
+//        for (int tileIndex = 0; tileIndex < numberOfEncodedStrips; tileIndex++) {
+//            tiles[tileIndex] = stripBuf[tileIndex].toByteArray();
+//        }
         return tiles;
     }
 

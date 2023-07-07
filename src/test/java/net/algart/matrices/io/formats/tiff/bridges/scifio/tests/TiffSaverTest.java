@@ -68,7 +68,7 @@ public class TiffSaverTest {
             startArgIndex++;
         }
         boolean planarSeparated = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-planarSeparated")) {
+        if (args.length > startArgIndex && args[startArgIndex].toLowerCase().matches("-(planarseparated|ps)")) {
             planarSeparated = true;
             startArgIndex++;
         }

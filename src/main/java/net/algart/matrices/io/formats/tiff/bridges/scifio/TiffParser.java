@@ -94,7 +94,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
-    static final boolean BUILT_IN_TIMING = LOGGABLE_DEBUG && getBooleanProperty(
+    static final boolean BUILT_IN_TIMING = getBooleanProperty(
             "net.algart.matrices.io.formats.tiff.builtInTiming");
 
     // -- Fields --
@@ -1142,6 +1142,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (sizeX == 0 || sizeY == 0) {
             return samples;
         }
+
         ifd.sizeOfIFDTileBasedOnBits();
         // - checks that results of ifd.getTileWidth(), ifd.getTileLength() are non-negative and <2^31,
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
@@ -1162,13 +1163,13 @@ public class TiffParser extends AbstractContextual implements Closeable {
             byte[] buffer = interleaveSamples(ifd, samples, sizeX * sizeY);
             System.arraycopy(buffer, 0, samples, 0, size);
         }
-        if (BUILT_IN_TIMING) {
+        if (BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t4 = System.nanoTime();
-            LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US,
-                    "%s read %dx%d (%.3f MB) in %.3f ms = " +
+            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
+                    "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f get + %.3f corrections + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
-                    sizeX, sizeY, size / 1048576.0,
+                    ifd.getSamplesPerPixel(), sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
                     size / 1048576.0 / ((t4 - t1) * 1e-9)));
