@@ -46,6 +46,7 @@ import org.scijava.util.Bytes;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -118,6 +119,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     private byte filler = 0;
 
+    private final boolean requireValidTiff;
+
     private boolean autoInterleave = false;
 
     private boolean autoUnpackUnusualPrecisions = false;
@@ -156,33 +159,55 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     // -- Constructors --
 
+    public TiffParser(final Context context, final Location location) {
+        this(context, context.getService(DataHandleService.class).create(location));
+    }
+
     /**
      * Constructs a new TIFF parser from the given file location.
      */
-    public TiffParser(final Context context, final Location loc) {
-        this(context, context.getService(DataHandleService.class).create(loc));
+    public TiffParser(Context context, Location location, boolean requireValidTiff) throws IOException {
+        this(context, context.getService(DataHandleService.class).create(location), requireValidTiff);
+    }
+
+    public TiffParser(Context context, DataHandle<Location> in) {
+        this.requireValidTiff = false;
+        setContext(context);
+        scifio = new SCIFIO(context);
+        this.log = scifio.log();
+        this.in = in;
+        doCaching = true;
+        try {
+            final long fp = in.offset();
+            checkHeader();
+            in.seek(fp);
+        } catch (IOException ignored) {
+        }
     }
 
     /**
      * Constructs a new TIFF parser from the given input source.
      */
-    public TiffParser(final Context context, final DataHandle<Location> in) {
+    public TiffParser(Context context, DataHandle<Location> in, boolean requireValidTiff) throws IOException {
+        this.requireValidTiff = requireValidTiff;
         setContext(context);
         scifio = new SCIFIO(context);
-        log = scifio.log();
+        this.log = scifio.log();
         this.in = in;
         doCaching = true;
         try {
             final long fp = in.offset();
-            if (checkHeader() != null) {
-                in.seek(fp);
+            checkHeader();
+            in.seek(fp);
+        } catch (IOException e) {
+            if (requireValidTiff) {
+                throw e;
             }
-        } catch (final IOException ignored) {
         }
     }
 
     public static TiffParser getInstance(Context context, Location location) throws IOException {
-        return new TiffParser(context, location)
+        return new TiffParser(context, location, true)
                 .setAutoUnpackUnusualPrecisions(true)
                 .setExtendedCodec(true);
     }
@@ -195,6 +220,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
     // -- TiffParser methods --
 
 
+    public byte getFiller() {
+        return filler;
+    }
+
     /**
      * Sets the filler byte for tiles, lying completely outside the image.
      * Value 0 means black color, 0xFF usually means white color.
@@ -205,10 +234,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     public TiffParser setFiller(byte filler) {
         this.filler = filler;
         return this;
-    }
-
-    public byte getFiller() {
-        return filler;
     }
 
     public boolean isAutoInterleave() {
@@ -342,27 +367,43 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @return true if little-endian, false if big-endian, or null if not a TIFF.
      */
     public Boolean checkHeader() throws IOException {
-        if (in.length() < 4) return null;
+        final String fileName = prettyFileName(" %s", in);
+        if (requireValidTiff && !in.exists()) {
+            throw new FileNotFoundException("Input TIFF data" + fileName + " does not exist");
+        }
+        if (in.length() <= 8) {
+            if (requireValidTiff) {
+                throw new IOException("Too short TIFF file" + fileName + ": only " + in.length() + " bytes");
+            } else {
+                return null;
+            }
+        }
 
         // byte order must be II or MM
         in.seek(0);
         final int endianOne = in.read();
         final int endianTwo = in.read();
-        final boolean littleEndian = endianOne == TiffConstants.LITTLE &&
-                endianTwo == TiffConstants.LITTLE; // II
-        final boolean bigEndian = endianOne == TiffConstants.BIG &&
-                endianTwo == TiffConstants.BIG; // MM
-        if (!littleEndian && !bigEndian) return null;
+        final boolean littleEndian = endianOne == TiffConstants.LITTLE && endianTwo == TiffConstants.LITTLE; // II
+        final boolean bigEndian = endianOne == TiffConstants.BIG && endianTwo == TiffConstants.BIG; // MM
+        if (!littleEndian && !bigEndian) {
+            if (requireValidTiff) {
+                throw new IOException("The file" + fileName + " is not TIFF");
+            } else {
+                return null;
+            }
+        }
 
         // check magic number (42)
         in.setLittleEndian(littleEndian);
         final short magic = in.readShort();
         bigTiff = magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER;
-        if (magic != TiffConstants.MAGIC_NUMBER &&
-                magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER) {
-            return null;
+        if (magic != TiffConstants.MAGIC_NUMBER && magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER) {
+            if (requireValidTiff) {
+                throw new IOException("The file" + fileName + " is not TIFF");
+            } else {
+                return null;
+            }
         }
-
         return littleEndian;
     }
 
@@ -1889,6 +1930,21 @@ public class TiffParser extends AbstractContextual implements Closeable {
         } catch (FormatException e) {
             return Optional.empty();
         }
+    }
+
+    private static String prettyFileName(String format, DataHandle<Location> handle) {
+        if (handle == null) {
+            return "";
+        }
+        Location location = handle.get();
+        if (location == null) {
+            return "";
+        }
+        URI uri = location.getURI();
+        if (uri == null) {
+            return "";
+        }
+        return format.formatted(uri);
     }
 
     private static boolean getBooleanProperty(String propertyName) {

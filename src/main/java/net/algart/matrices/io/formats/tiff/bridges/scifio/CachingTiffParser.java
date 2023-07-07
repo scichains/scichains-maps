@@ -27,6 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
+import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.location.Location;
 
 import java.io.IOException;
@@ -51,13 +52,11 @@ public class CachingTiffParser extends TiffParser {
     private final Object tileCacheLock = new Object();
 
     public CachingTiffParser(Context context, Location location) throws IOException {
-        super(context, location);
-        this.setAutoUnpackUnusualPrecisions(true);
-        this.setExtendedCodec(true);
+        this(context, context.getService(DataHandleService.class).create(location));
     }
 
-    public CachingTiffParser(Context context, DataHandle<Location> in) {
-        super(context, in);
+    public CachingTiffParser(Context context, DataHandle<Location> in) throws IOException {
+        super(context, in, true);
         this.setAutoUnpackUnusualPrecisions(true);
         this.setExtendedCodec(true);
     }
