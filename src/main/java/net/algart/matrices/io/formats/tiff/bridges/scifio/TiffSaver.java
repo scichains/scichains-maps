@@ -1116,7 +1116,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             int bytesPerSample,
             int sizeX,
             int sizeY) throws FormatException, IOException {
-        final byte[][] tiles;
         final boolean chunked = ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
@@ -1148,13 +1147,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             numberOfEncodedStrips *= numberOfChannels;
         }
 
-//        final ByteArrayOutputStream[] stripBuf = new ByteArrayOutputStream[numberOfEncodedStrips];
-//        final DataOutputStream[] stripOut = new DataOutputStream[numberOfEncodedStrips];
-//        for (int strip = 0; strip < numberOfEncodedStrips; strip++) {
-//            stripBuf[strip] = new ByteArrayOutputStream(tileSize);
-//            stripOut[strip] = new DataOutputStream(stripBuf[strip]);
-//        }
-        tiles = new byte[numberOfEncodedStrips][tileSize];
+        final byte[][] tiles = new byte[numberOfEncodedStrips][tileSize];
         // - zero-filled by Java
 
         // final int[] bps = ifd.getBitsPerSample();
@@ -1163,26 +1156,23 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // write pixel tiles to output buffers
         final int tileRowSizeInBytes = tileSizeX * (chunked ? numberOfChannels : 1) * bytesPerSample;
         for (int row = 0, tileIndex = 0; row < numTileRows; row++) {
+            final int yOffset = row * tileSizeY;
+            final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
             for (int col = 0; col < numTileCols; col++, tileIndex++) {
                 final int xOffset = col * tileSizeX;
-                final int yOffset = row * tileSizeY;
+                final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (chunked) {
                     final byte[] tile = tiles[tileIndex];
-                    for (int yInTile = 0; yInTile < tileSizeY; yInTile++) {
-                        int disp = yInTile * tileRowSizeInBytes;
+                    for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                         int i = yInTile + yOffset;
+                        int disp = yInTile * tileRowSizeInBytes;
                         int j = xOffset;
-                        int ndx = (i * sizeX + j) * bytesPerSample;
-                        for (int xInTile = 0; xInTile < tileSizeX; xInTile++, j++, ndx++) {
+                        int ndx = (i * sizeX + xOffset) * bytesPerSample;
+                        for (int xInTile = 0; xInTile < partSizeX; xInTile++, j++, ndx++) {
                             for (int c = 0; c < numberOfChannels; c++) {
                                 for (int n = 0; n < bytesPerSample; n++) {
                                     int off = ndx * numberOfChannels + c * bytesPerSample + n;
-                                    if (i >= sizeY || j >= sizeX) {
-                                        disp++;
-                                    } else {
-                                        tile[disp++] = samples[off];
-                                    }
-
+                                    tile[disp++] = samples[off];
                                 }
                             }
                         }
@@ -1190,19 +1180,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 } else {
                     for (int c = 0, strip = tileIndex; c < numberOfChannels; c++, strip += numberOfActualStrips) {
                         final byte[] tile = tiles[strip];
-                        for (int yInTile = 0; yInTile < tileSizeY; yInTile++) {
-                            int disp = yInTile * tileRowSizeInBytes;
+                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                             int i = yInTile + yOffset;
-                            for (int xInTile = 0; xInTile < tileSizeX; xInTile++) {
-                                int j = xInTile + xOffset;
-                                final int ndx = (i * sizeX + j) * bytesPerSample;
+                            int disp = yInTile * tileRowSizeInBytes;
+                            int j = xOffset;
+                            int ndx = (i * sizeX + xOffset) * bytesPerSample;
+                            for (int xInTile = 0; xInTile < partSizeX; xInTile++, j++, ndx++) {
                                 for (int n = 0; n < bytesPerSample; n++) {
                                     int off = c * channelSize + ndx + n;
-                                    if (i >= sizeY || j >= sizeX) {
-                                        disp++;
-                                    } else {
-                                        tile[disp++] = samples[off];
-                                    }
+                                    tile[disp++] = samples[off];
                                 }
                             }
                         }
