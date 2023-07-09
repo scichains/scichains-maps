@@ -119,7 +119,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     private byte filler = 0;
 
-    private final boolean requireValidTiff;
+    private boolean requireValidTiff;
 
     private boolean autoInterleave = false;
 
@@ -147,6 +147,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Cached first IFD in the current file.
      */
     private IFD firstIFD;
+
+    private volatile long positionOfLastOffset = -1;
 
     private final SCIFIO scifio;
 
@@ -239,6 +241,23 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     public TiffParser setFiller(byte filler) {
         this.filler = filler;
+        return this;
+    }
+
+    public boolean isRequireValidTiff() {
+        return requireValidTiff;
+    }
+
+    /**
+     * Sets whether the parser should always require valid TIFF format.
+     * Default value is specified in the constructor or is <tt>false</tt>
+     * when using a constructor without such argument.
+     *
+     * @param requireValidTiff whether TIFF file should be correct.
+     * @return a reference to this object.
+     */
+    public TiffParser setRequireValidTiff(boolean requireValidTiff) {
+        this.requireValidTiff = requireValidTiff;
         return this;
     }
 
@@ -357,6 +376,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     /**
+     * Returns position in the file of the last offset, loaded by {@link #getNextOffset(long)} method.
+     * Usually it is just a position of the offset of the last IFD.
+     *
+     * @return file position of the last IFD offset.
+     */
+    public long getPositionOfLastOffset() {
+        return positionOfLastOffset;
+    }
+
+    /**
      * Tests this stream to see if it represents a TIFF file.
      */
     public boolean isValidHeader() {
@@ -373,13 +402,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @return true if little-endian, false if big-endian, or null if not a TIFF.
      */
     public Boolean checkHeader() throws IOException {
-        final String fileName = prettyFileName(" %s", in);
         if (requireValidTiff && !in.exists()) {
-            throw new FileNotFoundException("Input TIFF data" + fileName + " does not exist");
+            throw new FileNotFoundException("Input TIFF data" + prettyInName() + " does not exist");
         }
-        if (in.length() <= 8) {
+        if (in.length() < 8) {
             if (requireValidTiff) {
-                throw new IOException("Too short TIFF file" + fileName + ": only " + in.length() + " bytes");
+                throw new IOException("Too short TIFF file" + prettyInName() + ": only " + in.length() + " bytes");
             } else {
                 return null;
             }
@@ -393,7 +421,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final boolean bigEndian = endianOne == TiffConstants.BIG && endianTwo == TiffConstants.BIG; // MM
         if (!littleEndian && !bigEndian) {
             if (requireValidTiff) {
-                throw new IOException("The file" + fileName + " is not TIFF");
+                throw new IOException("The file" + prettyInName() + " is not TIFF");
             } else {
                 return null;
             }
@@ -405,7 +433,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         bigTiff = magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER;
         if (magic != TiffConstants.MAGIC_NUMBER && magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER) {
             if (requireValidTiff) {
-                throw new IOException("The file" + fileName + " is not TIFF");
+                throw new IOException("The file" + prettyInName() + " is not TIFF");
             } else {
                 return null;
             }
@@ -418,6 +446,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     public boolean isBigTiff() {
         return bigTiff;
+    }
+
+    /**
+     * Returns whether or not we are reading little-endian data.
+     * Determined by {@link #checkHeader()}.
+     */
+    public boolean isLittleEndian() {
+        return in.isLittleEndian();
     }
 
     // -- TiffParser methods - IFD parsing --
@@ -526,23 +562,32 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     /**
      * Gets the offsets to every IFD in the file.
+     * Note: after calling this function, the file pointer in the input stream refers
+     * to the last IFD offset in the file.
      */
     public long[] getIFDOffsets() throws IOException {
         // check TIFF header
-        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                : TiffConstants.BYTES_PER_ENTRY;
 
+        final long fileLength = in.length();
         final List<Long> offsets = new ArrayList<>();
         long offset = getFirstOffset();
-        while (offset > 0 && offset < in.length()) {
+
+        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY : TiffConstants.BYTES_PER_ENTRY;
+        while (offset > 0 && offset < fileLength) {
             in.seek(offset);
             offsets.add(offset);
-            final long nEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-            if (nEntries > Integer.MAX_VALUE / bytesPerEntry) {
-                throw new IOException("Too many number of IFD entries in Big TIFF: " + nEntries
-                    + " (it is not supported, probably file is broken)");
+            final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
+            if (numberOfEntries > Integer.MAX_VALUE / bytesPerEntry) {
+                throw new IOException("Too many number of IFD entries in Big TIFF: " + numberOfEntries +
+                        " (it is not supported, probably file is broken)");
             }
-            in.skipBytes((int) (nEntries * bytesPerEntry));
+            long skippedIFDBytes = numberOfEntries * bytesPerEntry;
+            if (offset + skippedIFDBytes >= in.length()) {
+                throw new IOException("Invalid TIFF" + prettyInName() + ": position of next IFD offset " +
+                        (offset + skippedIFDBytes) + " after " + numberOfEntries + " entries is outside the file" +
+                        " (probably file is broken)");
+            }
+            in.skipBytes((int) skippedIFDBytes);
             offset = getNextOffset(offset);
         }
 
@@ -1423,20 +1468,18 @@ public class TiffParser extends AbstractContextual implements Closeable {
         try {
             entryType = IFDType.get(in.readUnsignedShort());
         } catch (final EnumException e) {
-            log.error("Error reading IFD type at: " + in.offset());
-            throw e;
+            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
         }
 
         // Parse the entry's "ValueCount"
         final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
         if (valueCount < 0) {
-            throw new RuntimeException("Count of '" + valueCount + "' unexpected.");
+            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
         }
 
         final int nValueBytes = valueCount * entryType.getBytesPerElement();
         final int threshhold = bigTiff ? 8 : 4;
-        final long offset = nValueBytes > threshhold ? getNextOffset(0) : in
-                .offset();
+        final long offset = nValueBytes > threshhold ? getNextOffset(0) : in.offset();
 
         final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, offset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
@@ -1573,6 +1616,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 }
             }
         }
+    }
+
+    private String prettyInName() {
+        return prettyFileName(" %s", in);
     }
 
     /**
@@ -1745,19 +1792,31 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * from the previous offset.
      */
     private long getNextOffset(final long previous) throws IOException {
+        long fp = in.offset();
+        long offset;
         if (bigTiff || fakeBigTiff) {
-            return in.readLong();
-        }
-        long offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
+            offset = in.readLong();
+        } else {
+            offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
 
-        // Only adjust the offset if we know that the file is too large for
-        // 32-bit
-        // offsets to be accurate; otherwise, we're making the incorrect
-        // assumption
-        // that IFDs are stored sequentially.
-        if (offset < previous && offset != 0 && in.length() > Integer.MAX_VALUE) {
-            offset += 0x100000000L;
+            // Only adjust the offset if we know that the file is too large for 32-bit
+            // offsets to be accurate; otherwise, we're making the incorrect assumption
+            // that IFDs are stored sequentially.
+            if (offset < previous && offset != 0 && in.length() > Integer.MAX_VALUE) {
+                offset += 0x100000000L;
+            }
         }
+        if (requireValidTiff) {
+            if (offset < 0) {
+                throw new IOException("Invalid TIFF" + prettyInName() + ": negative offset " + offset +
+                        " at file position " + fp);
+            }
+            if (offset >= in.length()) {
+                throw new IOException("Invalid TIFF" + prettyInName() + ": offset " + offset +
+                        " at file position " + fp + " is outside the file");
+            }
+        }
+        this.positionOfLastOffset = fp;
         return offset;
     }
 

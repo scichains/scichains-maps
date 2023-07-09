@@ -69,6 +69,7 @@ public class TiffInfo {
             if (!parser.isValidHeader()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
+                parser.setRequireValidTiff(true);
                 IFDList ifdList = parser.getIFDs();
                 final int ifdCount = ifdList.size();
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",

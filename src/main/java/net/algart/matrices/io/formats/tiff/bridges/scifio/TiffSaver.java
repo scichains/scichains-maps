@@ -44,9 +44,7 @@ import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 
 import javax.imageio.*;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -101,6 +99,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private static final System.Logger LOG = System.getLogger(TiffSaver.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
+    private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
     // -- Fields --
 
@@ -125,6 +124,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     private boolean bigTiff = false;
 
     private boolean writingSequentially = false;
+
+    private boolean appendToExisting = false;
 
     private boolean autoInterleave = false;
 
@@ -240,6 +241,22 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      */
     public TiffSaver setWritingSequentially(final boolean sequential) {
         writingSequentially = sequential;
+        return this;
+    }
+
+    public boolean isAppendToExisting() {
+        return appendToExisting;
+    }
+
+    /**
+     * Sets appending mode: the specified file must be an existing TIFF file, and this saver
+     * will append IFD images to the end of this file.
+     *
+     * @param appendToExisting whether we want to append IFD to an existing TIFF file.
+     * @return a reference to this object.
+     */
+    public TiffSaver setAppendToExisting(boolean appendToExisting) {
+        this.appendToExisting = appendToExisting;
         return this;
     }
 
@@ -404,6 +421,33 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return setJpegQuality(codecOptions.quality);
     }
 
+    public void startWriting() throws IOException {
+        if (appendToExisting) {
+            final DataHandle<Location> in = loc != null ?
+                    dataHandleService.create(loc) :
+                    dataHandleService.create(out.get());
+            final boolean bigTiff;
+            final boolean littleEndian;
+            final long positionOfLastOffset;
+            try (final TiffParser parser = new TiffParser(getContext(), in, true)) {
+                parser.getIFDOffsets();
+                bigTiff = parser.isBigTiff();
+                littleEndian = parser.isLittleEndian();
+                positionOfLastOffset = parser.getPositionOfLastOffset();
+            }
+            //noinspection resource
+            setBigTiff(bigTiff).setLittleEndian(littleEndian);
+            out.seek(positionOfLastOffset);
+            final long fileLength = out.length();
+            writeOffset(out, fileLength);
+            out.seek(fileLength);
+            // - we are ready to write after the end of the file
+        } else {
+            writeHeader();
+            // - we are ready to write after the header
+        }
+    }
+
     /**
      * Writes the TIFF file header.
      */
@@ -486,7 +530,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 writeIFDValue(extraHandle, ifdBytes + fp, key, value);
             }
 
-            writeIntOffset(out, nextOffset);
+            writeOffset(out, nextOffset);
             final int ifdLen = (int) extraHandle.offset();
             extraHandle.seek(0L);
             DataHandles.copy(extraHandle, out, ifdLen);
@@ -537,7 +581,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(IFDType.UNDEFINED.getCode());
             // - Most probable type. Maybe in future we will support here some algorithm,
             // determining necessary type on the base of the tag value.
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
             if (q.length <= dataLength) {
                 for (byte byteValue : q) {
                     out.writeByte(byteValue);
@@ -546,13 +590,13 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 extraOut.write(q);
             }
         } else if (value instanceof short[]) {
             final short[] q = (short[]) value;
             out.writeShort(IFDType.BYTE.getCode());
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
             if (q.length <= dataLength) {
                 for (short s : q) {
                     out.writeByte(s);
@@ -561,7 +605,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (short shortValue : q) {
                     extraOut.writeByte(shortValue);
                 }
@@ -569,7 +613,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         } else if (value instanceof String) { // ASCII
             final char[] q = ((String) value).toCharArray();
             out.writeShort(IFDType.ASCII.getCode()); // type
-            writeIntValue(out, q.length + 1);
+            writeIntOrLongValue(out, q.length + 1);
             if (q.length < dataLength) {
                 for (char c : q) {
                     out.writeByte(c); // value(s)
@@ -578,7 +622,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeByte(0); // padding
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (char charValue : q) {
                     extraOut.writeByte(charValue); // values
                 }
@@ -587,7 +631,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         } else if (value instanceof int[]) { // SHORT
             final int[] q = (int[]) value;
             out.writeShort(IFDType.SHORT.getCode()); // type
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
             if (q.length <= dataLength / 2) {
                 for (int intValue : q) {
                     out.writeShort(intValue); // value(s)
@@ -596,7 +640,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeShort(0); // padding
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (int intValue : q) {
                     extraOut.writeShort(intValue); // values
                 }
@@ -628,31 +672,31 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             }
             final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG.getCode();
             out.writeShort(type);
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
 
             if (q.length <= 1) {
                 for (int i = 0; i < q.length; i++) {
-                    writeIntValue(out, q[0]);
+                    writeIntOrLongValue(out, q[0]);
                     // - q[0]: it is actually performed 0 or 1 times
                 }
                 for (int i = q.length; i < 1; i++) {
-                    writeIntValue(out, 0);
+                    writeIntOrLongValue(out, 0);
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (long longValue : q) {
-                    writeIntValue(extraOut, longValue);
+                    writeIntOrLongValue(extraOut, longValue);
                 }
             }
         } else if (value instanceof TiffRational[]) { // RATIONAL
             final TiffRational[] q = (TiffRational[]) value;
             out.writeShort(IFDType.RATIONAL.getCode()); // type
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
             if (bigTiff && q.length == 1) {
                 out.writeInt((int) q[0].getNumerator());
                 out.writeInt((int) q[0].getDenominator());
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (TiffRational tiffRational : q) {
                     extraOut.writeInt((int) tiffRational.getNumerator());
                     extraOut.writeInt((int) tiffRational.getDenominator());
@@ -661,7 +705,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         } else if (value instanceof float[]) { // FLOAT
             final float[] q = (float[]) value;
             out.writeShort(IFDType.FLOAT.getCode()); // type
-            writeIntValue(out, q.length);
+            writeIntOrLongValue(out, q.length);
             if (q.length <= dataLength / 4) {
                 for (float floatValue : q) {
                     out.writeFloat(floatValue); // value
@@ -671,7 +715,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     out.writeInt(0); // padding
                 }
             } else {
-                writeIntOffset(out, offset + extraOut.length());
+                writeOffset(out, offset + extraOut.length());
                 for (float floatValue : q) {
                     extraOut.writeFloat(floatValue); // values
                 }
@@ -679,8 +723,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         } else if (value instanceof double[]) { // DOUBLE
             final double[] q = (double[]) value;
             out.writeShort(IFDType.DOUBLE.getCode()); // type
-            writeIntValue(out, q.length);
-            writeIntOffset(out, offset + extraOut.length());
+            writeIntOrLongValue(out, q.length);
+            writeOffset(out, offset + extraOut.length());
             for (final double doubleValue : q) {
                 extraOut.writeDouble(doubleValue); // values
             }
@@ -1026,7 +1070,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return toReturn;
     }
 
-    private void writeIntValue(final DataHandle<Location> handle, final int value) throws IOException {
+    private void writeIntOrLongValue(final DataHandle<Location> handle, final int value) throws IOException {
         if (bigTiff) {
             handle.writeLong(value);
         } else {
@@ -1039,7 +1083,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * 'bigTiff' flag is set, then the value will be written as an 8 byte long;
      * otherwise, it will be written as a 4 byte integer.
      */
-    private void writeIntValue(final DataHandle<Location> handle, final long value) throws IOException {
+    private void writeIntOrLongValue(final DataHandle<Location> handle, final long value) throws IOException {
         if (bigTiff) {
             handle.writeLong(value);
         } else {
@@ -1050,7 +1094,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    private void writeIntOffset(final DataHandle<Location> handle, final long offset) throws IOException {
+    private void writeOffset(final DataHandle<Location> handle, final long offset) throws IOException {
         if (bigTiff) {
             handle.writeLong(offset);
         } else {
@@ -1239,24 +1283,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             if (planeIndex < 0) {
                 throw new IllegalArgumentException("Negative planeIndex = " + planeIndex);
             }
-            DataHandle<Location> in;
-            if (loc != null) {
-                in = dataHandleService.create(loc);
-            } else {
-                in = dataHandleService.create(out.get());
-            }
-            try {
-                final TiffParser parser = new TiffParser(getContext(), in);
+            final DataHandle<Location> in = loc != null ?
+                    dataHandleService.create(loc) :
+                    dataHandleService.create(out.get());
+            try (final TiffParser parser = new TiffParser(getContext(), in)) {
                 final long[] ifdOffsets = parser.getIFDOffsets();
-                log.debug("IFD offsets: " + Arrays.toString(ifdOffsets));
                 if (planeIndex < ifdOffsets.length) {
                     out.seek(ifdOffsets[(int) planeIndex]);
-                    log.debug("Reading IFD from " + ifdOffsets[(int) planeIndex] +
-                            " in non-sequential write.");
+                    LOG.log(System.Logger.Level.TRACE, () ->
+                            "Reading IFD from " + ifdOffsets[(int) planeIndex] + " for non-sequential writing");
                     ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
                 }
-            } finally {
-                in.close();
             }
         }
 
@@ -1335,9 +1372,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             endFP = out.offset();
             // - Well-formed IFD requires even offsets
         }
-        if (log.isDebug()) {
-            log.debug("Offset before IFD write: " + out.offset() + " Seeking to: " +
-                    fp);
+        if (LOGGABLE_TRACE) {
+            LOG.log(System.Logger.Level.TRACE, "Offset before IFD write: " + endFP + "; seeking to: " + fp);
         }
         out.seek(fp);
 

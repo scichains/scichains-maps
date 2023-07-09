@@ -42,6 +42,11 @@ public class TiffSaverTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
+        boolean append = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-append")) {
+            append = true;
+            startArgIndex++;
+        }
         boolean bigTiff = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
             bigTiff = true;
@@ -75,7 +80,7 @@ public class TiffSaverTest {
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
-                    " [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
+                    " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
                     "target.tif [number_of_images [compression]]");
             return;
         }
@@ -85,7 +90,7 @@ public class TiffSaverTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext();
-            TiffSaver saver = TiffSaver.getInstance(context, targetFile, true)) {
+            TiffSaver saver = TiffSaver.getInstance(context, targetFile, !append).setAppendToExisting(append)) {
             saver.setBigTiff(bigTiff);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);
@@ -95,7 +100,7 @@ public class TiffSaverTest {
             } else {
                 saver.setDefaultStripHeight(100);
             }
-            saver.writeHeader();
+            saver.startWriting();
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                 final int bandCount = color ? 3 : 1;
