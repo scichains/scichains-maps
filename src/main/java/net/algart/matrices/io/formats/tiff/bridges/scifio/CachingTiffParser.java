@@ -46,7 +46,7 @@ public class CachingTiffParser extends TiffParser {
     private volatile long maxCachingMemory = DEFAULT_MAX_CACHING_MEMORY;
     // - volatile is necessary for correct parallel work of the setter
 
-    private final Map<TileIndex, CachedTile> tileMap = new HashMap<>();
+    private final Map<TiffTileIndex, CachedTile> tileMap = new HashMap<>();
     private final Queue<CachedTile> tileCache = new LinkedList<CachedTile>();
     private long currentCacheMemory = 0;
     private final Object tileCacheLock = new Object();
@@ -87,20 +87,19 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    public byte[] getTile(ExtendedIFD ifd, byte[] samples, int row, int col) throws FormatException, IOException {
+    protected TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
-            return getTileWithoutCache(ifd, samples, row, col);
+            return readTileWithoutCache(tileIndex);
         }
-        return getTile(new TileIndex(ifd, row, col)).getData();
+        return getCached(tileIndex).readIfNecessary();
     }
 
 
-    private byte[] getTileWithoutCache(ExtendedIFD ifd, byte[] buf, int row, int col)
-            throws FormatException, IOException {
-        return super.getTile(ifd, buf, row, col);
+    private TiffTile readTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
+        return super.readTile(tileIndex);
     }
 
-    private CachedTile getTile(TileIndex tileIndex) {
+    private CachedTile getCached(TiffTileIndex tileIndex) {
         synchronized (tileCacheLock) {
             CachedTile tile = tileMap.get(tileIndex);
             if (tile == null) {
@@ -108,7 +107,7 @@ public class CachingTiffParser extends TiffParser {
                 tileMap.put(tileIndex, tile);
             }
             return tile;
-            // So, we store (without ability to remove) all Tile objects in the global cache tileMap.
+            // So, we store (without ability to remove) all Tile objects in the cache tileMap.
             // It is not a problem, because Tile is a very lightweight object.
             // In any case, ifdList already contains comparable amount of data: strip offsets and strip byte counts.
         }
@@ -123,125 +122,70 @@ public class CachingTiffParser extends TiffParser {
     }
 
     class CachedTile {
-        private final TileIndex tileIndex;
+        private final TiffTileIndex tileIndex;
 
         private final Object onlyThisTileLock = new Object();
-        private Reference<byte[]> cachedData = null;
+        private Reference<TiffTile> cachedTile = null;
         // - we use SoftReference to be on the safe side in addition to our own memory control
-        private long cachedDataSize;
+        private long cachedDataLength;
 
-        CachedTile(TileIndex tileIndex) {
+        CachedTile(TiffTileIndex tileIndex) {
             this.tileIndex = Objects.requireNonNull(tileIndex, "Null tileIndex");
         }
 
-        public byte[] getData() throws FormatException, IOException {
+        TiffTile readIfNecessary() throws FormatException, IOException {
             synchronized (onlyThisTileLock) {
-                final var ifd = tileIndex.ifd;
-                final byte[] cachedData = cachedData();
+                final var cachedData = cached();
                 if (cachedData != null) {
                     LOG.log(System.Logger.Level.TRACE, () -> "CACHED tile: " + tileIndex);
                     return cachedData;
                 } else {
-                    final byte[] result = getTileWithoutCache(ifd, null, tileIndex.row, tileIndex.col);
+                    final var result = readTileWithoutCache(tileIndex);
                     saveCache(result);
                     return result;
                 }
             }
         }
 
-        private byte[] cachedData() {
+        private TiffTile cached() {
             synchronized (tileCacheLock) {
-                if (cachedData == null) {
+                if (cachedTile == null) {
                     return null;
                 }
-                byte[] data = cachedData.get();
-                if (data == null) {
-                    LOG.log(System.Logger.Level.INFO,
+                var tile = cachedTile.get();
+                if (tile == null) {
+                    LOG.log(System.Logger.Level.DEBUG,
                             () -> "CACHED tile is freed by garbage collector due to " +
                                     "insufficiency of memory: " + tileIndex);
                 }
-                return data;
+                return tile;
             }
         }
 
-        private void saveCache(byte[] data) {
-            Objects.requireNonNull(data);
+        private void saveCache(TiffTile tile) {
+            Objects.requireNonNull(tile);
             synchronized (tileCacheLock) {
                 if (maxCachingMemory > 0) {
-                    this.cachedData = new SoftReference<>(data);
-                    this.cachedDataSize = data.length;
-                    currentCacheMemory += data.length;
+                    this.cachedTile = new SoftReference<>(tile);
+                    this.cachedDataLength = tile.getDataLength();
+                    currentCacheMemory += this.cachedDataLength;
                     tileCache.add(this);
                     LOG.log(System.Logger.Level.TRACE, () -> "STORING tile in cache: " + tileIndex);
                     while (currentCacheMemory > maxCachingMemory) {
-                        CachedTile tile = tileCache.remove();
-                        assert tile != null;
-                        currentCacheMemory -= tile.cachedDataSize;
-                        tile.cachedData = null;
+                        CachedTile cached = tileCache.remove();
+                        assert cached != null;
+                        currentCacheMemory -= cached.cachedDataLength;
+                        cached.cachedTile = null;
                         Runtime runtime = Runtime.getRuntime();
                         LOG.log(System.Logger.Level.TRACE, () -> String.format(Locale.US,
                                 "REMOVING tile from cache (limit %.1f MB exceeded, used memory %.1f MB): %s",
                                 maxCachingMemory / 1048576.0,
                                 (runtime.totalMemory() - runtime.freeMemory()) / 1048576.0,
-                                tile.tileIndex));
+                                cached.tileIndex));
                     }
                 }
             }
         }
     }
 
-    /**
-     * Tile index, based of row, column and IDF identity hash code.
-     * Of course, identity hash code cannot provide a good universal cache,
-     * but it is quite enough for optimizing usage of TiffParser:
-     * usually we will not create new identical IFDs.
-     */
-    static final class TileIndex {
-        private final ExtendedIFD ifd;
-        private final int ifdIdentity;
-        private final int row;
-        private final int col;
-
-        public TileIndex(ExtendedIFD ifd, int row, int col) {
-            Objects.requireNonNull(ifd, "Null ifd");
-            if (row < 0) {
-                throw new IllegalArgumentException("Negative row = " + row);
-            }
-            if (col < 0) {
-                throw new IllegalArgumentException("Negative col = " + col);
-            }
-            this.ifd = ifd;
-            this.ifdIdentity = System.identityHashCode(ifd);
-            // - not a universal solution, but suitable for our optimization needs:
-            // usually we do not create new IFD instances without necessity
-            this.row = row;
-            this.col = col;
-        }
-
-        @Override
-        public String toString() {
-            return "IFD @" + Integer.toHexString(ifdIdentity) + ", row " + row + ", column " + col;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final TileIndex tileIndex = (TileIndex) o;
-            return col == tileIndex.col && ifdIdentity == tileIndex.ifdIdentity && row == tileIndex.row;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = ifdIdentity;
-            result = 31 * result + row;
-            result = 31 * result + col;
-            return result;
-        }
-    }
 }

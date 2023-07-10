@@ -52,15 +52,20 @@ public class TiffParserTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
-        boolean caching = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-caching")) {
-            caching = true;
+        boolean cache = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-cache")) {
+            cache = true;
+            startArgIndex++;
+        }
+        boolean tinyCache = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-tiny")) {
+            tinyCache = true;
             startArgIndex++;
         }
 
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffParserTest.class.getName() + " [-caching] " +
+            System.out.println("    " + TiffParserTest.class.getName() + " [-cache [-tiny]] " +
                     "some_tiff_file result.png ifdIndex [x y width height [number-of-tests]]");
             return;
         }
@@ -77,9 +82,11 @@ public class TiffParserTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {
-            final TiffParser parser = caching ?
-                    CachingTiffParser.getInstance(context, tiffFile).setFiller((byte) 0xC0) :
-                    TiffParser.getInstance(context, tiffFile).setFiller((byte) 0x80);
+            final TiffParser parser = cache ?
+                    CachingTiffParser.getInstance(context, tiffFile)
+                            .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffParser.DEFAULT_MAX_CACHING_MEMORY):
+                    TiffParser.getInstance(context, tiffFile);
+            parser.setFiller((byte) 0x80);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final IFDList ifds = parser.getIFDs();
             if (ifds.isEmpty()) {
@@ -111,7 +118,6 @@ public class TiffParserTest {
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);
             }
-
 
             System.out.printf("Converting data to BufferedImage...%n");
             final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);

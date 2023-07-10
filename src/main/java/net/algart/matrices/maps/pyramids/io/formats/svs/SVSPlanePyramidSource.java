@@ -33,6 +33,7 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
@@ -72,6 +73,9 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     //        long t2 = System.nanoTime();
     //        debug(1, "SVS reader class initializing SCIFIO: %.3f ms%n", (t2 - t1) * 1e-6);
     //    }
+
+    public static final byte TIFF_FILLER = (byte) 0xF0;
+    // - almost white; for SVS, usually it is better idea than black color
 
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
@@ -901,7 +905,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // the files will be reopened every time when PlanePyramid needs to read data and creates a clone for this.
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
-        private CachingTiffParser tiffParser = null;
+        private TiffParser tiffParser = null;
         private List<IFD> ifdList = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
@@ -920,7 +924,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         private synchronized void init() throws IOException, FormatException {
             if (tiffParser == null) {
                 long t1 = System.nanoTime();
-                tiffParser = CachingTiffParser.getInstance(sciContext, svsFile);
+                tiffParser = CachingTiffParser.getInstance(sciContext, svsFile).setFiller(TIFF_FILLER);
                 tiffParser.setAutoInterleave(true);
                 // - should be removed in future versions, returning unpacked planes
                 ifdList = tiffParser.getIFDs();

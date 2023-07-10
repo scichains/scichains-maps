@@ -26,29 +26,15 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDList;
-import net.algart.arrays.Matrices;
-import net.algart.arrays.Matrix;
-import net.algart.arrays.SimpleMemoryModel;
-import net.algart.arrays.UpdatablePArray;
-import net.algart.executors.api.data.SMat;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
-import net.algart.multimatrix.MultiMatrix;
-import net.algart.multimatrix.MultiMatrix2D;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTileIndex;
 import org.scijava.Context;
 
-import javax.imageio.IIOException;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Locale;
 
 public class TiffExtractTileContent {
     public static void main(String[] args) throws IOException, FormatException {
@@ -72,8 +58,9 @@ public class TiffExtractTileContent {
             final TiffParser parser = TiffParser.getInstance(context, tiffFile);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final ExtendedIFD ifd = parser.ifd(ifdIndex);
-            byte[] bytes = parser.readTileBytes(ifd, row, col);
-            System.out.printf("Saving tile (%d,%d) in %s...%n", col, row, resultFile);
+            TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
+            byte[] bytes = parser.readEncodedTile(tileIndex).getData();
+            System.out.printf("Saving tile " + tileIndex + " in %s...%n", col, row, resultFile);
             Files.write(resultFile, bytes);
         }
         System.out.println("Done");

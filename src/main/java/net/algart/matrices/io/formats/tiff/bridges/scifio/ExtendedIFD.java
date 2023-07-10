@@ -43,6 +43,25 @@ public class ExtendedIFD extends IFD {
     public static final int TILE_DEPTH = 32998;
     public static final int STO_NITS = 37439;
 
+    /**
+     * Contiguous (chunked) samples format (PlanarConfiguration), for example: RGBRGBRGB....
+     */
+    public static final int PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED = 1;
+
+    /**
+     * Planar samples format (PlanarConfiguration), for example: RRR...GGG...BBB...
+     * Note: the specification adds a warning that PlanarConfiguration=2 is not in widespread use and
+     * that Baseline TIFF readers are not required to support it.
+     */
+    public static final int PLANAR_CONFIG_SEPARATE = 2;
+
+    public static final int SAMPLE_FORMAT_UINT = 1;
+    public static final int SAMPLE_FORMAT_INT = 2;
+    public static final int SAMPLE_FORMAT_IEEEFP = 3;
+    public static final int SAMPLE_FORMAT_VOID = 4;
+    public static final int SAMPLE_FORMAT_COMPLEX_INT = 5;
+    public static final int SAMPLE_FORMAT_COMPLEX_IEEEFP = 6;
+
     private final Long offset;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
@@ -82,25 +101,6 @@ public class ExtendedIFD extends IFD {
         Objects.requireNonNull(ifd, "Null IFD");
         return ifd instanceof ExtendedIFD extendedIFD ? extendedIFD : new ExtendedIFD(ifd, null);
     }
-
-    /**
-     * Contiguous (chunked) samples format (PlanarConfiguration), for example: RGBRGBRGB....
-     */
-    public static final int PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED = 1;
-
-    /**
-     * Planar samples format (PlanarConfiguration), for example: RRR...GGG...BBB...
-     * Note: the specification adds a warning that PlanarConfiguration=2 is not in widespread use and
-     * that Baseline TIFF readers are not required to support it.
-     */
-    public static final int PLANAR_CONFIG_SEPARATE = 2;
-
-    public static final int SAMPLE_FORMAT_UINT = 1;
-    public static final int SAMPLE_FORMAT_INT = 2;
-    public static final int SAMPLE_FORMAT_IEEEFP = 3;
-    public static final int SAMPLE_FORMAT_VOID = 4;
-    public static final int SAMPLE_FORMAT_COMPLEX_INT = 5;
-    public static final int SAMPLE_FORMAT_COMPLEX_IEEEFP = 6;
 
     public Long getOffset() {
         return offset;
@@ -146,7 +146,7 @@ public class ExtendedIFD extends IFD {
     public long getImageWidth() throws FormatException {
         final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
         if (imageWidth <= 0) {
-            throw new IllegalArgumentException("Zero or negative image width = " + imageWidth);
+            throw new FormatException("Zero or negative image width = " + imageWidth);
             // - impossible in a correct TIFF
         }
         if (imageWidth > Integer.MAX_VALUE) {
@@ -158,7 +158,7 @@ public class ExtendedIFD extends IFD {
     public long getImageLength() throws FormatException {
         final long imageLength = getIFDLongValue(IMAGE_LENGTH);
         if (imageLength <= 0) {
-            throw new IllegalArgumentException("Zero or negative image height = " + imageLength);
+            throw new FormatException("Zero or negative image height = " + imageLength);
             // - impossible in a correct TIFF
         }
         if (imageLength > Integer.MAX_VALUE) {
@@ -167,16 +167,15 @@ public class ExtendedIFD extends IFD {
         return imageLength;
     }
 
-
     //!! Better analog of IFD.getTileWidth()
     public int getTileSizeX() throws FormatException {
         final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH, 0);
         if (tileWidth < 0) {
-            throw new IllegalArgumentException("Negative tile width = " + tileWidth);
+            throw new FormatException("Negative tile width = " + tileWidth);
             // - impossible in a correct TIFF
         }
         if (tileWidth > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large tile width " + tileWidth + " >= 2^31 is not supported");
+            throw new FormatException("Very large tile width " + tileWidth + " >= 2^31 is not supported");
             // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
         }
         if (tileWidth != 0) {
@@ -205,11 +204,11 @@ public class ExtendedIFD extends IFD {
         assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
         final long rowsPerStrip = getRowsPerStrip()[0];
         if (rowsPerStrip < 0) {
-            throw new IllegalArgumentException("Negative rows per strip = " + rowsPerStrip);
+            throw new FormatException("Negative rows per strip = " + rowsPerStrip);
             // - impossible in a correct TIFF
         }
         if (rowsPerStrip > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large number of rows per strip " +
+            throw new FormatException("Very large number of rows per strip " +
                     rowsPerStrip + " >= 2^31 is not supported");
             // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
         }
@@ -229,7 +228,7 @@ public class ExtendedIFD extends IFD {
 
     public int getTilesPerRow(int tileSizeX) throws FormatException {
         if (tileSizeX < 0) {
-            throw new IllegalArgumentException("Negative tile width = " + tileSizeX);
+            throw new FormatException("Negative tile width = " + tileSizeX);
         }
         final long imageWidth = getImageWidth();
         assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
@@ -251,7 +250,7 @@ public class ExtendedIFD extends IFD {
 
     public int getTilesPerColumn(int tileSizeY) throws FormatException {
         if (tileSizeY < 0) {
-            throw new IllegalArgumentException("Negative tile height = " + tileSizeY);
+            throw new FormatException("Negative tile height = " + tileSizeY);
         }
         final long imageLength = getImageLength();
         assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
