@@ -29,41 +29,70 @@ import java.util.Objects;
 public class TiffTile {
     private final TiffTileIndex tileIndex;
     private final ExtendedIFD ifd;
-    private byte[] data = null;
     private boolean encoded = false;
+    private int sizeX;
+    private int sizeY;
+    private int size;
+    private byte[] data = null;
 
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex);
         this.ifd = tileIndex.ifd();
+        setSizes(tileIndex.tileSizeX(), tileIndex().tileSizeY());
     }
 
-    public TiffTile(TiffTileIndex tileIndex, boolean encoded) {
-        this(tileIndex);
-        setEncoded(encoded);
-    }
-
-    public TiffTile(ExtendedIFD ifd, int xIndex, int yIndex) {
-        this(new TiffTileIndex(ifd, xIndex, yIndex));
-    }
-
-    public TiffTileIndex tileIndex() {
+    public final TiffTileIndex tileIndex() {
         return tileIndex;
     }
 
-    public ExtendedIFD ifd() {
+    public final ExtendedIFD ifd() {
         return ifd;
     }
 
-    public int xIndex() {
-        return tileIndex.x();
+    public boolean isEncoded() {
+        return encoded;
     }
 
-    public int yIndex() {
-        return tileIndex.y();
+    public TiffTile setEncoded(boolean encoded) {
+        this.encoded = encoded;
+        return this;
+    }
+
+    public int getSizeX() {
+        return sizeX;
+    }
+
+    public int getSizeY() {
+        return sizeY;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public TiffTile setSizes(int sizeX, int sizeY) {
+        if (sizeX < 0) {
+            throw new IllegalArgumentException("Negative tile x-size: " + sizeX);
+        }
+        if (sizeY < 0) {
+            throw new IllegalArgumentException("Negative tile y-size: " + sizeY);
+        }
+        if ((long) sizeX * (long) sizeY > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Very large tile " + sizeX + "x" + sizeY +
+                    " >= 2^31 pixels is not supported");
+        }
+        this.sizeX = sizeX;
+        this.sizeY = sizeY;
+        this.size = sizeX * sizeY;
+        return this;
     }
 
     public boolean isEmpty() {
         return data == null;
+    }
+
+    public int getDataLength() {
+        return data == null ? 0 : data.length;
     }
 
     public byte[] getData() {
@@ -77,34 +106,45 @@ public class TiffTile {
         return this;
     }
 
+    public final byte[] getEncodedData() {
+        checkEmpty();
+        if (!isEncoded()) {
+            throw new IllegalStateException("TIFF tile is not encoded: " + this);
+        }
+        return getData();
+    }
+
+    public final TiffTile setEncodedData(byte[] data) {
+        return setData(data).setEncoded(true);
+    }
+
+    public final byte[] getDecodedData() {
+        checkEmpty();
+        if (isEncoded()) {
+            throw new IllegalStateException("TIFF tile is not decoded: " + this);
+        }
+        return getData();
+    }
+
+    public final TiffTile setDecodedData(byte[] data) {
+        return setData(data).setEncoded(false);
+    }
+
     public TiffTile removeData(byte[] data) {
         this.data = null;
         return this;
     }
 
-    public int getDataLength() {
-        return data == null ? 0 : data.length;
-    }
-
-    public boolean isEncoded() {
-        return encoded;
-    }
-
-    public TiffTile setEncoded(boolean encoded) {
-        this.encoded = encoded;
-        return this;
-    }
-
     protected void checkEmpty() {
         if (data == null) {
-            throw new IllegalStateException("TIFF tile is still not filled by any data");
+            throw new IllegalStateException("TIFF tile is still not filled by any data: " + this);
         }
     }
 
     @Override
     public String toString() {
         return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
-                + tileIndex.sizeX() + "x" + tileIndex.sizeY() + " at " + tileIndex +
+                + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
                 (isEmpty() ? ", empty" : getDataLength() + " bytes");
     }
 }

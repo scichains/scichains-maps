@@ -36,9 +36,10 @@ import java.util.Objects;
  */
 public final class TiffTileIndex {
     private final ExtendedIFD ifd;
-    private final int sizeX;
-    private final int sizeY;
-    private final int sizeOfBasedOnBits;
+    private final int tileSizeX;
+    private final int tileSizeY;
+    private final int tileSize;
+    private final int sizeOfTileBasedOnBits;
     private final int ifdIdentity;
     private final int x;
     private final int y;
@@ -59,9 +60,15 @@ public final class TiffTileIndex {
         // - not a universal solution, but suitable for our optimization needs:
         // usually we do not create new IFD instances without necessity
         try {
-            this.sizeX = ifd.getTileSizeX();
-            this.sizeY = ifd.getTileSizeY();
-            this.sizeOfBasedOnBits = ifd.sizeOfIFDTileBasedOnBits();
+            this.tileSizeX = ifd.getTileSizeX();
+            this.tileSizeY = ifd.getTileSizeY();
+            if ((long) tileSizeX * (long) tileSizeY > Integer.MAX_VALUE) {
+                throw new FormatException("Very large tile " + tileSizeX + "x" + tileSizeY +
+                        " >= 2^31 pixels is not supported");
+                // - note that it is also checked deeper in the next operator
+            }
+            this.sizeOfTileBasedOnBits = ifd.sizeOfTileBasedOnBits();
+            this.tileSize = tileSizeX * tileSizeY;
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal IFD: cannot determine tile sizes", e);
         }
@@ -73,16 +80,20 @@ public final class TiffTileIndex {
         return ifd;
     }
 
-    public int sizeX() {
-        return sizeX;
+    public int tileSizeX() {
+        return tileSizeX;
     }
 
-    public int sizeY() {
-        return sizeY;
+    public int tileSizeY() {
+        return tileSizeY;
+    }
+
+    public int tileSize() {
+        return tileSize;
     }
 
     public int sizeOfBasedOnBits() {
-        return sizeOfBasedOnBits;
+        return sizeOfTileBasedOnBits;
     }
 
     public int x() {

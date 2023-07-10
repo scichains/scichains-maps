@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTileIndex;
 import org.scijava.Context;
 
@@ -58,10 +59,13 @@ public class TiffExtractTileContent {
             final TiffParser parser = TiffParser.getInstance(context, tiffFile);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final ExtendedIFD ifd = parser.ifd(ifdIndex);
+            System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
             byte[] bytes = parser.readEncodedTile(tileIndex).getData();
-            System.out.printf("Saving tile " + tileIndex + " in %s...%n", col, row, resultFile);
+            System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);
+            TiffTile tile = parser.readTile(tileIndex);
+            System.out.printf("Decoding the same (for verification): %s%n", tile);
         }
         System.out.println("Done");
     }

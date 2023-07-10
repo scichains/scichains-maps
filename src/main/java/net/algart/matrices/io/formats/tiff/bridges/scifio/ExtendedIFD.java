@@ -342,28 +342,28 @@ public class ExtendedIFD extends IFD {
         assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
-    public int sizeOfIFDRegion(long sizeX, long sizeY) throws FormatException {
+    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
         return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
                 () -> "Invalid requested area: ", () -> "");
     }
 
-    public int sizeOfIFDRegionBasedOnBits(long sizeX, long sizeY) throws FormatException {
+    public int sizeOfRegionBasedOnBits(long sizeX, long sizeY) throws FormatException {
         return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnBits(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample",
                 () -> "Invalid requested area: ", () -> "");
     }
 
-    public int sizeOfIFDTileBasedOnBits() throws FormatException {
-        return sizeOfIFDTile(getBytesPerSampleBasedOnBits());
+    public int sizeOfTileBasedOnBits() throws FormatException {
+        return sizeOfTile(getBytesPerSampleBasedOnBits());
     }
 
-    public int sizeOfIFDTile(int bytesPerSample) throws FormatException {
+    public int sizeOfTile(int bytesPerSample) throws FormatException {
         final int channels = isPlanarSeparated() ? 1 : getSamplesPerPixel();
         // - if separate (RRR...GGG...BBB...),
         // we have (for 3 channels) only 1 channel instead of 3, but number of tiles is greater:
         // 3 * numTileRows effective rows of tiles instead of numTileRows
-        return checkedMul(getTileWidth(), getTileLength(), channels, bytesPerSample,
+        return checkedMul(getTileSizeX(), getTileSizeY(), channels, bytesPerSample,
                 "tile width", "tile height", "effective number of channels", "bytes per sample",
                 () -> "Invalid TIFF tile sizes: ", () -> "");
     }
@@ -536,7 +536,7 @@ public class ExtendedIFD extends IFD {
             long v1, long v2, long v3, long v4,
             String n1, String n2, String n3, String n4,
             Supplier<String> prefix,
-            Supplier<String> postfix) {
+            Supplier<String> postfix) throws FormatException {
         return checkedMul(new long[]{v1, v2, v3, v4}, new String[]{n1, n2, n3, n4}, prefix, postfix);
     }
 
@@ -544,7 +544,7 @@ public class ExtendedIFD extends IFD {
             long[] values,
             String[] names,
             Supplier<String> prefix,
-            Supplier<String> postfix) {
+            Supplier<String> postfix) throws FormatException {
         Objects.requireNonNull(values);
         Objects.requireNonNull(prefix);
         Objects.requireNonNull(postfix);
@@ -558,7 +558,7 @@ public class ExtendedIFD extends IFD {
         for (int i = 0; i < values.length; i++) {
             long m = values[i];
             if (m < 0) {
-                throw new IllegalArgumentException(prefix.get() + "negative " + names[i] + " = " + m + postfix.get());
+                throw new FormatException(prefix.get() + "negative " + names[i] + " = " + m + postfix.get());
             }
             result *= m;
             product *= m;
@@ -568,7 +568,7 @@ public class ExtendedIFD extends IFD {
             }
         }
         if (overflow) {
-            throw new IllegalArgumentException(prefix.get() + "too large " + String.join(" * ", names) +
+            throw new FormatException(prefix.get() + "too large " + String.join(" * ", names) +
                     " = " + Arrays.stream(values).mapToObj(String::valueOf).collect(
                     Collectors.joining(" * ")) +
                     " = " + product + " >= 2^31" + postfix.get());

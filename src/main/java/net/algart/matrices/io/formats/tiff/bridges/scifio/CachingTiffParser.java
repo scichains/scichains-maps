@@ -87,7 +87,7 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    protected TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
             return readTileWithoutCache(tileIndex);
         }

@@ -1001,26 +1001,23 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     // -- TiffParser methods - image reading --
 
-    protected TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         TiffTile tile = readEncodedTile(tileIndex);
         if (tile.isEmpty()) {
             return tile;
         }
 
-        final int size = tileIndex.sizeOfBasedOnBits();
-        byte[] samples = new byte[size];
-        byte[] decoded = decode(tile.ifd(), tile.getData(), size);
-        scifio.tiff().undifference(decoded, tile.ifd());
-        unpackBytes(samples, 0, decoded, tile.ifd());
+        decode(tile);
+        scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
 
-        postProcessTile(tileIndex, samples, size);
+        postProcessTile(tile);
 
-        return tile.setData(samples).setEncoded(false);
+        return tile;
     }
 
     public TiffTile readEncodedTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
-        final TiffTile result = new TiffTile(tileIndex).setEncoded(true);
+        final TiffTile result = new TiffTile(tileIndex);
         byte[] tile = readTileRawBytes(tileIndex.ifd(), tileIndex.x(), tileIndex.y());
         if (tile == null) {
             // - empty result
@@ -1038,7 +1035,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             System.arraycopy(tile, 2, appended, jpegTable.length - 2, tile.length - 2);
             tile = appended;
         }
-        return result.setData(tile);
+        return result.setEncodedData(tile);
     }
 
     public byte[] readTileRawBytes(TiffTileIndex tileIndex) throws FormatException, IOException {
@@ -1117,7 +1114,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     // Note: result is always interleaved (RGBRGB...) or monochrome.
-    public byte[] decode(ExtendedIFD ifd, byte[] stripSamples, int samplesLength) throws FormatException {
+//    public byte[] decode(ExtendedIFD ifd, byte[] stripSamples, int samplesLength) throws FormatException {
+    public void decode(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        ExtendedIFD ifd = tile.ifd();
+        final byte[] stripSamples = tile.getEncodedData();
+        final int samplesLength = tile.tileIndex().sizeOfBasedOnBits();
         final TiffCompression compression = ifd.getCompression();
 
         codecOptions.interleaved = true;
@@ -1143,9 +1145,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
             }
         }
         if (codec != null) {
-            return codec.decompress(stripSamples, codecOptions);
+            tile.setDecodedData(codec.decompress(stripSamples, codecOptions));
         } else {
-            return compression.decompress(scifio.codec(), stripSamples, codecOptions);
+            tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
         }
     }
 
@@ -1182,7 +1184,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        final int size = ifd.sizeOfIFDRegion(sizeX, sizeY);
+        final int size = ifd.sizeOfRegion(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         if (samples == null) {
@@ -1195,7 +1197,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             return samples;
         }
 
-        ifd.sizeOfIFDTileBasedOnBits();
+        ifd.sizeOfTileBasedOnBits();
         // - checks that results of ifd.getTileWidth(), ifd.getTileLength() are non-negative and <2^31,
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         long t1 = BUILT_IN_TIMING ? System.nanoTime() : 0;
@@ -1499,15 +1501,19 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.close();
     }
 
-    private static void postProcessTile(TiffTileIndex tileIndex, byte[] samples, int size) throws FormatException {
-        final int tileSizeX = tileIndex.sizeX();
-        final int tileSizeY = tileIndex.sizeY();
-        ExtendedIFD ifd = tileIndex.ifd();
+    private static void postProcessTile(TiffTile tile) throws FormatException {
+        final TiffTileIndex tileIndex = tile.tileIndex();
+        byte[] samples = new byte[tileIndex.sizeOfBasedOnBits()];
+        unpackBytes(samples, tile.getDecodedData(), tile.ifd());
+
+        final int tileSizeX = tileIndex.tileSizeX();
+        final int tileSizeY = tileIndex.tileSizeY();
+        ExtendedIFD ifd = tile.ifd();
         final int samplesPerPixel = ifd.getSamplesPerPixel();
         final int planarConfig = ifd.getPlanarConfiguration();
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
         final int effectiveChannels = planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
-        assert size == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
+        assert samples.length == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
         if (planarConfig == ExtendedIFD.PLANAR_CONFIG_SEPARATE && !ifd.isTiled() && ifd.getSamplesPerPixel() > 1) {
             final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
             final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
@@ -1533,6 +1539,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 }
             }
         }
+        tile.setDecodedData(samples);
     }
 
     // -- Helper methods --
@@ -1636,7 +1643,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
      */
     private static void unpackBytes(
             final byte[] samples,
-            final int startIndex,
             final byte[] bytes,
             final IFD ifd) throws FormatException {
         final boolean planar = ifd.getPlanarConfiguration() == 2;
@@ -1659,8 +1665,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
 
         if (LOGGABLE_TRACE) {
-            LOG.log(System.Logger.Level.TRACE, "unpacking " + sampleCount + " samples (startIndex=" +
-                    startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
+            LOG.log(System.Logger.Level.TRACE, "unpacking " + sampleCount + " samples" +
+                    "; totalBits=" + (nChannels * bitsPerSample[0]) +
                     "; numBytes=" + bytes.length + ")");
         }
 
@@ -1725,7 +1731,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         // unpack pixels
         for (int sample = 0; sample < sampleCount; sample++) {
-            final int ndx = startIndex + sample;
+            final int ndx = sample;
             if (ndx >= nSamples) break;
 
             for (int channel = 0; channel < nChannels; channel++) {
@@ -1859,9 +1865,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
             final int maxExponent = (int) Math.pow(2, exponentBits) - 1;
             final int bits = (nBytes * 8) - 1;
 
-            ExtendedIFD.checkedMul(new long[]{numberOfPixels, samplesPerPixel, nBytes},
-                    new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
-                    () -> "Invalid sizes: ", () -> "");
+            try {
+                ExtendedIFD.checkedMul(new long[]{numberOfPixels, samplesPerPixel, nBytes},
+                        new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
+                        () -> "Invalid sizes: ", () -> "");
+            } catch (FormatException e) {
+                throw new IllegalArgumentException("Illegal TIFF IFD", e);
+                // - usually should not occur: this function is typically called after analysing IFD
+            }
             final int numberOfSamples = samplesPerPixel * numberOfPixels;
 
             final byte[] newBuf = new byte[samples.length];
@@ -1909,7 +1920,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             byte[] samples,
             int samplesPerPixel,
             int bytesPerSample,
-            int numberOfPixels) {
+            int numberOfPixels) throws FormatException {
         Objects.requireNonNull(samples, "Null samples");
         if (numberOfPixels < 0) {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);

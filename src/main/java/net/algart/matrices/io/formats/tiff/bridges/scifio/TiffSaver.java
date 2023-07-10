@@ -861,12 +861,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     // Note: stripSamples is always interleaved (RGBRGB...) or monochrome.
-    public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
-        Objects.requireNonNull(stripSamples, "Null stripSamples data");
-        Objects.requireNonNull(ifd, "Null IFD");
-        if (sizeX < 0 || sizeY < 0) {
-            throw new IllegalArgumentException("Negative matrix sizes " + sizeX + "x" + sizeY);
-        }
+//    public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
+    public void encode(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        ExtendedIFD ifd = tile.ifd();
         final int effectiveChannels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
         final int bytesPerSample = ifd.getBytesPerSample()[0];
         if (effectiveChannels < 1) {
@@ -875,16 +873,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (bytesPerSample < 1) {
             throw new FormatException("Invalid format: zero or negative bytes per sample = " + bytesPerSample);
         }
-        final long size = (long) sizeX * (long) sizeY;
-        if (size > stripSamples.length || size * effectiveChannels > stripSamples.length / bytesPerSample) {
+        final int size = tile.getSize();
+        final byte[] stripSamples = tile.getDecodedData();
+        if (size > stripSamples.length || (long) size * effectiveChannels > stripSamples.length / bytesPerSample) {
             throw new IllegalArgumentException("Too short stripSamples array: " + stripSamples.length + " < " +
                     size * effectiveChannels * bytesPerSample);
         }
 
         TiffCompression compression = ifd.getCompression();
         final CodecOptions codecOptions = compression.getCompressionCodecOptions(ifd, this.codecOptions);
-        codecOptions.width = sizeX;
-        codecOptions.height = sizeY;
+        codecOptions.width = tile.getSizeX();
+        codecOptions.height = tile.getSizeY();
         codecOptions.channels = effectiveChannels;
         Codec codec = null;
         if (extendedCodec) {
@@ -895,9 +894,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             }
         }
         if (codec != null) {
-            return codec.compress(stripSamples, codecOptions);
+            tile.setEncodedData(codec.compress(stripSamples, codecOptions));
         } else {
-            return compression.compress(scifio.codec(), stripSamples, codecOptions);
+            tile.setEncodedData(compression.compress(scifio.codec(), stripSamples, codecOptions));
         }
     }
 
@@ -1164,7 +1163,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
         assert numberOfChannels == ifd.getSamplesPerPixel() : "SamplesPerPixel not correctly set by prepareValidIFD";
-        ifd.sizeOfIFDTile(bytesPerSample);
+        ifd.sizeOfTile(bytesPerSample);
         // - checks that tile sizes are non-negative and <2^31,
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         final int tileSizeX = ifd.getTileSizeX();
@@ -1233,6 +1232,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     private void encodeTiles(ExtendedIFD ifd, Integer numberOfChannels, byte[][] strips) throws FormatException {
+        //TODO!! use TiffTile[]
         final boolean tiled = ifd.containsKey(IFD.TILE_WIDTH);
         // - unlike ifd.isTiled, it will be true even if IFD contains STRIP_OFFSETS instead of TILE_OFFSETS
         // (IFD is not well-formed yet)
@@ -1245,14 +1245,21 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         for (int strip = 0; strip < strips.length; strip++) {
             scifio.tiff().difference(strips[strip], ifd);
             int reducedTileSizeY = tileSizeY;
+            int actualStripIndex = strip % numberOfActualStrips;
+            int yIndex = actualStripIndex / tilesPerRow;
+            int xIndex = actualStripIndex % tilesPerRow;
+            //TODO!! use tiffTile.x()/y()
             if (!tiled) {
-                final int yOffset = ((strip % numberOfActualStrips) / tilesPerRow) * tileSizeY;
+                final int yOffset = yIndex * tileSizeY;
                 if (yOffset + tileSizeY > imageHeight) {
                     reducedTileSizeY = Math.max(0, imageHeight - yOffset);
                     // - last strip should have exact height, in other case TIFF may be read with a warning
                 }
             }
-            strips[strip] = encode(ifd, strips[strip], tileSizeX, reducedTileSizeY);
+            TiffTile tile = new TiffTile(new TiffTileIndex(ifd, xIndex, yIndex)).setSizes(tileSizeX, reducedTileSizeY);
+            tile.setDecodedData(strips[strip]);
+            encode(tile);
+            strips[strip] = tile.getEncodedData();
         }
     }
 
