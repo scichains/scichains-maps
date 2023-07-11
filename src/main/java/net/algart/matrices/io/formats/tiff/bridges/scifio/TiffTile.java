@@ -41,6 +41,10 @@ public class TiffTile {
         setSizes(tileIndex.tileSizeX(), tileIndex().tileSizeY());
     }
 
+    public TiffTile(ExtendedIFD ifd, int x, int y) {
+        this(new TiffTileIndex(ifd, x, y));
+    }
+
     public final TiffTileIndex tileIndex() {
         return tileIndex;
     }
@@ -62,8 +66,16 @@ public class TiffTile {
         return sizeX;
     }
 
+    public TiffTile setSizeX(int sizeX) {
+        return setSizes(sizeX, this.sizeY);
+    }
+
     public int getSizeY() {
         return sizeY;
+    }
+
+    public TiffTile setSizeY(int sizeY) {
+        return setSizes(this.sizeX, sizeY);
     }
 
     public int getSize() {

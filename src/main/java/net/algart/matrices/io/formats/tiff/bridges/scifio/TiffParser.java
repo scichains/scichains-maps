@@ -42,6 +42,7 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 import org.scijava.log.LogService;
 import org.scijava.util.Bytes;
+import org.scijava.util.IntRect;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -1208,7 +1209,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         readTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
 
         long t2 = BUILT_IN_TIMING ? System.nanoTime() : 0;
-        adjustFillOrder(ifd, samples);
+        invertFillOrderIfNecessary(ifd, samples);
         if (autoUnpackUnusualPrecisions) {
             correctUnusualPrecisions(ifd, samples, sizeX * sizeY);
         }
@@ -1267,207 +1268,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 FormatTools.isFloatingPoint(pixelType),
                 ifd.isLittleEndian());
     }
-
-    /* This method is very deprecated and should be removed. No sense to optimize it.
-    public byte[] getSamples(IFD ifd, byte[] buf, int x, int y, long width, long height,
-                             int overlapX, int overlapY)
-            throws FormatException, IOException {
-        if (overlapX == 0 && overlapY == 0) {
-            return getSamples(ifd, buf, x, y, width, height);
-        }
-        log.trace("parsing IFD entries");
-
-        // get internal non-IFD entries
-        in.setLittleEndian(ifd.isLittleEndian());
-
-        // get relevant IFD entries
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
-        final long tileWidth = ifd.getTileWidth();
-        long tileLength = ifd.getTileLength();
-        if (tileLength <= 0) {
-            log.trace("Tile length is " + tileLength + "; setting it to " + height);
-            tileLength = height;
-        }
-
-        long numTileRows = ifd.getTilesPerColumn();
-        final long numTileCols = ifd.getTilesPerRow();
-
-        final PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        final int planarConfig = ifd.getPlanarConfiguration();
-        final int pixel = ifd.getBytesPerSample()[0];
-        final int effectiveChannels = planarConfig == 2 ? 1 : samplesPerPixel;
-
-        if (log.isTrace()) {
-            ifd.printIFD();
-        }
-
-        if (width * height > Integer.MAX_VALUE) {
-            throw new FormatException("Sorry, ImageWidth x ImageLength > " +
-                    Integer.MAX_VALUE + " is not supported (" + width + " x " + height +
-                    ")");
-        }
-        if (width * height * effectiveChannels * pixel > Integer.MAX_VALUE) {
-            throw new FormatException("Sorry, ImageWidth x ImageLength x " +
-                    "SamplesPerPixel x BitsPerSample > " + Integer.MAX_VALUE +
-                    " is not supported (" + width + " x " + height + " x " +
-                    samplesPerPixel + " x " + (pixel * 8) + ")");
-        }
-
-        // casting to int is safe because we have already determined that
-        // width * height is less than Integer.MAX_VALUE
-        final int numSamples = (int) (width * height);
-
-        // read in image strips
-        log.trace("reading image data (samplesPerPixel=" + samplesPerPixel +
-                "; numSamples=" + numSamples + ")");
-
-        final TiffCompression compression = ifd.getCompression();
-
-        if (compression == TiffCompression.JPEG_2000 ||
-                compression == TiffCompression.JPEG_2000_LOSSY) {
-            codecOptions = compression.getCompressionCodecOptions(ifd, codecOptions);
-        } else codecOptions = compression.getCompressionCodecOptions(ifd);
-        codecOptions.interleaved = true;
-        codecOptions.littleEndian = ifd.isLittleEndian();
-        final long imageLength = ifd.getImageLength();
-
-        // special case: if we only need one tile, and that tile doesn't need
-        // any special handling, then we can just read it directly and return
-        if ((x % tileWidth) == 0 && (y % tileLength) == 0 && width == tileWidth &&
-                height == imageLength && samplesPerPixel == 1 && (ifd
-                .getBitsPerSample()[0] % 8) == 0 &&
-                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
-                compression == TiffCompression.UNCOMPRESSED) {
-            final long[] stripOffsets = ifd.getStripOffsets();
-            final long[] stripByteCounts = ifd.getStripByteCounts();
-
-            if (stripOffsets != null && stripByteCounts != null) {
-                final long column = x / tileWidth;
-                final int firstTile = (int) ((y / tileLength) * numTileCols + column);
-                int lastTile = (int) (((y + height) / tileLength) * numTileCols +
-                        column);
-                lastTile = Math.min(lastTile, stripOffsets.length - 1);
-
-                int offset = 0;
-                for (int tile = firstTile; tile <= lastTile; tile++) {
-                    long byteCount = equalStrips ? stripByteCounts[0]
-                            : stripByteCounts[tile];
-                    if (byteCount == numSamples && pixel > 1) {
-                        byteCount *= pixel;
-                    }
-
-                    in.seek(stripOffsets[tile]);
-                    final int len = (int) Math.min(buf.length - offset, byteCount);
-                    in.read(buf, offset, len);
-                    offset += len;
-                }
-            }
-            adjustFillOrder(ifd, buf);
-            return buf;
-        }
-
-        final long nrows = numTileRows;
-        if (planarConfig == 2) numTileRows *= samplesPerPixel;
-
-        final IntRect imageBounds = new IntRect(x, y, (int) width, (int) height);
-
-        final int endX = (int) width + x;
-        final int endY = (int) height + y;
-
-        final long w = tileWidth;
-        final long h = tileLength;
-        final int rowLen = pixel * (int) w;// tileWidth;
-        final int tileSize = (int) (rowLen * h);// tileLength);
-
-        final int planeSize = (int) (width * height * pixel);
-        final int outputRowLen = (int) (pixel * width);
-
-        int bufferSizeSamplesPerPixel = samplesPerPixel;
-        if (ifd.getPlanarConfiguration() == 2) bufferSizeSamplesPerPixel = 1;
-        final int bpp = ifd.getBytesPerSample()[0];
-        final int bufferSize = (int) tileWidth * (int) tileLength *
-                bufferSizeSamplesPerPixel * bpp;
-
-        cachedTileBuffer = new byte[bufferSize];
-
-        final IntRect tileBounds = new IntRect(0, 0, (int) tileWidth,
-                (int) tileLength);
-
-        for (int row = 0; row < numTileRows; row++) {
-            // make the first row shorter to account for row overlap
-            if (row == 0) {
-                tileBounds.height = (int) (tileLength - overlapY);
-            }
-
-            for (int col = 0; col < numTileCols; col++) {
-                // make the first column narrower to account for column overlap
-                if (col == 0) {
-                    tileBounds.width = (int) (tileWidth - overlapX);
-                }
-
-                tileBounds.x = col * (int) (tileWidth - overlapX);
-                tileBounds.y = row * (int) (tileLength - overlapY);
-
-                if (planarConfig == 2) {
-                    tileBounds.y = (int) ((row % nrows) * (tileLength - overlapY));
-                }
-
-                if (!imageBounds.intersects(tileBounds)) continue;
-
-                getTile(ifd, cachedTileBuffer, row, col);
-
-                // adjust tile bounds, if necessary
-
-                final int tileX = Math.max(tileBounds.x, x);
-                final int tileY = Math.max(tileBounds.y, y);
-                int realX = tileX % (int) (tileWidth - overlapX);
-                int realY = tileY % (int) (tileLength - overlapY);
-
-                int twidth = (int) Math.min(endX - tileX, tileWidth - realX);
-                if (twidth <= 0) {
-                    twidth = (int) Math.max(endX - tileX, tileWidth - realX);
-                }
-                int theight = (int) Math.min(endY - tileY, tileLength - realY);
-                if (theight <= 0) {
-                    theight = (int) Math.max(endY - tileY, tileLength - realY);
-                }
-
-                // copy appropriate portion of the tile to the output buffer
-
-                final int copy = pixel * twidth;
-
-                realX *= pixel;
-                realY *= rowLen;
-
-                for (int q = 0; q < effectiveChannels; q++) {
-                    int src = q * tileSize + realX + realY;
-                    int dest = q * planeSize + pixel * (tileX - x) + outputRowLen *
-                            (tileY - y);
-                    if (planarConfig == 2) dest += (planeSize * (row / nrows));
-
-                    // copying the tile directly will only work if there is no
-                    // overlap;
-                    // otherwise, we may be overwriting a previous tile
-                    // (or the current tile may be overwritten by a subsequent
-                    // tile)
-                    if (rowLen == outputRowLen && overlapX == 0 && overlapY == 0) {
-                        System.arraycopy(cachedTileBuffer, src, buf, dest, copy * theight);
-                    } else {
-                        for (int tileRow = 0; tileRow < theight; tileRow++) {
-                            System.arraycopy(cachedTileBuffer, src, buf, dest, copy);
-                            src += rowLen;
-                            dest += outputRowLen;
-                        }
-                    }
-                }
-            }
-        }
-
-        adjustFillOrder(ifd, buf);
-        return buf;
-    }
-     */
 
     public TiffIFDEntry readTiffIFDEntry() throws IOException {
         final int entryTag = in.readUnsignedShort();
@@ -2004,10 +1804,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
      *
      * @param ifd IFD
      * @param buf bytes
+     * @return a reference to buf argument.
      * @throws FormatException in a case of error in IFD
      */
-    public static void adjustFillOrder(final IFD ifd, final byte[] buf)
-            throws FormatException {
+    public static byte[] invertFillOrderIfNecessary(final IFD ifd, final byte[] buf) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (ifd.getFillOrder() == FillOrder.REVERSED) {
             // swap bits order of all bytes
@@ -2015,15 +1815,32 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 buf[i] = REVERSE[buf[i] & 0xFF];
             }
         }
+        return buf;
     }
 
     static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY) {
         if (fromX < 0 || fromY < 0) {
             throw new IllegalArgumentException("Negative fromX = " + fromX + " or fromY = " + fromY);
         }
+        if (sizeX < 0 || sizeY < 0) {
+            throw new IllegalArgumentException("Negative sizeX = " + sizeX + " or sizeY = " + sizeY);
+        }
         if (sizeX > Integer.MAX_VALUE - fromX || sizeY > Integer.MAX_VALUE - fromY) {
             throw new IllegalArgumentException("Requested area [" + fromX + ".." + (fromX + sizeX - 1) +
                     " x " + fromY + ".." + (fromY + sizeY - 1) + " is out of 0..2^31-1 ranges");
+        }
+    }
+
+    static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY, long imageSizeX, long imageSizeY) {
+        checkRequestedArea(fromX, fromY, sizeX, sizeY);
+        if (imageSizeX < 0 || imageSizeY < 0) {
+            throw new IllegalArgumentException("Negative imageSizeX = " + imageSizeX +
+                    " or imageSizeY = " + imageSizeY);
+        }
+        if (fromX > imageSizeX - sizeX || fromY > imageSizeY - sizeY) {
+            throw new IllegalArgumentException("Requested area [" + fromX + ".." + (fromX + sizeX - 1) +
+                    " x " + fromY + ".." + (fromY + sizeY - 1) + " is out of image ranges " +
+                    imageSizeX + "x" + imageSizeY);
         }
     }
 
@@ -2057,5 +1874,220 @@ public class TiffParser extends AbstractContextual implements Closeable {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Deprecated
+    public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
+		throws FormatException, IOException {
+        TiffTileIndex tileIndex = new TiffTileIndex(ExtendedIFD.extend(ifd), col, row);
+        if (buf == null) {
+            buf = new byte[tileIndex.sizeOfBasedOnBits()];
+        }
+        TiffTile tile = readTile(tileIndex);
+        if (!tile.isEmpty()) {
+            byte[] data = tile.getDecodedData();
+            System.arraycopy(data, 0, buf, 0, data.length);
+        }
+        return buf;
+    }
+
+    @Deprecated
+    public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
+                             final int y, final long width, final long height, final int overlapX,
+                             final int overlapY) throws FormatException, IOException
+    {
+        log.trace("parsing IFD entries");
+
+        // get internal non-IFD entries
+        in.setLittleEndian(ifd.isLittleEndian());
+
+        // get relevant IFD entries
+        final int samplesPerPixel = ifd.getSamplesPerPixel();
+        final long tileWidth = ifd.getTileWidth();
+        long tileLength = ifd.getTileLength();
+        if (tileLength <= 0) {
+            log.trace("Tile length is " + tileLength + "; setting it to " + height);
+            tileLength = height;
+        }
+
+        long numTileRows = ifd.getTilesPerColumn();
+        final long numTileCols = ifd.getTilesPerRow();
+
+        final PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
+        final int planarConfig = ifd.getPlanarConfiguration();
+        final int pixel = ifd.getBytesPerSample()[0];
+        final int effectiveChannels = planarConfig == 2 ? 1 : samplesPerPixel;
+
+        if (log.isTrace()) {
+            ifd.printIFD();
+        }
+
+        if (width * height > Integer.MAX_VALUE) {
+            throw new FormatException("Sorry, ImageWidth x ImageLength > " +
+                    Integer.MAX_VALUE + " is not supported (" + width + " x " + height +
+                    ")");
+        }
+        if (width * height * effectiveChannels * pixel > Integer.MAX_VALUE) {
+            throw new FormatException("Sorry, ImageWidth x ImageLength x " +
+                    "SamplesPerPixel x BitsPerSample > " + Integer.MAX_VALUE +
+                    " is not supported (" + width + " x " + height + " x " +
+                    samplesPerPixel + " x " + (pixel * 8) + ")");
+        }
+
+        // casting to int is safe because we have already determined that
+        // width * height is less than Integer.MAX_VALUE
+        final int numSamples = (int) (width * height);
+
+        // read in image strips
+        log.trace("reading image data (samplesPerPixel=" + samplesPerPixel +
+                "; numSamples=" + numSamples + ")");
+
+        final TiffCompression compression = ifd.getCompression();
+
+        if (compression == TiffCompression.JPEG_2000 ||
+                compression == TiffCompression.JPEG_2000_LOSSY)
+        {
+            codecOptions = compression.getCompressionCodecOptions(ifd, codecOptions);
+        }
+        else codecOptions = compression.getCompressionCodecOptions(ifd);
+        codecOptions.interleaved = true;
+        codecOptions.littleEndian = ifd.isLittleEndian();
+        final long imageLength = ifd.getImageLength();
+
+        // special case: if we only need one tile, and that tile doesn't need
+        // any special handling, then we can just read it directly and return
+        if ((x % tileWidth) == 0 && (y % tileLength) == 0 && width == tileWidth &&
+                height == imageLength && samplesPerPixel == 1 && (ifd
+                .getBitsPerSample()[0] % 8) == 0 &&
+                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
+                compression == TiffCompression.UNCOMPRESSED)
+        {
+            final long[] stripOffsets = ifd.getStripOffsets();
+            final long[] stripByteCounts = ifd.getStripByteCounts();
+
+            if (stripOffsets != null && stripByteCounts != null) {
+                final long column = x / tileWidth;
+                final int firstTile = (int) ((y / tileLength) * numTileCols + column);
+                int lastTile = (int) (((y + height) / tileLength) * numTileCols +
+                        column);
+                lastTile = Math.min(lastTile, stripOffsets.length - 1);
+
+                int offset = 0;
+                for (int tile = firstTile; tile <= lastTile; tile++) {
+                    long byteCount = equalStrips ? stripByteCounts[0]
+                            : stripByteCounts[tile];
+                    if (byteCount == numSamples && pixel > 1) {
+                        byteCount *= pixel;
+                    }
+
+                    in.seek(stripOffsets[tile]);
+                    final int len = (int) Math.min(buf.length - offset, byteCount);
+                    in.read(buf, offset, len);
+                    offset += len;
+                }
+            }
+            return invertFillOrderIfNecessary(ifd, buf);
+        }
+
+        final long nrows = numTileRows;
+        if (planarConfig == 2) numTileRows *= samplesPerPixel;
+
+        final IntRect imageBounds = new IntRect(x, y, (int) width, (int) height);
+
+        final int endX = (int) width + x;
+        final int endY = (int) height + y;
+
+        final long w = tileWidth;
+        final long h = tileLength;
+        final int rowLen = pixel * (int) w;// tileWidth;
+        final int tileSize = (int) (rowLen * h);// tileLength);
+
+        final int planeSize = (int) (width * height * pixel);
+        final int outputRowLen = (int) (pixel * width);
+
+        int bufferSizeSamplesPerPixel = samplesPerPixel;
+        if (ifd.getPlanarConfiguration() == 2) bufferSizeSamplesPerPixel = 1;
+        final int bpp = ifd.getBytesPerSample()[0];
+        final int bufferSize = (int) tileWidth * (int) tileLength *
+                bufferSizeSamplesPerPixel * bpp;
+
+        cachedTileBuffer = new byte[bufferSize];
+
+        final IntRect tileBounds = new IntRect(0, 0, (int) tileWidth,
+                (int) tileLength);
+
+        for (int row = 0; row < numTileRows; row++) {
+            // make the first row shorter to account for row overlap
+            if (row == 0) {
+                tileBounds.height = (int) (tileLength - overlapY);
+            }
+
+            for (int col = 0; col < numTileCols; col++) {
+                // make the first column narrower to account for column overlap
+                if (col == 0) {
+                    tileBounds.width = (int) (tileWidth - overlapX);
+                }
+
+                tileBounds.x = col * (int) (tileWidth - overlapX);
+                tileBounds.y = row * (int) (tileLength - overlapY);
+
+                if (planarConfig == 2) {
+                    tileBounds.y = (int) ((row % nrows) * (tileLength - overlapY));
+                }
+
+                if (!imageBounds.intersects(tileBounds)) continue;
+
+                getTile(ifd, cachedTileBuffer, row, col);
+
+                // adjust tile bounds, if necessary
+
+                final int tileX = Math.max(tileBounds.x, x);
+                final int tileY = Math.max(tileBounds.y, y);
+                int realX = tileX % (int) (tileWidth - overlapX);
+                int realY = tileY % (int) (tileLength - overlapY);
+
+                int twidth = (int) Math.min(endX - tileX, tileWidth - realX);
+                if (twidth <= 0) {
+                    twidth = (int) Math.max(endX - tileX, tileWidth - realX);
+                }
+                int theight = (int) Math.min(endY - tileY, tileLength - realY);
+                if (theight <= 0) {
+                    theight = (int) Math.max(endY - tileY, tileLength - realY);
+                }
+
+                // copy appropriate portion of the tile to the output buffer
+
+                final int copy = pixel * twidth;
+
+                realX *= pixel;
+                realY *= rowLen;
+
+                for (int q = 0; q < effectiveChannels; q++) {
+                    int src = q * tileSize + realX + realY;
+                    int dest = q * planeSize + pixel * (tileX - x) + outputRowLen *
+                            (tileY - y);
+                    if (planarConfig == 2) dest += (planeSize * (row / nrows));
+
+                    // copying the tile directly will only work if there is no
+                    // overlap;
+                    // otherwise, we may be overwriting a previous tile
+                    // (or the current tile may be overwritten by a subsequent
+                    // tile)
+                    if (rowLen == outputRowLen && overlapX == 0 && overlapY == 0) {
+                        System.arraycopy(cachedTileBuffer, src, buf, dest, copy * theight);
+                    }
+                    else {
+                        for (int tileRow = 0; tileRow < theight; tileRow++) {
+                            System.arraycopy(cachedTileBuffer, src, buf, dest, copy);
+                            src += rowLen;
+                            dest += outputRowLen;
+                        }
+                    }
+                }
+            }
+        }
+
+        return invertFillOrderIfNecessary(ifd, buf);
     }
 }

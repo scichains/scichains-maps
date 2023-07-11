@@ -144,6 +144,15 @@ public class ExtendedIFD extends IFD {
     }
 
     public long getImageWidth() throws FormatException {
+        return getImageSizeX();
+    }
+
+    public long getImageLength() throws FormatException {
+        return getImageSizeY();
+    }
+
+    //!! Better analog of IFD.getImageWidth()
+    public int getImageSizeX() throws FormatException {
         final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
         if (imageWidth <= 0) {
             throw new FormatException("Zero or negative image width = " + imageWidth);
@@ -152,10 +161,11 @@ public class ExtendedIFD extends IFD {
         if (imageWidth > Integer.MAX_VALUE) {
             throw new FormatException("Very large image width " + imageWidth + " >= 2^31 is not supported");
         }
-        return imageWidth;
+        return (int) imageWidth;
     }
 
-    public long getImageLength() throws FormatException {
+    //!! Better analog of IFD.getImageLength()
+    public int getImageSizeY() throws FormatException {
         final long imageLength = getIFDLongValue(IMAGE_LENGTH);
         if (imageLength <= 0) {
             throw new FormatException("Zero or negative image height = " + imageLength);
@@ -164,7 +174,7 @@ public class ExtendedIFD extends IFD {
         if (imageLength > Integer.MAX_VALUE) {
             throw new FormatException("Very large image height " + imageLength + " >= 2^31 is not supported");
         }
-        return imageLength;
+        return (int) imageLength;
     }
 
     //!! Better analog of IFD.getTileWidth()

@@ -122,7 +122,8 @@ public class TiffSaverTest {
                 if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
-                saver.writeImage(bytes, ifd, ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
+                saver.writeSamples(bytes,
+                        ifd, ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1);
             }
         }

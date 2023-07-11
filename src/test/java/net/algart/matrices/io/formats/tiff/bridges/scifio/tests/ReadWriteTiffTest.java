@@ -33,10 +33,8 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
-import org.scijava.io.location.FileLocation;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -131,7 +129,7 @@ public class ReadWriteTiffTest {
                         // - not remove! Removing means default value!
                     }
                     saverIFD.putImageSizes(w, h);
-                    saver.writeImage(bytes, saverIFD, -1, bandCount,
+                    saver.writeSamples(bytes, saverIFD, -1, bandCount,
                             parserIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", saverIFD);
