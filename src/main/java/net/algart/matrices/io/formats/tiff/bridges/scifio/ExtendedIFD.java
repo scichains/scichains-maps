@@ -71,14 +71,22 @@ public class ExtendedIFD extends IFD {
 
     public ExtendedIFD(IFD ifd, LogService log) {
         super(ifd, log);
-        offset = null;
-        entries = null;
+        if (ifd instanceof ExtendedIFD extendedIFD) {
+            offset = extendedIFD.offset;
+            entries = extendedIFD.entries;
+            subIFDType = extendedIFD.subIFDType;
+        } else {
+            offset = null;
+            entries = null;
+            subIFDType = null;
+        }
     }
 
-    public ExtendedIFD(ExtendedIFD ifd, LogService log) {
-        super(ifd, log);
-        offset = ifd.offset;
-        entries = ifd.entries;
+    public ExtendedIFD(ExtendedIFD extendedIFD, LogService log) {
+        super(extendedIFD, log);
+        offset = extendedIFD.offset;
+        entries = extendedIFD.entries;
+        subIFDType = extendedIFD.subIFDType;
     }
 
     public ExtendedIFD() {
@@ -109,7 +117,8 @@ public class ExtendedIFD extends IFD {
     }
 
     public ExtendedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
-        this.entries = Objects.requireNonNull(entries, "Null entries");
+        Objects.requireNonNull(entries, "Null entries");
+        this.entries = Collections.unmodifiableMap(entries);
         return this;
     }
 
