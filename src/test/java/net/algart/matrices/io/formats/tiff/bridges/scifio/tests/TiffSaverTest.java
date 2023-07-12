@@ -38,8 +38,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class TiffSaverTest {
-    private final static int WIDTH = 501;
-    private final static int HEIGHT = 521;
+    private final static int WIDTH = 1011;
+    private final static int HEIGHT = 1031;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -106,17 +106,18 @@ public class TiffSaverTest {
             saver.startWriting();
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                byte[] samples = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
+                Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
                     ifd.putTileSizes(64, 64);
                 }
+                //TODO!! custom pixelType
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
-                saver.writeSamples(ifd, samples,
+                saver.writeSamplesArray(ifd, samplesArray,
                         ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1);
             }
@@ -124,7 +125,7 @@ public class TiffSaverTest {
         System.out.println("Done");
     }
 
-    private static byte[] makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
+    private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
         byte[] bytes = new byte[matrixSize * bandCount];
         for (int y = 0, disp = 0; y < ySize; y++) {

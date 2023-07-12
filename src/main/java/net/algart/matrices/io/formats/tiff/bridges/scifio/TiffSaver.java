@@ -734,80 +734,61 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    public void writeSamples(List<? extends IFD> ifds, byte[][] samples, int pixelType)
-            throws FormatException, IOException {
-        Objects.requireNonNull(ifds, "Null IFD list");
-        Objects.requireNonNull(samples, "Null samples data");
-        for (int i = 0; i < ifds.size(); i++) {
-            if (i < samples.length) {
-                writeSamples(ExtendedIFD.extend(ifds.get(i)), samples[i], i, pixelType, i == ifds.size() - 1);
-            }
-        }
-    }
-
-    public void writeSamples(ExtendedIFD ifd, byte[] samples, int pixelType, boolean last)
+    public void writeSamples(ExtendedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
             throws FormatException, IOException {
         if (!writingSequentially) {
             throw new IllegalStateException("Writing samples without IFD index is possible only in sequential mode");
         }
-        writeSamples(ifd, samples, -1, pixelType, last);
+        writeSamples(ifd, samples, null, numberOfChannels, pixelType, last);
     }
 
     public void writeSamples(
-            final ExtendedIFD ifd, final byte[] samples, final int ifdIndex,
-            final int pixelType, final boolean last) throws FormatException, IOException {
+            final ExtendedIFD ifd, final byte[] samples, final Integer ifdIndex,
+            final int numberOfChannels, final int pixelType, final boolean last) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
-        writeSamples(ExtendedIFD.extend(ifd), samples,
-                ifdIndex,
-                null,
-                pixelType,
-                0,
-                0,
-                ifd.getImageSizeX(),
-                ifd.getImageSizeY(),
-                last);
+        final int sizeX = ifd.getImageSizeX();
+        final int sizeY = ifd.getImageSizeY();
+        writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
     /**
      * Writes to any rectangle from the passed block.
      *
-     * @param ifd        The Image File Directories. Mustn't be {@code null}.
-     * @param samples    The block that is to be written.
-     * @param planeIndex The image index within the current file, starting from 0.
-     * @param pixelType  The type of pixels.
-     * @param x          The X-coordinate of the top-left corner.
-     * @param y          The Y-coordinate of the top-left corner.
-     * @param w          The width of the rectangle.
-     * @param h          The height of the rectangle.
-     * @param last       Pass {@code true} if it is the last image, {@code false}
-     *                   otherwise.
+     * @param ifd              The Image File Directories. Mustn't be {@code null}.
+     * @param samples          The block that is to be written.
+     * @param ifdIndex         The image index within the current file, starting from 0;
+     *                         may be <tt>null</tt> in <tt>writingSequentially</tt> mode.
+     * @param numberOfChannels The number of channels.
+     * @param pixelType        The type of pixels.
+     * @param fromX            The X-coordinate of the top-left corner.
+     * @param fromY            The Y-coordinate of the top-left corner.
+     * @param sizeX            The width of the rectangle.
+     * @param sizeY            The height of the rectangle.
+     * @param last             Pass {@code true} if it is the last image, {@code false}
+     *                         otherwise.
      * @throws FormatException
      * @throws IOException
      */
     public void writeSamples(
-            final IFD ifd, final byte[] samples, final int planeIndex,
-            final int pixelType, final int x, final int y, final int w, final int h,
-            final boolean last) throws FormatException, IOException {
-        writeSamples(ExtendedIFD.extend(ifd), samples, planeIndex, null, pixelType, x, y, w, h, last);
-    }
-
-    public void writeSamples(
             final ExtendedIFD ifd,
             byte[] samples,
-            final int ifdIndex,
-            Integer numberOfChannels,
+            final Integer ifdIndex,
+            final int numberOfChannels,
             final int pixelType,
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean last)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
-        Objects.requireNonNull(samples, "Null samples data");
-        if (!writingSequentially && ifdIndex < 0) {
-            throw new IllegalArgumentException("Negative ifdIndex = " + ifdIndex +
-                    " (it is allowed only in writing-sequentially mode)");
+        Objects.requireNonNull(samples, "Null samples");
+        if (!writingSequentially && (ifdIndex == null || ifdIndex < 0)) {
+            throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
+                    " is not allowed when writing mode is not sequential");
         }
         long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         assert bytesPerSample >= 1;
         final long numberOfPixels = (long) sizeX * (long) sizeY;
@@ -816,9 +797,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     + " < " + numberOfPixels * bytesPerSample);
         }
         final int channelSize = (int) numberOfPixels * bytesPerSample;
-        if (numberOfChannels == null) {
-            numberOfChannels = samples.length / channelSize;
-        } else if (channelSize * numberOfChannels > samples.length) {
+        if ((long) channelSize * (long) numberOfChannels > samples.length) {
             throw new IllegalArgumentException("Too short samples array for " + numberOfChannels +
                     " channels: " + samples.length + " < " + channelSize * numberOfChannels);
         }
@@ -870,6 +849,32 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     (t5 - t4) * 1e-6, (t6 - t5) * 1e-6,
                     numberOfBytes / 1048576.0 / ((t6 - t1) * 1e-9)));
         }
+    }
+
+    public void writeSamplesArray(
+            final ExtendedIFD ifd,
+            Object samplesArray,
+            final Integer ifdIndex,
+            int numberOfChannels,
+            final int pixelType,
+            final int fromX, final int fromY, final int sizeX, final int sizeY,
+            final boolean last)
+            throws FormatException, IOException {
+        Objects.requireNonNull(ifd, "Null IFD");
+        Objects.requireNonNull(samplesArray, "Null samplesArray");
+        long t1 = debugTime();
+        byte[] samples = TiffTools.javaArrayToPlaneBytes(
+                samplesArray, FormatTools.isSigned(pixelType), isLittleEndian());
+        if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
+            long t2 = debugTime();
+            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
+                    "%s converted %d bytes (%.3f MB) from %s[] in %.3f ms",
+                    getClass().getSimpleName(),
+                    samples.length, samples.length / 1048576.0,
+                    samplesArray.getClass().getComponentType().getSimpleName(),
+                    (t2 - t1) * 1e-6));
+        }
+        writeSamples(ifd, samples, ifdIndex, numberOfChannels, pixelType, fromX, fromY, sizeX, sizeY, last);
     }
 
     // Note: stripSamples is always interleaved (RGBRGB...) or monochrome.
@@ -1123,7 +1128,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws IOException
      */
     private void writeSamplesAndIFD(
-            ExtendedIFD ifd, final int ifdIndex,
+            ExtendedIFD ifd, final Integer ifdIndex,
             final List<TiffTile> tiles, final int nChannels, final boolean last,
             final int x,
             final int y) throws FormatException, IOException {
@@ -1137,6 +1142,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final DataHandle<Location> in = loc != null ?
                     dataHandleService.create(loc) :
                     dataHandleService.create(out.get());
+            if (ifdIndex == null || ifdIndex < 0) {
+                throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
+                        " is not allowed when writing mode is not sequential");
+            }
             try (final TiffParser parser = new TiffParser(getContext(), in)) {
                 final long[] ifdOffsets = parser.getIFDOffsets();
                 if (ifdIndex < ifdOffsets.length) {
@@ -1240,17 +1249,26 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     @Deprecated
-    public void writeImage(
-            final byte[][] samples, final IFDList ifds,
-            final int pixelType) throws FormatException, IOException {
-        writeSamples(ifds, samples, pixelType);
+    public void writeImage(final byte[][] buf, final IFDList ifds,
+                           final int pixelType) throws FormatException, IOException {
+        if (ifds == null) {
+            throw new FormatException("IFD cannot be null");
+        }
+        if (buf == null) {
+            throw new FormatException("Image data cannot be null");
+        }
+        for (int i = 0; i < ifds.size(); i++) {
+            if (i < buf.length) {
+                writeImage(buf[i], ifds.get(i), i, pixelType, i == ifds.size() - 1);
+            }
+        }
     }
 
     @Deprecated
     public void writeImage(
             final byte[] samples, final IFD ifd, final int planeIndex,
             final int pixelType, final boolean last) throws FormatException, IOException {
-        writeSamples(ExtendedIFD.extend(ifd), samples, planeIndex, pixelType, last);
+        writeSamples(ExtendedIFD.extend(ifd), samples, pixelType, planeIndex, last);
     }
 
     @Deprecated
@@ -1266,6 +1284,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                            final boolean last, Integer nChannels, final boolean copyDirectly)
             throws FormatException, IOException {
         //Note: modern version of writeSamples doesn't need optimization via copyDirectly
+        if (nChannels == null) {
+            final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
+            nChannels = buf.length / (w * h * bytesPerSample);
+            // - like in original writeImage; but overflow will be checked more thoroughly inside writeSamples
+        }
         writeSamples(ExtendedIFD.extend(ifd), buf,
                 (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
     }

@@ -1247,12 +1247,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
-                    "%s converted %d samples (%.3f MB) to %s[] in %.3f ms, %.3f MB/s",
+                    "%s converted %d bytes (%.3f MB) to %s[] in %.3f ms",
                     getClass().getSimpleName(),
                     samples.length, samples.length / 1048576.0,
                     result.getClass().getComponentType().getSimpleName(),
-                    (t2 - t1) * 1e-6,
-                    samples.length / 1048576.0 / ((t2 - t1) * 1e-9)));
+                    (t2 - t1) * 1e-6));
         }
         return result;
     }
