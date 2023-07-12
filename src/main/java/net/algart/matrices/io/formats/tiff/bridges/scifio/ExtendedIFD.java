@@ -119,6 +119,9 @@ public class ExtendedIFD extends IFD {
     public ExtendedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
         Objects.requireNonNull(entries, "Null entries");
         this.entries = Collections.unmodifiableMap(entries);
+        // So, the copy constructor above really creates a good copy.
+        // But we cannot provide full guarantees of the ideal behaviour,
+        // because this HashMap contains Java arrays and can theoretically contain anything.
         return this;
     }
 
