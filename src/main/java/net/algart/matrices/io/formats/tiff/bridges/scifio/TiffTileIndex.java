@@ -104,6 +104,10 @@ public final class TiffTileIndex {
         return y;
     }
 
+    public TiffTile newTile() {
+        return new TiffTile(this);
+    }
+
     @Override
     public String toString() {
         return "(" + x + ", " + y + ") in IFD @" + Integer.toHexString(ifdIdentity);

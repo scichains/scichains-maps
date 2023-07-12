@@ -1066,37 +1066,41 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final int yOffset = yIndex * tileSizeY;
             final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
             assert (long) fromY + (long) yOffset < imageSizeY : "region must  be checked before calling splitTiles";
-            final int validTileSizeY = Math.min(tileSizeY, imageSizeY - (fromY + yOffset));
+            final int y = fromY + yOffset;
+            final int validTileSizeY = Math.min(tileSizeY, imageSizeY - y);
             // - last strip should have exact height, in other case TIFF may be read with a warning
             for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
+                assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
                 final int xOffset = xIndex * tileSizeX;
                 assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
+                final int x = fromX + xOffset;
+                final TiffTileIndex tiffTileIndex = new TiffTileIndex(ifd, x / tileSizeX, y / tileSizeY);
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (chunked) {
                     final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
-                    final byte[] tile = new byte[tileSize];
+                    final byte[] data = new byte[tileSize];
                     // - zero-filled by Java
                     for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                         final int i = yInTile + yOffset;
                         final int tileOffset = yInTile * tileRowSizeInBytes;
                         final int samplesOffset = (i * sizeX + xOffset) * bytesPerSample * numberOfChannels;
-                        System.arraycopy(samples, samplesOffset, tile, tileOffset, partSizeXInBytes);
+                        System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
                     }
-                    tiles[tileIndex] = new TiffTile(ifd, xIndex, yIndex).setDecodedData(tile).setSizeY(validTileSizeY);
+                    tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
                 } else {
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int c = 0; c < numberOfChannels; c++) {
-                        final byte[] tile = new byte[tileSize];
+                        final byte[] data = new byte[tileSize];
                         // - zero-filled by Java
                         final int channelOffset = c * channelSize;
                         for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                             final int i = yInTile + yOffset;
                             final int tileOffset = yInTile * tileRowSizeInBytes;
                             final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
-                            System.arraycopy(samples, samplesOffset, tile, tileOffset, partSizeXInBytes);
+                            System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
                         }
                         tiles[tileIndex + c * numberOfActualStrips] =
-                                new TiffTile(ifd, xIndex, yIndex).setDecodedData(tile).setSizeY(validTileSizeY);
+                                tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
                     }
                 }
             }
