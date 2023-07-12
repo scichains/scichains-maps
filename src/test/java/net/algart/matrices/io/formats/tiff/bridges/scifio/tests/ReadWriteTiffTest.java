@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
@@ -160,7 +161,7 @@ public class ReadWriteTiffTest {
                             writer.setTiling(false);
                         }
                         if (!planar) {
-                            bytes = TiffParser.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
+                            bytes = TiffTools.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
                         }
                         saverIFD = new ExtendedIFD(PureScifioReadWriteTiffTest.removeUndesirableTags(parserIFD));
                         if (singleStrip) {

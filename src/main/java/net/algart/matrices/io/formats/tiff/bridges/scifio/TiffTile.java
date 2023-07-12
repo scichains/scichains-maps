@@ -34,6 +34,7 @@ public class TiffTile {
     private int sizeY;
     private int size;
     private byte[] data = null;
+    private int lastDataLength = 0;
 
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex);
@@ -103,9 +104,6 @@ public class TiffTile {
         return data == null;
     }
 
-    public int getDataLength() {
-        return data == null ? 0 : data.length;
-    }
 
     public byte[] getData() {
         checkEmpty();
@@ -115,6 +113,7 @@ public class TiffTile {
     public TiffTile setData(byte[] data) {
         Objects.requireNonNull(data, "Null data");
         this.data = data;
+        this.lastDataLength = data.length;
         return this;
     }
 
@@ -142,9 +141,22 @@ public class TiffTile {
         return setData(data).setEncoded(false);
     }
 
-    public TiffTile removeData(byte[] data) {
+    public TiffTile removeData() {
         this.data = null;
         return this;
+    }
+
+    /**
+     * Return the length of the last non-null {@link #getData() data array}, stored in this tile,
+     * or 0 after creating this object.
+     *
+     * <p>Note: {@link #removeData()} method does not change this value! So, you can know the last data size
+     * even after freeing data, stored inside this object.
+     *
+     * @return the length of the last non-null data array, which was stored in this object.
+     */
+    public int lastDataLength() {
+        return lastDataLength;
     }
 
     protected void checkEmpty() {
@@ -157,6 +169,6 @@ public class TiffTile {
     public String toString() {
         return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
                 + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
-                (isEmpty() ? ", empty" : getDataLength() + " bytes");
+                (isEmpty() ? ", empty" : lastDataLength() + " bytes");
     }
 }

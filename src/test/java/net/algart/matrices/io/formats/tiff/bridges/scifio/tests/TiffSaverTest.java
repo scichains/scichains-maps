@@ -104,15 +104,7 @@ public class TiffSaverTest {
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                 final int bandCount = color ? 3 : 1;
-                final int matrixSize = WIDTH * HEIGHT;
-                byte[] bytes = new byte[matrixSize * bandCount];
-                for (int y = 0, disp = 0; y < HEIGHT; y++) {
-                    final int c = (y / 32) % bandCount;
-                    for (int x = 0; x < WIDTH; x++, disp++) {
-                        byte b = (byte) (50 * ifdIndex + x + y);
-                        bytes[disp + c * matrixSize] = b;
-                    }
-                }
+                byte[] samples = makeSamples(ifdIndex, bandCount, WIDTH, HEIGHT);
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
@@ -122,51 +114,25 @@ public class TiffSaverTest {
                 if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
-                saver.writeSamples(bytes,
+                saver.writeSamples(samples,
                         ifd, ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1);
             }
         }
-/*
-        try (Context context = scifio.getContext();
-             TiffSaver saver = new TiffSaver(context, targetFile);
-             SequentialTiffWriter writer = new SequentialTiffWriter(
-                     context, Paths.get(targetFile + ".old.tiff"))) {
-            saver.setBigTiff(false);
-            saver.setWritingSequentially(true);
-            saver.setLittleEndian(true);
-            if (singleStrip) {
-                saver.setDefaultSingleStrip();
-            }
-            saver.writeHeader();
-            writer.setLittleEndian(true).open();
-            System.out.printf("Creating %s...%n", targetFile);
-            for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                final int bandCount = color ? 3 : 1;
-                byte[] bytes = new byte[WIDTH * HEIGHT * bandCount];
-                for (int y = 0, disp = 0; y < HEIGHT; y++) {
-                    final int c = (y / 32) % bandCount;
-                    for (int x = 0; x < WIDTH; x++, disp += bandCount) {
-                        byte b = (byte) (50 * ifdIndex + x + y);
-                        bytes[disp + c] = b;
-                    }
-                }
-                ExtendedIFD ifd = new ExtendedIFD();
-                ifd.putImageSizes(WIDTH, HEIGHT);
-                ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
-//                bytes = TiffParser.interleaveSamples(ifd, bytes, bytes.length);
-                saver.writeImage(bytes, ifd, -1, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
-                        ifdIndex == numberOfImages - 1, bandCount, false);
-                writer.setCompression(TiffCompression.valueOf(compression));
-                writer.setImageSizes(WIDTH, HEIGHT);
-                writer.writeSeveralTilesOrStrips(bytes, ifd, ifd.getPixelType(), bandCount,
-                        0, 0, WIDTH, HEIGHT,
-                        true, ifdIndex == numberOfImages - 1);
+        System.out.println("Done");
+    }
+
+    private static byte[] makeSamples(int ifdIndex, int bandCount, int xSize, int ySize) {
+        final int matrixSize = xSize * ySize;
+        byte[] bytes = new byte[matrixSize * bandCount];
+        for (int y = 0, disp = 0; y < ySize; y++) {
+            final int c = (y / 32) % bandCount;
+            for (int x = 0; x < xSize; x++, disp++) {
+                byte b = (byte) (50 * ifdIndex + x + y);
+                bytes[disp + c * matrixSize] = b;
             }
         }
-
- */
-        System.out.println("Done");
+        return bytes;
     }
 
 }

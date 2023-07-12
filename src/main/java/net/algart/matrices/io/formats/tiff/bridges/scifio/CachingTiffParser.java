@@ -67,7 +67,7 @@ public class CachingTiffParser extends TiffParser {
     }
 
     public static CachingTiffParser getInstance(final Context context, Path file) throws IOException {
-        return getInstance(context, existingFileToLocation(file));
+        return getInstance(context, TiffTools.existingFileToLocation(file));
     }
 
     public long getMaxCachingMemory() {
@@ -167,7 +167,7 @@ public class CachingTiffParser extends TiffParser {
             synchronized (tileCacheLock) {
                 if (maxCachingMemory > 0) {
                     this.cachedTile = new SoftReference<>(tile);
-                    this.cachedDataLength = tile.getDataLength();
+                    this.cachedDataLength = tile.lastDataLength();
                     currentCacheMemory += this.cachedDataLength;
                     tileCache.add(this);
                     LOG.log(System.Logger.Level.TRACE, () -> "STORING tile in cache: " + tileIndex);

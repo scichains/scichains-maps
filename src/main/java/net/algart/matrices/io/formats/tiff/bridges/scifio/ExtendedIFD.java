@@ -31,8 +31,6 @@ import org.scijava.log.LogService;
 
 import java.lang.reflect.Array;
 import java.util.*;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 //!! Better analog of IFD (should be merged with the main IFD)
 public class ExtendedIFD extends IFD {
@@ -353,13 +351,13 @@ public class ExtendedIFD extends IFD {
     }
 
     public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
-        return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
                 () -> "Invalid requested area: ", () -> "");
     }
 
     public int sizeOfRegionBasedOnBits(long sizeX, long sizeY) throws FormatException {
-        return checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnBits(),
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnBits(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample",
                 () -> "Invalid requested area: ", () -> "");
     }
@@ -373,20 +371,9 @@ public class ExtendedIFD extends IFD {
         // - if separate (RRR...GGG...BBB...),
         // we have (for 3 channels) only 1 channel instead of 3, but number of tiles is greater:
         // 3 * numTileRows effective rows of tiles instead of numTileRows
-        return checkedMul(getTileSizeX(), getTileSizeY(), channels, bytesPerSample,
+        return TiffTools.checkedMul(getTileSizeX(), getTileSizeY(), channels, bytesPerSample,
                 "tile width", "tile height", "effective number of channels", "bytes per sample",
                 () -> "Invalid TIFF tile sizes: ", () -> "");
-    }
-
-    public static Class<?> javaElementType(int ifdPixelType) throws FormatException {
-        return switch (ifdPixelType) {
-            case FormatTools.INT8, FormatTools.UINT8 -> byte.class;
-            case FormatTools.INT16, FormatTools.UINT16 -> short.class;
-            case FormatTools.INT32, FormatTools.UINT32 -> int.class;
-            case FormatTools.FLOAT -> float.class;
-            case FormatTools.DOUBLE -> double.class;
-            default -> throw new FormatException("Unknown pixel type: " + ifdPixelType);
-        };
     }
 
     @Override
@@ -401,7 +388,7 @@ public class ExtendedIFD extends IFD {
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
             sb.append(" %s[%dx%d], ".formatted(
-                    javaElementType(getPixelType()).getSimpleName(),
+                    TiffTools.javaElementType(getPixelType()).getSimpleName(),
                     imageWidth, imageLength));
             if (isTiled()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -540,50 +527,6 @@ public class ExtendedIFD extends IFD {
             // - note that LibTiff does not support different BitsPerSample values for different components;
             // we do not support different number of BYTES for different components
         }
-    }
-
-    static int checkedMul(
-            long v1, long v2, long v3, long v4,
-            String n1, String n2, String n3, String n4,
-            Supplier<String> prefix,
-            Supplier<String> postfix) throws FormatException {
-        return checkedMul(new long[]{v1, v2, v3, v4}, new String[]{n1, n2, n3, n4}, prefix, postfix);
-    }
-
-    static int checkedMul(
-            long[] values,
-            String[] names,
-            Supplier<String> prefix,
-            Supplier<String> postfix) throws FormatException {
-        Objects.requireNonNull(values);
-        Objects.requireNonNull(prefix);
-        Objects.requireNonNull(postfix);
-        Objects.requireNonNull(names);
-        if (values.length == 0) {
-            return 1;
-        }
-        long result = 1L;
-        double product = 1.0;
-        boolean overflow = false;
-        for (int i = 0; i < values.length; i++) {
-            long m = values[i];
-            if (m < 0) {
-                throw new FormatException(prefix.get() + "negative " + names[i] + " = " + m + postfix.get());
-            }
-            result *= m;
-            product *= m;
-            if (result > Integer.MAX_VALUE) {
-                overflow = true;
-                // - we just indicate this, but still calculate the floating-point product
-            }
-        }
-        if (overflow) {
-            throw new FormatException(prefix.get() + "too large " + String.join(" * ", names) +
-                    " = " + Arrays.stream(values).mapToObj(String::valueOf).collect(
-                    Collectors.joining(" * ")) +
-                    " = " + product + " >= 2^31" + postfix.get());
-        }
-        return (int) result;
     }
 
     private static String remainderToString(long a, long b) {

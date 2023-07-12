@@ -34,6 +34,7 @@ import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
@@ -137,7 +138,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (bandCount <= 0) {
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
             }
-            this.elementType = ExtendedIFD.javaElementType(ifd0.getPixelType());
+            this.elementType = TiffTools.javaElementType(ifd0.getPixelType());
             final long imageDimX = ifd0.getImageWidth();
             final long imageDimY = ifd0.getImageLength();
             this.imageDescriptions = new ArrayList<SVSImageDescription>();
@@ -177,7 +178,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.combineWithWholeSlide = combineWithWholeSlideRequest
                     && ifdMacro != null
                     && geometrySupported
-                    && ExtendedIFD.javaElementType(ifdMacro.getPixelType()) == elementType
+                    && TiffTools.javaElementType(ifdMacro.getPixelType()) == elementType
                     && ifdMacro.getSamplesPerPixel() == bandCount;
             long levelDimX, levelDimY;
             if (combineWithWholeSlide) {
@@ -321,7 +322,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     }
                     break;
                 }
-                final Class<?> elementType = ExtendedIFD.javaElementType(ifd.getPixelType());
+                final Class<?> elementType = TiffTools.javaElementType(ifd.getPixelType());
                 if (elementType != this.elementType) {
                     throw new FormatException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""
