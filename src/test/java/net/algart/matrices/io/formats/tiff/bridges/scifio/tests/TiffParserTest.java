@@ -30,6 +30,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.IFDList;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
@@ -88,7 +89,7 @@ public class TiffParserTest {
                     TiffParser.getInstance(context, tiffFile);
             parser.setFiller((byte) 0x80);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
-            final IFDList ifds = parser.getIFDs();
+            final var ifds = parser.allIFD();
             if (ifds.isEmpty()) {
                 System.out.println("No IFDs");
                 return;
@@ -97,7 +98,7 @@ public class TiffParserTest {
                 System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, ifds.size() - 1);
                 ifdIndex = ifds.size() - 1;
             }
-            final IFD ifd = ifds.get(ifdIndex);
+            final ExtendedIFD ifd = ifds.get(ifdIndex);
             if (w < 0) {
                 w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
             }
@@ -113,7 +114,7 @@ public class TiffParserTest {
                             w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
                 }
                 long t1 = System.nanoTime();
-                array = parser.getSamplesArray(ifd, x, y, w, h, true);
+                array = parser.getSamplesArray(ifd, x, y, w, h);
                 long t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);

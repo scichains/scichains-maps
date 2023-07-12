@@ -388,7 +388,7 @@ public class ExtendedIFD extends IFD {
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
             sb.append(" %s[%dx%d], ".formatted(
-                    TiffTools.javaElementType(getPixelType()).getSimpleName(),
+                    TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName(),
                     imageWidth, imageLength));
             if (isTiled()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -515,6 +515,12 @@ public class ExtendedIFD extends IFD {
             return name;
         }
         return "%s (%d or 0x%X)".formatted(name, tag, tag);
+    }
+
+    static IFDList toIFDList(List<? extends IFD> ifds) {
+        final IFDList result = new IFDList();
+        result.addAll(ifds);
+        return result;
     }
 
     private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {

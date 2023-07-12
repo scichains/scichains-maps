@@ -32,6 +32,8 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.util.Bytes;
 
 import java.io.FileNotFoundException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -40,6 +42,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TiffTools {
+    static final boolean BUILT_IN_TIMING = getBooleanProperty(
+            "net.algart.matrices.io.formats.tiff.builtInTiming");
     /**
      * Bit order mapping for reversed fill order.
      */
@@ -72,15 +76,161 @@ public class TiffTools {
     private TiffTools() {
     }
 
-    public static Class<?> javaElementType(int ifdPixelType) throws FormatException {
-        return switch (ifdPixelType) {
+    public static Class<?> pixelTypeToElementType(int pixelType) {
+        return switch (pixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> byte.class;
             case FormatTools.INT16, FormatTools.UINT16 -> short.class;
             case FormatTools.INT32, FormatTools.UINT32 -> int.class;
             case FormatTools.FLOAT -> float.class;
             case FormatTools.DOUBLE -> double.class;
-            default -> throw new FormatException("Unknown pixel type: " + ifdPixelType);
+            default -> throw new IllegalArgumentException("Unknown pixel type: " + pixelType);
         };
+    }
+
+    public static int arrayToPixelType(Object javaArray, boolean unsigned) {
+        Objects.requireNonNull(javaArray, "Null Java array");
+        Class<?> elementType = javaArray.getClass().getComponentType();
+        if (elementType == null) {
+            throw new IllegalArgumentException("The specified javaArray is not actual an array: " +
+                    "it is " + javaArray.getClass());
+        }
+        return elementTypeToPixelType(elementType, unsigned);
+    }
+
+    public static int elementTypeToPixelType(Class<?> elementType, boolean unsigned) {
+        Objects.requireNonNull(elementType, "Null elementType");
+        if (elementType == byte.class) {
+            return unsigned ? FormatTools.UINT8 : FormatTools.INT8;
+        } else if (elementType == short.class) {
+            return unsigned ? FormatTools.UINT16 : FormatTools.INT16;
+        } else if (elementType == int.class) {
+            return unsigned ? FormatTools.UINT32 : FormatTools.INT32;
+        } else if (elementType == float.class) {
+            return FormatTools.FLOAT;
+        } else if (elementType == double.class) {
+            return FormatTools.DOUBLE;
+        } else {
+            throw new IllegalArgumentException("Element type " + elementType +
+                    " is unsupported: it cannot be converted to pixel type");
+        }
+    }
+
+    public static Object planeBytesToJavaArray(byte[] bytes, int pixelType, boolean littleEndian) {
+        //TODO!! optimize and test all types
+        switch (pixelType) {
+            case FormatTools.INT8, FormatTools.UINT8 -> {
+                return bytes;
+            }
+            case FormatTools.INT16, FormatTools.UINT16 -> {
+                final short[] shorts = new short[bytes.length / 2];
+                for (int i = 0; i < shorts.length; i++) {
+                    shorts[i] = Bytes.toShort(bytes, i * 2, 2, littleEndian);
+                }
+                return shorts;
+            }
+            case FormatTools.INT32, FormatTools.UINT32 -> {
+                final int[] ints = new int[bytes.length / 4];
+                for (int j = 0; j < ints.length; j++) {
+                    ints[j] = Bytes.toInt(bytes, j * 4, 4, littleEndian);
+                }
+                return ints;
+            }
+            case FormatTools.FLOAT -> {
+                final float[] floatValues = new float[bytes.length / 4];
+                final ByteBuffer bb = ByteBuffer.wrap(bytes);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asFloatBuffer().get(floatValues);
+                return floatValues;
+            }
+            case FormatTools.DOUBLE -> {
+                final double[] doubles = new double[bytes.length / 8];
+                for (int i = 0; i < doubles.length; i++) {
+                    doubles[i] = Bytes.toDouble(bytes, i * 8, 8, littleEndian);
+                }
+                return doubles;
+            }
+        }
+        throw new IllegalArgumentException("Unknown pixel type: " + pixelType);
+    }
+
+    public static byte[] javaArrayToPlaneBytes(Object array, boolean unsigned, boolean littleEndian) {
+        int pixelType = arrayToPixelType(array, unsigned);
+        //TODO!! optimize and test all conversions
+        switch (pixelType) {
+            case FormatTools.INT8, FormatTools.UINT8 -> {
+                return (byte[]) array;
+            }
+            case FormatTools.INT16, FormatTools.UINT16 -> {
+                return Bytes.fromShorts((short[]) array, littleEndian);
+            }
+            case FormatTools.INT32, FormatTools.UINT32 -> {
+                return Bytes.fromInts((int[]) array, littleEndian);
+            }
+            case FormatTools.FLOAT -> {
+                return Bytes.fromFloats((float[]) array, littleEndian);
+            }
+            case FormatTools.DOUBLE -> {
+                return Bytes.fromDoubles((double[]) array, littleEndian);
+            }
+        }
+        throw new AssertionError("(should be already checked in arrayToPixelType)");
+    }
+
+    public static byte[] interleaveSamples(IFD ifd, byte[] samples, int numberOfPixels)
+            throws FormatException {
+        Objects.requireNonNull(ifd, "Null IFD");
+        return interleaveSamples(
+                samples,
+                ifd.getSamplesPerPixel(),
+                FormatTools.getBytesPerPixel(ifd.getPixelType()),
+                numberOfPixels);
+    }
+
+    public static byte[] interleaveSamples(
+            byte[] samples,
+            int samplesPerPixel,
+            int bytesPerSample,
+            int numberOfPixels)
+            throws FormatException {
+        Objects.requireNonNull(samples, "Null samples");
+        if (numberOfPixels < 0) {
+            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
+        }
+        if (samplesPerPixel <= 0) {
+            throw new IllegalArgumentException("Zero or negative samplesPerPixel = " + samplesPerPixel);
+        }
+        if (bytesPerSample <= 0) {
+            throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
+        }
+        final int size = checkedMul(new long[]{numberOfPixels, samplesPerPixel, bytesPerSample},
+                new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
+                () -> "Invalid sizes: ", () -> "");
+        if (samples.length < size) {
+            throw new IllegalArgumentException("Too short samples array: " + samples.length + " < " + size);
+        }
+        if (samplesPerPixel == 1) {
+            return samples;
+        }
+        final int bandSize = numberOfPixels * bytesPerSample;
+        final byte[] interleavedBytes = new byte[size];
+        if (bytesPerSample == 1) {
+            // optimization
+            for (int i = 0, disp = 0; i < bandSize; i++) {
+                for (int bandDisp = i, j = 0; j < samplesPerPixel; j++, bandDisp += bandSize) {
+                    // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
+                    interleavedBytes[disp++] = samples[bandDisp];
+                }
+            }
+        } else {
+            for (int i = 0, disp = 0; i < bandSize; i += bytesPerSample) {
+                for (int bandDisp = i, j = 0; j < samplesPerPixel; j++, bandDisp += bandSize) {
+                    for (int k = 0; k < bytesPerSample; k++) {
+                        interleavedBytes[disp++] = samples[bandDisp + k];
+                    }
+                }
+            }
+        }
+        return interleavedBytes;
     }
 
     public static void unpackUnusualPrecisions(final IFD ifd, final byte[] samples, final int numberOfPixels) {
@@ -153,60 +303,6 @@ public class TiffTools {
             }
             System.arraycopy(newBuf, 0, samples, 0, newBuf.length);
         }
-    }
-
-    public static byte[] interleaveSamples(IFD ifd, byte[] samples, int numberOfPixels) throws FormatException {
-        return interleaveSamples(
-                samples,
-                ifd.getSamplesPerPixel(),
-                FormatTools.getBytesPerPixel(ifd.getPixelType()),
-                numberOfPixels);
-    }
-
-    public static byte[] interleaveSamples(
-            byte[] samples,
-            int samplesPerPixel,
-            int bytesPerSample,
-            int numberOfPixels) throws FormatException {
-        Objects.requireNonNull(samples, "Null samples");
-        if (numberOfPixels < 0) {
-            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
-        }
-        if (samplesPerPixel <= 0) {
-            throw new IllegalArgumentException("Zero or negative samplesPerPixel = " + samplesPerPixel);
-        }
-        if (bytesPerSample <= 0) {
-            throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
-        }
-        final int size = checkedMul(new long[]{numberOfPixels, samplesPerPixel, bytesPerSample},
-                new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
-                () -> "Invalid sizes: ", () -> "");
-        if (samples.length < size) {
-            throw new IllegalArgumentException("Too short samples array: " + samples.length + " < " + size);
-        }
-        if (samplesPerPixel == 1) {
-            return samples;
-        }
-        final int bandSize = numberOfPixels * bytesPerSample;
-        final byte[] interleavedBytes = new byte[size];
-        if (bytesPerSample == 1) {
-            // optimization
-            for (int i = 0, disp = 0; i < bandSize; i++) {
-                for (int bandDisp = i, j = 0; j < samplesPerPixel; j++, bandDisp += bandSize) {
-                    // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
-                    interleavedBytes[disp++] = samples[bandDisp];
-                }
-            }
-        } else {
-            for (int i = 0, disp = 0; i < bandSize; i += bytesPerSample) {
-                for (int bandDisp = i, j = 0; j < samplesPerPixel; j++, bandDisp += bandSize) {
-                    for (int k = 0; k < bytesPerSample; k++) {
-                        interleavedBytes[disp++] = samples[bandDisp + k];
-                    }
-                }
-            }
-        }
-        return interleavedBytes;
     }
 
     /**

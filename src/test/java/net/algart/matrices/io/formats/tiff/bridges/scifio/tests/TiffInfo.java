@@ -70,7 +70,7 @@ public class TiffInfo {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
                 parser.setRequireValidTiff(true);
-                IFDList ifdList = parser.getIFDs();
+                var ifdList = parser.allIFD();
                 final int ifdCount = ifdList.size();
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
                         tiffFile,
@@ -79,7 +79,7 @@ public class TiffInfo {
                         parser.getStream().isLittleEndian() ? "little" : "big");
                 for (int k = 0; k < ifdCount; k++) {
                     if (k >= firstIFDIndex && k <= lastIFDIndex) {
-                        final IFD ifd = ifdList.get(k);
+                        final var ifd = ifdList.get(k);
                         System.out.println(ifdInfo(ifd, k, ifdCount));
                     }
                 }
@@ -88,8 +88,8 @@ public class TiffInfo {
         }
     }
 
-    public static String ifdInfo(IFD ifd, int ifdIndex, int ifdCount) {
-        Long offset = ifd instanceof ExtendedIFD extendedIFD ? extendedIFD.getOffset() : null;
-        return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ExtendedIFD.extend(ifd));
+    public static String ifdInfo(ExtendedIFD ifd, int ifdIndex, int ifdCount) {
+        Long offset = ifd != null ? ifd.getOffset() : null;
+        return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ifd);
     }
 }

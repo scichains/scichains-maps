@@ -138,7 +138,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (bandCount <= 0) {
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
             }
-            this.elementType = TiffTools.javaElementType(ifd0.getPixelType());
+            this.elementType = TiffTools.pixelTypeToElementType(ifd0.getPixelType());
             final long imageDimX = ifd0.getImageWidth();
             final long imageDimY = ifd0.getImageLength();
             this.imageDescriptions = new ArrayList<SVSImageDescription>();
@@ -178,7 +178,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.combineWithWholeSlide = combineWithWholeSlideRequest
                     && ifdMacro != null
                     && geometrySupported
-                    && TiffTools.javaElementType(ifdMacro.getPixelType()) == elementType
+                    && TiffTools.pixelTypeToElementType(ifdMacro.getPixelType()) == elementType
                     && ifdMacro.getSamplesPerPixel() == bandCount;
             long levelDimX, levelDimY;
             if (combineWithWholeSlide) {
@@ -322,7 +322,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     }
                     break;
                 }
-                final Class<?> elementType = TiffTools.javaElementType(ifd.getPixelType());
+                final Class<?> elementType = TiffTools.pixelTypeToElementType(ifd.getPixelType());
                 if (elementType != this.elementType) {
                     throw new FormatException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""
@@ -750,7 +750,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         }
     }
 
-    private static boolean detectMotic(List<IFD> allIFDs, SVSImageDescription mainImageDescription)
+    private static boolean detectMotic(List<? extends IFD> allIFDs, SVSImageDescription mainImageDescription)
             throws FormatException {
         // Warning! It is an evristic algorithm that should be improved in collaboration with Motic!
         if (mainImageDescription != null && mainImageDescription.isGeometrySupported()) {
@@ -819,7 +819,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         final Object data = largeData.tiffParser.getSamplesArray(
-                largeData.ifdList.get(ifdIndex), fromX, fromY, sizeX, sizeY, true, bandCount, elementType);
+                largeData.ifdList.get(ifdIndex), fromX, fromY, sizeX, sizeY, bandCount, elementType);
         return Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
                 bandCount, sizeX, sizeY);
@@ -907,7 +907,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
         private TiffParser tiffParser = null;
-        private List<IFD> ifdList = null;
+        private List<ExtendedIFD> ifdList = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
         private final Lock readLock, writeLock;
@@ -928,7 +928,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 tiffParser = CachingTiffParser.getInstance(sciContext, svsFile).setFiller(TIFF_FILLER);
                 tiffParser.setAutoInterleave(true);
                 // - should be removed in future versions, returning unpacked planes
-                ifdList = tiffParser.getIFDs();
+                ifdList = tiffParser.allIFD();
                 long t2 = System.nanoTime();
                 LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                         "SVS parser opens file %s: %.3f ms", svsFile, (t2 - t1) * 1e-6));

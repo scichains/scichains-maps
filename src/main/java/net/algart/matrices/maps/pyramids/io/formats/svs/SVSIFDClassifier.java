@@ -56,7 +56,7 @@ public final class SVSIFDClassifier {
     private int macroIndex = -1;
     private final List<Integer> unknownSpecialIndexes = new ArrayList<>();
 
-    public SVSIFDClassifier(List<IFD> ifdList) throws FormatException {
+    public SVSIFDClassifier(List<? extends IFD> ifdList) throws FormatException {
         Objects.requireNonNull(ifdList);
         this.ifdList = new ArrayList<>(ifdList);
         this.ifdCount = ifdList.size();

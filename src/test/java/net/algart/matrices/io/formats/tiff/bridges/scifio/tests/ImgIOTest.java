@@ -60,7 +60,7 @@ public class ImgIOTest {
             Files.deleteIfExists(resultFile);
             ImgSaver imgSaver = new ImgSaver(context);
             SCIFIOConfig scifioConfig = new SCIFIOConfig(context);
-            scifioConfig.writerSetCompression(CompressionType.JPEG);
+//            scifioConfig.writerSetCompression(CompressionType.JPEG);
             imgSaver.saveImg(resultFile.toString(), imgPluses.get(0), 0, scifioConfig);
 
             System.out.println("Done");

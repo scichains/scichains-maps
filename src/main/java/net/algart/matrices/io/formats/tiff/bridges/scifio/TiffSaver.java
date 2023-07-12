@@ -734,32 +734,45 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    public void writeSamples(
-            final byte[][] samples, final IFDList ifds,
-            final int pixelType) throws FormatException, IOException {
-        Objects.requireNonNull(samples, "Null samples data");
+    public void writeSamples(List<? extends IFD> ifds, byte[][] samples, int pixelType)
+            throws FormatException, IOException {
         Objects.requireNonNull(ifds, "Null IFD list");
+        Objects.requireNonNull(samples, "Null samples data");
         for (int i = 0; i < ifds.size(); i++) {
             if (i < samples.length) {
-                writeImage(samples[i], ifds.get(i), i, pixelType, i == ifds.size() - 1);
+                writeSamples(ExtendedIFD.extend(ifds.get(i)), samples[i], i, pixelType, i == ifds.size() - 1);
             }
         }
     }
 
+    public void writeSamples(ExtendedIFD ifd, byte[] samples, int pixelType, boolean last)
+            throws FormatException, IOException {
+        if (!writingSequentially) {
+            throw new IllegalStateException("Writing samples without IFD index is possible only in sequential mode");
+        }
+        writeSamples(ifd, samples, -1, pixelType, last);
+    }
+
     public void writeSamples(
-            final byte[] samples, final IFD ifd, final int planeIndex,
+            final ExtendedIFD ifd, final byte[] samples, final int ifdIndex,
             final int pixelType, final boolean last) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
-        final int w = (int) ifd.getImageWidth();
-        final int h = (int) ifd.getImageLength();
-        writeImage(samples, ifd, planeIndex, pixelType, 0, 0, w, h, last);
+        writeSamples(ExtendedIFD.extend(ifd), samples,
+                ifdIndex,
+                null,
+                pixelType,
+                0,
+                0,
+                ifd.getImageSizeX(),
+                ifd.getImageSizeY(),
+                last);
     }
 
     /**
      * Writes to any rectangle from the passed block.
      *
-     * @param samples    The block that is to be written.
      * @param ifd        The Image File Directories. Mustn't be {@code null}.
+     * @param samples    The block that is to be written.
      * @param planeIndex The image index within the current file, starting from 0.
      * @param pixelType  The type of pixels.
      * @param x          The X-coordinate of the top-left corner.
@@ -772,25 +785,28 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws IOException
      */
     public void writeSamples(
-            final byte[] samples, final IFD ifd, final long planeIndex,
+            final IFD ifd, final byte[] samples, final int planeIndex,
             final int pixelType, final int x, final int y, final int w, final int h,
             final boolean last) throws FormatException, IOException {
-        writeSamples(samples, ExtendedIFD.extend(ifd), planeIndex, null, pixelType, x, y, w, h, last);
+        writeSamples(ExtendedIFD.extend(ifd), samples, planeIndex, null, pixelType, x, y, w, h, last);
     }
 
     public void writeSamples(
-            byte[] samples,
             final ExtendedIFD ifd,
-            final long planeIndex,
+            byte[] samples,
+            final int ifdIndex,
             Integer numberOfChannels,
             final int pixelType,
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean last)
             throws FormatException, IOException {
-        Objects.requireNonNull(samples, "Null samples data");
         Objects.requireNonNull(ifd, "Null IFD");
-        // - we should not convert ifd into ExtendedIFD, because it can make changes inside IFD invisible outside
-        long t1 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        Objects.requireNonNull(samples, "Null samples data");
+        if (!writingSequentially && ifdIndex < 0) {
+            throw new IllegalArgumentException("Negative ifdIndex = " + ifdIndex +
+                    " (it is allowed only in writing-sequentially mode)");
+        }
+        long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         assert bytesPerSample >= 1;
@@ -814,17 +830,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         prepareValidIFD(ifd, pixelType, numberOfChannels);
 
         // These operations are synchronized
-        long t2 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        long t2 = debugTime();
         if (ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
             samples = TiffTools.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
         }
-        long t3 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        long t3 = debugTime();
         final List<TiffTile> tiles;
         synchronized (this) {
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
             tiles = splitTiles(samples, ifd, numberOfChannels, bytesPerSample, fromX, fromY, sizeX, sizeY);
         }
-        long t4 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        long t4 = debugTime();
 
         // Compress tiles according to given differencing and compression
         // schemes,
@@ -835,14 +851,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             scifio.tiff().difference(tile.getDecodedData(), ifd);
             encode(tile);
         }
-        long t5 = TiffParser.BUILT_IN_TIMING ? System.nanoTime() : 0;
+        long t5 = debugTime();
 
         // This operation is synchronized
         synchronized (this) {
-            writeSamplesAndIFD(ifd, planeIndex, tiles, numberOfChannels, last, fromX, fromY);
+            writeSamplesAndIFD(ifd, ifdIndex, tiles, numberOfChannels, last, fromX, fromY);
         }
-        if (TiffParser.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
-            long t6 = System.nanoTime();
+        if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
+            long t6 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f prepare + %.3f interleave + %.3f splitting " +
@@ -896,152 +912,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    /* These methods are never used and should be removed. No sense to optimize it.
-	public void overwriteLastIFDOffset(final DataHandle<Location> handle)
-		throws FormatException, IOException
-	{
-		if (handle == null) throw new FormatException("Output cannot be null");
-		final TiffParser parser = new TiffParser(getContext(), handle);
-		parser.getIFDOffsets();
-		out.seek(handle.offset() - (bigTiff ? 8 : 4));
-		writeIntValue(out, 0);
-	}
-
-	/ **
-	 * Surgically overwrites an existing IFD value with the given one. This method
-	 * requires that the IFD directory entry already exist. It intelligently
-	 * updates the count field of the entry to match the new length. If the new
-	 * length is longer than the old length, it appends the new data to the end of
-	 * the file and updates the offset field; if not, or if the old data is
-	 * already at the end of the file, it overwrites the old data in place.
-	 * /
-	public void overwriteIFDValue(final DataHandle<Location> raf, final int ifd,
-		final int tag, final Object value) throws FormatException, IOException
-	{
-		if (raf == null) throw new FormatException("Output cannot be null");
-		log.debug("overwriteIFDValue (ifd=" + ifd + "; tag=" + tag + "; value=" +
-			value + ")");
-
-		raf.seek(0);
-		final TiffParser parser = new TiffParser(getContext(), raf);
-		final Boolean valid = parser.checkHeader();
-		if (valid == null) {
-			throw new FormatException("Invalid TIFF header");
-		}
-
-		final boolean little = valid;
-		final boolean bigTiff = parser.isBigTiff();
-
-		setLittleEndian(little);
-		setBigTiff(bigTiff);
-
-		final long offset = bigTiff ? 8 : 4; // offset to the IFD
-
-		final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-			: TiffConstants.BYTES_PER_ENTRY;
-
-		raf.seek(offset);
-
-		// skip to the correct IFD
-		final long[] offsets = parser.getIFDOffsets();
-		if (ifd >= offsets.length) {
-			throw new FormatException("No such IFD (" + ifd + " of " +
-				offsets.length + ")");
-		}
-		raf.seek(offsets[ifd]);
-
-		// get the number of directory entries
-		final long num = bigTiff ? raf.readLong() : raf.readUnsignedShort();
-
-		// search directory entries for proper tag
-		for (int i = 0; i < num; i++) {
-			raf.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i);
-
-			final TiffIFDEntry entry = parser.readTiffIFDEntry();
-			if (entry.getTag() == tag) {
-				// write new value to buffers
-				final DataHandle<Location> ifdHandle = dataHandleService.create(
-					new BytesLocation(bytesPerEntry));
-				final DataHandle<Location> extraHandle = dataHandleService.create(
-					new BytesLocation(0));
-				extraHandle.setLittleEndian(little);
-				final TiffSaver saver = new TiffSaver(ifdHandle, new BytesLocation(
-					bytesPerEntry));
-				saver.setLittleEndian(isLittleEndian());
-				saver.writeIFDValue(extraHandle, entry.getValueOffset(), tag, value);
-				ifdHandle.seek(0);
-				extraHandle.seek(0);
-
-				// extract new directory entry parameters
-				final int newTag = ifdHandle.readShort();
-				final int newType = ifdHandle.readShort();
-				int newCount;
-				long newOffset;
-				if (bigTiff) {
-					newCount = ifdHandle.readInt();
-					newOffset = ifdHandle.readLong();
-				}
-				else {
-					newCount = ifdHandle.readInt();
-					newOffset = ifdHandle.readInt();
-				}
-				log.debug("overwriteIFDValue:");
-				log.debug("\told (" + entry + ");");
-				log.debug("\tnew: (tag=" + newTag + "; type=" + newType + "; count=" +
-					newCount + "; offset=" + newOffset + ")");
-
-				// determine the best way to overwrite the old entry
-				if (extraHandle.length() == 0) {
-					// new entry is inline; if old entry wasn't, old data is
-					// orphaned
-					// do not override new offset value since data is inline
-					log.debug("overwriteIFDValue: new entry is inline");
-				}
-				else if (entry.getValueOffset() + entry.getValueCount() * entry
-					.getType().getBytesPerElement() == raf.length())
-				{
-					// old entry was already at EOF; overwrite it
-					newOffset = entry.getValueOffset();
-					log.debug("overwriteIFDValue: old entry is at EOF");
-				}
-				else if (newCount <= entry.getValueCount()) {
-					// new entry is as small or smaller than old entry;
-					// overwrite it
-					newOffset = entry.getValueOffset();
-					log.debug("overwriteIFDValue: new entry is <= old entry");
-				}
-				else {
-					// old entry was elsewhere; append to EOF, orphaning old
-					// entry
-					newOffset = raf.length();
-					log.debug("overwriteIFDValue: old entry will be orphaned");
-				}
-
-				// overwrite old entry
-				out.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i + 2);
-				out.writeShort(newType);
-				writeIntValue(out, newCount);
-				writeIntValue(out, newOffset);
-				if (extraHandle.length() > 0) {
-					out.seek(newOffset);
-					extraHandle.seek(0l);
-					DataHandles.copy(extraHandle, out, newCount);
-				}
-				return;
-			}
-		}
-
-		throw new FormatException("Tag not found (" + IFD.getIFDTagName(tag) + ")");
-	}
-
-	/ ** Convenience method for overwriting a file's first ImageDescription. * /
-	public void overwriteComment(final DataHandle<Location> in,
-		final Object value) throws FormatException, IOException
-	{
-		overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
-	}
-
- */
 
     @Override
     public void close() throws IOException {
@@ -1238,18 +1108,18 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * Performs the actual work of dealing with IFD data and writing it to the
      * TIFF for a given image or sub-image.
      *
-     * @param ifd        The Image File Directories. Mustn't be {@code null}.
-     * @param planeIndex The image index within the current file, starting from 0.
-     * @param tiles      The strips/tiles to write to the file.
-     * @param last       Pass {@code true} if it is the last image, {@code false}
-     *                   otherwise.
-     * @param x          The initial X offset of the strips/tiles to write.
-     * @param y          The initial Y offset of the strips/tiles to write.
+     * @param ifd      The Image File Directories. Mustn't be {@code null}.
+     * @param ifdIndex The image index within the current file, starting from 0.
+     * @param tiles    The strips/tiles to write to the file.
+     * @param last     Pass {@code true} if it is the last image, {@code false}
+     *                 otherwise.
+     * @param x        The initial X offset of the strips/tiles to write.
+     * @param y        The initial Y offset of the strips/tiles to write.
      * @throws FormatException
      * @throws IOException
      */
     private void writeSamplesAndIFD(
-            ExtendedIFD ifd, final long planeIndex,
+            ExtendedIFD ifd, final int ifdIndex,
             final List<TiffTile> tiles, final int nChannels, final boolean last,
             final int x,
             final int y) throws FormatException, IOException {
@@ -1260,19 +1130,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         assert out != null : "must be checked in the constructor";
 
         if (!writingSequentially) {
-            if (planeIndex < 0) {
-                throw new IllegalArgumentException("Negative planeIndex = " + planeIndex);
-            }
             final DataHandle<Location> in = loc != null ?
                     dataHandleService.create(loc) :
                     dataHandleService.create(out.get());
             try (final TiffParser parser = new TiffParser(getContext(), in)) {
                 final long[] ifdOffsets = parser.getIFDOffsets();
-                if (planeIndex < ifdOffsets.length) {
-                    out.seek(ifdOffsets[(int) planeIndex]);
+                if (ifdIndex < ifdOffsets.length) {
+                    out.seek(ifdOffsets[(int) ifdIndex]);
                     LOG.log(System.Logger.Level.TRACE, () ->
-                            "Reading IFD from " + ifdOffsets[(int) planeIndex] + " for non-sequential writing");
-                    ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
+                            "Reading IFD from " + ifdOffsets[ifdIndex] + " for non-sequential writing");
+                    ifd = parser.getIFD(ifdOffsets[ifdIndex]);
                 }
             }
         }
@@ -1364,26 +1231,29 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // - restoring correct file pointer at the end of tile
     }
 
+    private static long debugTime() {
+        return TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG ? System.nanoTime() : 0;
+    }
+
     @Deprecated
     public void writeImage(
             final byte[][] samples, final IFDList ifds,
             final int pixelType) throws FormatException, IOException {
-        writeSamples(samples, ifds, pixelType);
+        writeSamples(ifds, samples, pixelType);
     }
 
     @Deprecated
     public void writeImage(
             final byte[] samples, final IFD ifd, final int planeIndex,
             final int pixelType, final boolean last) throws FormatException, IOException {
-        writeSamples(samples, ifd, planeIndex, pixelType, last);
+        writeSamples(ExtendedIFD.extend(ifd), samples, planeIndex, pixelType, last);
     }
 
     @Deprecated
-    public void writeImage(
-            final byte[] samples, final IFD ifd, final long planeIndex,
-            final int pixelType, final int x, final int y, final int w, final int h,
-            final boolean last) throws FormatException, IOException {
-        writeSamples(samples, ExtendedIFD.extend(ifd), planeIndex, null, pixelType, x, y, w, h, last);
+    public void writeImage(final byte[] buf, final IFD ifd, final long planeIndex,
+                           final int pixelType, final int x, final int y, final int w, final int h,
+                           final boolean last) throws FormatException, IOException {
+        writeImage(buf, ifd, planeIndex, pixelType, x, y, w, h, last, null, false);
     }
 
     @Deprecated
@@ -1391,6 +1261,161 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                            final int pixelType, final int x, final int y, final int w, final int h,
                            final boolean last, Integer nChannels, final boolean copyDirectly)
             throws FormatException, IOException {
-        writeSamples(buf, ExtendedIFD.extend(ifd), planeIndex, nChannels, pixelType, x, y, w, h, last);
+        //Note: modern version of writeSamples doesn't need optimization via copyDirectly
+        writeSamples(ExtendedIFD.extend(ifd), buf,
+                (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
+    }
+
+    @Deprecated
+    public void overwriteLastIFDOffset(final DataHandle<Location> handle)
+            throws FormatException, IOException {
+        if (handle == null) throw new FormatException("Output cannot be null");
+        final io.scif.formats.tiff.TiffParser parser = new io.scif.formats.tiff.TiffParser(getContext(), handle);
+        parser.getIFDOffsets();
+        out.seek(handle.offset() - (bigTiff ? 8 : 4));
+        writeIntValue(out, 0);
+    }
+
+
+    /**
+     * Surgically overwrites an existing IFD value with the given one. This method
+     * requires that the IFD directory entry already exist. It intelligently
+     * updates the count field of the entry to match the new length. If the new
+     * length is longer than the old length, it appends the new data to the end of
+     * the file and updates the offset field; if not, or if the old data is
+     * already at the end of the file, it overwrites the old data in place.
+     */
+    @Deprecated
+    public void overwriteIFDValue(final DataHandle<Location> raf, final int ifd,
+                                  final int tag, final Object value) throws FormatException, IOException {
+        if (raf == null) throw new FormatException("Output cannot be null");
+        log.debug("overwriteIFDValue (ifd=" + ifd + "; tag=" + tag + "; value=" +
+                value + ")");
+
+        raf.seek(0);
+        final io.scif.formats.tiff.TiffParser parser = new io.scif.formats.tiff.TiffParser(getContext(), raf);
+        final Boolean valid = parser.checkHeader();
+        if (valid == null) {
+            throw new FormatException("Invalid TIFF header");
+        }
+
+        final boolean little = valid.booleanValue();
+        final boolean bigTiff = parser.isBigTiff();
+
+        setLittleEndian(little);
+        setBigTiff(bigTiff);
+
+        final long offset = bigTiff ? 8 : 4; // offset to the IFD
+
+        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
+                : TiffConstants.BYTES_PER_ENTRY;
+
+        raf.seek(offset);
+
+        // skip to the correct IFD
+        final long[] offsets = parser.getIFDOffsets();
+        if (ifd >= offsets.length) {
+            throw new FormatException("No such IFD (" + ifd + " of " +
+                    offsets.length + ")");
+        }
+        raf.seek(offsets[ifd]);
+
+        // get the number of directory entries
+        final long num = bigTiff ? raf.readLong() : raf.readUnsignedShort();
+
+        // search directory entries for proper tag
+        for (int i = 0; i < num; i++) {
+            raf.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i);
+
+            final TiffIFDEntry entry = parser.readTiffIFDEntry();
+            if (entry.getTag() == tag) {
+                // write new value to buffers
+                final DataHandle<Location> ifdHandle = dataHandleService.create(
+                        new BytesLocation(bytesPerEntry));
+                final DataHandle<Location> extraHandle = dataHandleService.create(
+                        new BytesLocation(0));
+                extraHandle.setLittleEndian(little);
+                final io.scif.formats.tiff.TiffSaver saver = new io.scif.formats.tiff.TiffSaver(ifdHandle, new BytesLocation(
+                        bytesPerEntry));
+                saver.setLittleEndian(isLittleEndian());
+                saver.writeIFDValue(extraHandle, entry.getValueOffset(), tag, value);
+                ifdHandle.seek(0);
+                extraHandle.seek(0);
+
+                // extract new directory entry parameters
+                final int newTag = ifdHandle.readShort();
+                final int newType = ifdHandle.readShort();
+                int newCount;
+                long newOffset;
+                if (bigTiff) {
+                    newCount = ifdHandle.readInt();
+                    newOffset = ifdHandle.readLong();
+                } else {
+                    newCount = ifdHandle.readInt();
+                    newOffset = ifdHandle.readInt();
+                }
+                log.debug("overwriteIFDValue:");
+                log.debug("\told (" + entry + ");");
+                log.debug("\tnew: (tag=" + newTag + "; type=" + newType + "; count=" +
+                        newCount + "; offset=" + newOffset + ")");
+
+                // determine the best way to overwrite the old entry
+                if (extraHandle.length() == 0) {
+                    // new entry is inline; if old entry wasn't, old data is
+                    // orphaned
+                    // do not override new offset value since data is inline
+                    log.debug("overwriteIFDValue: new entry is inline");
+                } else if (entry.getValueOffset() + entry.getValueCount() * entry
+                        .getType().getBytesPerElement() == raf.length()) {
+                    // old entry was already at EOF; overwrite it
+                    newOffset = entry.getValueOffset();
+                    log.debug("overwriteIFDValue: old entry is at EOF");
+                } else if (newCount <= entry.getValueCount()) {
+                    // new entry is as small or smaller than old entry;
+                    // overwrite it
+                    newOffset = entry.getValueOffset();
+                    log.debug("overwriteIFDValue: new entry is <= old entry");
+                } else {
+                    // old entry was elsewhere; append to EOF, orphaning old
+                    // entry
+                    newOffset = raf.length();
+                    log.debug("overwriteIFDValue: old entry will be orphaned");
+                }
+
+                // overwrite old entry
+                out.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i + 2);
+                out.writeShort(newType);
+                writeIntValue(out, newCount);
+                writeIntValue(out, newOffset);
+                if (extraHandle.length() > 0) {
+                    out.seek(newOffset);
+                    extraHandle.seek(0l);
+                    DataHandles.copy(extraHandle, out, newCount);
+                }
+                return;
+            }
+        }
+
+        throw new FormatException("Tag not found (" + IFD.getIFDTagName(tag) + ")");
+    }
+
+    /**
+     * Convenience method for overwriting a file's first ImageDescription.
+     */
+    @Deprecated
+    public void overwriteComment(final DataHandle<Location> in,
+                                 final Object value) throws FormatException, IOException {
+        overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
+    }
+
+
+    @Deprecated
+    private void writeIntValue(final DataHandle<Location> handle,
+                               final long offset) throws IOException {
+        if (bigTiff) {
+            handle.writeLong(offset);
+        } else {
+            handle.writeInt((int) offset);
+        }
     }
 }

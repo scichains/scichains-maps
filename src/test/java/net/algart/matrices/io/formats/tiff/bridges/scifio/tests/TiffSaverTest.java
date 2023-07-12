@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
+import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
@@ -87,6 +88,8 @@ public class TiffSaverTest {
         final Path targetFile = Paths.get(args[startArgIndex]);
         final int numberOfImages = startArgIndex + 1 < args.length ? Integer.parseInt(args[startArgIndex + 1]) : 1;
         final String compression = startArgIndex + 2 < args.length ? args[startArgIndex + 2] : null;
+        final int bandCount = color ? 3 : 1;
+        final int pixelType = FormatTools.UINT8;
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext();
@@ -103,8 +106,7 @@ public class TiffSaverTest {
             saver.startWriting();
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                final int bandCount = color ? 3 : 1;
-                byte[] samples = makeSamples(ifdIndex, bandCount, WIDTH, HEIGHT);
+                byte[] samples = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
                 ExtendedIFD ifd = new ExtendedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
@@ -114,15 +116,15 @@ public class TiffSaverTest {
                 if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
                 }
-                saver.writeSamples(samples,
-                        ifd, ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
+                saver.writeSamples(ifd, samples,
+                        ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1);
             }
         }
         System.out.println("Done");
     }
 
-    private static byte[] makeSamples(int ifdIndex, int bandCount, int xSize, int ySize) {
+    private static byte[] makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
         byte[] bytes = new byte[matrixSize * bandCount];
         for (int y = 0, disp = 0; y < ySize; y++) {

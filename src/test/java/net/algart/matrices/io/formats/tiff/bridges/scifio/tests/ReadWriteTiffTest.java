@@ -109,11 +109,11 @@ public class ReadWriteTiffTest {
                         .open() :
                         null;
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
-                final List<IFD> ifdList = parser.getIFDs();
+                final List<ExtendedIFD> ifdList = parser.allIFD();
                 lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final boolean last = ifdIndex == ifdList.size() - 1;
-                    final ExtendedIFD parserIFD = ExtendedIFD.extend(ifdList.get(ifdIndex));
+                    final ExtendedIFD parserIFD = ifdList.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), parserIFD);
                     final int w = (int) Math.min(parserIFD.getImageWidth(), MAX_IMAGE_DIM);
                     final int h = (int) Math.min(parserIFD.getImageLength(), MAX_IMAGE_DIM);
@@ -130,7 +130,7 @@ public class ReadWriteTiffTest {
                         // - not remove! Removing means default value!
                     }
                     saverIFD.putImageSizes(w, h);
-                    saver.writeSamples(bytes, saverIFD, -1, bandCount,
+                    saver.writeSamples(saverIFD, bytes, -1, bandCount,
                             parserIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", saverIFD);
