@@ -141,7 +141,7 @@ public class TiffTile {
         return setData(data).setEncoded(false);
     }
 
-    public TiffTile removeData() {
+    public TiffTile clear() {
         this.data = null;
         return this;
     }
@@ -150,7 +150,7 @@ public class TiffTile {
      * Return the length of the last non-null {@link #getData() data array}, stored in this tile,
      * or 0 after creating this object.
      *
-     * <p>Note: {@link #removeData()} method does not change this value! So, you can know the last data size
+     * <p>Note: {@link #clear()} method does not change this value! So, you can know the last data size
      * even after freeing data, stored inside this object.
      *
      * @return the length of the last non-null data array, which was stored in this object.

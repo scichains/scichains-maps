@@ -289,7 +289,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 if (LOG.isLoggable(System.Logger.Level.DEBUG)) {
                     LOG.log(System.Logger.Level.DEBUG, String.format(
                             "  SVS reader checks IFD #%d/%d: "
-                                    + "%dx%d, IFD %dx%d; IFD compression method: %s; description:%n%s",
+                                    + "%dx%d, IFD %dx%d; IFD compression method: %s; description: %s",
                             k, ifdCount, levelDimX, levelDimY, newPyramidLevelDimX, newPyramidLevelDimY,
                             SVSIFDClassifier.compressionToString(ifd), printedDescription(k)));
                 }

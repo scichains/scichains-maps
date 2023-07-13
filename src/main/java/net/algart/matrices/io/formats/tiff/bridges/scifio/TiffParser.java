@@ -1199,8 +1199,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         long t3 = debugTime();
         if (autoInterleave) {
-            byte[] buffer = TiffTools.interleaveSamples(ifd, samples, sizeX * sizeY);
-            System.arraycopy(buffer, 0, samples, 0, size);
+            TiffTools.interleaveSamples(ifd, samples, sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t4 = debugTime();
@@ -1685,7 +1684,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     @Deprecated
     public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
-		throws FormatException, IOException {
+            throws FormatException, IOException {
         TiffTileIndex tileIndex = new TiffTileIndex(ExtendedIFD.extend(ifd), col, row);
         if (buf == null) {
             buf = new byte[tileIndex.sizeOfBasedOnBits()];
@@ -1698,7 +1697,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return buf;
     }
 
-    /** This function is deprecated, because it has identical behaviour with
+    /**
+     * This function is deprecated, because it has identical behaviour with
      * {@link #getSamples(IFD, byte[], int, int, int, int)} and actually is always called
      * from other classes with <tt>int</tt> parameters, even in OME BioFormats.
      */
@@ -1709,14 +1709,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return getSamples(ExtendedIFD.extend(ifd), samples, fromX, fromY, (int) sizeX, (int) sizeY);
     }
 
-    /** This function is deprecated, because it is almost not used - the only exception is
+    /**
+     * This function is deprecated, because it is almost not used - the only exception is
      * TrestleReader from OME BioFormats.
      */
     @Deprecated
     public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
                              final int y, final long width, final long height, final int overlapX,
-                             final int overlapY) throws FormatException, IOException
-    {
+                             final int overlapY) throws FormatException, IOException {
         log.trace("parsing IFD entries");
 
         // get internal non-IFD entries
@@ -1766,11 +1766,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
 
         if (compression == TiffCompression.JPEG_2000 ||
-                compression == TiffCompression.JPEG_2000_LOSSY)
-        {
+                compression == TiffCompression.JPEG_2000_LOSSY) {
             codecOptions = compression.getCompressionCodecOptions(ifd, codecOptions);
-        }
-        else codecOptions = compression.getCompressionCodecOptions(ifd);
+        } else codecOptions = compression.getCompressionCodecOptions(ifd);
         codecOptions.interleaved = true;
         codecOptions.littleEndian = ifd.isLittleEndian();
         final long imageLength = ifd.getImageLength();
@@ -1782,8 +1780,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 .getBitsPerSample()[0] % 8) == 0 &&
                 photoInterp != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
-                compression == TiffCompression.UNCOMPRESSED)
-        {
+                compression == TiffCompression.UNCOMPRESSED) {
             final long[] stripOffsets = ifd.getStripOffsets();
             final long[] stripByteCounts = ifd.getStripByteCounts();
 
@@ -1808,7 +1805,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     offset += len;
                 }
             }
-            return TiffTools.invertFillOrderIfNecessary(ifd, buf);
+            return adjustFillOrder(ifd, buf);
         }
 
         final long nrows = numTileRows;
@@ -1896,9 +1893,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     // (or the current tile may be overwritten by a subsequent
                     // tile)
                     if (rowLen == outputRowLen && overlapX == 0 && overlapY == 0) {
+                        //!! Note: here is a bug! It is possible that x != 0!
                         System.arraycopy(cachedTileBuffer, src, buf, dest, copy * theight);
-                    }
-                    else {
+                    } else {
                         for (int tileRow = 0; tileRow < theight; tileRow++) {
                             System.arraycopy(cachedTileBuffer, src, buf, dest, copy);
                             src += rowLen;
@@ -1909,6 +1906,13 @@ public class TiffParser extends AbstractContextual implements Closeable {
             }
         }
 
-        return TiffTools.invertFillOrderIfNecessary(ifd, buf);
+        return adjustFillOrder(ifd, buf);
+    }
+
+    @Deprecated
+    private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)
+            throws FormatException {
+        TiffTools.invertFillOrderIfNecessary(ifd, buf);
+        return buf;
     }
 }

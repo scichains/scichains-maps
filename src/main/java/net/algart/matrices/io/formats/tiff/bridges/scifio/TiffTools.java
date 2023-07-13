@@ -176,23 +176,30 @@ public class TiffTools {
         throw new AssertionError("(should be already checked in arrayToPixelType)");
     }
 
-    public static byte[] interleaveSamples(IFD ifd, byte[] samples, int numberOfPixels)
-            throws FormatException {
+    public static void interleaveSamples(IFD ifd, byte[] samples, int numberOfPixels) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        return interleaveSamples(
+        interleaveSamples(
                 samples,
                 ifd.getSamplesPerPixel(),
                 FormatTools.getBytesPerPixel(ifd.getPixelType()),
                 numberOfPixels);
     }
 
-    public static byte[] interleaveSamples(
-            byte[] samples,
+    public static void interleaveSamples(byte[] bytes, int numberOfChannels, int bytesPerSample, int numberOfPixels) {
+        byte[] buffer = toInterleavedSamples(
+                bytes, numberOfChannels, bytesPerSample,
+                numberOfPixels);
+        if (buffer != bytes) {
+            System.arraycopy(buffer, 0, bytes, 0, buffer.length);
+        }
+    }
+
+    public static byte[] toInterleavedSamples(
+            byte[] bytes,
             int numberOfChannels,
             int bytesPerSample,
-            int numberOfPixels)
-            throws FormatException {
-        Objects.requireNonNull(samples, "Null samples");
+            int numberOfPixels) {
+        Objects.requireNonNull(bytes, "Null bytes");
         if (numberOfPixels < 0) {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
@@ -202,14 +209,16 @@ public class TiffTools {
         if (bytesPerSample <= 0) {
             throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
         }
-        final int size = checkedMul(new long[]{numberOfPixels, numberOfChannels, bytesPerSample},
-                new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
+        final int size = checkedMulNoException(
+                new long[]{numberOfPixels, numberOfChannels, bytesPerSample},
+                new String[]{"number of pixels", "bytes per pixel", "bytes per sample"},
                 () -> "Invalid sizes: ", () -> "");
-        if (samples.length < size) {
-            throw new IllegalArgumentException("Too short samples array: " + samples.length + " < " + size);
+        // - exception usually should not occur: this function is typically called after analysing IFD
+        if (bytes.length < size) {
+            throw new IllegalArgumentException("Too short bytes array: " + bytes.length + " < " + size);
         }
         if (numberOfChannels == 1) {
-            return samples;
+            return bytes;
         }
         final int bandSize = numberOfPixels * bytesPerSample;
         final byte[] interleavedBytes = new byte[size];
@@ -218,14 +227,14 @@ public class TiffTools {
             for (int i = 0, disp = 0; i < bandSize; i++) {
                 for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
                     // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
-                    interleavedBytes[disp++] = samples[bandDisp];
+                    interleavedBytes[disp++] = bytes[bandDisp];
                 }
             }
         } else {
             for (int i = 0, disp = 0; i < bandSize; i += bytesPerSample) {
                 for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
                     for (int k = 0; k < bytesPerSample; k++) {
-                        interleavedBytes[disp++] = samples[bandDisp + k];
+                        interleavedBytes[disp++] = bytes[bandDisp + k];
                     }
                 }
             }
@@ -244,11 +253,14 @@ public class TiffTools {
         final boolean littleEndian;
         final int samplesPerPixel;
         try {
-            samplesPerPixel = ifd.getSamplesPerPixel();
             final int pixelType = ifd.getPixelType();
+            if (pixelType != FormatTools.FLOAT) {
+                return;
+            }
+            samplesPerPixel = ifd.getSamplesPerPixel();
             final int[] bitsPerSample = ifd.getBitsPerSample();
-            float16 = pixelType == FormatTools.FLOAT && bitsPerSample[0] == 16;
-            float24 = pixelType == FormatTools.FLOAT && bitsPerSample[0] == 24;
+            float16 = bitsPerSample[0] == 16;
+            float24 = bitsPerSample[0] == 24;
             littleEndian = ifd.isLittleEndian();
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal TIFF IFD", e);
@@ -256,28 +268,24 @@ public class TiffTools {
         }
 
         if (float16 || float24) {
+            // - very rare case, no sense to optimize the following code (it was already tested inside SCIFIO)
             final int nBytes = float16 ? 2 : 3;
             final int mantissaBits = float16 ? 10 : 16;
             final int exponentBits = float16 ? 5 : 7;
             final int maxExponent = (int) Math.pow(2, exponentBits) - 1;
             final int bits = (nBytes * 8) - 1;
 
-            try {
-                checkedMul(new long[]{numberOfPixels, samplesPerPixel, nBytes},
-                        new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
-                        () -> "Invalid sizes: ", () -> "");
-            } catch (FormatException e) {
-                throw new IllegalArgumentException("Illegal TIFF IFD", e);
-                // - usually should not occur: this function is typically called after analysing IFD
-            }
+            checkedMulNoException(new long[]{numberOfPixels, samplesPerPixel, nBytes},
+                    new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
+                    () -> "Invalid sizes: ", () -> "");
+            // - exception usually should not occur: this function is typically called after analysing IFD
             final int numberOfSamples = samplesPerPixel * numberOfPixels;
 
             final byte[] newBuf = new byte[samples.length];
             for (int i = 0; i < numberOfSamples; i++) {
                 final int v = Bytes.toInt(samples, i * nBytes, nBytes, littleEndian);
                 final int sign = v >> bits;
-                int exponent = (v >> mantissaBits) & (int) (Math.pow(2,
-                        exponentBits) - 1);
+                int exponent = (v >> mantissaBits) & (int) (Math.pow(2, exponentBits) - 1);
                 int mantissa = v & (int) (Math.pow(2, mantissaBits) - 1);
 
                 if (exponent == 0) {
@@ -311,10 +319,9 @@ public class TiffTools {
      *
      * @param ifd IFD
      * @param buf bytes
-     * @return a reference to buf argument.
      * @throws FormatException in a case of error in IFD
      */
-    public static byte[] invertFillOrderIfNecessary(final IFD ifd, final byte[] buf) throws FormatException {
+    public static void invertFillOrderIfNecessary(final IFD ifd, final byte[] buf) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (ifd.getFillOrder() == FillOrder.REVERSED) {
             // swap bits order of all bytes
@@ -322,7 +329,6 @@ public class TiffTools {
                 buf[i] = REVERSE[buf[i] & 0xFF];
             }
         }
-        return buf;
     }
 
     static FileLocation existingFileToLocation(Path file) throws FileNotFoundException {
@@ -339,6 +345,18 @@ public class TiffTools {
             Supplier<String> prefix,
             Supplier<String> postfix) throws FormatException {
         return checkedMul(new long[]{v1, v2, v3, v4}, new String[]{n1, n2, n3, n4}, prefix, postfix);
+    }
+
+    static int checkedMulNoException(
+            long[] values,
+            String[] names,
+            Supplier<String> prefix,
+            Supplier<String> postfix) {
+        try {
+            return checkedMul(values, names, prefix, postfix);
+        } catch (FormatException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
     }
 
     static int checkedMul(

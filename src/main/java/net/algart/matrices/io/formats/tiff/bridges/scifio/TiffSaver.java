@@ -822,7 +822,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // These operations are synchronized
         long t2 = debugTime();
         if (ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
-            samples = TiffTools.interleaveSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
+            samples = TiffTools.toInterleavedSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
+            // - note: we MUST NOT corrupt the original samples!
         }
         long t3 = debugTime();
         final List<TiffTile> tiles;

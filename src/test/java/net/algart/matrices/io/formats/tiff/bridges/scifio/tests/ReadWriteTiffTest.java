@@ -103,11 +103,13 @@ public class ReadWriteTiffTest {
                 saver.setLittleEndian(true);
                 saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
                 saver.writeHeader();
-                SequentialTiffWriter writer = legacy ? new SequentialTiffWriter(context, targetExperimentalFile)
-                        .setBigTiff(bigTiff)
-                        .setLittleEndian(true)
-                        .open() :
-                        null;
+                SequentialTiffWriter writer = null;
+                if (legacy) {
+                    writer = new SequentialTiffWriter(context, targetExperimentalFile)
+                            .setBigTiff(bigTiff)
+                            .setLittleEndian(true)
+                            .open();
+                }
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
                 final List<ExtendedIFD> ifdList = parser.allIFD();
                 lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
@@ -161,7 +163,7 @@ public class ReadWriteTiffTest {
                             writer.setTiling(false);
                         }
                         if (!planar) {
-                            bytes = TiffTools.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
+                            TiffTools.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
                         }
                         saverIFD = new ExtendedIFD(PureScifioReadWriteTiffTest.removeUndesirableTags(parserIFD));
                         if (singleStrip) {
