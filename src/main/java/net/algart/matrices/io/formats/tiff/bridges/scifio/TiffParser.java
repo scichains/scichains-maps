@@ -1152,7 +1152,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final long length = ifd.getImageLength();
         TiffTools.checkRequestedArea(0, 0, width, length);
         //!! In future ExtendedIFD.extend should be removed, when it will become the single class
-        return getSamples(ExtendedIFD.extend(ifd), samples, 0, 0, (int) width, (int) length);
+        return getSamples(ifd, samples, 0, 0, (int) width, (int) length);
     }
 
     /**
@@ -1163,10 +1163,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @param samples work array for reading data; may be <tt>null</tt>.
      * @return loaded samples; will be a reference to passed samples, if it is not <tt>null</tt>.
      */
-    public byte[] getSamples(ExtendedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
+    public byte[] getSamples(IFD simpleIFD, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
+        Objects.requireNonNull(simpleIFD, "Null IFD");
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
+        ExtendedIFD ifd = ExtendedIFD.extend(simpleIFD);
+        //!! - temporary solution, until ExtendedIFD methods will be moved into IFD
         final int size = ifd.sizeOfRegion(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
@@ -1696,6 +1698,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return buf;
     }
 
+    /** This function is deprecated, because it has identical behaviour with
+     * {@link #getSamples(IFD, byte[], int, int, int, int)} and actually is always called
+     * from other classes with <tt>int</tt> parameters, even in OME BioFormats.
+     */
     @Deprecated
     public byte[] getSamples(IFD ifd, byte[] samples, int fromX, int fromY, long sizeX, long sizeY)
             throws FormatException, IOException {
@@ -1703,6 +1709,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return getSamples(ExtendedIFD.extend(ifd), samples, fromX, fromY, (int) sizeX, (int) sizeY);
     }
 
+    /** This function is deprecated, because it is almost not used - the only exception is
+     * TrestleReader from OME BioFormats.
+     */
     @Deprecated
     public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
                              final int y, final long width, final long height, final int overlapX,

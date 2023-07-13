@@ -48,6 +48,11 @@ public class TiffSaverTest {
             append = true;
             startArgIndex++;
         }
+        boolean randomAccess = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-randomAccess")) {
+            randomAccess = true;
+            startArgIndex++;
+        }
         boolean bigTiff = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
             bigTiff = true;
@@ -93,7 +98,9 @@ public class TiffSaverTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext();
-            TiffSaver saver = TiffSaver.getInstance(context, targetFile, !append).setAppendToExisting(append)) {
+             TiffSaver saver = TiffSaver.getInstance(context, targetFile, !randomAccess && !append)) {
+            saver.setWritingSequentially(!randomAccess);
+            saver.setAppendToExisting(append);
             saver.setBigTiff(bigTiff);
             saver.setLittleEndian(true);
             saver.setAutoInterleave(true);

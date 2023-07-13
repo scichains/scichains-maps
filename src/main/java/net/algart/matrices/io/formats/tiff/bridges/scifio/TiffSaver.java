@@ -238,6 +238,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * Sets whether or not we know that the planes will be written sequentially.
      * If we are writing planes sequentially and set this flag, then performance
      * is slightly improved.
+     *
+     * <p>Note: if this flag is not set (random-access mode) and the file already exist,
+     * then new IFD images will be still written after the end of the file,
+     * i.e. the file will grow. So, we do not recommend using <tt>false</tt> value
+     * without necessity: it leads to inefficient usage of space inside the file.
      */
     public TiffSaver setWritingSequentially(final boolean sequential) {
         writingSequentially = sequential;
@@ -780,10 +785,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samples, "Null samples");
-        if (!writingSequentially && (ifdIndex == null || ifdIndex < 0)) {
-            throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
-                    " is not allowed when writing mode is not sequential");
-        }
+        if (!writingSequentially)
+            if (appendToExisting) {
+                throw new IllegalStateException("appendToExisting mode can be used only together with " +
+                        "writingSequentially (random-access writing mode is used to rewrite some existing " +
+                        "image inside the TIFF, not for appending new images to the end)");
+            }
+            if (ifdIndex == null || ifdIndex < 0) {
+                throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
+                        " is not allowed when writing mode is not sequential");
+            }
         long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
         if (numberOfChannels <= 0) {
