@@ -24,15 +24,13 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
-import io.scif.SCIFIO;
-import org.scijava.Context;
-
-public class SimplestSCIFIO {
-    private static final int MAX_IMAGE_SIZE = 6000;
-
-    public static void main(String[] args) throws Exception {
-        SCIFIO scifio = new SCIFIO();
-        Context context = scifio.getContext();
-        // - prevents closing program in SCIFIO versions before 0.46
+public class ByteFillerToFloatTest {
+    public static void main(String[] args) {
+        for (int v : new int[] {0, 1, 0x80, 0xC0, 0xFF}) {
+            // - possible filler for TiffParser
+            int intFiller = v | v << 8 | v << 16 | v << 24;
+            float floatFiller = Float.intBitsToFloat(intFiller);
+            System.out.printf("Filler: %d, 32-bit: 0x%08X, float: %s%n", v, intFiller, floatFiller);
+        }
     }
 }

@@ -126,11 +126,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
     /**
      * Whether or not 64-bit offsets are used for non-BigTIFF files.
      */
-    private boolean fakeBigTiff = false;
+    private boolean use64BitOffsets = false;
 
-    private boolean ycbcrCorrection = true;
+    private boolean yCbCrCorrection = true;
 
-    private boolean equalStrips = false;
+    private boolean assumeEqualStrips = false;
 
     private boolean doCaching;
 
@@ -298,16 +298,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
     /**
      * Sets whether or not to assume that strips are of equal size.
      *
-     * @param equalStrips Whether or not the strips are of equal size.
+     * @param assumeEqualStrips Whether or not the strips are of equal size.
      * @return a reference to this object.
      */
-    public TiffParser setAssumeEqualStrips(final boolean equalStrips) {
-        this.equalStrips = equalStrips;
+    public TiffParser setAssumeEqualStrips(final boolean assumeEqualStrips) {
+        this.assumeEqualStrips = assumeEqualStrips;
         return this;
     }
 
     public boolean isAssumeEqualStrips() {
-        return equalStrips;
+        return assumeEqualStrips;
     }
 
     /**
@@ -346,25 +346,25 @@ public class TiffParser extends AbstractContextual implements Closeable {
     /**
      * Sets whether or not 64-bit offsets are used for non-BigTIFF files.
      */
-    public TiffParser setUse64BitOffsets(final boolean use64Bit) {
-        fakeBigTiff = use64Bit;
+    public TiffParser setUse64BitOffsets(final boolean use64BitOffsets) {
+        this.use64BitOffsets = use64BitOffsets;
         return this;
     }
 
     public boolean isUse64BitOffsets() {
-        return fakeBigTiff;
+        return use64BitOffsets;
     }
 
     /**
      * Sets whether or not YCbCr color correction is allowed.
      */
-    public TiffParser setYCbCrCorrection(final boolean correctionAllowed) {
-        ycbcrCorrection = correctionAllowed;
+    public TiffParser setYCbCrCorrection(final boolean yCbCrCorrection) {
+        this.yCbCrCorrection = yCbCrCorrection;
         return this;
     }
 
     public boolean isYCbCrCorrection() {
-        return ycbcrCorrection;
+        return yCbCrCorrection;
     }
 
     /**
@@ -457,6 +457,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     // -- TiffParser methods - IFD parsing --
 
+    public ExtendedIFD ifd(int ifdIndex) throws IOException {
+        List<ExtendedIFD> ifdList = allIFD();
+        if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
+            throw new IndexOutOfBoundsException("IFD index " +
+                    ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
+        }
+        return ifdList.get(ifdIndex);
+    }
+
     /**
      * Returns all IFDs in the file.
      */
@@ -497,15 +506,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
             ifdList = ifds;
         }
         return ifds;
-    }
-
-    public ExtendedIFD ifd(int ifdIndex) throws IOException {
-        List<ExtendedIFD> ifdList = allIFD();
-        if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
-            throw new IndexOutOfBoundsException("IFD index " +
-                    ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
-        }
-        return ifdList.get(ifdIndex);
     }
 
     /**
@@ -916,11 +916,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if (count == 1) return in.readLong();
             long[] longs = null;
 
-            if (equalStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS || entry
+            if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS || entry
                     .getTag() == IFD.TILE_BYTE_COUNTS)) {
                 longs = new long[1];
                 longs[0] = in.readLong();
-            } else if (equalStrips && (entry.getTag() == IFD.STRIP_OFFSETS || entry
+            } else if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_OFFSETS || entry
                     .getTag() == IFD.TILE_OFFSETS)) {
                 final OnDemandLongArray offsets = new OnDemandLongArray(in);
                 offsets.setSize(count);
@@ -1069,7 +1069,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final int tileIndex = yIndex * numTileCols + xIndex;
         int countIndex = tileIndex;
-        if (equalStrips) {
+        if (assumeEqualStrips) {
             countIndex = 0;
         }
         if (countIndex >= byteCounts.length) {
@@ -1128,7 +1128,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
         codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
                 && subSampleHorizontal == 1
-                && ycbcrCorrection;
+                && yCbCrCorrection;
         // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
         Codec codec = null;
@@ -1597,7 +1597,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private long getNextOffset(final long previous) throws IOException {
         long fp = in.offset();
         long offset;
-        if (bigTiff || fakeBigTiff) {
+        if (bigTiff || use64BitOffsets) {
             offset = in.readLong();
         } else {
             offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
@@ -1787,7 +1787,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
                 int offset = 0;
                 for (int tile = firstTile; tile <= lastTile; tile++) {
-                    long byteCount = equalStrips ? stripByteCounts[0]
+                    long byteCount = assumeEqualStrips ? stripByteCounts[0]
                             : stripByteCounts[tile];
                     if (byteCount == numSamples && pixel > 1) {
                         byteCount *= pixel;
