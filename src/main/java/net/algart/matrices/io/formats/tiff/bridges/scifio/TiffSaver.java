@@ -305,14 +305,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * <p>If set, then the samples array in <tt>writeImage</tt> methods is always supposed to be unpacked.
      * For multichannel images it means the samples order like RRR..GGG..BBB...: standard form, supposed by
      * {@link io.scif.Plane} class and returned by {@link TiffParser}. If the desired IFD format is
-     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link ExtendedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}
+     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link DetailedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}
      * (that is the typical usage), then the passes samples are automatically re-packed into chunked (interleaved)
      * form RGBRGBRGB...
      *
      * <p>If this mode is not set, as well as if {@link IFD#PLANAR_CONFIGURATION} is
-     * {@link ExtendedIFD#PLANAR_CONFIG_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
-     * RRR...GGG..BBB...  for {@link ExtendedIFD#PLANAR_CONFIG_SEPARATE} or as interleaved RGBRGBRGB...
-     * for {@link ExtendedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}.
+     * {@link DetailedIFD#PLANAR_CONFIG_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
+     * RRR...GGG..BBB...  for {@link DetailedIFD#PLANAR_CONFIG_SEPARATE} or as interleaved RGBRGBRGB...
+     * for {@link DetailedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}.
      *
      * <p>Note that this mode has no effect for 1-channel images.
      *
@@ -662,7 +662,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                                 IFD.IMAGE_LENGTH,
                                 IFD.TILE_WIDTH,
                                 IFD.TILE_LENGTH,
-                                ExtendedIFD.IMAGE_DEPTH,
+                                DetailedIFD.IMAGE_DEPTH,
                                 IFD.ROWS_PER_STRIP,
                                 IFD.NEW_SUBFILE_TYPE -> {
                             out.writeShort(IFDType.LONG.getCode());
@@ -739,7 +739,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    public void writeSamples(ExtendedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
+    public void writeSamples(DetailedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
             throws FormatException, IOException {
         if (!writingSequentially) {
             throw new IllegalStateException("Writing samples without IFD index is possible only in sequential mode");
@@ -748,7 +748,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     public void writeSamples(
-            final ExtendedIFD ifd, final byte[] samples, final Integer ifdIndex,
+            final DetailedIFD ifd, final byte[] samples, final Integer ifdIndex,
             final int numberOfChannels, final int pixelType, final boolean last) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         final int sizeX = ifd.getImageSizeX();
@@ -775,7 +775,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws IOException
      */
     public void writeSamples(
-            final ExtendedIFD ifd,
+            final DetailedIFD ifd,
             byte[] samples,
             final Integer ifdIndex,
             final int numberOfChannels,
@@ -821,7 +821,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         // These operations are synchronized
         long t2 = debugTime();
-        if (ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
+        if (ifd.getPlanarConfiguration() == DetailedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
             samples = TiffTools.toInterleavedSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
             // - note: we MUST NOT corrupt the original samples!
         }
@@ -864,7 +864,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     public void writeSamplesArray(
-            final ExtendedIFD ifd,
+            final DetailedIFD ifd,
             Object samplesArray,
             final Integer ifdIndex,
             int numberOfChannels,
@@ -893,7 +893,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 //    public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
     public void encode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        ExtendedIFD ifd = tile.ifd();
+        DetailedIFD ifd = tile.ifd();
         final int effectiveChannels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
         final int bytesPerSample = ifd.getBytesPerSample()[0];
         if (effectiveChannels < 1) {
@@ -1037,14 +1037,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private List<TiffTile> splitTiles(
             byte[] samples,
-            ExtendedIFD ifd,
+            DetailedIFD ifd,
             int numberOfChannels,
             int bytesPerSample,
             int fromX,
             int fromY,
             int sizeX,
             int sizeY) throws FormatException, IOException {
-        final boolean chunked = ifd.getPlanarConfiguration() == ExtendedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
+        final boolean chunked = ifd.getPlanarConfiguration() == DetailedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
         final int imageSizeX = ifd.getImageSizeX();
         final int imageSizeY = ifd.getImageSizeY();
         final int channelSize = sizeX * sizeY * bytesPerSample;
@@ -1140,7 +1140,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws IOException
      */
     private void writeSamplesAndIFD(
-            ExtendedIFD ifd, final Integer ifdIndex,
+            DetailedIFD ifd, final Integer ifdIndex,
             final List<TiffTile> tiles, final int nChannels, final boolean last,
             final int x,
             final int y) throws FormatException, IOException {
@@ -1280,7 +1280,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     public void writeImage(
             final byte[] samples, final IFD ifd, final int planeIndex,
             final int pixelType, final boolean last) throws FormatException, IOException {
-        writeSamples(ExtendedIFD.extend(ifd), samples, pixelType, planeIndex, last);
+        writeSamples(DetailedIFD.extend(ifd), samples, pixelType, planeIndex, last);
     }
 
     @Deprecated
@@ -1301,7 +1301,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             nChannels = buf.length / (w * h * bytesPerSample);
             // - like in original writeImage; but overflow will be checked more thoroughly inside writeSamples
         }
-        writeSamples(ExtendedIFD.extend(ifd), buf,
+        writeSamples(DetailedIFD.extend(ifd), buf,
                 (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
     }
 

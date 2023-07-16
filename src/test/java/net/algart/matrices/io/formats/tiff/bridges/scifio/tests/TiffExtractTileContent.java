@@ -26,7 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTileIndex;
@@ -58,7 +58,7 @@ public class TiffExtractTileContent {
         try (final Context context = scifio.getContext()) {
             final TiffParser parser = TiffParser.getInstance(context, tiffFile);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
-            final ExtendedIFD ifd = parser.ifd(ifdIndex);
+            final DetailedIFD ifd = parser.ifd(ifdIndex);
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
             byte[] bytes = parser.readEncodedTile(tileIndex).getData();

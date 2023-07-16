@@ -41,7 +41,7 @@ import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSImageDescription;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import org.scijava.Context;
 
 import java.awt.*;
@@ -132,7 +132,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (ifdCount == 0) {
                 throw new FormatException("Empty IFD list");
             }
-            final ExtendedIFD ifd0 = ExtendedIFD.extend(largeData.ifdList.get(0));
+            final DetailedIFD ifd0 = largeData.ifdList.get(0);
             ifd0.checkSizesArePositive();
             this.bandCount = ifd0.getSamplesPerPixel();
             if (bandCount <= 0) {
@@ -254,7 +254,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             long pyramidLevelDimY = imageDimY;
             for (int k = 1; k < ifdCount; k++) {
                 final int index = k;
-                final ExtendedIFD ifd = ExtendedIFD.extend(largeData.ifdList.get(k));
+                final DetailedIFD ifd = largeData.ifdList.get(k);
                 if (ifdClassifier.isSpecial(k)) {
                     LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                             "  SVS reader skips special IFD #%d/%d: %s, IFD compression method: %s",
@@ -907,7 +907,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
         private TiffParser tiffParser = null;
-        private List<ExtendedIFD> ifdList = null;
+        private List<? extends DetailedIFD> ifdList = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
         private final Lock readLock, writeLock;

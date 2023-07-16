@@ -30,7 +30,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
@@ -111,11 +111,11 @@ public class ReadWriteTiffTest {
                             .open();
                 }
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
-                final List<ExtendedIFD> ifdList = parser.allIFD();
+                final List<DetailedIFD> ifdList = parser.allIFD();
                 lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final boolean last = ifdIndex == ifdList.size() - 1;
-                    final ExtendedIFD parserIFD = ifdList.get(ifdIndex);
+                    final DetailedIFD parserIFD = ifdList.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), parserIFD);
                     final int w = (int) Math.min(parserIFD.getImageWidth(), MAX_IMAGE_DIM);
                     final int h = (int) Math.min(parserIFD.getImageLength(), MAX_IMAGE_DIM);
@@ -126,7 +126,7 @@ public class ReadWriteTiffTest {
                     long t1 = System.nanoTime();
                     byte[] bytes = parser.getSamples(parserIFD, null, START_X, START_Y, w, h);
                     long t2 = System.nanoTime();
-                    ExtendedIFD saverIFD = new ExtendedIFD(parserIFD);
+                    DetailedIFD saverIFD = new DetailedIFD(parserIFD);
                     if (singleStrip) {
                         saverIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
@@ -165,7 +165,7 @@ public class ReadWriteTiffTest {
                         if (!planar) {
                             TiffTools.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
                         }
-                        saverIFD = new ExtendedIFD(PureScifioReadWriteTiffTest.removeUndesirableTags(parserIFD));
+                        saverIFD = new DetailedIFD(PureScifioReadWriteTiffTest.removeUndesirableTags(parserIFD));
                         if (singleStrip) {
                             saverIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                             // - not remove! Removing means default value!

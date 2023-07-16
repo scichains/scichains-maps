@@ -29,7 +29,7 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import org.scijava.Context;
 
@@ -114,7 +114,7 @@ public class TiffSaverTest {
             System.out.printf("Creating %s...%n", targetFile);
             for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                 Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
-                ExtendedIFD ifd = new ExtendedIFD();
+                DetailedIFD ifd = new DetailedIFD();
                 ifd.putImageSizes(WIDTH, HEIGHT);
                 if (tiled) {
                     ifd.putTileSizes(64, 64);
@@ -122,7 +122,7 @@ public class TiffSaverTest {
                 //TODO!! custom pixelType
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparated) {
-                    ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
+                    ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
                 }
                 saver.writeSamplesArray(ifd, samplesArray,
                         ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,

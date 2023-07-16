@@ -35,7 +35,7 @@ import java.util.Objects;
  * usually we will not create new identical IFDs.
  */
 public final class TiffTileIndex {
-    private final ExtendedIFD ifd;
+    private final DetailedIFD ifd;
     private final int tileSizeX;
     private final int tileSizeY;
     private final int tileSize;
@@ -44,7 +44,7 @@ public final class TiffTileIndex {
     private final int x;
     private final int y;
 
-    public TiffTileIndex(ExtendedIFD ifd, int x, int y) {
+    public TiffTileIndex(DetailedIFD ifd, int x, int y) {
         Objects.requireNonNull(ifd, "Null ifd");
         if (x < 0) {
             throw new IllegalArgumentException("Negative x = " + x);
@@ -76,7 +76,7 @@ public final class TiffTileIndex {
         this.y = y;
     }
 
-    public ExtendedIFD ifd() {
+    public DetailedIFD ifd() {
         return ifd;
     }
 

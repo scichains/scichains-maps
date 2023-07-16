@@ -26,11 +26,9 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDList;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
@@ -98,7 +96,7 @@ public class TiffParserTest {
                 System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, ifds.size() - 1);
                 ifdIndex = ifds.size() - 1;
             }
-            final ExtendedIFD ifd = ifds.get(ifdIndex);
+            final DetailedIFD ifd = ifds.get(ifdIndex);
             if (w < 0) {
                 w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
             }

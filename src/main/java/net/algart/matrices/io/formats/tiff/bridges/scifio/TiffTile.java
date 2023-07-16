@@ -28,7 +28,7 @@ import java.util.Objects;
 
 public class TiffTile {
     private final TiffTileIndex tileIndex;
-    private final ExtendedIFD ifd;
+    private final DetailedIFD ifd;
     private boolean encoded = false;
     private int sizeX;
     private int sizeY;
@@ -42,7 +42,7 @@ public class TiffTile {
         setSizes(tileIndex.tileSizeX(), tileIndex().tileSizeY());
     }
 
-    public TiffTile(ExtendedIFD ifd, int x, int y) {
+    public TiffTile(DetailedIFD ifd, int x, int y) {
         this(new TiffTileIndex(ifd, x, y));
     }
 
@@ -50,7 +50,7 @@ public class TiffTile {
         return tileIndex;
     }
 
-    public final ExtendedIFD ifd() {
+    public final DetailedIFD ifd() {
         return ifd;
     }
 

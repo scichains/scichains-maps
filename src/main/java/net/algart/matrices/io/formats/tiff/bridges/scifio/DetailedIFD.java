@@ -33,7 +33,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 
 //!! Better analog of IFD (should be merged with the main IFD)
-public class ExtendedIFD extends IFD {
+public class DetailedIFD extends IFD {
     public static final int ICC_PROFILE = 34675;
     public static final int MATTEING = 32995;
     public static final int DATA_TYPE = 32996;
@@ -65,16 +65,16 @@ public class ExtendedIFD extends IFD {
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
 
-    public ExtendedIFD(IFD ifd) {
+    public DetailedIFD(IFD ifd) {
         this(ifd, null);
     }
 
-    public ExtendedIFD(IFD ifd, LogService log) {
+    public DetailedIFD(IFD ifd, LogService log) {
         super(ifd, log);
-        if (ifd instanceof ExtendedIFD extendedIFD) {
-            offset = extendedIFD.offset;
-            entries = extendedIFD.entries;
-            subIFDType = extendedIFD.subIFDType;
+        if (ifd instanceof DetailedIFD detailedIFD) {
+            offset = detailedIFD.offset;
+            entries = detailedIFD.entries;
+            subIFDType = detailedIFD.subIFDType;
         } else {
             offset = null;
             entries = null;
@@ -82,30 +82,30 @@ public class ExtendedIFD extends IFD {
         }
     }
 
-    public ExtendedIFD(ExtendedIFD extendedIFD, LogService log) {
-        super(extendedIFD, log);
-        offset = extendedIFD.offset;
-        entries = extendedIFD.entries;
-        subIFDType = extendedIFD.subIFDType;
+    public DetailedIFD(DetailedIFD detailedIFD, LogService log) {
+        super(detailedIFD, log);
+        offset = detailedIFD.offset;
+        entries = detailedIFD.entries;
+        subIFDType = detailedIFD.subIFDType;
     }
 
-    public ExtendedIFD() {
+    public DetailedIFD() {
         this((LogService) null);
     }
 
-    public ExtendedIFD(LogService log) {
+    public DetailedIFD(LogService log) {
         super(log);
         this.offset = null;
     }
 
-    public ExtendedIFD(LogService log, long offset) {
+    public DetailedIFD(LogService log, long offset) {
         super(log);
         this.offset = offset;
     }
 
-    public static ExtendedIFD extend(IFD ifd) {
+    public static DetailedIFD extend(IFD ifd) {
         Objects.requireNonNull(ifd, "Null IFD");
-        return ifd instanceof ExtendedIFD extendedIFD ? extendedIFD : new ExtendedIFD(ifd, null);
+        return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd, null);
     }
 
     public Long getOffset() {
@@ -116,7 +116,7 @@ public class ExtendedIFD extends IFD {
         return entries;
     }
 
-    public ExtendedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
+    public DetailedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
         Objects.requireNonNull(entries, "Null entries");
         this.entries = Collections.unmodifiableMap(entries);
         // So, the copy constructor above really creates a good copy.
@@ -134,7 +134,7 @@ public class ExtendedIFD extends IFD {
         return subIFDType;
     }
 
-    public ExtendedIFD setSubIFDType(Integer subIFDType) {
+    public DetailedIFD setSubIFDType(Integer subIFDType) {
         this.subIFDType = subIFDType;
         return this;
     }
@@ -306,7 +306,7 @@ public class ExtendedIFD extends IFD {
         return number.longValue();
     }
 
-    public ExtendedIFD putImageSizes(int width, int height) {
+    public DetailedIFD putImageSizes(int width, int height) {
         if (width <= 0) {
             throw new IllegalArgumentException("Zero or negative image width");
         }
@@ -318,7 +318,7 @@ public class ExtendedIFD extends IFD {
         return this;
     }
 
-    public ExtendedIFD putTileSizes(int tileSizeX, int tileSizeY) {
+    public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
             throw new IllegalArgumentException("Zero or negative tile X-size");
         }
@@ -334,7 +334,7 @@ public class ExtendedIFD extends IFD {
         return this;
     }
 
-    public ExtendedIFD putCompression(TiffCompression compression) {
+    public DetailedIFD putCompression(TiffCompression compression) {
         if (compression == null) {
             remove(IFD.COMPRESSION);
         } else {

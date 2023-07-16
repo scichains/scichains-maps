@@ -26,9 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDList;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.ExtendedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import org.scijava.Context;
 
@@ -88,7 +86,7 @@ public class TiffInfo {
         }
     }
 
-    public static String ifdInfo(ExtendedIFD ifd, int ifdIndex, int ifdCount) {
+    public static String ifdInfo(DetailedIFD ifd, int ifdIndex, int ifdCount) {
         Long offset = ifd != null ? ifd.getOffset() : null;
         return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ifd);
     }
