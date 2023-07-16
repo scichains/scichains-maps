@@ -786,10 +786,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                         "writingSequentially (random-access writing mode is used to rewrite some existing " +
                         "image inside the TIFF, not for appending new images to the end)");
             }
-            if (ifdIndex == null || ifdIndex < 0) {
-                throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
-                        " is not allowed when writing mode is not sequential");
-            }
+        if (ifdIndex == null || ifdIndex < 0) {
+            throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
+                    " is not allowed when writing mode is not sequential");
+        }
         long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
         if (numberOfChannels <= 0) {
@@ -983,15 +983,19 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
 
-    private void prepareValidIFD(final IFD ifd, int pixelType, int numberOfChannels) throws FormatException {
+    private void prepareValidIFD(final DetailedIFD ifd, int pixelType, int numberOfChannels) throws FormatException {
         final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
-        final int bps = 8 * bytesPerPixel;
+        final boolean signed = FormatTools.isSigned(pixelType);
+        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
+        final int bitsPerSample = 8 * bytesPerPixel;
         final int[] bpsArray = new int[numberOfChannels];
-        Arrays.fill(bpsArray, bps);
+        Arrays.fill(bpsArray, bitsPerSample);
         ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
 
-        if (FormatTools.isFloatingPoint(pixelType)) {
+        if (floatingPoint) {
             ifd.putIFDValue(IFD.SAMPLE_FORMAT, 3);
+        } else if (signed) {
+            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 2);
         }
         Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
         if (compressionValue == null) {
@@ -1000,11 +1004,18 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
 
         final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
+        final boolean jpeg = compressionValue.equals(TiffCompression.JPEG.getCode());
+        if (jpeg && (signed || bytesPerPixel != 1)) {
+            throw new FormatException("JPEG compression is not supported for %d-bit%s samples (\"%s\"): %s (\"%s\")"
+                    .formatted(
+                            bitsPerSample, signed & !floatingPoint? " signed" : "",
+                            FormatTools.getPixelTypeString(pixelType),
+                            "only unsigned 8-bit samples allowed",
+                            FormatTools.getPixelTypeString(FormatTools.UINT8)));
+        }
         final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE :
                 numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
-                        compressionValue.equals(TiffCompression.JPEG.getCode())
-                                && ifd.getPlanarConfiguration() == 1
-                                && !compressJPEGInPhotometricRGB() ?
+                        jpeg && ifd.isContiguouslyChunked() && !compressJPEGInPhotometricRGB() ?
                                 PhotoInterp.Y_CB_CR :
                                 PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
@@ -1039,7 +1050,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             int fromY,
             int sizeX,
             int sizeY) throws FormatException, IOException {
-        final boolean chunked = ifd.getPlanarConfiguration() == DetailedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
+        final boolean chunked = ifd.isContiguouslyChunked();
         final int imageSizeX = ifd.getImageSizeX();
         final int imageSizeY = ifd.getImageSizeY();
         final int channelSize = sizeX * sizeY * bytesPerSample;
@@ -1074,12 +1085,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         final TiffTile[] tiles = new TiffTile[numberOfEncodedStrips];
         final int tileRowSizeInBytes = tileSizeX * (chunked ? numberOfChannels : 1) * bytesPerSample;
+        final boolean needToCorrectLastRow = ifd.get(IFD.TILE_LENGTH) == null;
+        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we should not correct the height
+        // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
+        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
         for (int yIndex = 0, tileIndex = 0; yIndex < numTileRows; yIndex++) {
             final int yOffset = yIndex * tileSizeY;
             final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
             assert (long) fromY + (long) yOffset < imageSizeY : "region must  be checked before calling splitTiles";
             final int y = fromY + yOffset;
-            final int validTileSizeY = Math.min(tileSizeY, imageSizeY - y);
+            final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, imageSizeY - y);
             // - last strip should have exact height, in other case TIFF may be read with a warning
             for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
                 assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
@@ -1222,7 +1237,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             byteCounts.set(thisOffset, (long) tile.lastDataLength());
             LOG.log(System.Logger.Level.TRACE,
                     String.format("Writing tile/strip %d/%d size: %d offset: %d",
-                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(thisOffset)));
+                            thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(thisOffset)));
 
             out.write(tile.getEncodedData());
         }

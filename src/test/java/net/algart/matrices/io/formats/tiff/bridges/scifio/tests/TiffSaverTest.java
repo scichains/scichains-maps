@@ -87,14 +87,17 @@ public class TiffSaverTest {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
-                    "target.tif byte|short|int|float|double [number_of_images [compression]]");
+                    "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex]);
         final int pixelType = switch (args[startArgIndex + 1]) {
-            case "byte" -> FormatTools.UINT8;
-            case "short" -> FormatTools.UINT16;
-            case "int" -> FormatTools.UINT32;
+            case "uint8" -> FormatTools.UINT8;
+            case "int8" -> FormatTools.INT8;
+            case "uint16" -> FormatTools.UINT16;
+            case "int16" -> FormatTools.INT16;
+            case "uint32" -> FormatTools.UINT32;
+            case "int32" -> FormatTools.INT32;
             case "float" -> FormatTools.FLOAT;
             case "double" -> FormatTools.DOUBLE;
             default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex + 1]);
@@ -132,7 +135,7 @@ public class TiffSaverTest {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
                 }
                 saver.writeSamplesArray(ifd, samplesArray,
-                        ifdIndex, bandCount, ifd.getPixelType(), 0, 0, WIDTH, HEIGHT,
+                        ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,
                         ifdIndex == numberOfImages - 1);
             }
         }
@@ -142,7 +145,7 @@ public class TiffSaverTest {
     private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
         switch (pixelType) {
-            case FormatTools.UINT8 -> {
+            case FormatTools.UINT8, FormatTools.INT8 -> {
                 byte[] channels = new byte[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -152,22 +155,22 @@ public class TiffSaverTest {
                 }
                 return channels;
             }
-            case FormatTools.UINT16 -> {
+            case FormatTools.UINT16, FormatTools.INT16 -> {
                 short[] channels = new short[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = (short) (100 * (50 * ifdIndex + x + y));
+                        channels[disp + c * matrixSize] = (short) (256 * (50 * ifdIndex + x + y));
                     }
                 }
                 return channels;
             }
-            case FormatTools.INT32 -> {
+            case FormatTools.INT32, FormatTools.UINT32 -> {
                 int[] channels = new int[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = (short) (2_000_000 * (50 * ifdIndex + x + y));
+                        channels[disp + c * matrixSize] = 256 * 65536 * (50 * ifdIndex + x + y);
                     }
                 }
                 return channels;
@@ -177,7 +180,8 @@ public class TiffSaverTest {
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = (float) ((50 * ifdIndex + x + y) / 256.0);
+                        int v = (50 * ifdIndex + x + y) & 0xFF;
+                        channels[disp + c * matrixSize] = (float) (0.5 + 1.5 * (v / 256.0 - 0.5));
                     }
                 }
                 return channels;
@@ -187,7 +191,8 @@ public class TiffSaverTest {
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = (50 * ifdIndex + x + y) / 256.0;
+                        int v = (50 * ifdIndex + x + y) & 0xFF;
+                        channels[disp + c * matrixSize] = (float) (0.5 + 0.5 * (v / 256.0 - 0.5));
                     }
                 }
                 return channels;

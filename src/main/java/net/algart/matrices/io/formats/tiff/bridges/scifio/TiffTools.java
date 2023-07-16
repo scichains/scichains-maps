@@ -122,18 +122,18 @@ public class TiffTools {
                 return samples;
             }
             case FormatTools.INT16, FormatTools.UINT16 -> {
-                final short[] shorts = new short[samples.length / 2];
-                for (int i = 0; i < shorts.length; i++) {
-                    shorts[i] = Bytes.toShort(samples, i * 2, 2, littleEndian);
-                }
-                return shorts;
+                final short[] shortValues = new short[samples.length / 2];
+                final ByteBuffer bb = ByteBuffer.wrap(samples);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asShortBuffer().get(shortValues);
+                return shortValues;
             }
             case FormatTools.INT32, FormatTools.UINT32 -> {
-                final int[] ints = new int[samples.length / 4];
-                for (int j = 0; j < ints.length; j++) {
-                    ints[j] = Bytes.toInt(samples, j * 4, 4, littleEndian);
-                }
-                return ints;
+                final int[] intValues = new int[samples.length / 4];
+                final ByteBuffer bb = ByteBuffer.wrap(samples);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asIntBuffer().get(intValues);
+                return intValues;
             }
             case FormatTools.FLOAT -> {
                 final float[] floatValues = new float[samples.length / 4];
@@ -143,11 +143,11 @@ public class TiffTools {
                 return floatValues;
             }
             case FormatTools.DOUBLE -> {
-                final double[] doubles = new double[samples.length / 8];
-                for (int i = 0; i < doubles.length; i++) {
-                    doubles[i] = Bytes.toDouble(samples, i * 8, 8, littleEndian);
-                }
-                return doubles;
+                final double[] doubleValues = new double[samples.length / 8];
+                final ByteBuffer bb = ByteBuffer.wrap(samples);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asDoubleBuffer().get(doubleValues);
+                return doubleValues;
             }
         }
         throw new IllegalArgumentException("Unknown pixel type: " + pixelType);
