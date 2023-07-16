@@ -993,9 +993,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
 
         if (floatingPoint) {
-            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 3);
+            ifd.putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
         } else if (signed) {
-            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 2);
+            ifd.putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
         }
         Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
         if (compressionValue == null) {
