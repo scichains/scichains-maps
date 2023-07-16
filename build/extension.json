@@ -1,0 +1,45 @@
+{
+  "app": "executors-extension",
+  "platforms": [
+    {
+      "id": "9c544176-7b28-43a0-b8fe-9987b4a1fa99",
+      "category": "image-maps",
+      "name": "Image-maps",
+      "technology": "jvm",
+      "language": "java",
+      "folders": {
+        "libraries": "java/lib"
+      },
+      "configuration": {
+        "classpath": [
+          "java/lib/scifio/caffeine-2.9.3.jar",
+          "java/lib/scifio/checker-qual-3.19.0.jar",
+          "java/lib/scifio/ejml-0.25.jar",
+          "java/lib/scifio/error_prone_annotations-2.10.0.jar",
+          "java/lib/scifio/imagej-common-2.0.4.jar",
+          "java/lib/scifio/imglib2-6.1.0.jar",
+          "java/lib/scifio/imglib2-cache-1.0.0-beta-17.jar",
+          "java/lib/scifio/imglib2-realtransform-4.0.1.jar",
+          "java/lib/scifio/imglib2-roi-0.14.1.jar",
+          "java/lib/scifio/jama-1.0.3.jar",
+          "java/lib/scifio/jitk-tps-3.0.3.jar",
+          "java/lib/scifio/parsington-3.1.0.jar",
+          "java/lib/scifio/scifio-0.46.0.jar",
+          "java/lib/scifio/scifio-jai-imageio-1.1.1.jar",
+          "java/lib/scifio/scijava-common-2.94.2.jar",
+          "java/lib/scifio/scijava-optional-1.0.1.jar",
+          "java/lib/scifio/scijava-table-1.0.2.jar",
+          "java/lib/scifio/slf4j-api-1.7.32.jar",
+          "java/lib/scifio/trove4j-3.0.3.jar",
+          "java/lib/scifio/udunits-4.3.18.jar",
+
+          "java/lib/${artifactId}-${version}.jar"
+        ],
+        "vm_options": [
+          "-Dnet.algart.matrices.maps.pyramids.io.api.sources.factories.SVS=net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSourceFactory",
+          "-Dnet.algart.matrices.io.formats.tiff.builtInTiming=true"
+        ]
+      }
+    }
+  ]
+}
