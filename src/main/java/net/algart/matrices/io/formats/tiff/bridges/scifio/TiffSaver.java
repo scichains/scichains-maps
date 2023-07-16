@@ -145,9 +145,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     private SCIFIO scifio;
 
     @Parameter
-    private LogService log;
-
-    @Parameter
     private DataHandleService dataHandleService;
 
     // -- Constructors --
@@ -162,7 +159,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Objects.requireNonNull(out, "Data handle service created null output stream");
         // - just in case: maybe this implementation of DataHandleService is incorrect
         scifio = new SCIFIO(context);
-        log = scifio.log();
     }
 
     /**
@@ -177,7 +173,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         this.loc = out.get();
         setContext(context);
         scifio = new SCIFIO(context);
-        log = scifio.log();
     }
 
     public static TiffSaver getInstance(Context context, Location location) throws IOException {
@@ -1225,11 +1220,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final int thisOffset = firstOffset + i;
             offsets.set(thisOffset, out.offset());
             byteCounts.set(thisOffset, (long) tile.lastDataLength());
-            if (log.isDebug()) {
-                log.debug(String.format("Writing tile/strip %d/%d size: %d offset: %d",
-                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(
-                                thisOffset)));
-            }
+            LOG.log(System.Logger.Level.TRACE,
+                    String.format("Writing tile/strip %d/%d size: %d offset: %d",
+                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(thisOffset)));
+
             out.write(tile.getEncodedData());
         }
         if (isTiled) {
@@ -1328,8 +1322,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     public void overwriteIFDValue(final DataHandle<Location> raf, final int ifd,
                                   final int tag, final Object value) throws FormatException, IOException {
         if (raf == null) throw new FormatException("Output cannot be null");
-        log.debug("overwriteIFDValue (ifd=" + ifd + "; tag=" + tag + "; value=" +
-                value + ")");
+//        log.debug("overwriteIFDValue (ifd=" + ifd + "; tag=" + tag + "; value=" +
+//                value + ")");
 
         raf.seek(0);
         final io.scif.formats.tiff.TiffParser parser = new io.scif.formats.tiff.TiffParser(getContext(), raf);
@@ -1393,32 +1387,32 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                     newCount = ifdHandle.readInt();
                     newOffset = ifdHandle.readInt();
                 }
-                log.debug("overwriteIFDValue:");
-                log.debug("\told (" + entry + ");");
-                log.debug("\tnew: (tag=" + newTag + "; type=" + newType + "; count=" +
-                        newCount + "; offset=" + newOffset + ")");
+//                log.debug("overwriteIFDValue:");
+//                log.debug("\told (" + entry + ");");
+//                log.debug("\tnew: (tag=" + newTag + "; type=" + newType + "; count=" +
+//                        newCount + "; offset=" + newOffset + ")");
 
                 // determine the best way to overwrite the old entry
                 if (extraHandle.length() == 0) {
                     // new entry is inline; if old entry wasn't, old data is
                     // orphaned
                     // do not override new offset value since data is inline
-                    log.debug("overwriteIFDValue: new entry is inline");
+//                    log.debug("overwriteIFDValue: new entry is inline");
                 } else if (entry.getValueOffset() + entry.getValueCount() * entry
                         .getType().getBytesPerElement() == raf.length()) {
                     // old entry was already at EOF; overwrite it
                     newOffset = entry.getValueOffset();
-                    log.debug("overwriteIFDValue: old entry is at EOF");
+//                    log.debug("overwriteIFDValue: old entry is at EOF");
                 } else if (newCount <= entry.getValueCount()) {
                     // new entry is as small or smaller than old entry;
                     // overwrite it
                     newOffset = entry.getValueOffset();
-                    log.debug("overwriteIFDValue: new entry is <= old entry");
+//                    log.debug("overwriteIFDValue: new entry is <= old entry");
                 } else {
                     // old entry was elsewhere; append to EOF, orphaning old
                     // entry
                     newOffset = raf.length();
-                    log.debug("overwriteIFDValue: old entry will be orphaned");
+//                    log.debug("overwriteIFDValue: old entry will be orphaned");
                 }
 
                 // overwrite old entry
