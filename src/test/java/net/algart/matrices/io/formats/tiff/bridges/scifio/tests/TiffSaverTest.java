@@ -87,14 +87,22 @@ public class TiffSaverTest {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
-                    "target.tif [number_of_images [compression]]");
+                    "target.tif byte|short|int|float|double [number_of_images [compression]]");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex]);
-        final int numberOfImages = startArgIndex + 1 < args.length ? Integer.parseInt(args[startArgIndex + 1]) : 1;
-        final String compression = startArgIndex + 2 < args.length ? args[startArgIndex + 2] : null;
+        final int pixelType = switch (args[startArgIndex + 1]) {
+            case "byte" -> FormatTools.UINT8;
+            case "short" -> FormatTools.UINT16;
+            case "int" -> FormatTools.UINT32;
+            case "float" -> FormatTools.FLOAT;
+            case "double" -> FormatTools.DOUBLE;
+            default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex + 1]);
+        };
+
+        final int numberOfImages = startArgIndex + 2 < args.length ? Integer.parseInt(args[startArgIndex + 2]) : 1;
+        final String compression = startArgIndex + 3 < args.length ? args[startArgIndex + 3] : null;
         final int bandCount = color ? 3 : 1;
-        final int pixelType = FormatTools.UINT8;
 
         final SCIFIO scifio = new SCIFIO();
         try (Context context = scifio.getContext();
@@ -119,7 +127,6 @@ public class TiffSaverTest {
                 if (tiled) {
                     ifd.putTileSizes(64, 64);
                 }
-                //TODO!! custom pixelType
                 ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                 if (planarSeparated) {
                     ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
@@ -134,15 +141,58 @@ public class TiffSaverTest {
 
     private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
-        byte[] bytes = new byte[matrixSize * bandCount];
-        for (int y = 0, disp = 0; y < ySize; y++) {
-            final int c = (y / 32) % bandCount;
-            for (int x = 0; x < xSize; x++, disp++) {
-                byte b = (byte) (50 * ifdIndex + x + y);
-                bytes[disp + c * matrixSize] = b;
+        switch (pixelType) {
+            case FormatTools.UINT8 -> {
+                byte[] channels = new byte[matrixSize * bandCount];
+                for (int y = 0, disp = 0; y < ySize; y++) {
+                    final int c = (y / 32) % bandCount;
+                    for (int x = 0; x < xSize; x++, disp++) {
+                        channels[disp + c * matrixSize] = (byte) (50 * ifdIndex + x + y);
+                    }
+                }
+                return channels;
+            }
+            case FormatTools.UINT16 -> {
+                short[] channels = new short[matrixSize * bandCount];
+                for (int y = 0, disp = 0; y < ySize; y++) {
+                    final int c = (y / 32) % bandCount;
+                    for (int x = 0; x < xSize; x++, disp++) {
+                        channels[disp + c * matrixSize] = (short) (100 * (50 * ifdIndex + x + y));
+                    }
+                }
+                return channels;
+            }
+            case FormatTools.INT32 -> {
+                int[] channels = new int[matrixSize * bandCount];
+                for (int y = 0, disp = 0; y < ySize; y++) {
+                    final int c = (y / 32) % bandCount;
+                    for (int x = 0; x < xSize; x++, disp++) {
+                        channels[disp + c * matrixSize] = (short) (2_000_000 * (50 * ifdIndex + x + y));
+                    }
+                }
+                return channels;
+            }
+            case FormatTools.FLOAT -> {
+                float[] channels = new float[matrixSize * bandCount];
+                for (int y = 0, disp = 0; y < ySize; y++) {
+                    final int c = (y / 32) % bandCount;
+                    for (int x = 0; x < xSize; x++, disp++) {
+                        channels[disp + c * matrixSize] = (float) ((50 * ifdIndex + x + y) / 256.0);
+                    }
+                }
+                return channels;
+            }
+            case FormatTools.DOUBLE -> {
+                double[] channels = new double[matrixSize * bandCount];
+                for (int y = 0, disp = 0; y < ySize; y++) {
+                    final int c = (y / 32) % bandCount;
+                    for (int x = 0; x < xSize; x++, disp++) {
+                        channels[disp + c * matrixSize] = (50 * ifdIndex + x + y) / 256.0;
+                    }
+                }
+                return channels;
             }
         }
-        return bytes;
+        throw new UnsupportedOperationException("Unsupported pixelType = " + pixelType);
     }
-
 }
