@@ -87,7 +87,8 @@ public class TiffSaverTest {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
-                    "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]");
+                    "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
+                    "[numberOfTests]");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex]);
@@ -105,38 +106,42 @@ public class TiffSaverTest {
 
         final int numberOfImages = startArgIndex + 2 < args.length ? Integer.parseInt(args[startArgIndex + 2]) : 1;
         final String compression = startArgIndex + 3 < args.length ? args[startArgIndex + 3] : null;
+        final int numberOfTests = startArgIndex + 4 < args.length ? Integer.parseInt(args[startArgIndex + 4]) : 1;
         final int bandCount = color ? 3 : 1;
 
         final SCIFIO scifio = new SCIFIO();
-        try (Context context = scifio.getContext();
-             TiffSaver saver = TiffSaver.getInstance(context, targetFile, !randomAccess && !append)) {
-            saver.setWritingSequentially(!randomAccess);
-            saver.setAppendToExisting(append);
-            saver.setBigTiff(bigTiff);
-            saver.setLittleEndian(true);
-            saver.setAutoInterleave(true);
-            saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
-            if (singleStrip) {
-                saver.setDefaultSingleStrip();
-            } else {
-                saver.setDefaultStripHeight(100);
-            }
-            saver.startWriting();
-            System.out.printf("Creating %s...%n", targetFile);
-            for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
-                DetailedIFD ifd = new DetailedIFD();
-                ifd.putImageSizes(WIDTH, HEIGHT);
-                if (tiled) {
-                    ifd.putTileSizes(64, 64);
+        for (int test = 1; test <= numberOfTests; test++) {
+            final boolean deleteExistingFile = !randomAccess && !append;
+            try (Context context = scifio.getContext();
+                 TiffSaver saver = TiffSaver.getInstance(context, targetFile, deleteExistingFile)) {
+                saver.setWritingSequentially(!randomAccess);
+                saver.setAppendToExisting(append);
+                saver.setBigTiff(bigTiff);
+                saver.setLittleEndian(true);
+                saver.setAutoInterleave(true);
+                saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+                if (singleStrip) {
+                    saver.setDefaultSingleStrip();
+                } else {
+                    saver.setDefaultStripHeight(100);
                 }
-                ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
-                if (planarSeparated) {
-                    ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
+                saver.startWriting();
+                System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
+                for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
+                    Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
+                    DetailedIFD ifd = new DetailedIFD();
+                    ifd.putImageSizes(WIDTH, HEIGHT);
+                    if (tiled) {
+                        ifd.putTileSizes(64, 64);
+                    }
+                    ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
+                    if (planarSeparated) {
+                        ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
+                    }
+                    saver.writeSamplesArray(ifd, samplesArray,
+                            ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,
+                            ifdIndex == numberOfImages - 1);
                 }
-                saver.writeSamplesArray(ifd, samplesArray,
-                        ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,
-                        ifdIndex == numberOfImages - 1);
             }
         }
         System.out.println("Done");
@@ -192,7 +197,7 @@ public class TiffSaverTest {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
                         int v = (50 * ifdIndex + x + y) & 0xFF;
-                        channels[disp + c * matrixSize] = (float) (0.5 + 0.5 * (v / 256.0 - 0.5));
+                        channels[disp + c * matrixSize] = (float) (0.5 + 1.5 * (v / 256.0 - 0.5));
                     }
                 }
                 return channels;

@@ -1242,19 +1242,23 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     + optionalElementType(ifd).map(Class::getName).orElse("unknown")
                     + "[] elements");
         }
-        byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
+        final byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
         long t1 = debugTime();
-        final Object result = TiffTools.planeBytesToJavaArray(samples, ifd.getPixelType(), ifd.isLittleEndian());
+        final Object samplesArray = TiffTools.planeBytesToJavaArray(samples, ifd.getPixelType(), ifd.isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
-                    "%s converted %d bytes (%.3f MB) to %s[] in %.3f ms",
+                    "%s converted %d bytes (%.3f MB) to %s[] in %.3f ms%s",
                     getClass().getSimpleName(),
                     samples.length, samples.length / 1048576.0,
-                    result.getClass().getComponentType().getSimpleName(),
-                    (t2 - t1) * 1e-6));
+                    samplesArray.getClass().getComponentType().getSimpleName(),
+                    (t2 - t1) * 1e-6,
+                    samples == samplesArray ?
+                            "" :
+                            String.format(Locale.US, " %.3f MB/s",
+                                    samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
-        return result;
+        return samplesArray;
     }
 
     public TiffIFDEntry readTiffIFDEntry() throws IOException {

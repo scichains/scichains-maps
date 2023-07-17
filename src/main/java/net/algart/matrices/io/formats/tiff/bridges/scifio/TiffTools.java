@@ -116,7 +116,6 @@ public class TiffTools {
     }
 
     public static Object planeBytesToJavaArray(byte[] samples, int pixelType, boolean littleEndian) {
-        //TODO!! optimize and test all types
         switch (pixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> {
                 return samples;
@@ -155,22 +154,41 @@ public class TiffTools {
 
     public static byte[] javaArrayToPlaneBytes(Object samplesArray, boolean signed, boolean littleEndian) {
         int pixelType = arrayToPixelType(samplesArray, signed);
-        //TODO!! optimize and test all conversions
         switch (pixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> {
                 return (byte[]) samplesArray;
             }
             case FormatTools.INT16, FormatTools.UINT16 -> {
-                return Bytes.fromShorts((short[]) samplesArray, littleEndian);
+                final short[] shortValues = (short[]) samplesArray;
+                final byte[] v = new byte[shortValues.length * 2];
+                final ByteBuffer bb = ByteBuffer.wrap(v);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asShortBuffer().put(shortValues);
+                return v;
             }
             case FormatTools.INT32, FormatTools.UINT32 -> {
-                return Bytes.fromInts((int[]) samplesArray, littleEndian);
+                final int[] intValues = (int[]) samplesArray;
+                final byte[] v = new byte[intValues.length * 4];
+                final ByteBuffer bb = ByteBuffer.wrap(v);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asIntBuffer().put(intValues);
+                return v;
             }
             case FormatTools.FLOAT -> {
-                return Bytes.fromFloats((float[]) samplesArray, littleEndian);
+                final float[] floatValues = (float[]) samplesArray;
+                final byte[] v = new byte[floatValues.length * 4];
+                final ByteBuffer bb = ByteBuffer.wrap(v);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asFloatBuffer().put(floatValues);
+                return v;
             }
             case FormatTools.DOUBLE -> {
-                return Bytes.fromDoubles((double[]) samplesArray, littleEndian);
+                final double[] doubleValue = (double[]) samplesArray;
+                final byte[] v = new byte[doubleValue.length * 8];
+                final ByteBuffer bb = ByteBuffer.wrap(v);
+                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+                bb.asDoubleBuffer().put(doubleValue);
+                return v;
             }
         }
         throw new AssertionError("(should be already checked in arrayToPixelType)");

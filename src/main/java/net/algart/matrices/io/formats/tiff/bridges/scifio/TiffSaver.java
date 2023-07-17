@@ -870,16 +870,20 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
         long t1 = debugTime();
-        byte[] samples = TiffTools.javaArrayToPlaneBytes(
+        final byte[] samples = TiffTools.javaArrayToPlaneBytes(
                 samplesArray, FormatTools.isSigned(pixelType), isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
-                    "%s converted %d bytes (%.3f MB) from %s[] in %.3f ms",
+                    "%s converted %d bytes (%.3f MB) from %s[] in %.3f ms%s",
                     getClass().getSimpleName(),
                     samples.length, samples.length / 1048576.0,
                     samplesArray.getClass().getComponentType().getSimpleName(),
-                    (t2 - t1) * 1e-6));
+                    (t2 - t1) * 1e-6,
+                    samples == samplesArray ?
+                            "" :
+                            String.format(Locale.US, " %.3f MB/s",
+                                    samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
         writeSamples(ifd, samples, ifdIndex, numberOfChannels, pixelType, fromX, fromY, sizeX, sizeY, last);
     }
@@ -1008,7 +1012,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (jpeg && (signed || bytesPerPixel != 1)) {
             throw new FormatException("JPEG compression is not supported for %d-bit%s samples (\"%s\"): %s (\"%s\")"
                     .formatted(
-                            bitsPerSample, signed & !floatingPoint? " signed" : "",
+                            bitsPerSample, signed & !floatingPoint ? " signed" : "",
                             FormatTools.getPixelTypeString(pixelType),
                             "only unsigned 8-bit samples allowed",
                             FormatTools.getPixelTypeString(FormatTools.UINT8)));
