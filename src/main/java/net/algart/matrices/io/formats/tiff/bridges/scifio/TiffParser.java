@@ -38,7 +38,6 @@ import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.location.Location;
-import org.scijava.log.LogService;
 import org.scijava.util.Bytes;
 import org.scijava.util.IntRect;
 
@@ -56,6 +55,7 @@ import java.util.*;
  * @author Eric Kjellman
  * @author Melissa Linkert
  * @author Chris Allan
+ * @author Denial Alievsky
  */
 public class TiffParser extends AbstractContextual implements Closeable {
 
@@ -148,8 +148,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private final SCIFIO scifio;
 
-    private final LogService log;
-
     /**
      * Codec options to be used when decoding compressed pixel data.
      */
@@ -165,14 +163,18 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Constructs a new TIFF parser from the given file location.
      */
     public TiffParser(Context context, Location location, boolean requireValidTiff) throws IOException {
-        this(context, context.getService(DataHandleService.class).create(location), requireValidTiff);
+        this(context, TiffTools.getDataHandle(context, location), requireValidTiff);
     }
 
     public TiffParser(Context context, DataHandle<Location> in) {
+        Objects.requireNonNull(in, "Null in stream");
         this.requireValidTiff = false;
-        setContext(context);
-        scifio = new SCIFIO(context);
-        this.log = scifio.log();
+        if (context != null) {
+            setContext(context);
+            scifio = new SCIFIO(context);
+        } else {
+            scifio = null;
+        }
         this.in = in;
         doCaching = true;
         try {
@@ -187,10 +189,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Constructs a new TIFF parser from the given input source.
      */
     public TiffParser(Context context, DataHandle<Location> in, boolean requireValidTiff) throws IOException {
+        Objects.requireNonNull(in, "Null in stream");
         this.requireValidTiff = requireValidTiff;
-        setContext(context);
-        scifio = new SCIFIO(context);
-        this.log = scifio.log();
+        if (context != null) {
+            setContext(context);
+            scifio = new SCIFIO(context);
+        } else {
+            scifio = null;
+        }
         this.in = in;
         doCaching = true;
         try {
@@ -204,11 +210,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    public static TiffParser getInstance(Context context, Location location, boolean requireValidTiff)
+    public static TiffParser getInstance(Context context, DataHandle<Location> dataHandle, boolean requireValidTiff)
             throws IOException {
-        return new TiffParser(context, location, requireValidTiff)
+        return new TiffParser(context, dataHandle, requireValidTiff)
                 .setAutoUnpackUnusualPrecisions(true)
                 .setExtendedCodec(true);
+    }
+
+    public static TiffParser getInstance(Context context, Location location, boolean requireValidTiff)
+            throws IOException {
+        return getInstance(context, TiffTools.getDataHandle(context, location), requireValidTiff);
     }
 
     public static TiffParser getInstance(final Context context, Path file, boolean requireValidTiff)
@@ -675,7 +686,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             return null;
         }
         final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-        final DetailedIFD ifd = new DetailedIFD(log, offset);
+        final DetailedIFD ifd = new DetailedIFD(offset);
         ifd.setSubIFDType(subIFDType);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -1003,7 +1014,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
 
         decode(tile);
-        scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
+        // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
+        // - this solution requires using SCIFIO context class; it is better to avoid this
+        TiffTools.undifference(tile.ifd(), tile.getDecodedData());
 
         postProcessTile(tile);
 
@@ -1142,6 +1155,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (codec != null) {
             tile.setDecodedData(codec.decompress(stripSamples, codecOptions));
         } else {
+            if (scifio == null) {
+                throw new IllegalStateException("Compression type " + compression +
+                        " requires specifying non-null SCIFIO context");
+            }
             tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
         }
     }
@@ -1723,8 +1740,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
                              final int y, final long width, final long height, final int overlapX,
                              final int overlapY) throws FormatException, IOException {
-        log.trace("parsing IFD entries");
-
         // get internal non-IFD entries
         in.setLittleEndian(ifd.isLittleEndian());
 
@@ -1733,7 +1748,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final long tileWidth = ifd.getTileWidth();
         long tileLength = ifd.getTileLength();
         if (tileLength <= 0) {
-            log.trace("Tile length is " + tileLength + "; setting it to " + height);
+//            log.trace("Tile length is " + tileLength + "; setting it to " + height);
             tileLength = height;
         }
 
@@ -1745,9 +1760,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int pixel = ifd.getBytesPerSample()[0];
         final int effectiveChannels = planarConfig == 2 ? 1 : samplesPerPixel;
 
-        if (log.isTrace()) {
-            ifd.printIFD();
-        }
+//        if (log.isTrace()) {
+//            ifd.printIFD();
+//        }
 
         if (width * height > Integer.MAX_VALUE) {
             throw new FormatException("Sorry, ImageWidth x ImageLength > " +
@@ -1766,9 +1781,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int numSamples = (int) (width * height);
 
         // read in image strips
-        log.trace("reading image data (samplesPerPixel=" + samplesPerPixel +
-                "; numSamples=" + numSamples + ")");
-
         final TiffCompression compression = ifd.getCompression();
 
         if (compression == TiffCompression.JPEG_2000 ||

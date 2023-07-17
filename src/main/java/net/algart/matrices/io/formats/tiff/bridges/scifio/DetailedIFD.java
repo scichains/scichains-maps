@@ -32,7 +32,7 @@ import org.scijava.log.LogService;
 import java.lang.reflect.Array;
 import java.util.*;
 
-//!! Better analog of IFD (should be merged with the main IFD)
+//!! Better analog of IFD (can be merged with the main IFD)
 public class DetailedIFD extends IFD {
     public static final int ICC_PROFILE = 34675;
     public static final int MATTEING = 32995;
@@ -60,17 +60,16 @@ public class DetailedIFD extends IFD {
     public static final int SAMPLE_FORMAT_COMPLEX_INT = 5;
     public static final int SAMPLE_FORMAT_COMPLEX_IEEEFP = 6;
 
+    private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
+
     private final Long offset;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
 
     public DetailedIFD(IFD ifd) {
-        this(ifd, null);
-    }
-
-    public DetailedIFD(IFD ifd, LogService log) {
-        super(ifd, log);
+        super(ifd, null);
+        // Note: log argument is never used in this class.
         if (ifd instanceof DetailedIFD detailedIFD) {
             offset = detailedIFD.offset;
             entries = detailedIFD.entries;
@@ -82,30 +81,29 @@ public class DetailedIFD extends IFD {
         }
     }
 
-    public DetailedIFD(DetailedIFD detailedIFD, LogService log) {
-        super(detailedIFD, log);
+    public DetailedIFD(DetailedIFD detailedIFD) {
+        super(detailedIFD, null);
+        // Note: log argument is never used in this class.
         offset = detailedIFD.offset;
         entries = detailedIFD.entries;
         subIFDType = detailedIFD.subIFDType;
     }
 
     public DetailedIFD() {
-        this((LogService) null);
-    }
-
-    public DetailedIFD(LogService log) {
-        super(log);
+        super(null);
+        // Note: log argument is never used in this class.
         this.offset = null;
     }
 
-    public DetailedIFD(LogService log, long offset) {
-        super(log);
+    public DetailedIFD(long offset) {
+        super(null);
+        // Note: log argument is never used in this class.
         this.offset = offset;
     }
 
     public static DetailedIFD extend(IFD ifd) {
         Objects.requireNonNull(ifd, "Null IFD");
-        return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd, null);
+        return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
     public Long getOffset() {
@@ -125,7 +123,6 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-
     public boolean isMainIFD() {
         return subIFDType == null;
     }
@@ -138,6 +135,27 @@ public class DetailedIFD extends IFD {
         this.subIFDType = subIFDType;
         return this;
     }
+
+    // This method is overridden for removing usage of log field.
+    @Override
+    public int[] getBitsPerSample() throws FormatException {
+        int[] bitsPerSample = getIFDIntArray(BITS_PER_SAMPLE);
+        if (bitsPerSample == null) bitsPerSample = new int[] { 1 };
+
+        final int samplesPerPixel = getSamplesPerPixel();
+        if (bitsPerSample.length < samplesPerPixel) {
+            final int bits = bitsPerSample[0];
+            bitsPerSample = new int[samplesPerPixel];
+            Arrays.fill(bitsPerSample, bits);
+        }
+        for (int i = 0; i < samplesPerPixel; i++) {
+            if (bitsPerSample[i] < 1) {
+                throw new FormatException("Illegal BitsPerSample (" + bitsPerSample[i] + ")");
+            }
+        }
+        return bitsPerSample;
+    }
+
 
     // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
@@ -513,14 +531,21 @@ public class DetailedIFD extends IFD {
         return sb.toString();
     }
 
-    /**
-     * Returns user-friendly name of the given TIFF tag.
-     * It is used, in particular, in {@link #toString()} function.
-     *
-     * @param tag            entry Tag value.
-     * @param includeNumeric include numeric value into the result.
-     * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
-     */
+    // This method is overridden for removing usage of log field.
+    @Override
+    public void printIFD() {
+        LOG.log(System.Logger.Level.TRACE, this);
+    }
+
+
+        /**
+         * Returns user-friendly name of the given TIFF tag.
+         * It is used, in particular, in {@link #toString()} function.
+         *
+         * @param tag            entry Tag value.
+         * @param includeNumeric include numeric value into the result.
+         * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
+         */
     public static String ifdTagName(int tag, boolean includeNumeric) {
         String name = Objects.requireNonNullElse(IFDFriendlyNames.IFD_TAG_NAMES.get(tag), "Unknown tag");
         if (!includeNumeric) {

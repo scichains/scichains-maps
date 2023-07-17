@@ -40,7 +40,6 @@ import org.scijava.io.handle.DataHandles;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
-import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 
 import javax.imageio.*;
@@ -834,7 +833,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
         for (TiffTile tile : tiles) {
-            scifio.tiff().difference(tile.getDecodedData(), ifd);
+            // scifio.tiff().difference(tile.getDecodedData(), ifd);
+            // - this solution requires using SCIFIO context class; it is better to avoid this
+            TiffTools.difference(ifd, samples);
             encode(tile);
         }
         long t5 = debugTime();
@@ -915,15 +916,21 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         codecOptions.channels = effectiveChannels;
         Codec codec = null;
         if (extendedCodec) {
-            if (compression == TiffCompression.JPEG) {
-                codec = new ExtendedJPEGCodec()
-                        .setJpegInPhotometricRGB(jpegInPhotometricRGB)
-                        .setJpegQuality(jpegQuality);
+            switch (compression) {
+                case JPEG -> {
+                    codec = new ExtendedJPEGCodec()
+                            .setJpegInPhotometricRGB(jpegInPhotometricRGB)
+                            .setJpegQuality(jpegQuality);
+                }
             }
         }
         if (codec != null) {
             tile.setEncodedData(codec.compress(stripSamples, codecOptions));
         } else {
+            if (scifio == null) {
+                throw new IllegalStateException("Compression type " + compression +
+                        " requires specifying non-null SCIFIO context");
+            }
             tile.setEncodedData(compression.compress(scifio.codec(), stripSamples, codecOptions));
         }
     }

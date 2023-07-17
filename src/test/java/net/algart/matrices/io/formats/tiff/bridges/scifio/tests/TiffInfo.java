@@ -62,8 +62,7 @@ public class TiffInfo {
     }
 
     public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
-        try (Context context = new SCIFIO().getContext();
-             TiffParser parser = TiffParser.getInstance(context, tiffFile, false)) {
+        try (TiffParser parser = TiffParser.getInstance(null, tiffFile, false)) {
             if (!parser.isValidHeader()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {

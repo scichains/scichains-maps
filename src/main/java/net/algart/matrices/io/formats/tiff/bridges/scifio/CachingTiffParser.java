@@ -36,6 +36,11 @@ import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.util.*;
 
+/**
+ * Analog of {@link TiffParser} with built-in caching all loaded tiles.
+ *
+ * @author Denial Alievsky
+ */
 public class CachingTiffParser extends TiffParser {
     public static final long DEFAULT_MAX_CACHING_MEMORY = Math.max(0, getLongProperty(
             "net.algart.matrices.libs.scifio.tiff.defaultMaxCachingMemory", 256 * 1048576L));

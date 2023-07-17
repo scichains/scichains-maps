@@ -29,10 +29,12 @@ import io.scif.FormatException;
 import java.util.Objects;
 
 /**
- * Tile index, based of row, column and IDF identity hash code.
+ * TIFF tile index, based of row, column and IDF identity hash code.
  * Of course, identity hash code cannot provide a good universal cache,
  * but it is quite enough for optimizing usage of TiffParser:
  * usually we will not create new identical IFDs.
+ *
+ * @author Denial Alievsky
  */
 public final class TiffTileIndex {
     private final DetailedIFD ifd;

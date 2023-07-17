@@ -28,7 +28,12 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.util.FormatTools;
+import org.scijava.Context;
+import org.scijava.io.handle.DataHandle;
+import org.scijava.io.handle.DataHandleService;
+import org.scijava.io.handle.FileHandle;
 import org.scijava.io.location.FileLocation;
+import org.scijava.io.location.Location;
 import org.scijava.util.Bytes;
 
 import java.io.FileNotFoundException;
@@ -41,6 +46,11 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Utility methods for working with TIFF files.
+ *
+ * @author Daniel Alievsky
+ */
 public class TiffTools {
     static final boolean BUILT_IN_TIMING = getBooleanProperty(
             "net.algart.matrices.io.formats.tiff.builtInTiming");
@@ -349,12 +359,80 @@ public class TiffTools {
         }
     }
 
+    // Clone of the function from DefaultTiffService.
+    // The main reason to make this clone is removing usage of LogService class.
+    public static void difference(final IFD ifd, final byte[] input) throws FormatException {
+        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, 1);
+        if (predictor == 2) {
+            final int[] bitsPerSample = ifd.getBitsPerSample();
+            final long width = ifd.getImageWidth();
+            final boolean little = ifd.isLittleEndian();
+            final int planarConfig = ifd.getPlanarConfiguration();
+            final int bytes = ifd.getBytesPerSample()[0];
+            final int len = bytes * (planarConfig == 2 ? 1 : bitsPerSample.length);
+
+            for (int b = input.length - bytes; b >= 0; b -= bytes) {
+                if (b / len % width == 0) continue;
+                int value = Bytes.toInt(input, b, bytes, little);
+                value -= Bytes.toInt(input, b - len, bytes, little);
+                Bytes.unpack(value, input, b, bytes, little);
+            }
+        }
+        else if (predictor != 1) {
+            throw new FormatException("Unknown Predictor (" + predictor + ")");
+        }
+    }
+
+    // Clone of the function from DefaultTiffService.
+    // The main reason to make this clone is removing usage of LogService class.
+    public static void undifference(final IFD ifd, final byte[] input) throws FormatException {
+        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, 1);
+        if (predictor == 2) {
+            final int[] bitsPerSample = ifd.getBitsPerSample();
+            int len = bitsPerSample.length;
+            final long width = ifd.getImageWidth();
+            final boolean little = ifd.isLittleEndian();
+            final int planarConfig = ifd.getPlanarConfiguration();
+
+            final int bytes = ifd.getBytesPerSample()[0];
+
+            if (planarConfig == 2 || bitsPerSample[len - 1] == 0) len = 1;
+            len *= bytes;
+
+            for (int b = 0; b <= input.length - bytes; b += bytes) {
+                if (b / len % width == 0) continue;
+                int value = Bytes.toInt(input, b, bytes, little);
+                value += Bytes.toInt(input, b - len, bytes, little);
+                Bytes.unpack(value, input, b, bytes, little);
+            }
+        }
+        else if (predictor != 1) {
+            throw new FormatException("Unknown Predictor (" + predictor + ")");
+        }
+    }
+
     static FileLocation existingFileToLocation(Path file) throws FileNotFoundException {
         if (!Files.isRegularFile(file)) {
             throw new FileNotFoundException("File " + file
                     + (Files.exists(file) ? " is not a regular file" : " does not exist"));
         }
         return new FileLocation(file.toFile());
+    }
+
+    @SuppressWarnings("rawtypes")
+    static DataHandle<Location> getDataHandle(Context context, Location location) {
+        Objects.requireNonNull(location, "Null location");
+        DataHandle<Location> dataHandle;
+        if (location instanceof FileLocation fileLocation) {
+            @SuppressWarnings("resource")
+            FileHandle fileHandle = new FileHandle();
+            fileHandle.set(fileLocation);
+            dataHandle = (DataHandle) fileHandle;
+        } else {
+            Objects.requireNonNull(context, "Null context is not allowed for non-file location: " + location);
+            dataHandle = context.getService(DataHandleService.class).create(location);
+        }
+        return dataHandle;
     }
 
     static int checkedMul(

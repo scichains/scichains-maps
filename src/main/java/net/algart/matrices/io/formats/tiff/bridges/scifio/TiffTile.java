@@ -26,6 +26,11 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import java.util.Objects;
 
+/**
+ * TIFF tile: container for samples (encoded or decoded) with given {@link TiffTileIndex index}.
+ *
+ * @author Denial Alievsky
+ */
 public class TiffTile {
     private final TiffTileIndex tileIndex;
     private final DetailedIFD ifd;
