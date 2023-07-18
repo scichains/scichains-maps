@@ -110,12 +110,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     /**
      * Output Location.
      */
-    private Location loc;
+    private final Location location;
 
     /**
      * Output bytes.
      */
-    private BytesLocation bytes;
+    private BytesLocation bytes = null;
 
     /**
      * Whether or not to write BigTIFF data.
@@ -141,23 +141,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private double jpegQuality = 1.0;
 
-    private SCIFIO scifio;
+    private final SCIFIO scifio;
 
-    @Parameter
-    private DataHandleService dataHandleService;
+    private final DataHandleService dataHandleService;
 
     // -- Constructors --
 
-    public TiffSaver(Context context, Location location) throws IOException {
-        Objects.requireNonNull(context, "Null context");
-        Objects.requireNonNull(location, "Null location");
 
-        setContext(context);
-        this.loc = location;
-        this.out = dataHandleService.create(location);
-        Objects.requireNonNull(out, "Data handle service created null output stream");
-        // - just in case: maybe this implementation of DataHandleService is incorrect
-        scifio = new SCIFIO(context);
+    public TiffSaver(Context context, Location location) throws IOException {
+        this(
+                Objects.requireNonNull(context, "Null context"),
+                context.getService(DataHandleService.class).create(location));
     }
 
     /**
@@ -166,16 +160,24 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param out Output stream to save TIFF data to.
      */
     public TiffSaver(Context context, DataHandle<Location> out) {
-        Objects.requireNonNull(context, "Null context");
-        Objects.requireNonNull(out, "Null output stream");
+        Objects.requireNonNull(out, "Null \"out\" data handle (output stream)");
+        if (context != null) {
+            setContext(context);
+            scifio = new SCIFIO(context);
+            dataHandleService = context.getService(DataHandleService.class);
+        } else {
+            scifio = null;
+            dataHandleService = null;
+        }
         this.out = out;
-        this.loc = out.get();
-        setContext(context);
-        scifio = new SCIFIO(context);
+        this.location = out.get();
+        if (this.location == null) {
+            throw new UnsupportedOperationException("Illegal DataHandle, returning null location: " + out.getClass());
+        }
     }
 
-    public static TiffSaver getInstance(Context context, Location location) throws IOException {
-        return new TiffSaver(context, location)
+    public static TiffSaver getInstance(Context context, DataHandle<Location> out) throws IOException {
+        return new TiffSaver(context, out)
                 .setWritingSequentially(true)
                 .setAutoInterleave(true)
                 .setExtendedCodec(true);
@@ -190,28 +192,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (deleteExistingFile) {
             Files.deleteIfExists(file);
         }
-        return getInstance(context, new FileLocation(file.toFile()));
-    }
-
-    /**
-     * Constructs a new TIFF saver from the given output source.
-     *
-     * @param out   Output stream to save TIFF data to.
-     * @param bytes In memory byte array handle that we may use to create extra
-     *              input or output streams as required.
-     */
-    public TiffSaver(final DataHandle<Location> out, final BytesLocation bytes) {
-        setContext(new Context());
-
-        if (out == null) {
-            throw new IllegalArgumentException(
-                    "Output stream expected to be not-null");
-        }
-        if (bytes == null) {
-            throw new IllegalArgumentException("Bytes expected to be not null");
-        }
-        this.out = out;
-        this.bytes = bytes;
+        return getInstance(context, TiffTools.getDataHandle(file));
     }
 
     // -- TiffSaver methods --
@@ -422,9 +403,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     public void startWriting() throws IOException {
         if (appendToExisting) {
-            final DataHandle<Location> in = loc != null ?
-                    dataHandleService.create(loc) :
-                    dataHandleService.create(out.get());
+            final DataHandle<Location> in = dataHandleService.create(location);
             final boolean bigTiff;
             final boolean littleEndian;
             final long positionOfLastOffset;
@@ -779,15 +758,16 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samples, "Null samples");
-        if (!writingSequentially)
+        if (!writingSequentially) {
             if (appendToExisting) {
                 throw new IllegalStateException("appendToExisting mode can be used only together with " +
                         "writingSequentially (random-access writing mode is used to rewrite some existing " +
                         "image inside the TIFF, not for appending new images to the end)");
             }
-        if (ifdIndex == null || ifdIndex < 0) {
-            throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
-                    " is not allowed when writing mode is not sequential");
+            if (ifdIndex == null || ifdIndex < 0) {
+                throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
+                        " is not allowed when writing mode is not sequential");
+            }
         }
         long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
@@ -1172,9 +1152,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         assert out != null : "must be checked in the constructor";
 
         if (!writingSequentially) {
-            final DataHandle<Location> in = loc != null ?
-                    dataHandleService.create(loc) :
-                    dataHandleService.create(out.get());
+            final DataHandle<Location> in = dataHandleService.create(location);
             if (ifdIndex == null || ifdIndex < 0) {
                 throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
                         " is not allowed when writing mode is not sequential");
@@ -1280,6 +1258,21 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG ? System.nanoTime() : 0;
     }
 
+
+    /**
+     * Constructs a new TIFF saver from the given output source.
+     *
+     * @param out   Output stream to save TIFF data to.
+     * @param bytes In memory byte array handle that we may use to create extra
+     *              input or output streams as required.
+     */
+    @Deprecated
+    public TiffSaver(final DataHandle<Location> out, final BytesLocation bytes) {
+        this(new Context(), out);
+        this.bytes = bytes;
+    }
+
+
     @Deprecated
     public void writeImage(final byte[][] buf, final IFDList ifds,
                            final int pixelType) throws FormatException, IOException {
@@ -1325,7 +1318,17 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
     }
 
+    /**
+     * Please use {@link #getInstance(Context, Path)} instead.
+     */
     @Deprecated
+    public TiffSaver(final Context ctx, final String filename)
+            throws IOException {
+        this(ctx, new FileLocation(filename));
+    }
+
+    @Deprecated
+    //TODO!! remove deprecation and use it
     public void overwriteLastIFDOffset(final DataHandle<Location> handle)
             throws FormatException, IOException {
         if (handle == null) throw new FormatException("Output cannot be null");

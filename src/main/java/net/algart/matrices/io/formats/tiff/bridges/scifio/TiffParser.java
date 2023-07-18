@@ -156,14 +156,19 @@ public class TiffParser extends AbstractContextual implements Closeable {
     // -- Constructors --
 
     public TiffParser(final Context context, final Location location) {
-        this(context, context.getService(DataHandleService.class).create(location));
+        this(
+                Objects.requireNonNull(context, "Null context"),
+                context.getService(DataHandleService.class).create(location));
     }
 
     /**
      * Constructs a new TIFF parser from the given file location.
      */
     public TiffParser(Context context, Location location, boolean requireValidTiff) throws IOException {
-        this(context, TiffTools.getDataHandle(context, location), requireValidTiff);
+        this(
+                Objects.requireNonNull(context, "Null context"),
+                context.getService(DataHandleService.class).create(location),
+                requireValidTiff);
     }
 
     public TiffParser(Context context, DataHandle<Location> in) {
@@ -189,7 +194,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * Constructs a new TIFF parser from the given input source.
      */
     public TiffParser(Context context, DataHandle<Location> in, boolean requireValidTiff) throws IOException {
-        Objects.requireNonNull(in, "Null in stream");
+        Objects.requireNonNull(in, "Null \"in\" data handle (input stream)");
         this.requireValidTiff = requireValidTiff;
         if (context != null) {
             setContext(context);
@@ -210,25 +215,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    public static TiffParser getInstance(Context context, DataHandle<Location> dataHandle, boolean requireValidTiff)
+    public static TiffParser getInstance(Context context, DataHandle<Location> in, boolean requireValidTiff)
             throws IOException {
-        return new TiffParser(context, dataHandle, requireValidTiff)
+        return new TiffParser(context, in, requireValidTiff)
                 .setAutoUnpackUnusualPrecisions(true)
                 .setExtendedCodec(true);
     }
 
-    public static TiffParser getInstance(Context context, Location location, boolean requireValidTiff)
-            throws IOException {
-        return getInstance(context, TiffTools.getDataHandle(context, location), requireValidTiff);
-    }
-
-    public static TiffParser getInstance(final Context context, Path file, boolean requireValidTiff)
-            throws IOException {
-        return getInstance(context, TiffTools.existingFileToLocation(file), requireValidTiff);
-    }
-
-    public static TiffParser getInstance(final Context context, Path file) throws IOException {
+    public static TiffParser getInstance(Context context, Path file) throws IOException {
         return getInstance(context, file, true);
+    }
+
+    public static TiffParser getInstance(Context context, Path file, boolean requireValidTiff)
+            throws IOException {
+        return getInstance(context, TiffTools.getExistingFileHandle(file), requireValidTiff);
     }
 
 
