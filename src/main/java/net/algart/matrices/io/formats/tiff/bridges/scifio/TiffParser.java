@@ -1172,22 +1172,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    // Unlike AbstractCodec.decompress, this method does not require using "handles" field, annotated as @Parameter
-    // This function is not universal, it cannot be applied to any codec!
-    private static byte[] decompress(byte[] data, Codec codec, CodecOptions options) throws FormatException {
-        Objects.requireNonNull(data, "Null data");
-        Objects.requireNonNull(codec, "Null codec");
-        if (codec instanceof PassthroughCodec) {
-            return data;
-        }
-        try (DataHandle<Location> handle = TiffTools.getBytesHandle(new BytesLocation(data))) {
-            return codec.decompress(handle, options);
-        } catch (final IOException e) {
-            throw new FormatException(e);
-        }
-    }
-
-
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
         final long width = ifd.getImageWidth();
         final long length = ifd.getImageLength();
@@ -1463,6 +1447,21 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     }
                 }
             }
+        }
+    }
+
+    // Unlike AbstractCodec.decompress, this method does not require using "handles" field, annotated as @Parameter
+    // This function is not universal, it cannot be applied to any codec!
+    private static byte[] decompress(byte[] data, Codec codec, CodecOptions options) throws FormatException {
+        Objects.requireNonNull(data, "Null data");
+        Objects.requireNonNull(codec, "Null codec");
+        if (codec instanceof PassthroughCodec) {
+            return data;
+        }
+        try (DataHandle<Location> handle = TiffTools.getBytesHandle(new BytesLocation(data))) {
+            return codec.decompress(handle, options);
+        } catch (final IOException e) {
+            throw new FormatException(e);
         }
     }
 
