@@ -26,17 +26,17 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.codec.BitBuffer;
-import io.scif.codec.Codec;
-import io.scif.codec.CodecOptions;
+import io.scif.codec.*;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEG2000Codec;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
+import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
 import org.scijava.util.Bytes;
 import org.scijava.util.IntRect;
@@ -1146,20 +1146,44 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         Codec codec = null;
         if (extendedCodec) {
-            switch (compression) {
-                case JPEG_2000, JPEG_2000_LOSSY, ALT_JPEG2000 -> {
-                    codec = new ExtendedJPEG2000Codec();
-                }
-            }
+            codec = switch (compression) {
+                case JPEG, OLD_JPEG, ALT_JPEG -> new ExtendedJPEGCodec(scifio == null ? null : scifio.getContext());
+                // - ExtendedJPEG2000Codec class does not use Context-based features
+                case JPEG_2000, JPEG_2000_LOSSY, ALT_JPEG2000 -> new ExtendedJPEG2000Codec();
+                // - ExtendedJPEG2000Codec.decompress() does not use Context-based features
+                default -> null;
+            };
+        }
+        if (codec == null && scifio == null) {
+            // - let's create codec directly: it's better than do nothing
+            codec = switch (compression) {
+                case DEFAULT_UNCOMPRESSED, UNCOMPRESSED -> new PassthroughCodec();
+                case LZW -> new LZWCodec();
+                case DEFLATE, PROPRIETARY_DEFLATE -> new ZlibCodec();
+                // - these codec do not use Context-based features (like @Parameter initialization)
+                default -> throw new IllegalStateException(
+                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
+            };
         }
         if (codec != null) {
-            tile.setDecodedData(codec.decompress(stripSamples, codecOptions));
+            tile.setDecodedData(decompress(stripSamples, codec, codecOptions));
         } else {
-            if (scifio == null) {
-                throw new IllegalStateException("Compression type " + compression +
-                        " requires specifying non-null SCIFIO context");
-            }
             tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
+        }
+    }
+
+    // Unlike AbstractCodec.decompress, this method does not require using "handles" field, annotated as @Parameter
+    // This function is not universal, it cannot be applied to any codec!
+    private static byte[] decompress(byte[] data, Codec codec, CodecOptions options) throws FormatException {
+        Objects.requireNonNull(data, "Null data");
+        Objects.requireNonNull(codec, "Null codec");
+        if (codec instanceof PassthroughCodec) {
+            return data;
+        }
+        try (DataHandle<Location> handle = TiffTools.getBytesHandle(new BytesLocation(data))) {
+            return codec.decompress(handle, options);
+        } catch (final IOException e) {
+            throw new FormatException(e);
         }
     }
 

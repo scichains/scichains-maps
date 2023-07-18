@@ -25,24 +25,39 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 
 import io.scif.FormatException;
-import io.scif.codec.CodecOptions;
-import io.scif.codec.JPEGCodec;
+import io.scif.codec.*;
 import io.scif.gui.AWTImageTools;
+import org.scijava.Context;
+import org.scijava.io.handle.DataHandle;
+import org.scijava.io.handle.DataHandleInputStream;
+import org.scijava.io.location.Location;
+import org.scijava.plugin.Parameter;
+import org.scijava.util.Bytes;
 
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class ExtendedJPEGCodec extends JPEGCodec {
+public class ExtendedJPEGCodec extends AbstractCodec {
+    @Parameter
+    private CodecService codecService;
+
     private boolean jpegInPhotometricRGB = false;
 
     private double jpegQuality = 1.0;
 
+    public ExtendedJPEGCodec(Context context) {
+        if (context != null) {
+            setContext(context);
+            // - initializes codecService, necessary for using LosslessJPEGCodec
+        }
+    }
 
     public boolean isJpegInPhotometricRGB() {
         return jpegInPhotometricRGB;
@@ -108,6 +123,75 @@ public class ExtendedJPEGCodec extends JPEGCodec {
         }
         return result.toByteArray();
     }
+
+    @Override
+    public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
+        //TODO!! optimize loops, especially AWTImageTools.getPixelBytes
+        final long offset = in.offset();
+        BufferedImage b;
+        try {
+            b = ImageIO.read(new BufferedInputStream(new DataHandleInputStream<>(in), 8192));
+        }
+        catch (final IOException exc) {
+            // probably a lossless JPEG; delegate to LosslessJPEGCodec
+            if (codecService == null) {
+                throw new IllegalStateException(
+                        "Decompressing unusual JPEG (probably lossless) requires specifying non-null SCIFIO context");
+            }
+            in.seek(offset);
+            final Codec codec = codecService.getCodec(LosslessJPEGCodec.class);
+            return codec.decompress(in, options);
+        }
+        if (b == null) {
+            throw new FormatException("Cannot read JPEG image: probably file is corrupted");
+        }
+
+        if (options == null) options = CodecOptions.getDefaultOptions();
+
+        final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
+
+        // correct for YCbCr encoding, if necessary
+        if (options.ycbcr && buf.length == 3) {
+            final int nBytes = buf[0].length / (b.getWidth() * b.getHeight());
+            final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
+            for (int i = 0; i < buf[0].length; i += nBytes) {
+                final int y = Bytes.toInt(buf[0], i, nBytes, options.littleEndian);
+                int cb = Bytes.toInt(buf[1], i, nBytes, options.littleEndian);
+                int cr = Bytes.toInt(buf[2], i, nBytes, options.littleEndian);
+
+                cb = Math.max(0, cb - 128);
+                cr = Math.max(0, cr - 128);
+
+                final int red = (int) (y + 1.402 * cr) & mask;
+                final int green = (int) (y - 0.34414 * cb - 0.71414 * cr) & mask;
+                final int blue = (int) (y + 1.772 * cb) & mask;
+
+                Bytes.unpack(red, buf[0], i, nBytes, options.littleEndian);
+                Bytes.unpack(green, buf[1], i, nBytes, options.littleEndian);
+                Bytes.unpack(blue, buf[2], i, nBytes, options.littleEndian);
+            }
+        }
+
+        byte[] rtn = new byte[buf.length * buf[0].length];
+        if (buf.length == 1) rtn = buf[0];
+        else {
+            if (options.interleaved) {
+                int next = 0;
+                for (int i = 0; i < buf[0].length; i++) {
+                    for (int j = 0; j < buf.length; j++) {
+                        rtn[next++] = buf[j][i];
+                    }
+                }
+            }
+            else {
+                for (int i = 0; i < buf.length; i++) {
+                    System.arraycopy(buf[i], 0, rtn, i * buf[0].length, buf[i].length);
+                }
+            }
+        }
+        return rtn;
+    }
+
 
     private static ImageWriter getJPEGWriter() throws IIOException {
         Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");

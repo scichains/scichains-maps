@@ -56,23 +56,18 @@ public class CachingTiffParser extends TiffParser {
     private long currentCacheMemory = 0;
     private final Object tileCacheLock = new Object();
 
-    public CachingTiffParser(Context context, Location location) throws IOException {
-        this(context, context.getService(DataHandleService.class).create(location));
-    }
-
     public CachingTiffParser(Context context, DataHandle<Location> in) throws IOException {
         super(context, in, true);
         this.setAutoUnpackUnusualPrecisions(true);
         this.setExtendedCodec(true);
     }
 
-    public static CachingTiffParser getInstance(Context context, Location location) throws IOException {
-        return new CachingTiffParser(context, location);
-
+    public static CachingTiffParser getInstance(Context context, DataHandle<Location> in) throws IOException {
+        return new CachingTiffParser(context, in);
     }
 
     public static CachingTiffParser getInstance(final Context context, Path file) throws IOException {
-        return getInstance(context, TiffTools.existingFileToLocation(file));
+        return getInstance(context, TiffTools.getExistingFileHandle(file));
     }
 
     public long getMaxCachingMemory() {

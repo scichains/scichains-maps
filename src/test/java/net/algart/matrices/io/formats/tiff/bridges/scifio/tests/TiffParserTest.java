@@ -51,6 +51,11 @@ public class TiffParserTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
+        boolean noContext = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
+            noContext = true;
+            startArgIndex++;
+        }
         boolean cache = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-cache")) {
             cache = true;
@@ -80,7 +85,7 @@ public class TiffParserTest {
         TiffInfo.showTiffInfo(tiffFile);
 
         final SCIFIO scifio = new SCIFIO();
-        try (final Context context = scifio.getContext()) {
+        try (final Context context = noContext ? null : scifio.getContext()) {
             final TiffParser parser = cache ?
                     CachingTiffParser.getInstance(context, tiffFile)
                             .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffParser.DEFAULT_MAX_CACHING_MEMORY):

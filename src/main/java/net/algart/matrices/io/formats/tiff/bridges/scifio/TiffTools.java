@@ -28,19 +28,15 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.util.FormatTools;
-import org.scijava.Context;
-import org.scijava.InstantiableException;
-import org.scijava.Priority;
+import org.scijava.io.handle.BytesHandle;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.handle.FileHandle;
+import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
-import org.scijava.plugin.DefaultPluginService;
-import org.scijava.plugin.PluginInfo;
 import org.scijava.util.Bytes;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -419,20 +415,28 @@ public class TiffTools {
             throw new FileNotFoundException("File " + file
                     + (Files.exists(file) ? " is not a regular file" : " does not exist"));
         }
-        return getDataHandle(file);
+        return getFileHandle(file);
     }
 
-    public static DataHandle<Location> getDataHandle(Path file) {
+    public static DataHandle<Location> getFileHandle(Path file) {
         Objects.requireNonNull(file, "Null file");
-        return getDataHandle(new FileLocation(file.toFile()));
+        return getFileHandle(new FileLocation(file.toFile()));
     }
 
     @SuppressWarnings("rawtypes, unchecked")
-    public static DataHandle<Location> getDataHandle(FileLocation fileLocation) {
+    public static DataHandle<Location> getFileHandle(FileLocation fileLocation) {
         Objects.requireNonNull(fileLocation, "Null fileLocation");
         FileHandle fileHandle = new FileHandle();
         fileHandle.set(fileLocation);
         return (DataHandle) fileHandle;
+    }
+
+    @SuppressWarnings("rawtypes, unchecked")
+    public static DataHandle<Location> getBytesHandle(BytesLocation bytesLocation) {
+        Objects.requireNonNull(bytesLocation, "Null bytesLocation");
+        BytesHandle bytesHandle = new BytesHandle();
+        bytesHandle.set(bytesLocation);
+        return (DataHandle) bytesHandle;
     }
 
     static Location existingFileToLocation(Path file) throws FileNotFoundException {
@@ -443,26 +447,20 @@ public class TiffTools {
         return new FileLocation(file.toFile());
     }
 
-    static DataHandle<Location> getDataHandle(Context context, Location location) {
-        return getDataHandle(context != null ? context.getService(DataHandleService.class) : null, location);
-    }
-
-
-    @SuppressWarnings("rawtypes, unchecked")
-    private static DataHandle<Location> getDataHandle(DataHandleService dataHandleService, Location location) {
+    /**
+     * For file location, this function works even with dataHandleService == null.
+     */
+    static DataHandle<Location> getDataHandle(DataHandleService dataHandleService, Location location) {
         Objects.requireNonNull(location, "Nu<ll location");
         DataHandle<Location> dataHandle;
         if (location instanceof FileLocation fileLocation) {
-            @SuppressWarnings("resource")
-            FileHandle fileHandle = new FileHandle();
-            fileHandle.set(fileLocation);
-            dataHandle = (DataHandle) fileHandle;
+            return getFileHandle(fileLocation);
         } else {
-            Objects.requireNonNull(dataHandleService,
-                    "Null context is not allowed for non-file location: " + location);
-            dataHandle = dataHandleService.create(location);
+            if (dataHandleService == null) {
+                throw new IllegalStateException("SCIFIO context is required for non-file location: " + location);
+            }
+            return dataHandleService.create(location);
         }
-        return dataHandle;
     }
 
     static int checkedMul(

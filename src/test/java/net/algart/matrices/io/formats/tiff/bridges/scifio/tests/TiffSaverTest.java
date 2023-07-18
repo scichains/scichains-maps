@@ -43,6 +43,11 @@ public class TiffSaverTest {
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
+        boolean noContext = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
+            noContext = true;
+            startArgIndex++;
+        }
         boolean append = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-append")) {
             append = true;
@@ -112,7 +117,7 @@ public class TiffSaverTest {
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
             final boolean deleteExistingFile = !randomAccess && !append;
-            try (Context context = scifio.getContext();
+            try (Context context = noContext ? null : scifio.getContext();
                  TiffSaver saver = TiffSaver.getInstance(context, targetFile, deleteExistingFile)) {
                 saver.setWritingSequentially(!randomAccess);
                 saver.setAppendToExisting(append);

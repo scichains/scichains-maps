@@ -40,6 +40,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 // This class needs to avoid the bug in SCIFIO: https://github.com/scifio/scifio/issues/495
+// This is a temporary solution, for decompression only:
+// compression will not work without setting private field jaiIIOService
 public class ExtendedJPEG2000Codec extends JPEG2000Codec {
 
     // Almost exact copy of super.decompress

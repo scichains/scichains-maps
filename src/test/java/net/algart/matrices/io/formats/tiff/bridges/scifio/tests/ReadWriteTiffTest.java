@@ -42,12 +42,17 @@ import java.util.List;
 import java.util.Locale;
 
 public class ReadWriteTiffTest {
-    private static final int MAX_IMAGE_DIM = 10000;
+    private static final int MAX_IMAGE_DIM = 8000;
     private static final int START_X = 0;
     private static final int START_Y = 0;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
+        boolean noContext = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
+            noContext = true;
+            startArgIndex++;
+        }
         boolean bigTiff = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-big")) {
             bigTiff = true;
@@ -95,7 +100,7 @@ public class ReadWriteTiffTest {
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
             System.out.printf("Test #%d%n", test);
-            try (Context context = scifio.getContext()) {
+            try (Context context = noContext ? null : scifio.getContext()) {
                 TiffParser parser = TiffParser.getInstance(context, sourceFile);
                 parser.setFiller((byte) 0xC0);
                 TiffSaver saver = TiffSaver.getInstance(context, targetFile);
@@ -180,7 +185,8 @@ public class ReadWriteTiffTest {
 //                ifdCopy.remove(IFD.STRIP_OFFSETS);
                     }
                 }
-                saver.getStream().close();
+                parser.close();
+                saver.close();
                 if (legacy) {
                     writer.close();
                 }

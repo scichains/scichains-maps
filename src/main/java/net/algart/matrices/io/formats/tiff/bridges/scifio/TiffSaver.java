@@ -27,8 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.codec.Codec;
-import io.scif.codec.CodecOptions;
+import io.scif.codec.*;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
@@ -40,7 +39,6 @@ import org.scijava.io.handle.DataHandles;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
-import org.scijava.plugin.Parameter;
 
 import javax.imageio.*;
 import java.io.Closeable;
@@ -192,7 +190,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (deleteExistingFile) {
             Files.deleteIfExists(file);
         }
-        return getInstance(context, TiffTools.getDataHandle(file));
+        return getInstance(context, TiffTools.getFileHandle(file));
     }
 
     // -- TiffSaver methods --
@@ -403,11 +401,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     public void startWriting() throws IOException {
         if (appendToExisting) {
-            final DataHandle<Location> in = dataHandleService.create(location);
+            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
             final boolean bigTiff;
             final boolean littleEndian;
             final long positionOfLastOffset;
-            try (final TiffParser parser = new TiffParser(getContext(), in, true)) {
+            try (final TiffParser parser = new TiffParser(null, in, true)) {
                 parser.getIFDOffsets();
                 bigTiff = parser.isBigTiff();
                 littleEndian = parser.isLittleEndian();
@@ -497,8 +495,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.writeShort(keyCount);
         }
 
-        final BytesLocation extra = new BytesLocation(0); // NB: autoresizes
-        try (final DataHandle<Location> extraHandle = dataHandleService.create(extra)) {
+        final BytesLocation bytesLocation = new BytesLocation(0, "memory-buffer");
+        try (final DataHandle<Location> extraHandle = TiffTools.getBytesHandle(bytesLocation)) {
             for (final Integer key : keys) {
                 if (key.equals(IFD.LITTLE_ENDIAN) || key.equals(IFD.BIG_TIFF) || key.equals(IFD.REUSE)) {
                     continue;
@@ -896,21 +894,27 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         codecOptions.channels = effectiveChannels;
         Codec codec = null;
         if (extendedCodec) {
-            switch (compression) {
-                case JPEG -> {
-                    codec = new ExtendedJPEGCodec()
-                            .setJpegInPhotometricRGB(jpegInPhotometricRGB)
-                            .setJpegQuality(jpegQuality);
-                }
-            }
+            codec = switch (compression) {
+                case JPEG -> new ExtendedJPEGCodec(scifio == null ? null : scifio.getContext())
+                        .setJpegInPhotometricRGB(jpegInPhotometricRGB)
+                        .setJpegQuality(jpegQuality);
+                default -> null;
+            };
+        }
+        if (codec == null && scifio == null) {
+            // - let's create codec directly: it's better than do nothing
+            codec = switch (compression) {
+                case DEFAULT_UNCOMPRESSED, UNCOMPRESSED -> new PassthroughCodec();
+                case LZW -> new LZWCodec();
+                case DEFLATE, PROPRIETARY_DEFLATE -> new ZlibCodec();
+                // - these codec do not use Context-based features (like @Parameter initialization)
+                default -> throw new IllegalStateException(
+                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
+            };
         }
         if (codec != null) {
             tile.setEncodedData(codec.compress(stripSamples, codecOptions));
         } else {
-            if (scifio == null) {
-                throw new IllegalStateException("Compression type " + compression +
-                        " requires specifying non-null SCIFIO context");
-            }
             tile.setEncodedData(compression.compress(scifio.codec(), stripSamples, codecOptions));
         }
     }
@@ -1152,12 +1156,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         assert out != null : "must be checked in the constructor";
 
         if (!writingSequentially) {
-            final DataHandle<Location> in = dataHandleService.create(location);
+            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
             if (ifdIndex == null || ifdIndex < 0) {
                 throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
                         " is not allowed when writing mode is not sequential");
             }
-            try (final TiffParser parser = new TiffParser(getContext(), in)) {
+            try (final TiffParser parser = new TiffParser(null, in)) {
                 final long[] ifdOffsets = parser.getIFDOffsets();
                 if (ifdIndex < ifdOffsets.length) {
                     out.seek(ifdOffsets[(int) ifdIndex]);
@@ -1327,8 +1331,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         this(ctx, new FileLocation(filename));
     }
 
+    /**
+     * Please use code like inside {@link #startWriting()}.
+     */
     @Deprecated
-    //TODO!! remove deprecation and use it
     public void overwriteLastIFDOffset(final DataHandle<Location> handle)
             throws FormatException, IOException {
         if (handle == null) throw new FormatException("Output cannot be null");
