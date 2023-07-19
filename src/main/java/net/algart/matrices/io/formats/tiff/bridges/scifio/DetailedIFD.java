@@ -459,8 +459,8 @@ public class DetailedIFD extends IFD {
             Object additional = null;
             try {
                 switch (tag) {
-                    case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation();
-                    case IFD.COMPRESSION -> additional = getCompression();
+                    case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
+                    case IFD.COMPRESSION -> additional = getCompression().getCodecName();
                     case IFD.PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {

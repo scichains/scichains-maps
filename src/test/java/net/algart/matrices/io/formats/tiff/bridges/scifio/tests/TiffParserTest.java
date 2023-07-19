@@ -28,11 +28,11 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
 import org.scijava.Context;
 
 import javax.imageio.IIOException;

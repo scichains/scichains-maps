@@ -139,11 +139,15 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new FormatException("Cannot read JPEG image: probably file is corrupted");
         }
 
-        if (options == null) options = CodecOptions.getDefaultOptions();
+        if (options == null) {
+            options = CodecOptions.getDefaultOptions();
+        }
 
         final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
 
-        // correct for YCbCr encoding, if necessary
+        // Correct for YCbCr encoding, if necessary.
+        // In TiffParser it is a rare case: Y_CB_CR is encoded with non-standard sub-sampling;
+        // so, there is no sense to optimize this.
         if (options.ycbcr && buf.length == 3) {
             final int nBytes = buf[0].length / (b.getWidth() * b.getHeight());
             final int mask = (int) (Math.pow(2, nBytes * 8) - 1);

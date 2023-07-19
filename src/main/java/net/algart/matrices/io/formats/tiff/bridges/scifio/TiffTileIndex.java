@@ -41,7 +41,7 @@ public final class TiffTileIndex {
     private final int tileSizeX;
     private final int tileSizeY;
     private final int tileSize;
-    private final int sizeOfTileBasedOnBits;
+    private final int sizeOfBasedOnBits;
     private final int ifdIdentity;
     private final int x;
     private final int y;
@@ -69,7 +69,7 @@ public final class TiffTileIndex {
                         " >= 2^31 pixels is not supported");
                 // - note that it is also checked deeper in the next operator
             }
-            this.sizeOfTileBasedOnBits = ifd.sizeOfTileBasedOnBits();
+            this.sizeOfBasedOnBits = ifd.sizeOfTileBasedOnBits();
             this.tileSize = tileSizeX * tileSizeY;
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal IFD: cannot determine tile sizes", e);
@@ -95,7 +95,7 @@ public final class TiffTileIndex {
     }
 
     public int sizeOfBasedOnBits() {
-        return sizeOfTileBasedOnBits;
+        return sizeOfBasedOnBits;
     }
 
     public int x() {

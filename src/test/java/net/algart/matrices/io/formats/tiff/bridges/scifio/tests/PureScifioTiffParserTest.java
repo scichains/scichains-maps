@@ -63,6 +63,8 @@ public class PureScifioTiffParserTest {
         TiffParser reader = new TiffParser(context, new FileLocation(tiffFile));
         IFDList ifDs = reader.getIFDs();
         final IFD ifd = ifDs.get(ifdIndex);
+//        ifd.put(IFD.BITS_PER_SAMPLE, new int[] {8, 12, 8});
+//        - will not work in new TiffParser
         final int w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
         final int h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
         final int bandCount = ifd.getSamplesPerPixel();
