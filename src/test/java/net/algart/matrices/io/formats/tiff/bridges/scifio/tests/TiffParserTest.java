@@ -127,7 +127,7 @@ public class TiffParserTest {
             System.out.printf("Converting data to BufferedImage...%n");
             final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
             System.out.printf("Saving result image into %s...%n", resultFile);
-            if (!ImageIO.write(image, extension(resultFile.getName()), resultFile)) {
+            if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
                 throw new IIOException("Cannot write " + resultFile);
             }
         }
@@ -147,11 +147,4 @@ public class TiffParserTest {
         return SMat.valueOf(multiMatrix).toBufferedImage();
     }
 
-    public static String extension(String fileName) {
-        int p = fileName.lastIndexOf('.');
-        if (p == -1) {
-            return "bmp";
-        }
-        return fileName.substring(p + 1);
-    }
 }

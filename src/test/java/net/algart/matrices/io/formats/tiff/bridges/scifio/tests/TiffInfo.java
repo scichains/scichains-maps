@@ -46,7 +46,7 @@ public class TiffInfo {
         final int firstIFDIndex = args.length > 1 ? Integer.parseInt(args[1]) : 0;
         final int lastIFDIndex = args.length > 2 ? Integer.parseInt(args[2]) : Integer.MAX_VALUE;
         if (fileName.equals(".")) {
-            final File[] files = new File(".").listFiles(File::isFile);
+            final File[] files = new File(".").listFiles(TiffInfo::isPossiblyTIFF);
             assert files != null;
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {
@@ -89,4 +89,21 @@ public class TiffInfo {
         Long offset = ifd != null ? ifd.getOffset() : null;
         return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ifd);
     }
+
+    public static String extension(String fileName, String defaultExtension) {
+        int p = fileName.lastIndexOf('.');
+        if (p == -1) {
+            return defaultExtension;
+        }
+        return fileName.substring(p + 1);
+    }
+
+    private static boolean isPossiblyTIFF(File file) {
+        if (!file.isFile()) {
+            return false;
+        }
+        final String e = extension(file.getName().toLowerCase(), "txt");
+        return !e.equals("txt");
+    }
+
 }
