@@ -1147,12 +1147,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
         Codec codec = null;
         if (extendedCodec) {
             codec = switch (compression) {
-                case JPEG, OLD_JPEG, ALT_JPEG -> new ExtendedJPEGCodec(scifio == null ? null : scifio.getContext());
+                case JPEG, OLD_JPEG, ALT_JPEG -> new ExtendedJPEGCodec();
                 // - ExtendedJPEG2000Codec class does not use Context-based features
                 case JPEG_2000, JPEG_2000_LOSSY, ALT_JPEG2000 -> new ExtendedJPEG2000Codec();
                 // - ExtendedJPEG2000Codec.decompress() does not use Context-based features
                 default -> null;
             };
+            if (codec != null && scifio != null) {
+                codec.setContext(scifio.getContext());
+            }
         }
         if (codec == null && scifio == null) {
             // - let's create codec directly: it's better than do nothing
@@ -1166,7 +1169,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             };
         }
         if (codec != null) {
-            tile.setDecodedData(decompress(stripSamples, codec, codecOptions));
+            tile.setDecodedData(codecDecompress(stripSamples, codec, codecOptions));
         } else {
             tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
         }
@@ -1452,7 +1455,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     // Unlike AbstractCodec.decompress, this method does not require using "handles" field, annotated as @Parameter
     // This function is not universal, it cannot be applied to any codec!
-    private static byte[] decompress(byte[] data, Codec codec, CodecOptions options) throws FormatException {
+    private static byte[] codecDecompress(byte[] data, Codec codec, CodecOptions options) throws FormatException {
         Objects.requireNonNull(data, "Null data");
         Objects.requireNonNull(codec, "Null codec");
         if (codec instanceof PassthroughCodec) {

@@ -52,13 +52,6 @@ public class ExtendedJPEGCodec extends AbstractCodec {
 
     private double jpegQuality = 1.0;
 
-    public ExtendedJPEGCodec(Context context) {
-        if (context != null) {
-            setContext(context);
-            // - initializes codecService, necessary for using LosslessJPEGCodec
-        }
-    }
-
     public boolean isJpegInPhotometricRGB() {
         return jpegInPhotometricRGB;
     }

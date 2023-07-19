@@ -895,11 +895,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Codec codec = null;
         if (extendedCodec) {
             codec = switch (compression) {
-                case JPEG -> new ExtendedJPEGCodec(scifio == null ? null : scifio.getContext())
+                case JPEG -> new ExtendedJPEGCodec()
                         .setJpegInPhotometricRGB(jpegInPhotometricRGB)
                         .setJpegQuality(jpegQuality);
                 default -> null;
             };
+            if (codec != null && scifio != null) {
+                codec.setContext(scifio.getContext());
+            }
         }
         if (codec == null && scifio == null) {
             // - let's create codec directly: it's better than do nothing
