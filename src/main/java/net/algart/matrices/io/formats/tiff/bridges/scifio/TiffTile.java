@@ -34,10 +34,11 @@ import java.util.Objects;
 public class TiffTile {
     private final TiffTileIndex tileIndex;
     private final DetailedIFD ifd;
-    private boolean encoded = false;
     private int sizeX;
     private int sizeY;
     private int size;
+    private boolean interleaved;
+    private boolean encoded = false;
     private byte[] data = null;
     private int lastDataLength = 0;
 
@@ -57,15 +58,6 @@ public class TiffTile {
 
     public final DetailedIFD ifd() {
         return ifd;
-    }
-
-    public boolean isEncoded() {
-        return encoded;
-    }
-
-    public TiffTile setEncoded(boolean encoded) {
-        this.encoded = encoded;
-        return this;
     }
 
     public int getSizeX() {
@@ -88,6 +80,16 @@ public class TiffTile {
         return size;
     }
 
+    /**
+     * Sets the sizes of this tile.
+     *
+     * <p>These are purely informational properties, not affecting processing the stored data
+     * and supported for additional convenience of usage this object.
+     *
+     * @param sizeX the tile width.
+     * @param sizeY the tile height.
+     * @return a reference to this object.
+     */
     public TiffTile setSizes(int sizeX, int sizeY) {
         if (sizeX < 0) {
             throw new IllegalArgumentException("Negative tile x-size: " + sizeX);
@@ -105,10 +107,37 @@ public class TiffTile {
         return this;
     }
 
+    public boolean isInterleaved() {
+        return interleaved;
+    }
+
+    /**
+     * Sets the flag, are the stored pixel samples are interleaved (like RGBRGB...) or not (RRR...GGG...BBB...).
+     * It doesn't matter in a case of monochrome images.
+     *
+     * <p>This is purely informational property, not affecting processing the stored data
+     * and supported for additional convenience of usage this object.
+     *
+     * @param interleaved whether the data should be considered as interleaved.
+     * @return a reference to this object.
+     */
+    public TiffTile setInterleaved(boolean interleaved) {
+        this.interleaved = interleaved;
+        return this;
+    }
+
+    public boolean isEncoded() {
+        return encoded;
+    }
+
+    public TiffTile setEncoded(boolean encoded) {
+        this.encoded = encoded;
+        return this;
+    }
+
     public boolean isEmpty() {
         return data == null;
     }
-
 
     public byte[] getData() {
         checkEmpty();

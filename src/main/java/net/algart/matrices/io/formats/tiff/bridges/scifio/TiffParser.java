@@ -1020,7 +1020,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // - this solution requires using SCIFIO context class; it is better to avoid this
         TiffTools.undifference(tile.ifd(), tile.getDecodedData());
 
-        postProcessTile(tile);
+        reorderTile(tile);
 
         return tile;
     }
@@ -1178,6 +1178,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             };
         }
+        tile.setInterleaved(true);
         if (codec != null) {
             tile.setDecodedData(codecDecompress(stripSamples, codec, codecOptions));
         } else {
@@ -1334,7 +1335,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.close();
     }
 
-    protected static void postProcessTile(TiffTile tile) throws FormatException {
+    protected void reorderTile(TiffTile tile) throws FormatException {
         unpackBytes(tile);
 
         /*
@@ -1559,6 +1560,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 // Daniel Alievsky
                 decodedTile.setDecodedData(Arrays.copyOf(bytes, samplesLength));
             }
+            decodedTile.setInterleaved(false);
             return;
         }
 
@@ -1581,13 +1583,13 @@ public class TiffParser extends AbstractContextual implements Closeable {
             reference = new int[]{0, 0, 0, 0, 0, 0};
         }
         final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
-        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(
-                IFD.Y_CB_CR_COEFFICIENTS);
+        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(IFD.Y_CB_CR_COEFFICIENTS);
         if (coefficients != null) {
             lumaRed = coefficients[0].floatValue();
             lumaGreen = coefficients[1].floatValue();
             lumaBlue = coefficients[2].floatValue();
         }
+        final double lumaGreenInv = 1.0 / lumaGreen;
         final int subX = subsampling == null ? 2 : subsampling[0];
         final int subY = subsampling == null ? 2 : subsampling[1];
         final int block = subX * subY;
@@ -1651,21 +1653,22 @@ public class TiffParser extends AbstractContextual implements Closeable {
                             final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
                             final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
 
-                            final int red = (int) (cr * (2 - 2 * lumaRed) + y);
-                            final int blue = (int) (cb * (2 - 2 * lumaBlue) + y);
-                            final int green = (int) ((y - lumaBlue * blue - lumaRed * red) /
-                                                     lumaGreen);
+                            final double red = cr * (2 - 2 * lumaRed) + y;
+                            final double blue = cb * (2 - 2 * lumaBlue) + y;
+                            final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
 
-                            unpacked[idx] = (byte) (red & 0xff);
-                            unpacked[nSamples + idx] = (byte) (green & 0xff);
-                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
+                            unpacked[idx] = (byte) toUnsignedByte(red);
+                            unpacked[nSamples + idx] = (byte) toUnsignedByte(green);
+                            unpacked[2 * nSamples + idx] = (byte) toUnsignedByte(blue);
                         }
                     }
                 }
             }
         }
         decodedTile.setDecodedData(unpacked);
+        decodedTile.setInterleaved(false);
     }
+
 
     /**
      * Read a file offset. For bigTiff, a 64-bit number is read. For other Tiffs,
@@ -1700,6 +1703,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         this.positionOfLastOffset = fp;
         return offset;
+    }
+
+    private static int toUnsignedByte(double v) {
+        return v < 0.0 ? 0 : v > 255.0 ? 255 : (int) Math.round(v);
     }
 
     private static Optional<Class<?>> optionalElementType(IFD ifd) {
