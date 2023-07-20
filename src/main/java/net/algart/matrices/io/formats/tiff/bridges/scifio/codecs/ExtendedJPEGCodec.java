@@ -136,7 +136,8 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             return codec.decompress(in, options);
         }
         if (b == null) {
-            throw new FormatException("Cannot read JPEG image: probably file is corrupted");
+            throw new FormatException("Cannot read JPEG image: unknown format");
+            // - for example, OLD_JPEG
         }
 
         if (options == null) {

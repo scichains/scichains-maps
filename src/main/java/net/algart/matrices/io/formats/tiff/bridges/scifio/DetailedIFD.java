@@ -459,8 +459,10 @@ public class DetailedIFD extends IFD {
             Object additional = null;
             try {
                 switch (tag) {
-                    case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
-                    case IFD.COMPRESSION -> additional = getCompression().getCodecName();
+                    case IFD.PHOTOMETRIC_INTERPRETATION ->
+                            additional = getPhotometricInterpretation().getName();
+                    case IFD.COMPRESSION ->
+                            additional = getCompression() + " (" + getCompression().getCodecName() + ")";
                     case IFD.PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
@@ -525,7 +527,7 @@ public class DetailedIFD extends IFD {
                 }
             }
             if (additional != null) {
-                sb.append(" [").append(additional).append("]");
+                sb.append("   - ").append(additional);
             }
         }
         return sb.toString();

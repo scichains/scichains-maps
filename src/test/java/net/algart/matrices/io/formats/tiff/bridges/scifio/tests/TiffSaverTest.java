@@ -119,6 +119,7 @@ public class TiffSaverTest {
             final boolean deleteExistingFile = !randomAccess && !append;
             try (Context context = noContext ? null : scifio.getContext();
                  TiffSaver saver = TiffSaver.getInstance(context, targetFile, deleteExistingFile)) {
+//                saver.setExtendedCodec(false);
                 saver.setWritingSequentially(!randomAccess);
                 saver.setAppendToExisting(append);
                 saver.setBigTiff(bigTiff);

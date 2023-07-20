@@ -27,6 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
+import io.scif.UnsupportedCompressionException;
 import io.scif.codec.*;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
@@ -892,32 +893,33 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         codecOptions.width = tile.getSizeX();
         codecOptions.height = tile.getSizeY();
         codecOptions.channels = effectiveChannels;
+        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
+        if (known == null) {
+            throw new UnsupportedCompressionException("Compression \"" + compression.getCodecName() +
+                    "\" (TIFF code " + compression.getCode() + ") is not supported");
+        }
+        // - don't try to write unknown compressions: they may require additional processing
+
         Codec codec = null;
         if (extendedCodec) {
-            codec = switch (compression) {
-                case JPEG -> new ExtendedJPEGCodec()
+            codec = known.extendedCodec(scifio == null ? null : scifio.getContext());
+            if (codec instanceof ExtendedJPEGCodec extendedJPEGCodec) {
+                extendedJPEGCodec
                         .setJpegInPhotometricRGB(jpegInPhotometricRGB)
                         .setJpegQuality(jpegQuality);
-                default -> null;
-            };
-            if (codec != null && scifio != null) {
-                codec.setContext(scifio.getContext());
             }
         }
         if (codec == null && scifio == null) {
-            // - let's create codec directly: it's better than do nothing
-            codec = switch (compression) {
-                case DEFAULT_UNCOMPRESSED, UNCOMPRESSED -> new PassthroughCodec();
-                case LZW -> new LZWCodec();
-                case DEFLATE, PROPRIETARY_DEFLATE -> new ZlibCodec();
-                // - these codec do not use Context-based features (like @Parameter initialization)
-                default -> throw new IllegalStateException(
-                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
-            };
+            codec = known.noContextCodec();
+            // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
         }
         if (codec != null) {
             tile.setEncodedData(codec.compress(stripSamples, codecOptions));
         } else {
+            if (scifio == null) {
+                throw new IllegalStateException(
+                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
+            }
             tile.setEncodedData(compression.compress(scifio.codec(), stripSamples, codecOptions));
         }
     }

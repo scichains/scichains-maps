@@ -30,8 +30,6 @@ import io.scif.codec.*;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEG2000Codec;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -589,14 +587,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if (numberOfEntries > Integer.MAX_VALUE / bytesPerEntry) {
                 throw new IOException(
                         "Too many number of IFD entries in Big TIFF: " + numberOfEntries +
-                        " (it is not supported, probably file is broken)");
+                                " (it is not supported, probably file is broken)");
             }
             long skippedIFDBytes = numberOfEntries * bytesPerEntry;
             if (offset + skippedIFDBytes >= in.length()) {
                 throw new IOException(
                         "Invalid TIFF" + prettyInName() + ": position of next IFD offset " +
-                        (offset + skippedIFDBytes) + " after " + numberOfEntries + " entries is outside the file" +
-                        " (probably file is broken)");
+                                (offset + skippedIFDBytes) + " after " + numberOfEntries + " entries is outside the file" +
+                                " (probably file is broken)");
             }
             in.skipBytes((int) skippedIFDBytes);
             offset = getNextOffset(offset);
@@ -925,16 +923,16 @@ public class TiffParser extends AbstractContextual implements Closeable {
             }
             return longs;
         } else if (type == IFDType.LONG8 || type == IFDType.SLONG8 ||
-                   type == IFDType.IFD8) {
+                type == IFDType.IFD8) {
             if (count == 1) return in.readLong();
             long[] longs = null;
 
             if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS ||
-                                      entry.getTag() == IFD.TILE_BYTE_COUNTS)) {
+                    entry.getTag() == IFD.TILE_BYTE_COUNTS)) {
                 longs = new long[1];
                 longs[0] = in.readLong();
             } else if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_OFFSETS ||
-                                             entry.getTag() == IFD.TILE_OFFSETS)) {
+                    entry.getTag() == IFD.TILE_OFFSETS)) {
                 final OnDemandLongArray offsets = new OnDemandLongArray(in);
                 offsets.setSize(count);
                 return offsets;
@@ -1038,7 +1036,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if ((long) jpegTable.length + (long) tile.length - 4 >= Integer.MAX_VALUE) {
                 throw new FormatException(
                         "Too large tile/strip at " + tileIndex + ": JPEG table length " +
-                        jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
+                                jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
 
             }
             final byte[] appended = new byte[jpegTable.length + tile.length - 4];
@@ -1066,14 +1064,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException(
                         "Too large image: number of tiles in column " + numTileCols
-                        + " * samples per pixel " + channelsInSeparated + " >= 2^31");
+                                + " * samples per pixel " + channelsInSeparated + " >= 2^31");
             }
             numTileRows *= channelsInSeparated;
         }
         if (xIndex < 0 || xIndex >= numTileCols || yIndex < 0 || yIndex >= numTileRows) {
             throw new IndexOutOfBoundsException(
                     "Tile/strip position (xIndex, yIndex) = (" + xIndex + ", " + yIndex
-                    + ") is out of bounds 0 <= xIndex < " + numTileCols + ", 0 <= yIndex < " + numTileRows);
+                            + ") is out of bounds 0 <= xIndex < " + numTileCols + ", 0 <= yIndex < " + numTileRows);
         }
         final long numberOfTiles = (long) numTileRows * (long) numTileCols;
         if (numberOfTiles > Integer.MAX_VALUE) {
@@ -1093,9 +1091,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (countIndex >= byteCounts.length) {
             throw new FormatException(
                     "Too short " + (ifd.isTiled() ? "TileByteCounts" : "StripByteCounts")
-                    + " array: " + byteCounts.length
-                    + " elements, it is not enough for the tile byte-count index " + countIndex
-                    + " (this image contains " + numTileCols + "x" + numTileRows + " tiles)");
+                            + " array: " + byteCounts.length
+                            + " elements, it is not enough for the tile byte-count index " + countIndex
+                            + " (this image contains " + numTileCols + "x" + numTileRows + " tiles)");
         }
         long byteCount = byteCounts[countIndex];
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
@@ -1113,9 +1111,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (tileIndex >= numberOfOffsets) {
             throw new FormatException(
                     "Too short " + (ifd.isTiled() ? "TileOffsets" : "StripOffsets")
-                    + " array: " + numberOfOffsets
-                    + " elements, it is not enough for the tile offset index " + tileIndex
-                    + " (this image contain " + numTileCols + "x" + numTileRows + " tiles)");
+                            + " array: " + numberOfOffsets
+                            + " elements, it is not enough for the tile offset index " + tileIndex
+                            + " (this image contain " + numTileCols + "x" + numTileRows + " tiles)");
         }
         final long stripOffset = onDemandOffsets != null ? onDemandOffsets.get(tileIndex) : offsets[tileIndex];
 
@@ -1150,38 +1148,27 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
         codecOptions.ycbcr =
                 ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                && subSampleHorizontal == 1
-                && yCbCrCorrection;
+                        && subSampleHorizontal == 1
+                        && yCbCrCorrection;
         // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
+        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
         Codec codec = null;
-        if (extendedCodec) {
-            codec = switch (compression) {
-                case JPEG, OLD_JPEG, ALT_JPEG -> new ExtendedJPEGCodec();
-                // - ExtendedJPEG2000Codec class does not use Context-based features
-                case JPEG_2000, JPEG_2000_LOSSY, ALT_JPEG2000 -> new ExtendedJPEG2000Codec();
-                // - ExtendedJPEG2000Codec.decompress() does not use Context-based features
-                default -> null;
-            };
-            if (codec != null && scifio != null) {
-                codec.setContext(scifio.getContext());
-            }
+        if (extendedCodec && known != null) {
+            codec = known.extendedCodec(scifio == null ? null : scifio.getContext());
         }
-        if (codec == null && scifio == null) {
-            // - let's create codec directly: it's better than do nothing
-            codec = switch (compression) {
-                case DEFAULT_UNCOMPRESSED, UNCOMPRESSED -> new PassthroughCodec();
-                case LZW -> new LZWCodec();
-                case DEFLATE, PROPRIETARY_DEFLATE -> new ZlibCodec();
-                // - these codec do not use Context-based features (like @Parameter initialization)
-                default -> throw new IllegalStateException(
-                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
-            };
+        if (codec == null && scifio == null && known != null) {
+            codec = known.noContextCodec();
+            // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
         }
         tile.setInterleaved(true);
         if (codec != null) {
             tile.setDecodedData(codecDecompress(stripSamples, codec, codecOptions));
         } else {
+            if (scifio == null) {
+                throw new IllegalStateException(
+                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
+            }
             tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
         }
     }
@@ -1216,7 +1203,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         } else if (size > samples.length) {
             throw new IllegalArgumentException(
                     "Insufficient length of the result samples array: " +
-                    samples.length + " < necessary " + size + " bytes");
+                            samples.length + " < necessary " + size + " bytes");
         }
         if (sizeX == 0 || sizeY == 0) {
             return samples;
@@ -1245,7 +1232,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             long t4 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                    "%.3f get + %.3f corrections + %.3f interleave, %.3f MB/s",
+                            "%.3f get + %.3f corrections + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
                     ifd.getSamplesPerPixel(), sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
@@ -1274,15 +1261,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (requiredSamplesPerPixel != null && ifd.getSamplesPerPixel() != requiredSamplesPerPixel) {
             throw new FormatException(
                     "Number of bands mismatch: expected " + requiredSamplesPerPixel
-                    + " samples per pixel, but IFD image contains " + ifd.getSamplesPerPixel()
-                    + " samples per pixel");
+                            + " samples per pixel, but IFD image contains " + ifd.getSamplesPerPixel()
+                            + " samples per pixel");
         }
         if (requiredElementType != null && optionalElementType(ifd).orElse(null) != requiredElementType) {
             throw new FormatException(
                     "Element type mismatch: expected " + requiredElementType
-                    + "[] elements, but some IFD image contains "
-                    + optionalElementType(ifd).map(Class::getName).orElse("unknown")
-                    + "[] elements");
+                            + "[] elements, but some IFD image contains "
+                            + optionalElementType(ifd).map(Class::getName).orElse("unknown")
+                            + "[] elements");
         }
         final byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
         long t1 = debugTime();
@@ -1413,7 +1400,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException(
                         "Too large image: number of tiles in column " + numTileRows
-                        + " * samples per pixel " + channelsInSeparated + " >= 2^31");
+                                + " * samples per pixel " + channelsInSeparated + " >= 2^31");
             }
             channelsUsual = 1;
         } else {
@@ -1479,6 +1466,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         Objects.requireNonNull(data, "Null data");
         Objects.requireNonNull(codec, "Null codec");
         if (codec instanceof PassthroughCodec) {
+            // - PassthroughCodec does not support decompress(DataHandle) method, called below
             return data;
         }
         try (DataHandle<Location> handle = TiffTools.getBytesHandle(new BytesLocation(data))) {
@@ -1506,7 +1494,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final boolean planar = ifd.isPlanarSeparated();
         final TiffCompression compression = ifd.getCompression();
         PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        if (compression == TiffCompression.JPEG) {
+        if (KnownTiffCompression.isJpegCodec(compression)) {
+            // - JPEG codec, based on Java API BufferedImage, always returns RGB data
             photoInterp = PhotoInterp.RGB;
         }
 
@@ -1524,8 +1513,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (LOGGABLE_TRACE) {
             LOG.log(System.Logger.Level.TRACE,
                     "unpacking " + sampleCount + " unpacked" +
-                    "; totalBits=" + (nChannels * bitsPerSample[0]) +
-                    "; numBytes=" + bytes.length + ")");
+                            "; totalBits=" + (nChannels * bitsPerSample[0]) +
+                            "; numBytes=" + bytes.length + ")");
         }
 
         final long imageWidth = ifd.getImageWidth();
@@ -1551,9 +1540,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
         if ((bps8 || bps16) && bytes.length <= samplesLength && nChannels == 1 &&
-            photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-            photoInterp != PhotoInterp.CMYK &&
-            photoInterp != PhotoInterp.Y_CB_CR) {
+                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterp != PhotoInterp.CMYK &&
+                photoInterp != PhotoInterp.Y_CB_CR) {
             if (bytes.length < samplesLength) {
                 // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
                 // we need to check it before quick returning
@@ -1612,8 +1601,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
                         // bits per sample is not a multiple of 8
 
                         if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
-                            (photoInterp != PhotoInterp.CFA_ARRAY &&
-                             photoInterp != PhotoInterp.RGB_PALETTE)) {
+                                (photoInterp != PhotoInterp.CFA_ARRAY &&
+                                        photoInterp != PhotoInterp.RGB_PALETTE)) {
                             value = bb.getBits(bps0) & 0xffff;
                             if ((ndx % imageWidth) == imageWidth - 1) {
                                 bb.skipBits(skipBits);
@@ -1624,7 +1613,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     }
 
                     if (photoInterp == PhotoInterp.WHITE_IS_ZERO ||
-                        photoInterp == PhotoInterp.CMYK) {
+                            photoInterp == PhotoInterp.CMYK) {
                         value = maxValue - value;
                     }
 
@@ -1698,7 +1687,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if (offset >= in.length()) {
                 throw new IOException(
                         "Invalid TIFF" + prettyInName() + ": offset " + offset + " at file position " + fp +
-                        " is outside the file");
+                                " is outside the file");
             }
         }
         this.positionOfLastOffset = fp;
@@ -1829,15 +1818,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (width * height > Integer.MAX_VALUE) {
             throw new FormatException(
                     "Sorry, ImageWidth x ImageLength > " +
-                    Integer.MAX_VALUE + " is not supported (" + width + " x " + height +
-                    ")");
+                            Integer.MAX_VALUE + " is not supported (" + width + " x " + height +
+                            ")");
         }
         if (width * height * effectiveChannels * pixel > Integer.MAX_VALUE) {
             throw new FormatException(
                     "Sorry, ImageWidth x ImageLength x " +
-                    "SamplesPerPixel x BitsPerSample > " + Integer.MAX_VALUE +
-                    " is not supported (" + width + " x " + height + " x " +
-                    samplesPerPixel + " x " + (pixel * 8) + ")");
+                            "SamplesPerPixel x BitsPerSample > " + Integer.MAX_VALUE +
+                            " is not supported (" + width + " x " + height + " x " +
+                            samplesPerPixel + " x " + (pixel * 8) + ")");
         }
 
         // casting to int is safe because we have already determined that
@@ -1848,7 +1837,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
 
         if (compression == TiffCompression.JPEG_2000 ||
-            compression == TiffCompression.JPEG_2000_LOSSY) {
+                compression == TiffCompression.JPEG_2000_LOSSY) {
             codecOptions = compression.getCompressionCodecOptions(ifd, codecOptions);
         } else codecOptions = compression.getCompressionCodecOptions(ifd);
         codecOptions.interleaved = true;
@@ -1858,11 +1847,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // special case: if we only need one tile, and that tile doesn't need
         // any special handling, then we can just read it directly and return
         if ((x % tileWidth) == 0 && (y % tileLength) == 0 && width == tileWidth &&
-            height == imageLength && samplesPerPixel == 1 &&
-            (ifd.getBitsPerSample()[0] % 8) == 0 &&
-            photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-            photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
-            compression == TiffCompression.UNCOMPRESSED) {
+                height == imageLength && samplesPerPixel == 1 &&
+                (ifd.getBitsPerSample()[0] % 8) == 0 &&
+                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
+                compression == TiffCompression.UNCOMPRESSED) {
             final long[] stripOffsets = ifd.getStripOffsets();
             final long[] stripByteCounts = ifd.getStripByteCounts();
 
@@ -1870,7 +1859,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 final long column = x / tileWidth;
                 final int firstTile = (int) ((y / tileLength) * numTileCols + column);
                 int lastTile = (int) (((y + height) / tileLength) * numTileCols +
-                                      column);
+                        column);
                 lastTile = Math.min(lastTile, stripOffsets.length - 1);
 
                 int offset = 0;
@@ -1910,7 +1899,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (ifd.getPlanarConfiguration() == 2) bufferSizeSamplesPerPixel = 1;
         final int bpp = ifd.getBytesPerSample()[0];
         final int bufferSize = (int) tileWidth * (int) tileLength *
-                               bufferSizeSamplesPerPixel * bpp;
+                bufferSizeSamplesPerPixel * bpp;
 
         cachedTileBuffer = new byte[bufferSize];
 

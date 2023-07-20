@@ -64,8 +64,13 @@ public class TiffExtractTileContent {
             byte[] bytes = parser.readEncodedTile(tileIndex).getData();
             System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);
-            TiffTile tile = parser.readTile(tileIndex);
-            System.out.printf("Decoding the same (for verification): %s%n", tile);
+            TiffTile tile = null;
+            try {
+                tile = parser.readTile(tileIndex);
+                System.out.printf("Decoding the same (for verification): %s%n", tile);
+            } catch (FormatException | IOException e) {
+                System.err.printf("Cannot decode tile: %s%n", e);
+            }
         }
         System.out.println("Done");
     }

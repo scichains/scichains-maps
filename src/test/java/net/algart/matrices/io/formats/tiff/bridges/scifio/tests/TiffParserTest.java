@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class TiffParserTest {
-    private static final int MAX_IMAGE_DIM = 10000;
+    private static final int MAX_IMAGE_DIM = 8000;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -90,6 +90,7 @@ public class TiffParserTest {
                     CachingTiffParser.getInstance(context, tiffFile)
                             .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffParser.DEFAULT_MAX_CACHING_MEMORY):
                     TiffParser.getInstance(context, tiffFile);
+//            parser.setExtendedCodec(false);
             parser.setFiller((byte) 0x80);
             System.out.printf("Opening %s by %s...%n", tiffFile, parser);
             final var ifds = parser.allIFD();

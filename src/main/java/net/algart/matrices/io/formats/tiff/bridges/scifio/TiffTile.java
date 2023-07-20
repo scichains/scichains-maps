@@ -203,6 +203,6 @@ public class TiffTile {
     public String toString() {
         return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
                 + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
-                (isEmpty() ? ", empty" : lastDataLength() + " bytes");
+                (isEmpty() ? ", empty" : ", " + lastDataLength() + " bytes");
     }
 }
