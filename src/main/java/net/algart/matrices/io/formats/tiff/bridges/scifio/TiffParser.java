@@ -1493,40 +1493,53 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final boolean planar = ifd.isPlanarSeparated();
         final TiffCompression compression = ifd.getCompression();
-        PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        if (KnownTiffCompression.isJpegCodec(compression)) {
-            // - JPEG codec, based on Java API BufferedImage, always returns RGB data
-            photoInterp = PhotoInterp.RGB;
-        }
+        final PhotoInterp photoInterpetation = KnownTiffCompression.isJpegCodec(compression) ?
+                PhotoInterp.RGB :
+                ifd.getPhotometricInterpretation();
+        // - JPEG codec, based on Java API BufferedImage, always returns RGB data
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
-        int nChannels = bitsPerSample.length;
+        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
+        final int bps0 = bitsPerSample[0];
+        final boolean noDiv8 = bps0 % 8 != 0;
+        final boolean bps8 = equalBitsPerSample && bps0 == 8;
+        final boolean bps16 = equalBitsPerSample && bps0 == 16;
+        final int channels = planar ? 1 : ifd.getSamplesPerPixel();
 
-        int sampleCount = (int) (((long) 8 * bytes.length) / bitsPerSample[0]);
-        if (photoInterp == PhotoInterp.Y_CB_CR) sampleCount *= 3;
-        if (planar) {
-            nChannels = 1;
-        } else {
-            sampleCount /= nChannels;
+        long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
+        if (photoInterpetation == PhotoInterp.Y_CB_CR) {
+            if (planar) {
+                // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
+                throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
+                        "(separated component plances)");
+            }
+            if (channels != 3) {
+                throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
+                        "there are " + channels + " channels in SamplesPerPixel TIFF tag");
+            }
+            sampleCount *= 3;
+            // - necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
+        }
+        if (!planar) {
+            sampleCount /= channels;
+        }
+        if (sampleCount > Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
         }
 
         if (LOGGABLE_TRACE) {
             LOG.log(System.Logger.Level.TRACE,
                     "unpacking " + sampleCount + " unpacked" +
-                            "; totalBits=" + (nChannels * bitsPerSample[0]) +
+                            "; totalBits=" + (channels * bitsPerSample[0]) +
                             "; numBytes=" + bytes.length + ")");
         }
 
         final long imageWidth = ifd.getImageWidth();
         final long imageHeight = ifd.getImageLength();
 
-        final int bps0 = bitsPerSample[0];
         final int numBytes = ifd.getBytesPerSample()[0];
-        final int nSamples = samplesLength / (nChannels * numBytes);
+        final int nSamples = samplesLength / (channels * numBytes);
 
-        final boolean noDiv8 = bps0 % 8 != 0;
-        final boolean bps8 = bps0 == 8;
-        final boolean bps16 = bps0 == 16;
 
         final boolean littleEndian = ifd.isLittleEndian();
 
@@ -1539,10 +1552,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // semi-large datasets this can save **billions** of method calls.
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
-        if ((bps8 || bps16) && bytes.length <= samplesLength && nChannels == 1 &&
-                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterp != PhotoInterp.CMYK &&
-                photoInterp != PhotoInterp.Y_CB_CR) {
+        if ((bps8 || bps16) && bytes.length <= samplesLength &&
+                channels == 1 &&
+                photoInterpetation != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterpetation != PhotoInterp.CMYK &&
+                photoInterpetation != PhotoInterp.Y_CB_CR) {
             if (bytes.length < samplesLength) {
                 // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
                 // we need to check it before quick returning
@@ -1556,10 +1570,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final byte[] unpacked = new byte[samplesLength];
 
         long maxValue = (long) Math.pow(2, bps0) - 1;
-        if (photoInterp == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+        if (photoInterpetation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
-        int skipBits = (int) (8 - ((imageWidth * bps0 * nChannels) % 8));
-        if (skipBits == 8 || (bytes.length * 8 < bps0 * (nChannels * imageWidth + imageHeight))) {
+        int skipBits = (int) (8 - ((imageWidth * bps0 * channels) % 8));
+        if (skipBits == 8 || (bytes.length * 8 < bps0 * (channels * imageWidth + imageHeight))) {
             skipBits = 0;
         }
 
@@ -1589,20 +1603,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
             final int ndx = sample;
             if (ndx >= nSamples) break;
 
-            for (int channel = 0; channel < nChannels; channel++) {
-                final int index = numBytes * (sample * nChannels + channel);
+            for (int channel = 0; channel < channels; channel++) {
+                final int index = numBytes * (sample * channels + channel);
                 final int outputIndex = (channel * nSamples + ndx) * numBytes;
 
                 // unpack non-YCbCr samples
-                if (photoInterp != PhotoInterp.Y_CB_CR) {
+                if (photoInterpetation != PhotoInterp.Y_CB_CR) {
                     long value = 0;
 
                     if (noDiv8) {
                         // bits per sample is not a multiple of 8
 
-                        if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
-                                (photoInterp != PhotoInterp.CFA_ARRAY &&
-                                        photoInterp != PhotoInterp.RGB_PALETTE)) {
+                        if ((channel == 0 && photoInterpetation == PhotoInterp.RGB_PALETTE) ||
+                                (photoInterpetation != PhotoInterp.CFA_ARRAY &&
+                                        photoInterpetation != PhotoInterp.RGB_PALETTE)) {
                             value = bb.getBits(bps0) & 0xffff;
                             if ((ndx % imageWidth) == imageWidth - 1) {
                                 bb.skipBits(skipBits);
@@ -1612,8 +1626,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
                         value = Bytes.toLong(bytes, index, numBytes, littleEndian);
                     }
 
-                    if (photoInterp == PhotoInterp.WHITE_IS_ZERO ||
-                            photoInterp == PhotoInterp.CMYK) {
+                    if (photoInterpetation == PhotoInterp.WHITE_IS_ZERO ||
+                            photoInterpetation == PhotoInterp.CMYK) {
                         value = maxValue - value;
                     }
 
@@ -1624,7 +1638,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     // unpack YCbCr unpacked; these need special handling, as
                     // each of the RGB components depends upon two or more of the YCbCr
                     // components
-                    if (channel == nChannels - 1) {
+                    if (channel == channels - 1) {
                         final int lumaIndex = sample + (2 * (sample / block));
                         final int chromaIndex = (sample / block) * (block + 2) + block;
 
@@ -1646,6 +1660,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
                             final double blue = cb * (2 - 2 * lumaBlue) + y;
                             final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
 
+//                            unpacked[idx] = (byte) (red & 0xff);
+//                            unpacked[nSamples + idx] = (byte) (green & 0xff);
+//                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
                             unpacked[idx] = (byte) toUnsignedByte(red);
                             unpacked[nSamples + idx] = (byte) toUnsignedByte(green);
                             unpacked[2 * nSamples + idx] = (byte) toUnsignedByte(blue);

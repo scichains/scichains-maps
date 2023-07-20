@@ -27,6 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
+import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
@@ -126,6 +127,7 @@ public class TiffSaverTest {
                 saver.setLittleEndian(true);
                 saver.setAutoInterleave(true);
                 saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+//                saver.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
                 if (singleStrip) {
                     saver.setDefaultSingleStrip();
                 } else {

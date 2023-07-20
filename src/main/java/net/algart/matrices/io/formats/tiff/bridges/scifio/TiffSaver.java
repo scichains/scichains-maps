@@ -140,6 +140,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private double jpegQuality = 1.0;
 
+    private PhotoInterp predefinedPhotoInterpretation = null;
+
     private final SCIFIO scifio;
 
     private final DataHandleService dataHandleService;
@@ -398,6 +400,26 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             throw new IllegalStateException("Codec options was not set yet");
         }
         return setJpegQuality(codecOptions.quality);
+    }
+
+    public PhotoInterp getPredefinedPhotoInterpretation() {
+        return predefinedPhotoInterpretation;
+    }
+
+    /**
+     * Specifies custom photo interpretation, which will be saved in IFD instead of the automatically chosen
+     * value. If the argument is <tt>null</tt>, this feature is disabled.
+     *
+     * <p>Such custom predefined photo interpretation allows to save unusual TIFF, for example, YCvCr LZW format.
+     * However, this class does not perform any data processing in this case: you should prepare correct
+     * pixel data yourself.
+     *
+     * @param predefinedPhotoInterpretation custom photo inrerpretation, overriding the value, chosen by default.
+     * @return a reference to this object.
+     */
+    public TiffSaver setPredefinedPhotoInterpretation(PhotoInterp predefinedPhotoInterpretation) {
+        this.predefinedPhotoInterpretation = predefinedPhotoInterpretation;
+        return this;
     }
 
     public void startWriting() throws IOException {
@@ -1013,11 +1035,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                             "only unsigned 8-bit samples allowed",
                             FormatTools.getPixelTypeString(FormatTools.UINT8)));
         }
-        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE :
-                numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
-                        jpeg && ifd.isContiguouslyChunked() && !compressJPEGInPhotometricRGB() ?
-                                PhotoInterp.Y_CB_CR :
-                                PhotoInterp.RGB;
+        final PhotoInterp pi = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation :
+                indexed ? PhotoInterp.RGB_PALETTE :
+                        numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
+                                jpeg && ifd.isContiguouslyChunked() && !compressJPEGInPhotometricRGB() ?
+                                        PhotoInterp.Y_CB_CR :
+                                        PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
 
         ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);

@@ -136,21 +136,38 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    // This method is overridden for removing usage of log field.
+    // This method is overridden to check that result is positive and to avoid exception for illegal compression.
+    @Override
+    public int getSamplesPerPixel() throws FormatException {
+        Object compressionValue = getIFDValue(IFD.COMPRESSION);
+        if (compressionValue != null && compressionValue.equals(TiffCompression.OLD_JPEG.getCode())) {
+            return 3; // always RGB
+        }
+        final int samplesPerPixel = getIFDIntValue(SAMPLES_PER_PIXEL, 1);
+        if (samplesPerPixel < 1) {
+            throw new FormatException("Illegal SamplesPerPixel = " + samplesPerPixel);
+        }
+        return samplesPerPixel;
+    }
+
+    // This method is overridden for removing usage of log field
     @Override
     public int[] getBitsPerSample() throws FormatException {
         int[] bitsPerSample = getIFDIntArray(BITS_PER_SAMPLE);
-        if (bitsPerSample == null) bitsPerSample = new int[] { 1 };
+        if (bitsPerSample == null) {
+            bitsPerSample = new int[]{1};
+        }
 
         final int samplesPerPixel = getSamplesPerPixel();
         if (bitsPerSample.length < samplesPerPixel) {
+            // - Result must contain at least samplesPerPixel elements (SCIFIO agreement)
             final int bits = bitsPerSample[0];
             bitsPerSample = new int[samplesPerPixel];
             Arrays.fill(bitsPerSample, bits);
         }
         for (int i = 0; i < samplesPerPixel; i++) {
             if (bitsPerSample[i] < 1) {
-                throw new FormatException("Illegal BitsPerSample (" + bitsPerSample[i] + ")");
+                throw new FormatException("Illegal BitsPerSample[" + i + "] = " + bitsPerSample[i]);
             }
         }
         return bitsPerSample;
@@ -459,10 +476,8 @@ public class DetailedIFD extends IFD {
             Object additional = null;
             try {
                 switch (tag) {
-                    case IFD.PHOTOMETRIC_INTERPRETATION ->
-                            additional = getPhotometricInterpretation().getName();
-                    case IFD.COMPRESSION ->
-                            additional = getCompression() + " (" + getCompression().getCodecName() + ")";
+                    case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
+                    case IFD.COMPRESSION -> additional = prettyCompression(getCompression());
                     case IFD.PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
@@ -540,14 +555,14 @@ public class DetailedIFD extends IFD {
     }
 
 
-        /**
-         * Returns user-friendly name of the given TIFF tag.
-         * It is used, in particular, in {@link #toString()} function.
-         *
-         * @param tag            entry Tag value.
-         * @param includeNumeric include numeric value into the result.
-         * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
-         */
+    /**
+     * Returns user-friendly name of the given TIFF tag.
+     * It is used, in particular, in {@link #toString()} function.
+     *
+     * @param tag            entry Tag value.
+     * @param includeNumeric include numeric value into the result.
+     * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
+     */
     public static String ifdTagName(int tag, boolean includeNumeric) {
         String name = Objects.requireNonNullElse(IFDFriendlyNames.IFD_TAG_NAMES.get(tag), "Unknown tag");
         if (!includeNumeric) {
@@ -572,6 +587,15 @@ public class DetailedIFD extends IFD {
             // - note that LibTiff does not support different BitsPerSample values for different components;
             // we do not support different number of BYTES for different components
         }
+    }
+
+    private static String prettyCompression(TiffCompression compression) {
+        if (compression == null) {
+            return "No compression?";
+        }
+        final String s = compression.toString();
+        final String codecName = compression.getCodecName();
+        return s.equals(codecName) ? s : s + " (" + codecName + ")";
     }
 
     private static String remainderToString(long a, long b) {

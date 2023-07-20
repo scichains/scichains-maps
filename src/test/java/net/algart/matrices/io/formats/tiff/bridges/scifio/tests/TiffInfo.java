@@ -86,7 +86,7 @@ public class TiffInfo {
     }
 
     public static String ifdInfo(DetailedIFD ifd, int ifdIndex, int ifdCount) {
-        Long offset = ifd != null ? ifd.getOffset() : null;
+        final Long offset = ifd != null ? ifd.getOffset() : null;
         return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ifd);
     }
 
