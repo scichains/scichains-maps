@@ -147,12 +147,13 @@ public class ExtendedJPEGCodec extends AbstractCodec {
         final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
 
         // Correct for YCbCr encoding, if necessary.
-        // In TiffParser it is a rare case: Y_CB_CR is encoded with non-standard sub-sampling;
+        // In TiffParser it is a rare case: YCbCr is encoded with non-standard sub-sampling;
         // so, there is no sense to optimize this.
+        int bandSize = buf[0].length;
         if (options.ycbcr && buf.length == 3) {
-            final int nBytes = buf[0].length / (b.getWidth() * b.getHeight());
+            final int nBytes = bandSize / (b.getWidth() * b.getHeight());
             final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
-            for (int i = 0; i < buf[0].length; i += nBytes) {
+            for (int i = 0; i < bandSize; i += nBytes) {
                 final int y = Bytes.toInt(buf[0], i, nBytes, options.littleEndian);
                 int cb = Bytes.toInt(buf[1], i, nBytes, options.littleEndian);
                 int cr = Bytes.toInt(buf[2], i, nBytes, options.littleEndian);
@@ -170,20 +171,19 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             }
         }
 
-        byte[] rtn = new byte[buf.length * buf[0].length];
+        byte[] rtn = new byte[buf.length * bandSize];
         if (buf.length == 1) rtn = buf[0];
         else {
             if (options.interleaved) {
                 int next = 0;
-                for (int i = 0; i < buf[0].length; i++) {
-                    for (int j = 0; j < buf.length; j++) {
-                        rtn[next++] = buf[j][i];
+                for (int i = 0; i < bandSize; i++) {
+                    for (byte[] bytes : buf) {
+                        rtn[next++] = bytes[i];
                     }
                 }
-            }
-            else {
+            } else {
                 for (int i = 0; i < buf.length; i++) {
-                    System.arraycopy(buf[i], 0, rtn, i * buf[0].length, buf[i].length);
+                    System.arraycopy(buf[i], 0, rtn, i * bandSize, bandSize);
                 }
             }
         }

@@ -37,7 +37,7 @@
         ],
         "vm_options": [
           "-Dnet.algart.matrices.maps.pyramids.io.api.sources.factories.SVS=net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSourceFactory",
-          "-Dnet.algart.matrices.io.formats.tiff.builtInTiming=true"
+          "-Dnet.algart.matrices.io.formats.tiff.timing=true"
         ]
       }
     }

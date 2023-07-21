@@ -27,7 +27,6 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
-import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.location.Location;
 
 import java.io.IOException;
@@ -87,16 +86,16 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile loadTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
-            return readTileWithoutCache(tileIndex);
+            return loadTileWithoutCache(tileIndex);
         }
         return getCached(tileIndex).readIfNecessary();
     }
 
 
-    private TiffTile readTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
-        return super.readTile(tileIndex);
+    private TiffTile loadTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
+        return super.loadTile(tileIndex);
     }
 
     private CachedTile getCached(TiffTileIndex tileIndex) {
@@ -140,7 +139,7 @@ public class CachingTiffParser extends TiffParser {
                     LOG.log(System.Logger.Level.TRACE, () -> "CACHED tile: " + tileIndex);
                     return cachedData;
                 } else {
-                    final var result = readTileWithoutCache(tileIndex);
+                    final var result = loadTileWithoutCache(tileIndex);
                     saveCache(result);
                     return result;
                 }

@@ -37,7 +37,7 @@ public class TiffTile {
     private int sizeX;
     private int sizeY;
     private int size;
-    private boolean interleaved;
+    private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
     private int lastDataLength = 0;

@@ -54,7 +54,8 @@ import java.util.stream.Collectors;
  */
 public class TiffTools {
     static final boolean BUILT_IN_TIMING = getBooleanProperty(
-            "net.algart.matrices.io.formats.tiff.builtInTiming");
+            "net.algart.matrices.io.formats.tiff.timing");
+
     /**
      * Bit order mapping for reversed fill order.
      */
@@ -252,11 +253,16 @@ public class TiffTools {
         final int bandSize = numberOfPixels * bytesPerSample;
         final byte[] interleavedBytes = new byte[size];
         if (bytesPerSample == 1) {
-            // optimization
-            for (int i = 0, disp = 0; i < bandSize; i++) {
-                for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
-                    // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
-                    interleavedBytes[disp++] = bytes[bandDisp];
+            // - optimization
+            if (numberOfChannels == 3) {
+                // - most typical case
+                quickInterleave3(interleavedBytes, bytes, bandSize);
+            } else {
+                for (int i = 0, disp = 0; i < bandSize; i++) {
+                    for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
+                        // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
+                        interleavedBytes[disp++] = bytes[bandDisp];
+                    }
                 }
             }
         } else {
@@ -269,6 +275,59 @@ public class TiffTools {
             }
         }
         return interleavedBytes;
+    }
+
+    public static byte[] toSeparatedSamples(
+            byte[] bytes,
+            int numberOfChannels,
+            int bytesPerSample,
+            int numberOfPixels) {
+        Objects.requireNonNull(bytes, "Null bytes");
+        if (numberOfPixels < 0) {
+            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
+        }
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
+        if (bytesPerSample <= 0) {
+            throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
+        }
+        final int size = checkedMulNoException(
+                new long[]{numberOfPixels, numberOfChannels, bytesPerSample},
+                new String[]{"number of pixels", "bytes per pixel", "bytes per sample"},
+                () -> "Invalid sizes: ", () -> "");
+        // - exception usually should not occur: this function is typically called after analysing IFD
+        if (bytes.length < size) {
+            throw new IllegalArgumentException("Too short bytes array: " + bytes.length + " < " + size);
+        }
+        if (numberOfChannels == 1) {
+            return bytes;
+        }
+        final int bandSize = numberOfPixels * bytesPerSample;
+        final byte[] separatedBytes = new byte[size];
+        if (bytesPerSample == 1) {
+            // - optimization
+            if (numberOfChannels == 3) {
+                // - most typical case
+                quickSeparate3(separatedBytes, bytes, bandSize);
+            } else {
+                for (int i = 0, disp = 0; i < bandSize; i++) {
+                    for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
+                        // note: we must check j, not bandDisp, because "bandDisp += bandSize" can lead to overflow
+                        separatedBytes[bandDisp] = bytes[disp++];
+                    }
+                }
+            }
+        } else {
+            for (int i = 0, disp = 0; i < bandSize; i += bytesPerSample) {
+                for (int bandDisp = i, j = 0; j < numberOfChannels; j++, bandDisp += bandSize) {
+                    for (int k = 0; k < bytesPerSample; k++) {
+                        separatedBytes[bandDisp + k] = bytes[disp++];
+                    }
+                }
+            }
+        }
+        return separatedBytes;
     }
 
     public static void unpackUnusualPrecisions(IFD ifd, byte[] samples, int numberOfPixels) {
@@ -396,11 +455,15 @@ public class TiffTools {
 
             final int bytes = ifd.getBytesPerSample()[0];
 
-            if (planarConfig == 2 || bitsPerSample[len - 1] == 0) len = 1;
+            if (planarConfig == 2 || bitsPerSample[len - 1] == 0) {
+                len = 1;
+            }
             len *= bytes;
 
             for (int b = 0; b <= input.length - bytes; b += bytes) {
-                if (b / len % width == 0) continue;
+                if (b / len % width == 0) {
+                    continue;
+                }
                 int value = Bytes.toInt(input, b, bytes, little);
                 value += Bytes.toInt(input, b - len, bytes, little);
                 Bytes.unpack(value, input, b, bytes, little);
@@ -552,4 +615,23 @@ public class TiffTools {
             return false;
         }
     }
+
+    private static void quickInterleave3(byte[] interleavedBytes, byte[] bytes, int bandSize) {
+        final int bandSize2 = 2 * bandSize;
+        for (int i = 0, disp = 0; i < bandSize; i++) {
+            interleavedBytes[disp++] = bytes[i];
+            interleavedBytes[disp++] = bytes[i + bandSize];
+            interleavedBytes[disp++] = bytes[i + bandSize2];
+        }
+    }
+
+    private static void quickSeparate3(byte[] separatedBytes, byte[] bytes, int bandSize) {
+        final int bandSize2 = 2 * bandSize;
+        for (int i = 0, disp = 0; i < bandSize; i++) {
+            separatedBytes[i] = bytes[disp++];
+            separatedBytes[i + bandSize] = bytes[disp++];
+            separatedBytes[i + bandSize2] = bytes[disp++];
+        }
+    }
+
 }

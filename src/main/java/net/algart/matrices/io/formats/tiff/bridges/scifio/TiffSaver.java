@@ -1172,6 +1172,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @throws FormatException
      * @throws IOException
      */
+    //TODO!! use new saveTile method of TiffTileWriter
     private void writeSamplesAndIFD(
             DetailedIFD ifd, final Integer ifdIndex,
             final List<TiffTile> tiles, final int nChannels, final boolean last,
