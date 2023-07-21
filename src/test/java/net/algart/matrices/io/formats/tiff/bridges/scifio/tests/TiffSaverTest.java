@@ -27,11 +27,11 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import org.scijava.Context;
 
 import java.io.IOException;
@@ -47,6 +47,11 @@ public class TiffSaverTest {
         boolean noContext = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
             noContext = true;
+            startArgIndex++;
+        }
+        boolean interleaveOutside = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-interleaveOutside")) {
+            interleaveOutside = true;
             startArgIndex++;
         }
         boolean append = false;
@@ -121,11 +126,13 @@ public class TiffSaverTest {
             try (Context context = noContext ? null : scifio.getContext();
                  TiffSaver saver = TiffSaver.getInstance(context, targetFile, deleteExistingFile)) {
 //                saver.setExtendedCodec(false);
+                if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
+                    saver.setAutoInterleave(false);
+                }
                 saver.setWritingSequentially(!randomAccess);
                 saver.setAppendToExisting(append);
                 saver.setBigTiff(bigTiff);
                 saver.setLittleEndian(true);
-                saver.setAutoInterleave(true);
                 saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                saver.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
                 if (singleStrip) {
@@ -138,6 +145,10 @@ public class TiffSaverTest {
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                     Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
                     DetailedIFD ifd = new DetailedIFD();
+                    if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
+                        TiffTools.interleaveSamples(
+                                (byte[]) samplesArray, bandCount, 1,WIDTH * HEIGHT);
+                    }
                     ifd.putImageSizes(WIDTH, HEIGHT);
                     if (tiled) {
                         ifd.putTileSizes(64, 64);

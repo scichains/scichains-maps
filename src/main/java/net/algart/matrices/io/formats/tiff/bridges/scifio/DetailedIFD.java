@@ -542,7 +542,7 @@ public class DetailedIFD extends IFD {
                 }
             }
             if (additional != null) {
-                sb.append("   - ").append(additional);
+                sb.append("   [it means: ").append(additional).append("]");
             }
         }
         return sb.toString();

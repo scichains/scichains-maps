@@ -1027,7 +1027,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         TiffTools.undifference(tile.ifd(), tile.getDecodedData());
         long t4 = debugTime();
 
-        completeProcessing(tile);
+        completePixels(tile);
         long t5 = debugTime();
         timeRead += t2 - t1;
         timeDecode += t3 - t2;
@@ -1137,8 +1137,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return tile;
     }
 
-    // Note: result is always interleaved (RGBRGB...) or monochrome.
-//    public byte[] decode(ExtendedIFD ifd, byte[] stripSamples, int samplesLength) throws FormatException {
+    // Note: result is usually interleaved (RGBRGB...) or monochrome; it is always so in UNCOMPRESSED, LZW, DEFLATE
     public void decode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         DetailedIFD ifd = tile.ifd();
@@ -1340,7 +1339,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.close();
     }
 
-    protected void completeProcessing(TiffTile tile) throws FormatException {
+    protected void completePixels(TiffTile tile) throws FormatException {
         unpackBytes(tile);
 
         /*
@@ -1498,11 +1497,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
-    /**
-     * Extracts pixel information from the given byte array according to the bits
-     * per sample, photometric interpretation and color map IFD directory entry
-     * values, and the specified byte ordering. No error checking is performed.
-     */
     private static void unpackBytes(TiffTile decodedTile) throws FormatException {
         Objects.requireNonNull(decodedTile);
         final DetailedIFD ifd = decodedTile.ifd();
@@ -1511,7 +1505,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final boolean planar = ifd.isPlanarSeparated();
         final TiffCompression compression = ifd.getCompression();
-        final PhotoInterp photoInterpetation = KnownTiffCompression.isJpegCodec(compression) ?
+        final PhotoInterp photoInterpretation = KnownTiffCompression.isJpegCodec(compression) ?
                 PhotoInterp.RGB :
                 ifd.getPhotometricInterpretation();
         // - JPEG codec, based on Java API BufferedImage, always returns RGB data
@@ -1525,7 +1519,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int channels = planar ? 1 : ifd.getSamplesPerPixel();
 
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (photoInterpetation == PhotoInterp.Y_CB_CR) {
+        if (photoInterpretation == PhotoInterp.Y_CB_CR) {
             if (planar) {
                 // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
                 throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
@@ -1572,9 +1566,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Chris Allan <callan@glencoesoftware.com>
         if ((bps8 || bps16) && bytes.length <= samplesLength &&
                 channels == 1 &&
-                photoInterpetation != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterpetation != PhotoInterp.CMYK &&
-                photoInterpetation != PhotoInterp.Y_CB_CR) {
+                photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterpretation != PhotoInterp.CMYK &&
+                photoInterpretation != PhotoInterp.Y_CB_CR) {
             if (bytes.length < samplesLength) {
                 // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
                 // we need to check it before quick returning
@@ -1588,7 +1582,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final byte[] unpacked = new byte[samplesLength];
 
         long maxValue = (long) Math.pow(2, bps0) - 1;
-        if (photoInterpetation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+        if (photoInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
         int skipBits = (int) (8 - ((imageWidth * bps0 * channels) % 8));
         if (skipBits == 8 || (bytes.length * 8 < bps0 * (channels * imageWidth + imageHeight))) {
@@ -1626,15 +1620,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 final int outputIndex = (channel * nSamples + ndx) * numBytes;
 
                 // unpack non-YCbCr samples
-                if (photoInterpetation != PhotoInterp.Y_CB_CR) {
+                if (photoInterpretation != PhotoInterp.Y_CB_CR) {
                     long value = 0;
 
                     if (noDiv8) {
                         // bits per sample is not a multiple of 8
 
-                        if ((channel == 0 && photoInterpetation == PhotoInterp.RGB_PALETTE) ||
-                                (photoInterpetation != PhotoInterp.CFA_ARRAY &&
-                                        photoInterpetation != PhotoInterp.RGB_PALETTE)) {
+                        if ((channel == 0 && photoInterpretation == PhotoInterp.RGB_PALETTE) ||
+                                (photoInterpretation != PhotoInterp.CFA_ARRAY &&
+                                        photoInterpretation != PhotoInterp.RGB_PALETTE)) {
                             value = bb.getBits(bps0) & 0xffff;
                             if ((ndx % imageWidth) == imageWidth - 1) {
                                 bb.skipBits(skipBits);
@@ -1644,8 +1638,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
                         value = Bytes.toLong(bytes, index, numBytes, littleEndian);
                     }
 
-                    if (photoInterpetation == PhotoInterp.WHITE_IS_ZERO ||
-                            photoInterpetation == PhotoInterp.CMYK) {
+                    if (photoInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                            photoInterpretation == PhotoInterp.CMYK) {
                         value = maxValue - value;
                     }
 

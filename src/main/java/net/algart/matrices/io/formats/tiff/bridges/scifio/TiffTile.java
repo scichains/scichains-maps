@@ -36,7 +36,7 @@ public class TiffTile {
     private final DetailedIFD ifd;
     private int sizeX;
     private int sizeY;
-    private int size;
+    private int numberOfPixels;
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
@@ -76,8 +76,8 @@ public class TiffTile {
         return setSizes(this.sizeX, sizeY);
     }
 
-    public int getSize() {
-        return size;
+    public int getNumberOfPixels() {
+        return numberOfPixels;
     }
 
     /**
@@ -103,7 +103,7 @@ public class TiffTile {
         }
         this.sizeX = sizeX;
         this.sizeY = sizeY;
-        this.size = sizeX * sizeY;
+        this.numberOfPixels = sizeX * sizeY;
         return this;
     }
 

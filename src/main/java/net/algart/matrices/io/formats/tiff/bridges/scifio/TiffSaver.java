@@ -816,47 +816,42 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         // These operations are synchronized
         long t2 = debugTime();
-        if (ifd.getPlanarConfiguration() == DetailedIFD.PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED && autoInterleave) {
-            samples = TiffTools.toInterleavedSamples(samples, numberOfChannels, bytesPerSample, (int) numberOfPixels);
-            // - note: we MUST NOT corrupt the original samples!
-        }
-        long t3 = debugTime();
         final List<TiffTile> tiles;
         synchronized (this) {
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
             tiles = splitTiles(samples, ifd, numberOfChannels, bytesPerSample, fromX, fromY, sizeX, sizeY);
         }
-        long t4 = debugTime();
+        long t3 = debugTime();
 
-        // Compress tiles according to given differencing and compression
-        // schemes,
+        // Compress tiles according to given differencing and compression schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
         for (TiffTile tile : tiles) {
+            preparePixels(tile);
             // scifio.tiff().difference(tile.getDecodedData(), ifd);
             // - this solution requires using SCIFIO context class; it is better to avoid this
-            TiffTools.difference(ifd, samples);
+            TiffTools.difference(ifd, tile.getDecodedData());
             encode(tile);
         }
-        long t5 = debugTime();
+        long t4 = debugTime();
 
         // This operation is synchronized
         synchronized (this) {
             writeSamplesAndIFD(ifd, ifdIndex, tiles, numberOfChannels, last, fromX, fromY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
-            long t6 = debugTime();
+            long t5 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f prepare + %.3f interleave + %.3f splitting " +
+                            "%.3f prepare + %.3f splitting " +
                             "+ %.3f encoding + %.3f writing, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, numberOfBytes / 1048576.0,
-                    (t6 - t1) * 1e-6,
-                    (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
-                    (t5 - t4) * 1e-6, (t6 - t5) * 1e-6,
-                    numberOfBytes / 1048576.0 / ((t6 - t1) * 1e-9)));
+                    (t5 - t1) * 1e-6,
+                    (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
+                    (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
+                    numberOfBytes / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
     }
 
@@ -903,7 +898,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         if (bytesPerSample < 1) {
             throw new FormatException("Invalid format: zero or negative bytes per sample = " + bytesPerSample);
         }
-        final int size = tile.getSize();
+        final int size = tile.getNumberOfPixels();
         final byte[] stripSamples = tile.getDecodedData();
         if (size > stripSamples.length || (long) size * effectiveChannels > stripSamples.length / bytesPerSample) {
             throw new IllegalArgumentException("Too short stripSamples array: " + stripSamples.length + " < " +
@@ -952,7 +947,21 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         out.close();
     }
 
-    // -- Helper methods --
+    protected void preparePixels(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        DetailedIFD ifd = tile.ifd();
+        if (autoInterleave) {
+            final int effectiveChannels = ifd.isContiguouslyChunked() ? ifd.getSamplesPerPixel() : 1;
+            final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+            byte[] data = tile.getDecodedData();
+            data = TiffTools.toInterleavedSamples(data, effectiveChannels, bytesPerSample, tile.getNumberOfPixels());
+            tile.setDecodedData(data);
+        }
+        tile.setInterleaved(true);
+        // - if not autoInterleave, it means that the samples were already interleaved
+    }
+
+        // -- Helper methods --
 
     /**
      * Coverts a list to a primitive array.
@@ -1065,14 +1074,14 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     }
 
     private List<TiffTile> splitTiles(
-            byte[] samples,
-            DetailedIFD ifd,
-            int numberOfChannels,
-            int bytesPerSample,
-            int fromX,
-            int fromY,
-            int sizeX,
-            int sizeY) throws FormatException, IOException {
+            final byte[] samples,
+            final DetailedIFD ifd,
+            final int numberOfChannels,
+            final int bytesPerSample,
+            final int fromX,
+            final int fromY,
+            final int sizeX,
+            final int sizeY) throws FormatException, IOException {
         final boolean chunked = ifd.isContiguouslyChunked();
         final int imageSizeX = ifd.getImageSizeX();
         final int imageSizeY = ifd.getImageSizeY();
@@ -1106,10 +1115,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             numberOfEncodedStrips *= numberOfChannels;
         }
 
+        final boolean alreadyInterleaved = chunked && !autoInterleave;
+        // - we suppose that the data are aldeady interleaved by an external code
         final TiffTile[] tiles = new TiffTile[numberOfEncodedStrips];
-        final int tileRowSizeInBytes = tileSizeX * (chunked ? numberOfChannels : 1) * bytesPerSample;
         final boolean needToCorrectLastRow = ifd.get(IFD.TILE_LENGTH) == null;
-        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we should not correct the height
+        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
         // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
         // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
         for (int yIndex = 0, tileIndex = 0; yIndex < numTileRows; yIndex++) {
@@ -1119,6 +1129,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final int y = fromY + yOffset;
             final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, imageSizeY - y);
             // - last strip should have exact height, in other case TIFF may be read with a warning
+            final int validTileChannelSize = tileSizeX * validTileSizeY * bytesPerSample;
             for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
                 assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
                 final int xOffset = xIndex * tileSizeX;
@@ -1126,7 +1137,8 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 final int x = fromX + xOffset;
                 final TiffTileIndex tiffTileIndex = new TiffTileIndex(ifd, x / tileSizeX, y / tileSizeY);
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
-                if (chunked) {
+                if (alreadyInterleaved) {
+                    final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
                     final byte[] data = new byte[tileSize];
                     // - zero-filled by Java
@@ -1137,7 +1149,26 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                         System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
                     }
                     tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
+                } else if (chunked) {
+                    // - source data are separated, but result should be interleaved;
+                    // so, we must prepare correct separated tile (it will be interleaved later)
+                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
+                    final int partSizeXInBytes = partSizeX * bytesPerSample;
+                    final byte[] data = new byte[tileSize];
+                    // - zero-filled by Java
+                    int tileChannelOffset = 0;
+                    for (int c = 0; c < numberOfChannels; c++, tileChannelOffset += validTileChannelSize) {
+                        final int channelOffset = c * channelSize;
+                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
+                            final int i = yInTile + yOffset;
+                            final int tileOffset = tileChannelOffset + yInTile * tileRowSizeInBytes;
+                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
+                            System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                        }
+                        tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
+                    }
                 } else {
+                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int c = 0; c < numberOfChannels; c++) {
                         final byte[] data = new byte[tileSize];
