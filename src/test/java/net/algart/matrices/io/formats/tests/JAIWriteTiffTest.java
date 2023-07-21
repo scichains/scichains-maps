@@ -74,9 +74,9 @@ public class JAIWriteTiffTest {
 
         ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi);
 
-        ImageWriter jpegWriter = JAIReadWriteJpegTest.getJPEGWriter();
+        ImageWriter jpegWriter = AWTWriteJpegBug.getJPEGWriter();
 
-        ImageWriteParam jpegWriteParam = JAIReadWriteJpegTest.getJPEGWriteParam(jpegWriter, imageTypeSpecifier);
+        ImageWriteParam jpegWriteParam = AWTWriteJpegBug.getJPEGWriteParam(jpegWriter, imageTypeSpecifier);
         TIFFJPEGCompressor compressor = new TIFFJPEGCompressor(jpegWriteParam);
         IIOMetadata jpegMetadata = jpegWriter.getDefaultImageMetadata(null, jpegWriteParam);
         compressor.setMetadata(jpegMetadata);
