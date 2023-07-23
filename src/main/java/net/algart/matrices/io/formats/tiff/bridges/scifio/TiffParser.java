@@ -1180,7 +1180,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                                     (data.length - 2) + " > 2^31-1");
 
                 }
-                final byte[] appended = new byte[jpegTable.length + data.length - 2];
+                final byte[] appended = new byte[jpegTable.length + data.length - 4];
                 System.arraycopy(jpegTable, 0, appended, 0, jpegTable.length - 2);
                 System.arraycopy(data, 2, appended, jpegTable.length - 2, data.length - 2);
                 //TODO!! why -2?
