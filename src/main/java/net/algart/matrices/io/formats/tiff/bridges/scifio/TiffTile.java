@@ -40,7 +40,7 @@ public class TiffTile {
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
-    private int lastDataLength = 0;
+    private int storedDataLength = 0;
 
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex);
@@ -147,7 +147,7 @@ public class TiffTile {
     public TiffTile setData(byte[] data) {
         Objects.requireNonNull(data, "Null data");
         this.data = data;
-        this.lastDataLength = data.length;
+        this.storedDataLength = data.length;
         return this;
     }
 
@@ -182,15 +182,17 @@ public class TiffTile {
 
     /**
      * Return the length of the last non-null {@link #getData() data array}, stored in this tile,
-     * or 0 after creating this object.
+     * or 0 after creating this object. Immediately before/after reading tile from file, as well as
+     * immediately before/after writing it into file, this method returns the number of bytes,
+     * which are actually stored in the file for this tile.
      *
-     * <p>Note: {@link #clear()} method does not change this value! So, you can know the last data size
-     * even after freeing data, stored inside this object.
+     * <p>Note: {@link #clear()} method does not change this value! So, you can know the stored data size
+     * even after freeing data inside this object.
      *
      * @return the length of the last non-null data array, which was stored in this object.
      */
-    public int lastDataLength() {
-        return lastDataLength;
+    public int storedDataLength() {
+        return storedDataLength;
     }
 
     protected void checkEmpty() {
@@ -203,6 +205,6 @@ public class TiffTile {
     public String toString() {
         return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
                 + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
-                (isEmpty() ? ", empty" : ", " + lastDataLength() + " bytes");
+                (isEmpty() ? ", empty" : ", " + storedDataLength() + " bytes");
     }
 }

@@ -166,7 +166,7 @@ public class CachingTiffParser extends TiffParser {
             synchronized (tileCacheLock) {
                 if (maxCachingMemory > 0) {
                     this.cachedTile = new SoftReference<>(tile);
-                    this.cachedDataLength = tile.lastDataLength();
+                    this.cachedDataLength = tile.storedDataLength();
                     currentCacheMemory += this.cachedDataLength;
                     tileCache.add(this);
                     LOG.log(System.Logger.Level.TRACE, () -> "STORING tile in cache: " + tileIndex);
