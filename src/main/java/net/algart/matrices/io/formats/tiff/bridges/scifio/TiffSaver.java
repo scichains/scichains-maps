@@ -1287,12 +1287,13 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             out.seek(out.length());
             final int thisOffset = firstOffset + i;
             offsets.set(thisOffset, out.offset());
-            byteCounts.set(thisOffset, (long) tile.lastDataLength());
+            byte[] encodedData = tile.getEncodedData();
+            byteCounts.set(thisOffset, (long) encodedData.length);
             LOG.log(System.Logger.Level.TRACE,
                     String.format("Writing tile/strip %d/%d size: %d offset: %d",
                             thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(thisOffset)));
 
-            out.write(tile.getEncodedData());
+            out.write(encodedData);
         }
         if (isTiled) {
             ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));

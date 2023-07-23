@@ -147,9 +147,11 @@ public class TiffSaverTest {
                     DetailedIFD ifd = new DetailedIFD();
                     if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
                         TiffTools.interleaveSamples(
-                                (byte[]) samplesArray, bandCount, 1,WIDTH * HEIGHT);
+                                (byte[]) samplesArray, bandCount, 1, WIDTH * HEIGHT);
                     }
                     ifd.putImageSizes(WIDTH, HEIGHT);
+                    // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
+                    // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
                         ifd.putTileSizes(64, 64);
                     }

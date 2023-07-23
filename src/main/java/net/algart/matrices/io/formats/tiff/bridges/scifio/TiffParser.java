@@ -1013,7 +1013,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     public TiffTile loadTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         long t1 = debugTime();
-        TiffTile tile = readCompleteTile(tileIndex);
+        TiffTile tile = readTile(tileIndex);
         if (tile.isEmpty()) {
             return tile;
         }
@@ -1036,31 +1036,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return tile;
     }
 
-    public TiffTile readCompleteTile(TiffTileIndex tileIndex) throws FormatException, IOException {
-        Objects.requireNonNull(tileIndex, "Null tileIndex");
-        final TiffTile result = new TiffTile(tileIndex);
-        byte[] tile = readRawTile(tileIndex);
-        if (tile == null) {
-            // - empty result
-            return result;
-        }
-        final byte[] jpegTable = (byte[]) tileIndex.ifd().getIFDValue(IFD.JPEG_TABLES);
-        if (jpegTable != null) {
-            if ((long) jpegTable.length + (long) tile.length - 4 >= Integer.MAX_VALUE) {
-                throw new FormatException(
-                        "Too large tile/strip at " + tileIndex + ": JPEG table length " +
-                                jpegTable.length + " + number of bytes " + tile.length + " > 2^31-1");
-
-            }
-            final byte[] appended = new byte[jpegTable.length + tile.length - 4];
-            System.arraycopy(jpegTable, 0, appended, 0, jpegTable.length - 2);
-            System.arraycopy(tile, 2, appended, jpegTable.length - 2, tile.length - 2);
-            tile = appended;
-        }
-        return result.setEncodedData(tile);
-    }
-
-    public byte[] readRawTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+        //TODO!! move to TiffTile class
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         final DetailedIFD ifd = tileIndex.ifd();
         int xIndex = tileIndex.x();
@@ -1109,7 +1086,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         long byteCount = byteCounts[countIndex];
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
         if (byteCount == (rowsPerStrip[0] * tileSizeX) && bytesPerSample > 1) {
-            // - what situation is checked here??
+            //TODO!! - what situation is checked here??
             byteCount *= bytesPerSample;
         }
         if (byteCount >= Integer.MAX_VALUE) {
@@ -1128,20 +1105,24 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         final long stripOffset = onDemandOffsets != null ? onDemandOffsets.get(index) : offsets[index];
 
+        final TiffTile result = new TiffTile(tileIndex);
         if (byteCount == 0 || stripOffset < 0 || stripOffset >= in.length()) {
-            return null;
+            // - empty result
+            return result;
         }
-        byte[] tile = new byte[(int) byteCount];
+        byte[] data = new byte[(int) byteCount];
         in.seek(stripOffset);
-        in.read(tile);
-        return tile;
+        in.read(data);
+        return result.setEncodedData(data);
     }
 
     // Note: result is usually interleaved (RGBRGB...) or monochrome; it is always so in UNCOMPRESSED, LZW, DEFLATE
     public void decode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
+        completeJpegTile(tile);
+
         DetailedIFD ifd = tile.ifd();
-        final byte[] stripSamples = tile.getEncodedData();
+        byte[] encodedData = tile.getEncodedData();
         final int samplesLength = tile.tileIndex().sizeOfBasedOnBits();
         final TiffCompression compression = ifd.getCompression();
 
@@ -1149,7 +1130,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // - Necessary for such codecs as JPEG, that work with high-level classes and need to be instructed to
         // interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is")
         codecOptions.littleEndian = ifd.isLittleEndian();
-        codecOptions.maxBytes = Math.max(samplesLength, stripSamples.length);
+        codecOptions.maxBytes = Math.max(samplesLength, encodedData.length);
         final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
         // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
         // see documentation on YCbCrSubSampling TIFF tag.
@@ -1173,13 +1154,38 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         tile.setInterleaved(true);
         if (codec != null) {
-            tile.setDecodedData(codecDecompress(stripSamples, codec, codecOptions));
+            tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
             if (scifio == null) {
                 throw new IllegalStateException(
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             }
-            tile.setDecodedData(compression.decompress(scifio.codec(), stripSamples, codecOptions));
+            tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
+        }
+    }
+
+    public void completeJpegTile(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        DetailedIFD ifd = tile.ifd();
+        final TiffCompression compression = ifd.getCompression();
+        if (KnownTiffCompression.isJpeg(compression)) {
+            final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
+            if (jpegTable != null) {
+                byte[] data = tile.getEncodedData();
+                if ((long) jpegTable.length + (long) data.length - 4 >= Integer.MAX_VALUE) {
+                    // - very improbable
+                    throw new FormatException(
+                            "Too large tile/strip at " + tile.tileIndex() + ": JPEG table length " +
+                                    (jpegTable.length - 2) + " + number of bytes " +
+                                    (data.length - 2) + " > 2^31-1");
+
+                }
+                final byte[] appended = new byte[jpegTable.length + data.length - 2];
+                System.arraycopy(jpegTable, 0, appended, 0, jpegTable.length - 2);
+                System.arraycopy(data, 2, appended, jpegTable.length - 2, data.length - 2);
+                //TODO!! why -2?
+                tile.setData(appended);
+            }
         }
     }
 
@@ -1505,7 +1511,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final boolean planar = ifd.isPlanarSeparated();
         final TiffCompression compression = ifd.getCompression();
-        final PhotoInterp photoInterpretation = KnownTiffCompression.isJpegCodec(compression) ?
+        final PhotoInterp photoInterpretation = KnownTiffCompression.isJpeg(compression) ?
                 PhotoInterp.RGB :
                 ifd.getPhotometricInterpretation();
         // - JPEG codec, based on Java API BufferedImage, always returns RGB data

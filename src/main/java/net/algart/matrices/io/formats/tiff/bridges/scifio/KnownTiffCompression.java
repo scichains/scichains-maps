@@ -81,7 +81,7 @@ enum KnownTiffCompression {
         this.onlyForReading = onlyForReading;
     }
 
-    public static boolean isJpegCodec(TiffCompression compression) {
+    public static boolean isJpeg(TiffCompression compression) {
         return compression == TiffCompression.JPEG
                 || compression == TiffCompression.OLD_JPEG
                 || compression == TiffCompression.ALT_JPEG;

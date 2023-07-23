@@ -61,10 +61,11 @@ public class TiffExtractTileContent {
             final DetailedIFD ifd = parser.ifd(ifdIndex);
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
-            byte[] bytes = parser.readCompleteTile(tileIndex).getData();
+            TiffTile tile = parser.readTile(tileIndex);
+            parser.completeJpegTile(tile);
+            byte[] bytes = tile.getData();
             System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);
-            TiffTile tile = null;
             try {
                 tile = parser.loadTile(tileIndex);
                 System.out.printf("Decoding the same (for verification): %s%n", tile);

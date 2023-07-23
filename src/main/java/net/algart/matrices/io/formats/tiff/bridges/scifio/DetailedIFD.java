@@ -434,9 +434,11 @@ public class DetailedIFD extends IFD {
             final int tileSizeY = getTileSizeY();
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
-            sb.append(" %s[%dx%d], ".formatted(
+            final int pixelType = getPixelType();
+            sb.append(" %s[%dx%d], precision %s, ".formatted(
                     TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName(),
-                    imageWidth, imageLength));
+                    imageWidth, imageLength,
+                    FormatTools.getPixelTypeString(pixelType)));
             if (isTiled()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
                         tilesPerRow,
