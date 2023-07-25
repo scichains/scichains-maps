@@ -27,7 +27,6 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
-import org.scijava.log.LogService;
 
 import java.lang.reflect.Array;
 import java.util.*;
@@ -507,25 +506,10 @@ public class DetailedIFD extends IFD {
             sb.append("    ").append(ifdTagName(tag, true)).append(" = ");
             boolean manyValues = v != null && v.getClass().isArray();
             if (manyValues) {
-                final int len = Array.getLength(v);
-                sb.append(v.getClass().getComponentType().getSimpleName()).append("[").append(len).append("]");
+                sb.append(v.getClass().getComponentType().getSimpleName());
+                sb.append("[").append(Array.getLength(v)).append("]");
                 sb.append(" {");
-                final int limit = v instanceof byte[] || v instanceof short[] || v instanceof char[] ? 30 : 10;
-                final int mask = v instanceof byte[] ? 0xFF : v instanceof short[] ? 0xFFFF : 0;
-                for (int k = 0; k < len; k++) {
-                    if (k >= limit) {
-                        sb.append("...");
-                        break;
-                    }
-                    if (k > 0) {
-                        sb.append(", ");
-                    }
-                    Object o = Array.get(v, k);
-                    if (mask != 0) {
-                        o = ((Number) o).intValue() & mask;
-                    }
-                    sb.append(o);
-                }
+                appendIFDArray(sb, v);
                 sb.append("}");
             } else {
                 sb.append(v);
@@ -607,5 +591,53 @@ public class DetailedIFD extends IFD {
         } else {
             return String.valueOf(a - r * b);
         }
+    }
+
+    private static void appendIFDArray(StringBuilder sb, Object v) {
+        final int len = Array.getLength(v);
+        if (v instanceof byte[] bytes) {
+            appendIFDBytesArray(sb, bytes);
+            return;
+        }
+        final int left = v instanceof short[] || v instanceof char[] ? 25 : 10;
+        final int right = v instanceof short[] || v instanceof char[] ? 10 : 5;
+        final int mask = v instanceof short[] ? 0xFFFF : 0;
+        for (int k = 0; k < len; k++) {
+            if (k == left && len >= left + 5 + right) {
+                sb.append(", ...");
+                k = len - right - 1;
+                continue;
+            }
+            if (k > 0) {
+                sb.append(", ");
+            }
+            Object o = Array.get(v, k);
+            if (mask != 0) {
+                o = ((Number) o).intValue() & mask;
+            }
+            sb.append(o);
+        }
+    }
+
+    private static void appendIFDBytesArray(StringBuilder sb, byte[] v) {
+        final int len = v.length;
+        for (int k = 0; k < len; k++) {
+            if (k == 20 && len >= 35) {
+                sb.append(", ...");
+                    k = len - 11;
+                continue;
+            }
+            if (k > 0) {
+                sb.append(", ");
+            }
+            appendHexByte(sb, v[k] & 0xFF);
+        }
+    }
+
+    private static void appendHexByte(StringBuilder sb, int v) {
+        if (v < 16) {
+            sb.append('0');
+        }
+        sb.append(Integer.toHexString(v));
     }
 }

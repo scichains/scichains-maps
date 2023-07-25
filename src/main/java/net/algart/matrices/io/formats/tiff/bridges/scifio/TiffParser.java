@@ -1169,9 +1169,34 @@ public class TiffParser extends AbstractContextual implements Closeable {
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
         if (KnownTiffCompression.isJpeg(compression)) {
+            final byte[] data = tile.getEncodedData();
             final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
+            // Structure of data:
+            //      FF D8 (SOI, start of image)
+            //      FF C0 (SOF0, start of frame, or some other marker)
+            //      ...
+            //      FF D9 (EOI, end of image)
+            // Structure of jpegTable:
+            //      FF D8 (SOI, start of image)
+            //      FF DB (DQT, define quantization table(s)
+            //      ...
+            //      FF D9 (EOI, end of image)
+            // From libtiff specification:
+            //      When the JPEGTables field is present, it shall contain a valid JPEG
+            //      "abbreviated table specification" datastream.  This datastream shall begin
+            //      with SOI and end with EOI.
+            if (data.length < 2 || data[0] != (byte) 0xFF || data[1] != (byte) 0xD8) {
+                // - the same check is performed inside Java API ImageIO (JPEGImageReaderSpi),
+                // and we prefer to repeat it here for better diagnostics
+                    throw new FormatException(
+                            (compression == TiffCompression.JPEG ? "Invalid" : "Unsupported format of") +
+                            " TIFF content: it is declared as \"" + compression.getCodecName() +
+                            "\", but the data are not actually JPEG");
+            }
             if (jpegTable != null) {
-                byte[] data = tile.getEncodedData();
+                if (jpegTable.length <= 4) {
+                    throw new FormatException("Too short JPEGTables tag: only " + jpegTable.length + " bytes");
+                }
                 if ((long) jpegTable.length + (long) data.length - 4 >= Integer.MAX_VALUE) {
                     // - very improbable
                     throw new FormatException(
@@ -1181,9 +1206,13 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
                 }
                 final byte[] appended = new byte[jpegTable.length + data.length - 4];
-                System.arraycopy(jpegTable, 0, appended, 0, jpegTable.length - 2);
+                appended[0] = (byte) 0xFF;
+                appended[1] = (byte) 0xD8;
+                // - writing SOI
+                System.arraycopy(jpegTable, 2, appended, 2, jpegTable.length - 4);
+                // - skipping both SOI and EOI (2 first and 2 last bytes) from jpegTable
                 System.arraycopy(data, 2, appended, jpegTable.length - 2, data.length - 2);
-                //TODO!! why -2?
+                // - skipping SOI (2 first bytes) from main data
                 tile.setData(appended);
             }
         }
