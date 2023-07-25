@@ -99,11 +99,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private final DataHandle<Location> in;
 
     /**
-     * Cached tile buffer to avoid re-allocations when reading tiles.
-     */
-    private byte[] cachedTileBuffer;
-
-    /**
      * Whether or not the TIFF file contains BigTIFF data.
      */
     private boolean bigTiff;
@@ -1037,83 +1032,41 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
-        //TODO!! move to TiffTile class
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         final DetailedIFD ifd = tileIndex.ifd();
         int xIndex = tileIndex.x();
         int yIndex = tileIndex.y();
 
-        final int tileSizeX = ifd.getTileSizeX();
-        final int tileSizeY = ifd.getTileSizeY();
-        final int numTileCols = ifd.getTilesPerRow(tileSizeX);
-        int numTileRows = ifd.getTilesPerColumn(tileSizeY);
-        if (ifd.isPlanarSeparated()) {
-            int channelsInSeparated = ifd.getSamplesPerPixel();
-            if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(
-                        "Too large image: number of tiles in column " + numTileCols
-                                + " * samples per pixel " + channelsInSeparated + " >= 2^31");
-            }
-            numTileRows *= channelsInSeparated;
-        }
-        if (xIndex < 0 || xIndex >= numTileCols || yIndex < 0 || yIndex >= numTileRows) {
-            throw new IndexOutOfBoundsException(
-                    "Tile/strip position (xIndex, yIndex) = (" + xIndex + ", " + yIndex
-                            + ") is out of bounds 0 <= xIndex < " + numTileCols + ", 0 <= yIndex < " + numTileRows);
-        }
-        final long numberOfTiles = (long) numTileRows * (long) numTileCols;
-        if (numberOfTiles > Integer.MAX_VALUE) {
-            // - this check allows to be sure that tileIndex below is 31-bit
-            throw new FormatException(
-                    "Too large number of tiles/strips: " + numTileRows + " * " + numTileCols + " > 2^31-1");
-        }
-        final long[] byteCounts = ifd.getStripByteCounts();
-        final long[] rowsPerStrip = ifd.getRowsPerStrip();
-        // - newly allocated arrays (not too quick solution)
+        final int numTileCols = checkIndexesAndGetTileCols(ifd, xIndex, yIndex);
 
         final int index = yIndex * numTileCols + xIndex;
         int countIndex = index;
         if (assumeEqualStrips) {
+            // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
+            // filled in getIFDValue(TiffIFDEntry)
             countIndex = 0;
         }
-        if (countIndex >= byteCounts.length) {
-            throw new FormatException(
-                    "Too short " + (ifd.isTiled() ? "TileByteCounts" : "StripByteCounts")
-                            + " array: " + byteCounts.length
-                            + " elements, it is not enough for the tile byte-count index " + countIndex
-                            + " (this image contains " + numTileCols + "x" + numTileRows + " tiles)");
-        }
-        long byteCount = byteCounts[countIndex];
+        final long offset = ifd.cachedStripOffset(index);
+        final int byteCount = ifd.cachedStripByteCount(countIndex);
+        /*
+        // Some strange old code, seems to be useless
+        final int rowsPerStrip = ifd.cachedStripSizeY();
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        if (byteCount == (rowsPerStrip[0] * tileSizeX) && bytesPerSample > 1) {
-            //TODO!! - what situation is checked here??
+        if (byteCount == ((long) rowsPerStrip * tileSizeX) && bytesPerSample > 1) {
             byteCount *= bytesPerSample;
         }
         if (byteCount >= Integer.MAX_VALUE) {
             throw new FormatException("Too large tile/strip #" + index + ": " + byteCount + " bytes > 2^31-1");
         }
-
-        final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
-        final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
-        final long numberOfOffsets = onDemandOffsets != null ? onDemandOffsets.size() : offsets.length;
-        if (index >= numberOfOffsets) {
-            throw new FormatException(
-                    "Too short " + (ifd.isTiled() ? "TileOffsets" : "StripOffsets")
-                            + " array: " + numberOfOffsets
-                            + " elements, it is not enough for the tile offset index " + index
-                            + " (this image contain " + numTileCols + "x" + numTileRows + " tiles)");
-        }
-        final long stripOffset = onDemandOffsets != null ? onDemandOffsets.get(index) : offsets[index];
+        */
 
         final TiffTile result = new TiffTile(tileIndex);
-        if (byteCount == 0 || stripOffset < 0 || stripOffset >= in.length()) {
+        if (byteCount == 0 || offset < 0 || offset >= in.length()) {
             // - empty result
             return result;
         }
-        byte[] data = new byte[(int) byteCount];
-        in.seek(stripOffset);
-        in.read(data);
-        return result.setEncodedData(data);
+        result.read(in, offset, byteCount);
+        return result;
     }
 
     // Note: result is usually interleaved (RGBRGB...) or monochrome; it is always so in UNCOMPRESSED, LZW, DEFLATE
@@ -1421,6 +1374,34 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     // -- Helper methods --
+    private static int checkIndexesAndGetTileCols(DetailedIFD ifd, int xIndex, int yIndex) throws FormatException {
+        final int tileSizeX = ifd.getTileSizeX();
+        final int tileSizeY = ifd.getTileSizeY();
+        final int numTileCols = ifd.getTilesPerRow(tileSizeX);
+        int numTileRows = ifd.getTilesPerColumn(tileSizeY);
+        if (ifd.isPlanarSeparated()) {
+            int channelsInSeparated = ifd.getSamplesPerPixel();
+            if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "Too large image: number of tiles in column " + numTileCols
+                                + " * samples per pixel " + channelsInSeparated + " >= 2^31");
+            }
+            numTileRows *= channelsInSeparated;
+        }
+        if (xIndex < 0 || xIndex >= numTileCols || yIndex < 0 || yIndex >= numTileRows) {
+            throw new IndexOutOfBoundsException(
+                    "Tile/strip position (xIndex, yIndex) = (" + xIndex + ", " + yIndex
+                            + ") is out of bounds 0 <= xIndex < " + numTileCols + ", 0 <= yIndex < " + numTileRows);
+        }
+        final long numberOfTiles = (long) numTileRows * (long) numTileCols;
+        if (numberOfTiles > Integer.MAX_VALUE) {
+            // - this check allows to be sure that result tile index below is 31-bit
+            throw new FormatException(
+                    "Too large number of tiles/strips: " + numTileRows + " * " + numTileCols + " > 2^31-1");
+        }
+        return numTileCols;
+    }
+
     private void loadTiles(DetailedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
@@ -1971,7 +1952,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int bufferSize = (int) tileWidth * (int) tileLength *
                 bufferSizeSamplesPerPixel * bpp;
 
-        cachedTileBuffer = new byte[bufferSize];
+        byte[] cachedTileBuffer = new byte[bufferSize];
 
         final IntRect tileBounds = new IntRect(0, 0, (int) tileWidth,
                 (int) tileLength);

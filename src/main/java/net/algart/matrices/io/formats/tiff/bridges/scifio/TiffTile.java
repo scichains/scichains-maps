@@ -24,6 +24,10 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
+import org.scijava.io.handle.DataHandle;
+import org.scijava.io.location.Location;
+
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -40,6 +44,7 @@ public class TiffTile {
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
+    private long storedDataFilePosition = -1;
     private int storedDataLength = 0;
 
     public TiffTile(TiffTileIndex tileIndex) {
@@ -175,7 +180,7 @@ public class TiffTile {
         return setData(data).setEncoded(false);
     }
 
-    public TiffTile clear() {
+    public TiffTile removeData() {
         this.data = null;
         return this;
     }
@@ -186,13 +191,91 @@ public class TiffTile {
      * immediately before/after writing it into file, this method returns the number of bytes,
      * which are actually stored in the file for this tile.
      *
-     * <p>Note: {@link #clear()} method does not change this value! So, you can know the stored data size
+     * <p>Note: {@link #removeData()} method does not change this value! So, you can know the stored data size
      * even after freeing data inside this object.
      *
      * @return the length of the last non-null data array, which was stored in this object.
      */
-    public int storedDataLength() {
+    public int getStoredDataLength() {
         return storedDataLength;
+    }
+
+    public TiffTile setStoredDataLength(int storedDataLength) {
+        if (storedDataLength < 0) {
+            throw new IllegalArgumentException("Negative storedDataLength = " + storedDataLength);
+        }
+        this.storedDataLength = storedDataLength;
+        return this;
+    }
+
+    public boolean hasStoredDataFileOffset() {
+        return storedDataFilePosition >= 0;
+    }
+
+    public long getStoredDataFilePosition() {
+        return storedDataFilePosition;
+    }
+
+    public TiffTile setStoredDataFilePosition(long storedDataFilePosition) {
+        if (storedDataFilePosition < 0) {
+            throw new IllegalArgumentException("Negative storedDataFileOffset = " + storedDataFilePosition);
+        }
+        this.storedDataFilePosition = storedDataFilePosition;
+        return this;
+    }
+
+    public TiffTile removeStoredDataFileOffset() {
+        storedDataFilePosition = -1;
+        return this;
+    }
+
+    public TiffTile load(DataHandle<? extends Location> in) throws IOException {
+        checkFilePosition();
+        byte[] data = new byte[storedDataLength];
+        in.seek(storedDataFilePosition);
+        final int result = in.read(data);
+        if (result < storedDataLength) {
+            throw new IOException("File exhausted at " + storedDataFilePosition +
+                    ": loaded " + result + " bytes instead of " + storedDataLength +
+                    " (" + in.get() + ")");
+        }
+        return setEncodedData(data);
+    }
+
+    public TiffTile save(DataHandle<? extends Location> out, boolean removeAfterSave) throws IOException {
+        byte[] encodedData = getEncodedData();
+        checkFilePosition();
+        out.seek(storedDataFilePosition);
+        out.write(encodedData);
+        if (removeAfterSave) {
+            removeData();
+        }
+        return this;
+    }
+
+    public TiffTile read(DataHandle<? extends Location> in, long filePosition, int dataLength) throws IOException {
+        if (filePosition < 0) {
+            throw new IllegalArgumentException("Negative filePosition = " + filePosition);
+        }
+        if (dataLength < 0) {
+            throw new IllegalArgumentException("Negative dataLength = " + dataLength);
+        }
+        this.storedDataFilePosition = filePosition;
+        this.storedDataLength = dataLength;
+        return load(in);
+    }
+
+    public TiffTile writeAndRemove(DataHandle<? extends Location> out) throws IOException {
+        setStoredDataFilePosition(out.length());
+        return save(out, true);
+    }
+
+    @Override
+    public String toString() {
+        return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
+                + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
+                (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
+                (hasStoredDataFileOffset() ? " at file position " + storedDataFilePosition : "");
     }
 
     protected void checkEmpty() {
@@ -201,10 +284,9 @@ public class TiffTile {
         }
     }
 
-    @Override
-    public String toString() {
-        return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
-                + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
-                (isEmpty() ? ", empty" : ", " + storedDataLength() + " bytes");
+    private void checkFilePosition() {
+        if (storedDataFilePosition < 0) {
+            throw new IllegalStateException("File offset of this TIFF tile is not set yet: " + this);
+        }
     }
 }

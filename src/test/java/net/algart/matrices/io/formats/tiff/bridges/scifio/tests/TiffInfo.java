@@ -25,10 +25,9 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
-import io.scif.SCIFIO;
+import io.scif.formats.tiff.IFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
-import org.scijava.Context;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,6 +77,12 @@ public class TiffInfo {
                     if (k >= firstIFDIndex && k <= lastIFDIndex) {
                         final var ifd = ifdList.get(k);
                         System.out.println(ifdInfo(ifd, k, ifdCount));
+                        if (!(ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS))) {
+                            throw new IOException("Invalid IFD: does not contain StripByteCounts/TileByteCounts tag");
+                        }
+                        if (!(ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(IFD.TILE_OFFSETS))) {
+                            throw new IOException("Invalid IFD: does not contain StripOffsets/TileOffsets tag");
+                        }
                     }
                 }
             }

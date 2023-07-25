@@ -66,6 +66,10 @@ public class DetailedIFD extends IFD {
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
 
+    private volatile long[] stripByteCounts = null;
+    private volatile long[] stripOffsets = null;
+    private volatile Integer stripSizeY = null;
+
     public DetailedIFD(IFD ifd) {
         super(ifd, null);
         // Note: log argument is never used in this class.
@@ -173,6 +177,105 @@ public class DetailedIFD extends IFD {
     }
 
 
+    // This method is overridden to remove extra support of absence of StripByteCounts
+    // and to remove extra doubling result for LZW (may lead to a bug)
+    @Override
+    public long[] getStripByteCounts() throws FormatException {
+        final boolean tiled = isTiled();
+        final int tag = tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS;
+        long[] counts = getIFDLongArray(tag);
+        if (tiled && counts == null) {
+            counts = getIFDLongArray(STRIP_BYTE_COUNTS);
+            // - rare situation, when tile byte counts is actually stored in StripByteCounts
+        }
+        if (counts == null) {
+            throw new FormatException("Invalid IFD: no required StripByteCounts/TileByteCounts tag");
+        }
+        if (tiled) {
+            return counts;
+        }
+
+        final long rowsPerStrip = getRowsPerStrip()[0];
+        assert rowsPerStrip <= Integer.MAX_VALUE :
+                "getImageLength() inside getRowsPerStrip() did not check that result is 31-bit";
+        long numberOfStrips = (getImageLength() + rowsPerStrip - 1) / rowsPerStrip;
+        if (getPlanarConfiguration() == PLANAR_CONFIG_SEPARATE) {
+            numberOfStrips *= getSamplesPerPixel();
+        }
+
+        if (counts.length < numberOfStrips) {
+            throw new FormatException("StripByteCounts/TileByteCounts length (" + counts.length +
+                    ") does not match expected number of strips/tiles (" + numberOfStrips + ")");
+        }
+        return counts;
+    }
+
+    public long[] cachedStripByteCounts() throws FormatException {
+        long[] result = this.stripByteCounts;
+        if (result == null) {
+            this.stripByteCounts = result = getStripByteCounts();
+        }
+        return result;
+    }
+
+    public int cachedStripByteCount(int index) throws FormatException {
+        long[] byteCounts = cachedStripByteCounts();
+        if (index < 0) {
+            throw new IllegalArgumentException("Negative index = " + index);
+        }
+        if (index >= byteCounts.length) {
+            throw new FormatException((isTiled() ?
+                    "Tile index is too big for TileByteCounts" :
+                    "Strip index is too big for StripByteCounts") +
+                    "array: it contains only " + byteCounts.length + " elements");
+        }
+        long result = byteCounts[index];
+        if (result < 0) {
+            throw new FormatException(
+                    "Negative value " + result + " in " +
+                            (isTiled() ? "TileByteCounts" : "StripByteCounts") + " array");
+        }
+        if (result > Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile/strip #" + index + ": " + result + " bytes > 2^31-1");
+        }
+        return (int) result;
+    }
+
+    public long[] cachedStripOffsets() throws FormatException {
+        long[] result = this.stripOffsets;
+        if (result == null) {
+            this.stripOffsets = result = getStripOffsets();
+        }
+        return result;
+    }
+
+    public long cachedStripOffset(int index) throws FormatException {
+        long[] offsets = cachedStripOffsets();
+        if (index < 0) {
+            throw new IllegalArgumentException("Negative index = " + index);
+        }
+        if (index >= offsets.length) {
+            throw new FormatException((isTiled() ?
+                    "Tile index is too big for TileOffsets" :
+                    "Strip index is too big for StripOffsets") +
+                    "array: it contains only " + offsets.length + " elements");
+        }
+        final long result = offsets[index];
+        if (result < 0) {
+            throw new FormatException(
+                    "Negative value " + result + " in " + (isTiled() ? "TileOffsets" : "StripOffsets") + " array");
+        }
+        return result;
+    }
+
+    public int cachedStripSizeY() throws FormatException {
+        Integer result = this.stripSizeY;
+        if (result == null) {
+            this.stripSizeY = result = getStripSizeY();
+        }
+        return result;
+    }
+
     // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIG_SEPARATE;
@@ -221,6 +324,33 @@ public class DetailedIFD extends IFD {
         return (int) imageLength;
     }
 
+    //!! Better analog of getRowsPerStrip()
+    public int getStripSizeY() throws FormatException {
+        final long[] rowsPerStrip = getIFDLongArray(ROWS_PER_STRIP);
+        final int imageSizeY = getImageSizeY();
+        if (rowsPerStrip == null || rowsPerStrip.length == 0) {
+            // - zero rowsPerStrip.length is possible only as a result of manual modification of this IFD
+            return imageSizeY;
+        }
+
+        // rowsPerStrip should never be more than the total number of rows
+        for (int i = 0; i < rowsPerStrip.length; i++) {
+            int rows = (int) Math.min(rowsPerStrip[i], imageSizeY);
+            if (rows <= 0) {
+                throw new FormatException("Zero or negative RowsPerStrip[" + i + "] = " + rows);
+            }
+            rowsPerStrip[i] = rows;
+        }
+        final int result = (int) rowsPerStrip[0];
+        assert result > 0 : result + " was not checked in the loop above?";
+        for (int i = 1; i < rowsPerStrip.length; i++) {
+            if (result != rowsPerStrip[i]) {
+                throw new FormatException("Non-uniform RowsPerStrip is not supported");
+            }
+        }
+        return result;
+    }
+
     //!! Better analog of IFD.getTileWidth()
     public int getTileSizeX() throws FormatException {
         final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH, 0);
@@ -254,22 +384,9 @@ public class DetailedIFD extends IFD {
         if (tileLength != 0) {
             return (int) tileLength;
         }
-        final long imageLength = getImageLength();
-        assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
-        final long rowsPerStrip = getRowsPerStrip()[0];
-        if (rowsPerStrip < 0) {
-            throw new FormatException("Negative rows per strip = " + rowsPerStrip);
-            // - impossible in a correct TIFF
-        }
-        if (rowsPerStrip > Integer.MAX_VALUE) {
-            throw new FormatException("Very large number of rows per strip " +
-                    rowsPerStrip + " >= 2^31 is not supported");
-            // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
-        }
-        if (rowsPerStrip != 0) {
-            return (int) rowsPerStrip;
-        }
-        return (int) imageLength;
+        final int stripSizeY = getStripSizeY();
+        assert stripSizeY > 0 : "getStripSizeY() did not check non-positive result";
+        return stripSizeY;
         // - unlike old SCIFIO getTileLength, we do not return 0 if rowsPerStrip==0:
         // it allows to avoid additional checks in a calling code
     }
@@ -624,7 +741,7 @@ public class DetailedIFD extends IFD {
         for (int k = 0; k < len; k++) {
             if (k == 20 && len >= 35) {
                 sb.append(", ...");
-                    k = len - 11;
+                k = len - 11;
                 continue;
             }
             if (k > 0) {
