@@ -24,10 +24,13 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
+import io.scif.FormatException;
 import io.scif.codec.Codec;
 import io.scif.codec.LZWCodec;
 import io.scif.codec.PassthroughCodec;
 import io.scif.codec.ZlibCodec;
+import io.scif.formats.tiff.IFD;
+import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEG2000Codec;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
@@ -79,6 +82,11 @@ enum KnownTiffCompression {
         this.noContext = noContext;
         this.extended = extended;
         this.onlyForReading = onlyForReading;
+    }
+
+    public static boolean isNonJpegYCbCr(IFD ifd) throws FormatException {
+        Objects.requireNonNull(ifd, "Null IFD");
+        return !isJpeg(ifd.getCompression()) && ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
     }
 
     public static boolean isJpeg(TiffCompression compression) {

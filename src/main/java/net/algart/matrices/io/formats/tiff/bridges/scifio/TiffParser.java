@@ -1169,7 +1169,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // - this solution requires using SCIFIO context class; it is better to avoid this
         TiffTools.undifferenceIfRequested(tile);
 
-        unpackBytes(tile);
+        if (!decodeYCbCr(tile)) {
+            unpackBytes(tile);
+        }
 
         /*
         // The following code is equivalent to the analogous code from SCIFIO 0.46.0 and earlier version,
@@ -1510,19 +1512,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
+    // Made from unpackBytes method of old TiffParser
+    // Processing Y_CB_CR is extracted to decodeYCbCr() method.
     private static void unpackBytes(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
         byte[] bytes = tile.getDecodedData();
-        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
 
         final boolean planar = ifd.isPlanarSeparated();
-        final TiffCompression compression = ifd.getCompression();
-        final PhotoInterp photoInterpretation = KnownTiffCompression.isJpeg(compression) ?
-                PhotoInterp.RGB :
-                ifd.getPhotometricInterpretation();
-        // - JPEG codec, based on Java API BufferedImage, always returns RGB data
+        if (KnownTiffCompression.isNonJpegYCbCr(ifd)) {
+            throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
+        }
 
+        final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
+        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
         final int bps0 = bitsPerSample[0];
@@ -1532,19 +1535,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int channels = planar ? 1 : ifd.getSamplesPerPixel();
 
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (photoInterpretation == PhotoInterp.Y_CB_CR) {
-            if (planar) {
-                // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
-                throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
-                        "(separated component plances)");
-            }
-            if (channels != 3) {
-                throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
-                        "there are " + channels + " channels in SamplesPerPixel TIFF tag");
-            }
-            sampleCount *= 3;
-            // - necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
-        }
         if (!planar) {
             sampleCount /= channels;
         }
@@ -1552,15 +1542,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
             throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
         }
 
-        if (LOGGABLE_TRACE) {
-            LOG.log(System.Logger.Level.TRACE,
-                    "unpacking " + sampleCount + " unpacked" +
-                            "; totalBits=" + (channels * bitsPerSample[0]) +
-                            "; numBytes=" + bytes.length + ")");
-        }
-
-        final long imageWidth = ifd.getImageWidth();
-        final long imageHeight = ifd.getImageLength();
+        final long imageWidth = tile.getSizeX();
+        final long imageHeight = tile.getSizeY();
 
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
         final int numberOfPixels = samplesLength / (channels * bytesPerSample);
@@ -1578,8 +1561,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Chris Allan <callan@glencoesoftware.com>
         if ((bps8 || bps16) && bytes.length <= samplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterpretation != PhotoInterp.CMYK &&
-                photoInterpretation != PhotoInterp.Y_CB_CR) {
+                photoInterpretation != PhotoInterp.CMYK) {
             if (bytes.length < samplesLength) {
                 // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
                 // we need to check it before quick returning
@@ -1602,6 +1584,86 @@ public class TiffParser extends AbstractContextual implements Closeable {
             skipBits = 0;
         }
 
+        // unpack pixels
+        for (int sample = 0; sample < sampleCount; sample++) {
+            final int ndx = sample;
+            if (ndx >= numberOfPixels) break;
+
+            for (int channel = 0; channel < channels; channel++) {
+                final int index = bytesPerSample * (sample * channels + channel);
+                final int outputIndex = (channel * numberOfPixels + ndx) * bytesPerSample;
+
+                // unpack non-YCbCr samples
+                long value = 0;
+
+                if (noDiv8) {
+                    // bits per sample is not a multiple of 8
+
+                    if ((channel == 0 && photoInterpretation == PhotoInterp.RGB_PALETTE) ||
+                            (photoInterpretation != PhotoInterp.CFA_ARRAY &&
+                                    photoInterpretation != PhotoInterp.RGB_PALETTE)) {
+                        value = bb.getBits(bps0) & 0xffff;
+                        if ((ndx % imageWidth) == imageWidth - 1) {
+                            bb.skipBits(skipBits);
+                        }
+                    }
+                } else {
+                    value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
+                }
+
+                if (photoInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                        photoInterpretation == PhotoInterp.CMYK) {
+                    value = maxValue - value;
+                }
+
+                if (outputIndex + bytesPerSample <= unpacked.length) {
+                    Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
+                }
+            }
+        }
+        tile.setDecodedData(unpacked);
+        tile.setInterleaved(false);
+    }
+
+    private static boolean decodeYCbCr(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile);
+        final DetailedIFD ifd = tile.ifd();
+        byte[] bytes = tile.getDecodedData();
+
+        if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
+            return false;
+        }
+        // - JPEG codec, based on Java API BufferedImage, always returns RGB data
+
+        if (ifd.isPlanarSeparated()) {
+            // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
+            throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
+                    "(separated component plances)");
+        }
+
+        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+
+        final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
+        long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
+        if (channels != 3) {
+            throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
+                    "there are " + channels + " channels in SamplesPerPixel TIFF tag");
+        }
+        // - Note: we do not divide sampleCount by number of channels!
+        // It is necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
+        if (sampleCount > Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
+        }
+
+        final long tileSizeX = tile.getSizeX();
+
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
+
+        final byte[] unpacked = new byte[samplesLength];
+
+        // unpack pixels
         // set up YCbCr-specific values
         float lumaRed = PhotoInterp.LUMA_RED;
         float lumaGreen = PhotoInterp.LUMA_GREEN;
@@ -1621,85 +1683,53 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final int subX = subsampling == null ? 2 : subsampling[0];
         final int subY = subsampling == null ? 2 : subsampling[1];
         final int block = subX * subY;
-        final int nTiles = (int) (imageWidth / subX);
-
-        // unpack pixels
+        final int nTiles = (int) (tileSizeX / subX);
         for (int sample = 0; sample < sampleCount; sample++) {
             final int ndx = sample;
             if (ndx >= numberOfPixels) break;
 
             for (int channel = 0; channel < channels; channel++) {
-                final int index = bytesPerSample * (sample * channels + channel);
-                final int outputIndex = (channel * numberOfPixels + ndx) * bytesPerSample;
-
                 // unpack non-YCbCr samples
-                if (photoInterpretation != PhotoInterp.Y_CB_CR) {
-                    long value = 0;
+                // unpack YCbCr unpacked; these need special handling, as
+                // each of the RGB components depends upon two or more of the YCbCr
+                // components
+                if (channel == channels - 1) {
+                    final int lumaIndex = sample + (2 * (sample / block));
+                    final int chromaIndex = (sample / block) * (block + 2) + block;
 
-                    if (noDiv8) {
-                        // bits per sample is not a multiple of 8
+                    if (chromaIndex + 1 >= bytes.length) break;
 
-                        if ((channel == 0 && photoInterpretation == PhotoInterp.RGB_PALETTE) ||
-                                (photoInterpretation != PhotoInterp.CFA_ARRAY &&
-                                        photoInterpretation != PhotoInterp.RGB_PALETTE)) {
-                            value = bb.getBits(bps0) & 0xffff;
-                            if ((ndx % imageWidth) == imageWidth - 1) {
-                                bb.skipBits(skipBits);
-                            }
-                        }
-                    } else {
-                        value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
-                    }
+                    final int tileIndex = ndx / block;
+                    final int pixel = ndx % block;
+                    final long r = subY * (tileIndex / nTiles) + (pixel / subX);
+                    final long c = subX * (tileIndex % nTiles) + (pixel % subX);
 
-                    if (photoInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                            photoInterpretation == PhotoInterp.CMYK) {
-                        value = maxValue - value;
-                    }
+                    final int idx = (int) (r * tileSizeX + c);
 
-                    if (outputIndex + bytesPerSample <= unpacked.length) {
-                        Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
-                    }
-                } else {
-                    // unpack YCbCr unpacked; these need special handling, as
-                    // each of the RGB components depends upon two or more of the YCbCr
-                    // components
-                    if (channel == channels - 1) {
-                        final int lumaIndex = sample + (2 * (sample / block));
-                        final int chromaIndex = (sample / block) * (block + 2) + block;
+                    if (idx < numberOfPixels) {
+                        final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                        final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                        final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
 
-                        if (chromaIndex + 1 >= bytes.length) break;
-
-                        final int tileIndex = ndx / block;
-                        final int pixel = ndx % block;
-                        final long r = subY * (tileIndex / nTiles) + (pixel / subX);
-                        final long c = subX * (tileIndex % nTiles) + (pixel % subX);
-
-                        final int idx = (int) (r * imageWidth + c);
-
-                        if (idx < numberOfPixels) {
-                            final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                            final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                            final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
-
-                            final double red = cr * (2 - 2 * lumaRed) + y;
-                            final double blue = cb * (2 - 2 * lumaBlue) + y;
-                            final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
+                        final double red = cr * (2 - 2 * lumaRed) + y;
+                        final double blue = cb * (2 - 2 * lumaBlue) + y;
+                        final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
 
 //                            unpacked[idx] = (byte) (red & 0xff);
 //                            unpacked[nSamples + idx] = (byte) (green & 0xff);
 //                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
-                            unpacked[idx] = (byte) toUnsignedByte(red);
-                            unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
-                            unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
-                        }
+                        unpacked[idx] = (byte) toUnsignedByte(red);
+                        unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
+                        unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
                     }
                 }
             }
         }
+
         tile.setDecodedData(unpacked);
         tile.setInterleaved(false);
+        return true;
     }
-
 
     /**
      * Read a file offset. For bigTiff, a 64-bit number is read. For other Tiffs,
