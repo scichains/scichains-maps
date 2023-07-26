@@ -157,7 +157,7 @@ public class TiffSaverTest {
                     Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
                     DetailedIFD ifd = new DetailedIFD();
                     if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
-                        TiffTools.interleaveSamples(
+                        samplesArray = TiffTools.toInterleavedSamples(
                                 (byte[]) samplesArray, bandCount, 1, WIDTH * HEIGHT);
                     }
                     ifd.putImageSizes(WIDTH, HEIGHT);

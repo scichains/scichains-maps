@@ -1232,7 +1232,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * <p>Note: you should not change IFD in a parallel thread while calling this method.
      *
      * @param samples work array for reading data; may be <tt>null</tt>.
-     * @return loaded samples; will be a reference to passed samples, if it is not <tt>null</tt>.
+     * @return loaded samples; may be a reference to passed samples, but it is not guaranteed.
      */
     public byte[] getSamples(IFD simpleIFD, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
@@ -1271,7 +1271,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         long t3 = debugTime();
         if (autoInterleave) {
-            TiffTools.interleaveSamples(ifd, samples, sizeX * sizeY);
+            samples = TiffTools.toInterleavedSamples(
+                    samples, ifd.getSamplesPerPixel(), ifd.getBytesPerSampleBasedOnType(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t4 = debugTime();
@@ -1526,17 +1527,17 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
         final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        final int numberOfChannels = tile.tileIndex().numberOfChannels();
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
         final boolean bps8 = equalBitsPerSample && bps0 == 8;
         final boolean bps16 = equalBitsPerSample && bps0 == 16;
-        final int channels = planar ? 1 : ifd.getSamplesPerPixel();
 
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!planar) {
-            sampleCount /= channels;
+            sampleCount /= numberOfChannels;
         }
         if (sampleCount > Integer.MAX_VALUE) {
             throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
@@ -1546,7 +1547,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final long imageHeight = tile.getSizeY();
 
         final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
+        final int numberOfPixels = samplesLength / (numberOfChannels * bytesPerSample);
 
         final boolean littleEndian = ifd.isLittleEndian();
 
@@ -1568,9 +1569,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 // Daniel Alievsky
                 bytes = Arrays.copyOf(bytes, samplesLength);
             }
-            bytes = TiffTools.toSeparatedSamples(bytes, channels, bytesPerSample, tile.getNumberOfPixels());
             tile.setDecodedData(bytes);
-            tile.setInterleaved(false);
+            tile.separateSamples();
             return;
         }
 
@@ -1579,8 +1579,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         long maxValue = (long) Math.pow(2, bps0) - 1;
         if (photoInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
-        int skipBits = (int) (8 - ((imageWidth * bps0 * channels) % 8));
-        if (skipBits == 8 || (bytes.length * 8 < bps0 * (channels * imageWidth + imageHeight))) {
+        int skipBits = (int) (8 - ((imageWidth * bps0 * numberOfChannels) % 8));
+        if (skipBits == 8 || (bytes.length * 8 < bps0 * (numberOfChannels * imageWidth + imageHeight))) {
             skipBits = 0;
         }
 
@@ -1589,8 +1589,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
             final int ndx = sample;
             if (ndx >= numberOfPixels) break;
 
-            for (int channel = 0; channel < channels; channel++) {
-                final int index = bytesPerSample * (sample * channels + channel);
+            for (int channel = 0; channel < numberOfChannels; channel++) {
+                final int index = bytesPerSample * (sample * numberOfChannels + channel);
                 final int outputIndex = (channel * numberOfPixels + ndx) * bytesPerSample;
 
                 // unpack non-YCbCr samples

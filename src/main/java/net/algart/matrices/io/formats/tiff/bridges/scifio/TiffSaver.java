@@ -948,15 +948,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         Objects.requireNonNull(tile, "Null tile");
         TiffTools.invertFillOrderIfRequested(tile);
         if (autoInterleave) {
-            DetailedIFD ifd = tile.ifd();
-            final int effectiveChannels = ifd.isContiguouslyChunked() ? ifd.getSamplesPerPixel() : 1;
-            final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-            byte[] data = tile.getDecodedData();
-            data = TiffTools.toInterleavedSamples(data, effectiveChannels, bytesPerSample, tile.getNumberOfPixels());
-            tile.setDecodedData(data);
+            tile.interleaveSamples();
+        } else {
+            tile.setInterleaved(true);
+            // - if not autoInterleave, we should suppose that the samples were already interleaved
         }
-        tile.setInterleaved(true);
-        // - if not autoInterleave, it means that the samples were already interleaved
 
         // scifio.tiff().difference(tile.getDecodedData(), ifd);
         // - this solution requires using SCIFIO context class; it is better to avoid this

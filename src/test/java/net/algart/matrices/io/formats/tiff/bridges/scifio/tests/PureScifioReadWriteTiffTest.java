@@ -41,6 +41,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Objects;
 
 public class PureScifioReadWriteTiffTest {
     private static final int MAX_IMAGE_DIM = 5000;
@@ -77,7 +78,9 @@ public class PureScifioReadWriteTiffTest {
                         * ifd.getSamplesPerPixel() * FormatTools.getBytesPerPixel(ifd.getPixelType())];
                 parser.getSamples(ifd, bytes, 0, 0, w, h);
 //                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, w * h);
-                TiffTools.interleaveSamples(ifd, bytes, w * h);
+                bytes = TiffTools.toInterleavedSamples(
+                        bytes, ifd.getSamplesPerPixel(), FormatTools.getBytesPerPixel(ifd.getPixelType()),
+                        w * h);
                 boolean last = ifdIndex == ifdList.size() - 1;
                 final IFD newIfd = removeUndesirableTags(ifd);
 

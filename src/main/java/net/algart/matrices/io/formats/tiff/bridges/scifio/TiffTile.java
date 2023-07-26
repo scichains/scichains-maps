@@ -61,6 +61,14 @@ public class TiffTile {
         return ifd;
     }
 
+    public int getNumberOfChannels() {
+        return tileIndex.numberOfChannels();
+    }
+
+    public int getBytesPerSample() {
+        return tileIndex.bytesPerSample();
+    }
+
     public int getSizeX() {
         return sizeX;
     }
@@ -238,10 +246,33 @@ public class TiffTile {
         return this;
     }
 
+    public TiffTile interleaveSamples() {
+        byte[] data = getDecodedData();
+        if (isInterleaved()) {
+            throw new IllegalStateException("TIFF tile is already interleaved: " + this);
+        }
+        data = TiffTools.toInterleavedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
+        setInterleaved(true);
+        return setDecodedData(data);
+    }
+
+    public TiffTile separateSamples() {
+        byte[] data = getDecodedData();
+        if (!isInterleaved()) {
+            throw new IllegalStateException("TIFF tile is already separated: " + this);
+        }
+        data = TiffTools.toSeparatedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
+        setInterleaved(false);
+        return setDecodedData(data);
+    }
+
     @Override
     public String toString() {
-        return "TIFF " + (encoded ? "encoded" : "decoded") + " tile "
-                + tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
+        return "TIFF " +
+                (encoded ? "encoded" : "decoded") +
+                (interleaved ? " interleaved" : "") +
+                " tile " +
+                tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
                 (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
                 (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "");
     }

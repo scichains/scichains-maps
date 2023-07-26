@@ -206,24 +206,6 @@ public class TiffTools {
         throw new AssertionError("(should be already checked in arrayToPixelType)");
     }
 
-    public static void interleaveSamples(IFD ifd, byte[] samples, int numberOfPixels) throws FormatException {
-        Objects.requireNonNull(ifd, "Null IFD");
-        interleaveSamples(
-                samples,
-                ifd.getSamplesPerPixel(),
-                FormatTools.getBytesPerPixel(ifd.getPixelType()),
-                numberOfPixels);
-    }
-
-    public static void interleaveSamples(byte[] bytes, int numberOfChannels, int bytesPerSample, int numberOfPixels) {
-        byte[] buffer = toInterleavedSamples(
-                bytes, numberOfChannels, bytesPerSample,
-                numberOfPixels);
-        if (buffer != bytes) {
-            System.arraycopy(buffer, 0, bytes, 0, buffer.length);
-        }
-    }
-
     public static byte[] toInterleavedSamples(
             byte[] bytes,
             int numberOfChannels,

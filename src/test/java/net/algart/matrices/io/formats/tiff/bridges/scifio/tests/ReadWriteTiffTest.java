@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
+import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
@@ -40,6 +41,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public class ReadWriteTiffTest {
     private static final int MAX_IMAGE_DIM = 8000;
@@ -168,7 +170,10 @@ public class ReadWriteTiffTest {
                             writer.setTiling(false);
                         }
                         if (!planar) {
-                            TiffTools.interleaveSamples(parserIFD, bytes, paddedW * paddedH);
+                            int numberOfChannels = parserIFD.getSamplesPerPixel();
+                            int bytesPerSample = FormatTools.getBytesPerPixel(parserIFD.getPixelType());
+                            bytes = TiffTools.toInterleavedSamples(
+                                    bytes, numberOfChannels, bytesPerSample, paddedW * paddedH);
                         }
                         saverIFD = new DetailedIFD(PureScifioReadWriteTiffTest.removeUndesirableTags(parserIFD));
                         if (singleStrip) {

@@ -38,9 +38,10 @@ import java.util.Objects;
  */
 public final class TiffTileIndex {
     private final DetailedIFD ifd;
+    private final int numberOfChannels;
+    private final int bytesPerSample;
     private final int tileSizeX;
     private final int tileSizeY;
-    private final int tileSize;
     private final int sizeOfTileBasedOnBits;
     private final int ifdIdentity;
     private final int x;
@@ -62,6 +63,8 @@ public final class TiffTileIndex {
         // - not a universal solution, but suitable for our optimization needs:
         // usually we do not create new IFD instances without necessity
         try {
+            this.numberOfChannels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
+            this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             if ((long) tileSizeX * (long) tileSizeY > Integer.MAX_VALUE) {
@@ -69,8 +72,7 @@ public final class TiffTileIndex {
                         " >= 2^31 pixels is not supported");
                 // - note that it is also checked deeper in the next operator
             }
-            this.sizeOfTileBasedOnBits = ifd.sizeOfTileBasedOnBits();
-            this.tileSize = tileSizeX * tileSizeY;
+            this.sizeOfTileBasedOnBits = ifd.sizeOfTile(this.bytesPerSample);
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal IFD: cannot determine tile sizes", e);
         }
@@ -82,16 +84,20 @@ public final class TiffTileIndex {
         return ifd;
     }
 
+    public int numberOfChannels() {
+        return numberOfChannels;
+    }
+
+    public int bytesPerSample() {
+        return bytesPerSample;
+    }
+
     public int tileSizeX() {
         return tileSizeX;
     }
 
     public int tileSizeY() {
         return tileSizeY;
-    }
-
-    public int tileSize() {
-        return tileSize;
     }
 
     public int sizeOfTileBasedOnBits() {
