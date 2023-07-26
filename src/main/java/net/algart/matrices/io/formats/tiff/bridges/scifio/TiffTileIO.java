@@ -38,17 +38,17 @@ public class TiffTileIO {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(in, "Null input stream");
         tile.setStoredDataFileRange(filePosition, dataLength);
-        load(tile, in);
+        read(tile, in);
     }
 
     public static void writeAndRemove(TiffTile tile, DataHandle<? extends Location> out) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");
         tile.setStoredDataFileOffset(out.length());
-        save(tile, out, true);
+        write(tile, out, true);
     }
 
-    public static void load(TiffTile tile, DataHandle<?> in) throws IOException {
+    public static void read(TiffTile tile, DataHandle<?> in) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(in, "Null input stream");
         final long filePosition = tile.getStoredDataFileOffset();
@@ -63,7 +63,7 @@ public class TiffTileIO {
         tile.setEncodedData(data);
     }
 
-    public static void save(TiffTile tile, DataHandle<?> out, boolean removeAfterSave) throws IOException {
+    public static void write(TiffTile tile, DataHandle<?> out, boolean removeAfterSave) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");
         final long filePosition = tile.getStoredDataFileOffset();

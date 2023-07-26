@@ -59,6 +59,11 @@ public class DetailedIFD extends IFD {
     public static final int SAMPLE_FORMAT_COMPLEX_INT = 5;
     public static final int SAMPLE_FORMAT_COMPLEX_IEEEFP = 6;
 
+    public static final int PREDICTOR_NONE = 1;
+    public static final int PREDICTOR_HORIZONTAL = 2;
+    public static final int PREDICTOR_FLOATING_POINT = 3;
+    // - value 3 is not supported by TiffParser/TiffSaver
+
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
     private final Long offset;

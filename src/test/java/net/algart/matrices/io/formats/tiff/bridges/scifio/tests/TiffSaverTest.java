@@ -94,6 +94,11 @@ public class TiffSaverTest {
             planarSeparated = true;
             startArgIndex++;
         }
+        boolean difference = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-difference")) {
+            difference = true;
+            startArgIndex++;
+        }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
@@ -154,6 +159,9 @@ public class TiffSaverTest {
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
                         ifd.putTileSizes(64, 64);
+                    }
+                    if (difference) {
+                        ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     if (planarSeparated) {

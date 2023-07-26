@@ -62,7 +62,7 @@ public class TiffExtractTileContent {
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
             TiffTile tile = parser.readTile(tileIndex);
-            parser.completeJpegTile(tile);
+            parser.correctEncodedJpegTile(tile);
             byte[] bytes = tile.getData();
             System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);

@@ -147,7 +147,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private volatile long positionOfLastOffset = -1;
     private long timeRead = 0;
     private long timeDecode = 0;
-    private long timeСomplete = 0;
+    private long timeComplete = 0;
 
     // -- Constructors --
 
@@ -1020,7 +1020,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         long t4 = debugTime();
         timeRead += t2 - t1;
         timeDecode += t3 - t2;
-        timeСomplete += t4 - t3;
+        timeComplete += t4 - t3;
         return tile;
     }
 
@@ -1065,7 +1065,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     // Note: result is usually interleaved (RGBRGB...) or monochrome; it is always so in UNCOMPRESSED, LZW, DEFLATE
     public void decode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        completeJpegTile(tile);
+        correctEncodedJpegTile(tile);
 
         DetailedIFD ifd = tile.ifd();
         byte[] encodedData = tile.getEncodedData();
@@ -1110,7 +1110,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    public void completeJpegTile(TiffTile tile) throws FormatException {
+    public void correctEncodedJpegTile(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
@@ -1162,6 +1162,56 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 tile.setData(appended);
             }
         }
+    }
+
+    public void completeDecoding(TiffTile tile) throws FormatException {
+        // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
+        // - this solution requires using SCIFIO context class; it is better to avoid this
+        TiffTools.undifference(tile);
+
+        unpackBytes(tile);
+
+        /*
+        // The following code is equivalent to the analogous code from SCIFIO 0.46.0 and earlier version,
+        // which performed correction of channels with different precision in a rare case PLANAR_CONFIG_SEPARATE.
+        // But it is deprecated: we do not support different number of BYTES in different samples,
+        // and it is checked inside getBytesPerSampleBasedOnBits() method.
+
+        byte[] samples = tile.getDecodedData();
+        final TiffTileIndex tileIndex = tile.tileIndex();
+        final int tileSizeX = tileIndex.tileSizeX();
+        final int tileSizeY = tileIndex.tileSizeY();
+        DetailedIFD ifd = tile.ifd();
+        final int samplesPerPixel = ifd.getSamplesPerPixel();
+        final int planarConfig = ifd.getPlanarConfiguration();
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int effectiveChannels = planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
+        assert samples.length == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
+        if (planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE && !ifd.isTiled() && ifd.getSamplesPerPixel() > 1) {
+            final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
+            final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
+            final long numberOfStrips = onDemandOffsets != null ? onDemandOffsets.size() : offsets.length;
+            final int channel = (int) (tileIndex.y() % numberOfStrips);
+            int[] differentBytesPerSample = ifd.getBytesPerSample();
+            if (channel < differentBytesPerSample.length) {
+                final int realBytes = differentBytesPerSample[channel];
+                if (realBytes != bytesPerSample) {
+                    // re-pack pixels to account for differing bits per sample
+                    final boolean littleEndian = ifd.isLittleEndian();
+                    final int[] newSamples = new int[samples.length / bytesPerSample];
+                    for (int i = 0; i < newSamples.length; i++) {
+                        newSamples[i] = Bytes.toInt(samples, i * realBytes, realBytes,
+                                littleEndian);
+                    }
+
+                    for (int i = 0; i < newSamples.length; i++) {
+                        Bytes.unpack(newSamples[i], samples, i * bytesPerSample, bytesPerSample, littleEndian);
+                    }
+                }
+            }
+        }
+        tile.setDecodedData(samples);
+        */
     }
 
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
@@ -1232,7 +1282,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                     (t2 - t1) * 1e-6,
                     timeRead * 1e-6,
                     timeDecode * 1e-6,
-                    timeСomplete * 1e-6,
+                    timeComplete * 1e-6,
                     (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
                     size / 1048576.0 / ((t4 - t1) * 1e-9)));
         }
@@ -1317,56 +1367,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
     @Override
     public void close() throws IOException {
         in.close();
-    }
-
-    protected void completeDecoding(TiffTile tile) throws FormatException {
-        // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
-        // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.undifference(tile.ifd(), tile.getDecodedData());
-
-        unpackBytes(tile);
-
-        /*
-        // The following code is equivalent to the analogous code from SCIFIO 0.46.0 and earlier version,
-        // which performed correction of channels with different precision in a rare case PLANAR_CONFIG_SEPARATE.
-        // But it is deprecated: we do not support different number of BYTES in different samples,
-        // and it is checked inside getBytesPerSampleBasedOnBits() method.
-
-        byte[] samples = tile.getDecodedData();
-        final TiffTileIndex tileIndex = tile.tileIndex();
-        final int tileSizeX = tileIndex.tileSizeX();
-        final int tileSizeY = tileIndex.tileSizeY();
-        DetailedIFD ifd = tile.ifd();
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
-        final int planarConfig = ifd.getPlanarConfiguration();
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int effectiveChannels = planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE ? 1 : samplesPerPixel;
-        assert samples.length == ((long) tileSizeX * (long) tileSizeY * bytesPerSample * effectiveChannels);
-        if (planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE && !ifd.isTiled() && ifd.getSamplesPerPixel() > 1) {
-            final OnDemandLongArray onDemandOffsets = ifd.getOnDemandStripOffsets();
-            final long[] offsets = onDemandOffsets != null ? null : ifd.getStripOffsets();
-            final long numberOfStrips = onDemandOffsets != null ? onDemandOffsets.size() : offsets.length;
-            final int channel = (int) (tileIndex.y() % numberOfStrips);
-            int[] differentBytesPerSample = ifd.getBytesPerSample();
-            if (channel < differentBytesPerSample.length) {
-                final int realBytes = differentBytesPerSample[channel];
-                if (realBytes != bytesPerSample) {
-                    // re-pack pixels to account for differing bits per sample
-                    final boolean littleEndian = ifd.isLittleEndian();
-                    final int[] newSamples = new int[samples.length / bytesPerSample];
-                    for (int i = 0; i < newSamples.length; i++) {
-                        newSamples[i] = Bytes.toInt(samples, i * realBytes, realBytes,
-                                littleEndian);
-                    }
-
-                    for (int i = 0; i < newSamples.length; i++) {
-                        Bytes.unpack(newSamples[i], samples, i * bytesPerSample, bytesPerSample, littleEndian);
-                    }
-                }
-            }
-        }
-        tile.setDecodedData(samples);
-        */
     }
 
     // -- Helper methods --
@@ -1738,7 +1738,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     private void clearTime() {
         timeRead = 0;
         timeDecode = 0;
-        timeСomplete = 0;
+        timeComplete = 0;
     }
 
     private static int toUnsignedByte(double v) {

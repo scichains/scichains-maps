@@ -828,10 +828,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
         for (TiffTile tile : tiles) {
-            preparePixels(tile);
-            // scifio.tiff().difference(tile.getDecodedData(), ifd);
-            // - this solution requires using SCIFIO context class; it is better to avoid this
-            TiffTools.difference(ifd, tile.getDecodedData());
+            prepareEncoding(tile);
             encode(tile);
         }
         long t4 = debugTime();
@@ -947,7 +944,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         out.close();
     }
 
-    protected void preparePixels(TiffTile tile) throws FormatException {
+    protected void prepareEncoding(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         DetailedIFD ifd = tile.ifd();
         if (autoInterleave) {
@@ -959,6 +956,10 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
         tile.setInterleaved(true);
         // - if not autoInterleave, it means that the samples were already interleaved
+
+        // scifio.tiff().difference(tile.getDecodedData(), ifd);
+        // - this solution requires using SCIFIO context class; it is better to avoid this
+        TiffTools.difference(tile);
     }
 
         // -- Helper methods --

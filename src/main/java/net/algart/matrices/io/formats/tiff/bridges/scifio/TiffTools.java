@@ -420,55 +420,91 @@ public class TiffTools {
     }
 
     // Clone of the function from DefaultTiffService.
-    // The main reason to make this clone is removing usage of LogService class.
-    public static void difference(final IFD ifd, final byte[] input) throws FormatException {
-        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, 1);
-        if (predictor == 2) {
+    // The main reason to make this clone is removing usage of LogService class
+    // and to fix a bug: it was not work with tiles, only with strips.
+    public static void difference(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        final IFD ifd = tile.ifd();
+        final byte[] data = tile.getDecodedData();
+        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
+        if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
-            final long width = ifd.getImageWidth();
             final boolean little = ifd.isLittleEndian();
             final int planarConfig = ifd.getPlanarConfiguration();
             final int bytes = ifd.getBytesPerSample()[0];
             final int len = bytes * (planarConfig == 2 ? 1 : bitsPerSample.length);
+            final long xSize = tile.getSizeX();
+            final long xSizeInBytes = xSize * len;
 
-            for (int b = input.length - bytes; b >= 0; b -= bytes) {
-                if (b / len % width == 0) continue;
-                int value = Bytes.toInt(input, b, bytes, little);
-                value -= Bytes.toInt(input, b - len, bytes, little);
-                Bytes.unpack(value, input, b, bytes, little);
+            int k = data.length - bytes;
+            long xOffset = k % xSizeInBytes;
+
+            if (bytes == 1) {
+                for (; k >= 0; k--, xOffset--) {
+                    if (xOffset < 0) {
+                        xOffset += xSizeInBytes;
+                    }
+//                    assert (k / len % xSize == 0) == (xOffset < len);
+                    if (xOffset >= len) {
+                        data[k] -= data[k - len];
+                    }
+                }
+            } else {
+                for (; k >= 0; k -= bytes) {
+                    if (k / len % xSize == 0) {
+                        continue;
+                    }
+                    int value = Bytes.toInt(data, k, bytes, little);
+                    value -= Bytes.toInt(data, k - len, bytes, little);
+                    Bytes.unpack(value, data, k, bytes, little);
+                }
             }
-        } else if (predictor != 1) {
+        } else if (predictor != DetailedIFD.PREDICTOR_NONE) {
             throw new FormatException("Unknown Predictor (" + predictor + ")");
         }
     }
 
     // Clone of the function from DefaultTiffService.
-    // The main reason to make this clone is removing usage of LogService class.
-    public static void undifference(final IFD ifd, final byte[] input) throws FormatException {
-        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, 1);
-        if (predictor == 2) {
+    // The main reason to make this clone is removing usage of LogService class
+    // and to fix a bug: it was not work with tiles, only with strips.
+    public static void undifference(TiffTile tile) throws FormatException {
+        final IFD ifd = tile.ifd();
+        final byte[] data = tile.getDecodedData();
+        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
+        if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
-            int len = bitsPerSample.length;
-            final long width = ifd.getImageWidth();
             final boolean little = ifd.isLittleEndian();
             final int planarConfig = ifd.getPlanarConfiguration();
 
             final int bytes = ifd.getBytesPerSample()[0];
+            final int len = bytes * (planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE ? 1 : bitsPerSample.length);
+            final long xSize = tile.getSizeX();
+            final long xSizeInBytes = xSize * len;
 
-            if (planarConfig == 2 || bitsPerSample[len - 1] == 0) {
-                len = 1;
-            }
-            len *= bytes;
+            int k = 0;
+            long xOffset = 0;
 
-            for (int b = 0; b <= input.length - bytes; b += bytes) {
-                if (b / len % width == 0) {
-                    continue;
+            if (bytes == 1) {
+                for (; k <= data.length - 1; k++, xOffset++) {
+                    if (xOffset == xSizeInBytes) {
+                        xOffset = 0;
+                    }
+//                    assert (k / len % xSize == 0) == (xOffset < len);
+                    if (xOffset >= len) {
+                        data[k] += data[k - len];
+                    }
                 }
-                int value = Bytes.toInt(input, b, bytes, little);
-                value += Bytes.toInt(input, b - len, bytes, little);
-                Bytes.unpack(value, input, b, bytes, little);
+            } else {
+                for (; k <= data.length - bytes; k += bytes) {
+                    if (k / len % xSize == 0) {
+                        continue;
+                    }
+                    int value = Bytes.toInt(data, k, bytes, little);
+                    value += Bytes.toInt(data, k - len, bytes, little);
+                    Bytes.unpack(value, data, k, bytes, little);
+                }
             }
-        } else if (predictor != 1) {
+        } else if (predictor != DetailedIFD.PREDICTOR_NONE) {
             throw new FormatException("Unknown Predictor (" + predictor + ")");
         }
     }
