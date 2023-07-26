@@ -1069,7 +1069,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         DetailedIFD ifd = tile.ifd();
         byte[] encodedData = tile.getEncodedData();
-        final int samplesLength = tile.tileIndex().sizeOfBasedOnBits();
+        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
         final TiffCompression compression = ifd.getCompression();
 
         codecOptions.interleaved = true;
@@ -1134,10 +1134,10 @@ public class TiffParser extends AbstractContextual implements Closeable {
             if (data.length < 2 || data[0] != (byte) 0xFF || data[1] != (byte) 0xD8) {
                 // - the same check is performed inside Java API ImageIO (JPEGImageReaderSpi),
                 // and we prefer to repeat it here for better diagnostics
-                    throw new FormatException(
-                            (compression == TiffCompression.JPEG ? "Invalid" : "Unsupported format of") +
-                            " TIFF content: it is declared as \"" + compression.getCodecName() +
-                            "\", but the data are not actually JPEG");
+                throw new FormatException(
+                        (compression == TiffCompression.JPEG ? "Invalid" : "Unsupported format of") +
+                                " TIFF content: it is declared as \"" + compression.getCodecName() +
+                                "\", but the data are not actually JPEG");
             }
             if (jpegTable != null) {
                 if (jpegTable.length <= 4) {
@@ -1276,7 +1276,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f load (%.3f read + %.3f decode + %.3f complete) + " +
-                            "%.3f corrections + %.3f interleave, %.3f MB/s",
+                            "%.3f unusual precisions + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
                     ifd.getSamplesPerPixel(), sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
@@ -1510,11 +1510,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
-    private static void unpackBytes(TiffTile decodedTile) throws FormatException {
-        Objects.requireNonNull(decodedTile);
-        final DetailedIFD ifd = decodedTile.ifd();
-        final byte[] bytes = decodedTile.getDecodedData();
-        final int samplesLength = decodedTile.tileIndex().sizeOfBasedOnBits();
+    private static void unpackBytes(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile);
+        final DetailedIFD ifd = tile.ifd();
+        byte[] bytes = tile.getDecodedData();
+        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
 
         final boolean planar = ifd.isPlanarSeparated();
         final TiffCompression compression = ifd.getCompression();
@@ -1562,9 +1562,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         final long imageWidth = ifd.getImageWidth();
         final long imageHeight = ifd.getImageLength();
 
-        final int numBytes = ifd.getBytesPerSample()[0];
-        final int nSamples = samplesLength / (channels * numBytes);
-
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
 
         final boolean littleEndian = ifd.isLittleEndian();
 
@@ -1578,7 +1577,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
         if ((bps8 || bps16) && bytes.length <= samplesLength &&
-                channels == 1 &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK &&
                 photoInterpretation != PhotoInterp.Y_CB_CR) {
@@ -1586,9 +1584,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
                 // we need to check it before quick returning
                 // Daniel Alievsky
-                decodedTile.setDecodedData(Arrays.copyOf(bytes, samplesLength));
+                bytes = Arrays.copyOf(bytes, samplesLength);
             }
-            decodedTile.setInterleaved(false);
+            bytes = TiffTools.toSeparatedSamples(bytes, channels, bytesPerSample, tile.getNumberOfPixels());
+            tile.setDecodedData(bytes);
+            tile.setInterleaved(false);
             return;
         }
 
@@ -1626,11 +1626,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // unpack pixels
         for (int sample = 0; sample < sampleCount; sample++) {
             final int ndx = sample;
-            if (ndx >= nSamples) break;
+            if (ndx >= numberOfPixels) break;
 
             for (int channel = 0; channel < channels; channel++) {
-                final int index = numBytes * (sample * channels + channel);
-                final int outputIndex = (channel * nSamples + ndx) * numBytes;
+                final int index = bytesPerSample * (sample * channels + channel);
+                final int outputIndex = (channel * numberOfPixels + ndx) * bytesPerSample;
 
                 // unpack non-YCbCr samples
                 if (photoInterpretation != PhotoInterp.Y_CB_CR) {
@@ -1648,7 +1648,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                             }
                         }
                     } else {
-                        value = Bytes.toLong(bytes, index, numBytes, littleEndian);
+                        value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
                     }
 
                     if (photoInterpretation == PhotoInterp.WHITE_IS_ZERO ||
@@ -1656,8 +1656,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
                         value = maxValue - value;
                     }
 
-                    if (outputIndex + numBytes <= unpacked.length) {
-                        Bytes.unpack(value, unpacked, outputIndex, numBytes, littleEndian);
+                    if (outputIndex + bytesPerSample <= unpacked.length) {
+                        Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
                     }
                 } else {
                     // unpack YCbCr unpacked; these need special handling, as
@@ -1669,14 +1669,14 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
                         if (chromaIndex + 1 >= bytes.length) break;
 
-                        final int tile = ndx / block;
+                        final int tileIndex = ndx / block;
                         final int pixel = ndx % block;
-                        final long r = subY * (tile / nTiles) + (pixel / subX);
-                        final long c = subX * (tile % nTiles) + (pixel % subX);
+                        final long r = subY * (tileIndex / nTiles) + (pixel / subX);
+                        final long c = subX * (tileIndex % nTiles) + (pixel % subX);
 
                         final int idx = (int) (r * imageWidth + c);
 
-                        if (idx < nSamples) {
+                        if (idx < numberOfPixels) {
                             final int y = (bytes[lumaIndex] & 0xff) - reference[0];
                             final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
                             final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
@@ -1689,15 +1689,15 @@ public class TiffParser extends AbstractContextual implements Closeable {
 //                            unpacked[nSamples + idx] = (byte) (green & 0xff);
 //                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
                             unpacked[idx] = (byte) toUnsignedByte(red);
-                            unpacked[nSamples + idx] = (byte) toUnsignedByte(green);
-                            unpacked[2 * nSamples + idx] = (byte) toUnsignedByte(blue);
+                            unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
+                            unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
                         }
                     }
                 }
             }
         }
-        decodedTile.setDecodedData(unpacked);
-        decodedTile.setInterleaved(false);
+        tile.setDecodedData(unpacked);
+        tile.setInterleaved(false);
     }
 
 
@@ -1808,7 +1808,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         TiffTileIndex tileIndex = new TiffTileIndex(DetailedIFD.extend(ifd), col, row);
         if (buf == null) {
-            buf = new byte[tileIndex.sizeOfBasedOnBits()];
+            buf = new byte[tileIndex.sizeOfTileBasedOnBits()];
         }
         TiffTile tile = getTile(tileIndex);
         if (!tile.isEmpty()) {
