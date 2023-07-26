@@ -86,10 +86,18 @@ enum KnownTiffCompression {
 
     public static boolean isNonJpegYCbCr(IFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        return !isJpeg(ifd.getCompression()) && ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
+        TiffCompression compression = ifd.getCompression();
+        return isStandard(compression) && !isJpeg(compression) &&
+                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
+    }
+
+    public static boolean isStandard(TiffCompression compression) {
+        Objects.requireNonNull(compression, "Null compression");
+        return compression.getCode() <= 10;
     }
 
     public static boolean isJpeg(TiffCompression compression) {
+        Objects.requireNonNull(compression, "Null compression");
         return compression == TiffCompression.JPEG
                 || compression == TiffCompression.OLD_JPEG
                 || compression == TiffCompression.ALT_JPEG;
