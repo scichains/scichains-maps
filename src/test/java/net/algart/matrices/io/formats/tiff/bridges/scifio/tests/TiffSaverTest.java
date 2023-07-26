@@ -26,6 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
+import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
@@ -99,6 +100,11 @@ public class TiffSaverTest {
             difference = true;
             startArgIndex++;
         }
+        boolean reverseBits = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-reverseBits")) {
+            reverseBits = true;
+            startArgIndex++;
+        }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + TiffSaverTest.class.getName() +
@@ -162,6 +168,9 @@ public class TiffSaverTest {
                     }
                     if (difference) {
                         ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
+                    }
+                    if (reverseBits) {
+                        ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     if (planarSeparated) {

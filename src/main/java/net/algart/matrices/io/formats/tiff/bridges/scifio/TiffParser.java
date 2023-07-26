@@ -1167,7 +1167,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     public void completeDecoding(TiffTile tile) throws FormatException {
         // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
         // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.undifference(tile);
+        TiffTools.undifferenceIfRequested(tile);
 
         unpackBytes(tile);
 
@@ -1212,6 +1212,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         tile.setDecodedData(samples);
         */
+
+        TiffTools.invertFillOrderIfRequested(tile);
     }
 
     public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
@@ -1262,7 +1264,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         loadTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
 
         long t2 = debugTime();
-        TiffTools.invertFillOrderIfNecessary(ifd, samples);
         if (autoUnpackUnusualPrecisions) {
             TiffTools.unpackUnusualPrecisions(ifd, samples, sizeX * sizeY);
         }
@@ -2028,7 +2029,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
     @Deprecated
     private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)
             throws FormatException {
-        TiffTools.invertFillOrderIfNecessary(ifd, buf);
+        TiffTools.invertFillOrderIfRequested(ifd, buf);
         return buf;
     }
 }

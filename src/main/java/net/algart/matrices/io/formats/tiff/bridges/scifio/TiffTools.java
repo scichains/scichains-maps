@@ -401,20 +401,24 @@ public class TiffTools {
         }
     }
 
+    public static void invertFillOrderIfRequested(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        invertFillOrderIfRequested(tile.ifd(), tile.getDecodedData());
+    }
     /**
      * Changes bits order inside the passed array if FillOrder=2.
-     * Note that {@link TiffSaver} does not support this. GIMP and most viewers also do not support this feature.
+     * Note: GIMP and most viewers also do not support this feature.
      *
      * @param ifd IFD
-     * @param buf bytes
+     * @param bytes bytes
      * @throws FormatException in a case of error in IFD
      */
-    public static void invertFillOrderIfNecessary(final IFD ifd, final byte[] buf) throws FormatException {
+    public static void invertFillOrderIfRequested(final IFD ifd, final byte[] bytes) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (ifd.getFillOrder() == FillOrder.REVERSED) {
             // swap bits order of all bytes
-            for (int i = 0; i < buf.length; i++) {
-                buf[i] = REVERSE[buf[i] & 0xFF];
+            for (int i = 0; i < bytes.length; i++) {
+                bytes[i] = REVERSE[bytes[i] & 0xFF];
             }
         }
     }
@@ -422,7 +426,7 @@ public class TiffTools {
     // Clone of the function from DefaultTiffService.
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
-    public static void difference(TiffTile tile) throws FormatException {
+    public static void differenceIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         final IFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
@@ -467,7 +471,7 @@ public class TiffTools {
     // Clone of the function from DefaultTiffService.
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
-    public static void undifference(TiffTile tile) throws FormatException {
+    public static void undifferenceIfRequested(TiffTile tile) throws FormatException {
         final IFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);

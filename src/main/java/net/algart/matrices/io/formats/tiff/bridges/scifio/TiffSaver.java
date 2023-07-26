@@ -946,8 +946,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     protected void prepareEncoding(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        DetailedIFD ifd = tile.ifd();
+        TiffTools.invertFillOrderIfRequested(tile);
         if (autoInterleave) {
+            DetailedIFD ifd = tile.ifd();
             final int effectiveChannels = ifd.isContiguouslyChunked() ? ifd.getSamplesPerPixel() : 1;
             final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
             byte[] data = tile.getDecodedData();
@@ -959,7 +960,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
         // scifio.tiff().difference(tile.getDecodedData(), ifd);
         // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.difference(tile);
+        TiffTools.differenceIfRequested(tile);
     }
 
         // -- Helper methods --
