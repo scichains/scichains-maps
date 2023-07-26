@@ -86,16 +86,16 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    public TiffTile loadTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile getTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
-            return loadTileWithoutCache(tileIndex);
+            return getTileWithoutCache(tileIndex);
         }
         return getCached(tileIndex).readIfNecessary();
     }
 
 
-    private TiffTile loadTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
-        return super.loadTile(tileIndex);
+    private TiffTile getTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
+        return super.getTile(tileIndex);
     }
 
     private CachedTile getCached(TiffTileIndex tileIndex) {
@@ -139,7 +139,7 @@ public class CachingTiffParser extends TiffParser {
                     LOG.log(System.Logger.Level.TRACE, () -> "CACHED tile: " + tileIndex);
                     return cachedData;
                 } else {
-                    final var result = loadTileWithoutCache(tileIndex);
+                    final var result = getTileWithoutCache(tileIndex);
                     saveCache(result);
                     return result;
                 }

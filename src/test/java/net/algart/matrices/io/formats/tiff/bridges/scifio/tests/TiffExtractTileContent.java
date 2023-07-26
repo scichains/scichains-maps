@@ -67,7 +67,7 @@ public class TiffExtractTileContent {
             System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);
             try {
-                tile = parser.loadTile(tileIndex);
+                tile = parser.getTile(tileIndex);
                 System.out.printf("Decoding the same (for verification): %s%n", tile);
             } catch (FormatException | IOException e) {
                 System.err.printf("Cannot decode tile: %s%n", e);

@@ -66,9 +66,9 @@ public class DetailedIFD extends IFD {
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
 
-    private volatile long[] stripByteCounts = null;
-    private volatile long[] stripOffsets = null;
-    private volatile Integer stripSizeY = null;
+    private volatile long[] cachedStripByteCounts = null;
+    private volatile long[] cachedStripOffsets = null;
+    private volatile Integer cachedStripSizeY = null;
 
     public DetailedIFD(IFD ifd) {
         super(ifd, null);
@@ -211,9 +211,9 @@ public class DetailedIFD extends IFD {
     }
 
     public long[] cachedStripByteCounts() throws FormatException {
-        long[] result = this.stripByteCounts;
+        long[] result = this.cachedStripByteCounts;
         if (result == null) {
-            this.stripByteCounts = result = getStripByteCounts();
+            this.cachedStripByteCounts = result = getStripByteCounts();
         }
         return result;
     }
@@ -241,10 +241,16 @@ public class DetailedIFD extends IFD {
         return (int) result;
     }
 
+    @Override
+    public long[] getStripOffsets() throws FormatException {
+        // Maybe will be re-written in future
+        return super.getStripOffsets();
+    }
+
     public long[] cachedStripOffsets() throws FormatException {
-        long[] result = this.stripOffsets;
+        long[] result = this.cachedStripOffsets;
         if (result == null) {
-            this.stripOffsets = result = getStripOffsets();
+            this.cachedStripOffsets = result = getStripOffsets();
         }
         return result;
     }
@@ -269,9 +275,9 @@ public class DetailedIFD extends IFD {
     }
 
     public int cachedStripSizeY() throws FormatException {
-        Integer result = this.stripSizeY;
+        Integer result = this.cachedStripSizeY;
         if (result == null) {
-            this.stripSizeY = result = getStripSizeY();
+            this.cachedStripSizeY = result = getStripSizeY();
         }
         return result;
     }
