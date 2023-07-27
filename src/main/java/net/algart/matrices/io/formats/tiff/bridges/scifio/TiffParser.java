@@ -1262,8 +1262,11 @@ public class TiffParser extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
+        final int numberOfChannels = ifd.getSamplesPerPixel();
         final int size = ifd.sizeOfRegion(sizeX, sizeY);
-        // - also checks that sizeX/sizeY are allowed
+        // - also checks that sizeX/sizeY are allowed and that
+        //      sizeX * sizeY * ifd.getSamplesPerPixel() * ifd.getBytesPerSampleBasedOnType()
+        // is calculated without overflow
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         byte[] samples = new byte[size];
         if (size == 0) {
@@ -1271,8 +1274,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
 
         ifd.sizeOfTileBasedOnBits();
-        // - checks that results of ifd.getTileWidth(), ifd.getTileLength() are non-negative and <2^31,
-        // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
+        // - checks that we can multiply tile sizes by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         long t1 = debugTime();
         Arrays.fill(samples, 0, size, filler);
         // - important for a case when the requested area is outside the image;
@@ -1282,12 +1284,12 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
         long t2 = debugTime();
         if (autoUnpackUnusualPrecisions) {
-            TiffTools.unpackUnusualPrecisions(ifd, samples, sizeX * sizeY);
+            samples = TiffTools.unpackUnusualPrecisions(samples, ifd, numberOfChannels, sizeX * sizeY);
         }
         long t3 = debugTime();
         if (autoInterleave) {
             samples = TiffTools.toInterleavedSamples(
-                    samples, ifd.getSamplesPerPixel(), ifd.getBytesPerSampleBasedOnType(), sizeX * sizeY);
+                    samples, numberOfChannels, ifd.getBytesPerSampleBasedOnType(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t4 = debugTime();
@@ -1296,7 +1298,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                             "%.3f load (%.3f read + %.3f decode + %.3f complete) + " +
                             "%.3f unusual precisions + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
-                    ifd.getSamplesPerPixel(), sizeX, sizeY, size / 1048576.0,
+                    numberOfChannels, sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
                     (t2 - t1) * 1e-6,
                     timeRead * 1e-6,

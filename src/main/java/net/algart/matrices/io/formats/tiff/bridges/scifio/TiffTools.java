@@ -207,19 +207,19 @@ public class TiffTools {
     }
 
     public static byte[] toInterleavedSamples(
-            byte[] bytes,
-            int numberOfChannels,
-            int bytesPerSample,
-            int numberOfPixels) {
+            final byte[] bytes,
+            final int numberOfChannels,
+            final int bytesPerSample,
+            final int numberOfPixels) {
         Objects.requireNonNull(bytes, "Null bytes");
-        if (numberOfPixels < 0) {
-            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
-        }
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
         if (bytesPerSample <= 0) {
             throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
+        }
+        if (numberOfPixels < 0) {
+            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
         final int size = checkedMulNoException(
                 new long[]{numberOfPixels, numberOfChannels, bytesPerSample},
@@ -260,19 +260,19 @@ public class TiffTools {
     }
 
     public static byte[] toSeparatedSamples(
-            byte[] bytes,
-            int numberOfChannels,
-            int bytesPerSample,
-            int numberOfPixels) {
+            final byte[] bytes,
+            final int numberOfChannels,
+            final int bytesPerSample,
+            final int numberOfPixels) {
         Objects.requireNonNull(bytes, "Null bytes");
-        if (numberOfPixels < 0) {
-            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
-        }
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
         if (bytesPerSample <= 0) {
             throw new IllegalArgumentException("Zero or negative bytesPerSample = " + bytesPerSample);
+        }
+        if (numberOfPixels < 0) {
+            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
         final int size = checkedMulNoException(
                 new long[]{numberOfPixels, numberOfChannels, bytesPerSample},
@@ -312,86 +312,97 @@ public class TiffTools {
         return separatedBytes;
     }
 
-    public static void unpackUnusualPrecisions(IFD ifd, byte[] samples, int numberOfPixels) {
+    // Note: we prefer to pass numberOfChannels directly, not calculate it on the base of IFD,
+    // because in some cases (like processing tile) number of channels should be set to 1 for planar IFD,
+    // but in other cases (like processing whole image) it is not so.
+    public static byte[] unpackUnusualPrecisions(
+            final byte[] samples,
+            final IFD ifd,
+            final int numberOfChannels,
+            final int numberOfPixels) throws FormatException {
         Objects.requireNonNull(samples, "Null samples");
         Objects.requireNonNull(ifd, "Null IFD");
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
         if (numberOfPixels < 0) {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
-        final boolean float16;
-        final boolean float24;
-        final boolean littleEndian;
-        final int samplesPerPixel;
-        try {
-            final int pixelType = ifd.getPixelType();
-            if (pixelType != FormatTools.FLOAT) {
-                return;
-            }
-            samplesPerPixel = ifd.getSamplesPerPixel();
-            final int[] bitsPerSample = ifd.getBitsPerSample();
-            float16 = bitsPerSample[0] == 16;
-            float24 = bitsPerSample[0] == 24;
-            littleEndian = ifd.isLittleEndian();
-        } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal TIFF IFD", e);
-            // - usually should not occur: this function is typically called after analysing IFD
+        final int pixelType = ifd.getPixelType();
+        if (pixelType != FormatTools.FLOAT) {
+            return samples;
         }
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
+        final boolean float16 = equalBitsPerSample && bitsPerSample[0] == 16;
+        final boolean float24 = equalBitsPerSample && bitsPerSample[0] == 24;
+        if (!float16 && !float24) {
+            return samples;
+        }
+        // Following code is necessary in a very rare case, and no sense to seriously optimize it
+        final boolean littleEndian = ifd.isLittleEndian();
+        final int packedBytesPerSample = float16 ? 2 : 3;
 
-        if (float16 || float24) {
-            // - very rare case, no sense to optimize the following code (it was already tested inside SCIFIO)
-            final int nBytes = float16 ? 2 : 3;
-            final int mantissaBits = float16 ? 10 : 16;
-            final int exponentBits = float16 ? 5 : 7;
-            final int maxExponent = (int) Math.pow(2, exponentBits) - 1;
-            final int bits = (nBytes * 8) - 1;
+        final int size = checkedMul(new long[]{numberOfPixels, numberOfChannels, 4},
+                new String[]{"number of pixels", "number of channels", "4 bytes per float"},
+                () -> "Invalid sizes: ", () -> "");
+        final int numberOfSamples = numberOfChannels * numberOfPixels;
+        if (samples.length < numberOfSamples * packedBytesPerSample) {
+            throw new IllegalArgumentException("Too short samples array byte[" + samples.length +
+                    "]: it does not contain " + numberOfPixels + " pixels per " + numberOfChannels +
+                    " samples, " + packedBytesPerSample + " bytes/sample");
+        }
+        final byte[] unpacked = new byte[size];
+        final int mantissaBits = float16 ? 10 : 16;
+        final int exponentBits = float16 ? 5 : 7;
+        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
+        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
+        final int power2MantissaBits = pow2(mantissaBits);
+        final int power2MantissaBitsMinus1 = pow2(mantissaBits) - 1;
+        final int bits = (packedBytesPerSample * 8) - 1;
+        for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
+            final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
+            final int sign = v >> bits;
+            int exponent = (v >> mantissaBits) & power2ExponentBitsMinus1;
+            int mantissa = v & power2MantissaBitsMinus1;
 
-            checkedMulNoException(new long[]{numberOfPixels, samplesPerPixel, nBytes},
-                    new String[]{"number of pixels", "samples per pixel", "bytes per sample"},
-                    () -> "Invalid sizes: ", () -> "");
-            // - exception usually should not occur: this function is typically called after analysing IFD
-            final int numberOfSamples = samplesPerPixel * numberOfPixels;
-
-            final byte[] newBuf = new byte[samples.length];
-            for (int i = 0; i < numberOfSamples; i++) {
-                final int v = Bytes.toInt(samples, i * nBytes, nBytes, littleEndian);
-                final int sign = v >> bits;
-                int exponent = (v >> mantissaBits) & (int) (Math.pow(2, exponentBits) - 1);
-                int mantissa = v & (int) (Math.pow(2, mantissaBits) - 1);
-
-                if (exponent == 0) {
-                    if (mantissa != 0) {
-                        while ((mantissa & (int) Math.pow(2, mantissaBits)) == 0) {
-                            mantissa <<= 1;
-                            exponent--;
+            if (exponent == 0) {
+                if (mantissa != 0) {
+                    while (true) {
+                        if (!((mantissa & power2MantissaBits) == 0)) {
+                            break;
                         }
-                        exponent++;
-                        mantissa &= (int) (Math.pow(2, mantissaBits) - 1);
-                        exponent += 127 - (Math.pow(2, exponentBits - 1) - 1);
+                        mantissa <<= 1;
+                        exponent--;
                     }
-                } else if (exponent == maxExponent) {
-                    exponent = 255;
-                } else {
-                    exponent += 127 - (Math.pow(2, exponentBits - 1) - 1);
+                    exponent++;
+                    mantissa &= power2MantissaBitsMinus1;
+                    exponent += exponentIncrement;
                 }
-
-                mantissa <<= (23 - mantissaBits);
-
-                final int value = (sign << 31) | (exponent << 23) | mantissa;
-                Bytes.unpack(value, newBuf, i * 4, 4, littleEndian);
+            } else if (exponent == power2ExponentBitsMinus1) {
+                exponent = 255;
+            } else {
+                exponent += exponentIncrement;
             }
-            System.arraycopy(newBuf, 0, samples, 0, newBuf.length);
+
+            mantissa <<= (23 - mantissaBits);
+
+            final int value = (sign << 31) | (exponent << 23) | mantissa;
+            Bytes.unpack(value, unpacked, i * 4, 4, littleEndian);
         }
+        return unpacked;
     }
 
     public static void invertFillOrderIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         invertFillOrderIfRequested(tile.ifd(), tile.getDecodedData());
     }
+
     /**
      * Changes bits order inside the passed array if FillOrder=2.
      * Note: GIMP and most viewers also do not support this feature.
      *
-     * @param ifd IFD
+     * @param ifd   IFD
      * @param bytes bytes
      * @throws FormatException in a case of error in IFD
      */
@@ -656,4 +667,16 @@ public class TiffTools {
         }
     }
 
+    private static int pow2(int b) {
+        return 1 << b;
+    }
+
+//    public static void main(String[] args) {
+//        for (int k = 0; k < 40; k++) {
+//            int a = (int) Math.pow(2, k);
+//            int b = 1 << k;
+//            if (a != b) throw new AssertionError();
+//            System.out.println(a + ", " + b);
+//        }
+//    }
 }
