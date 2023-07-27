@@ -818,7 +818,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(
             int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        final Object data = largeData.tiffParser.getSamplesArray(
+        final Object data = largeData.tiffParser.readSamplesArray(
                 largeData.ifdList.get(ifdIndex), fromX, fromY, sizeX, sizeY, bandCount, elementType);
         return Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),

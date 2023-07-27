@@ -41,7 +41,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 public class ReadWriteTiffTest {
     private static final int MAX_IMAGE_DIM = 8000;
@@ -131,7 +130,7 @@ public class ReadWriteTiffTest {
 
                     final int bandCount = parserIFD.getSamplesPerPixel();
                     long t1 = System.nanoTime();
-                    byte[] bytes = parser.getSamples(parserIFD, null, START_X, START_Y, w, h);
+                    byte[] bytes = parser.readSamples(parserIFD, START_X, START_Y, w, h);
                     long t2 = System.nanoTime();
                     DetailedIFD saverIFD = new DetailedIFD(parserIFD);
                     if (singleStrip) {
@@ -156,7 +155,11 @@ public class ReadWriteTiffTest {
                         if (singleStrip) {
                             paddedH = h;
                         }
-                        bytes = parser.getSamples(parserIFD, null, START_X, START_Y, paddedW, paddedH);
+                        bytes = new byte[paddedW * paddedH *
+                                parserIFD.getSamplesPerPixel() *
+                                FormatTools.getBytesPerPixel(parserIFD.getPixelType())];
+                        byte[] buf = parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        assert buf == bytes;
                         writer.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
                         // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
 

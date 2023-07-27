@@ -86,7 +86,7 @@ public class CachingTiffParser extends TiffParser {
     }
 
     @Override
-    public TiffTile getTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         if (maxCachingMemory == 0) {
             return getTileWithoutCache(tileIndex);
         }
@@ -95,7 +95,7 @@ public class CachingTiffParser extends TiffParser {
 
 
     private TiffTile getTileWithoutCache(TiffTileIndex tileIndex) throws FormatException, IOException {
-        return super.getTile(tileIndex);
+        return super.readTile(tileIndex);
     }
 
     private CachedTile getCached(TiffTileIndex tileIndex) {

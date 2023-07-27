@@ -1003,11 +1003,39 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return firstIFD.getComment();
     }
 
+    public TiffIFDEntry readTiffIFDEntry() throws IOException {
+        final int entryTag = in.readUnsignedShort();
+
+        // Parse the entry's "Type"
+        IFDType entryType;
+        try {
+            entryType = IFDType.get(in.readUnsignedShort());
+        } catch (final EnumException e) {
+            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
+        }
+
+        // Parse the entry's "ValueCount"
+        final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
+        if (valueCount < 0) {
+            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
+        }
+
+        final int nValueBytes = valueCount * entryType.getBytesPerElement();
+        final int threshhold = bigTiff ? 8 : 4;
+        final long offset = nValueBytes > threshhold ? getNextOffset(0) : in.offset();
+
+        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, offset);
+        LOG.log(System.Logger.Level.TRACE, () -> String.format(
+                "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
+        return result;
+    }
+
+
     // -- TiffParser methods - image reading --
 
-    public TiffTile getTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         long t1 = debugTime();
-        TiffTile tile = readTile(tileIndex);
+        TiffTile tile = readEncodedTile(tileIndex);
         if (tile.isEmpty()) {
             return tile;
         }
@@ -1024,7 +1052,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return tile;
     }
 
-    public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
+    public TiffTile readEncodedTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         final DetailedIFD ifd = tileIndex.ifd();
         final int xIndex = tileIndex.x();
@@ -1218,12 +1246,8 @@ public class TiffParser extends AbstractContextual implements Closeable {
         TiffTools.invertFillOrderIfRequested(tile);
     }
 
-    public byte[] getSamples(final IFD ifd, final byte[] samples) throws FormatException, IOException {
-        final long width = ifd.getImageWidth();
-        final long length = ifd.getImageLength();
-        TiffTools.checkRequestedArea(0, 0, width, length);
-        //!! In future ExtendedIFD.extend should be removed, when it will become the single class
-        return getSamples(ifd, samples, 0, 0, (int) width, (int) length);
+    public byte[] readSamples(final DetailedIFD ifd) throws FormatException, IOException {
+        return readSamples(ifd, 0, 0, ifd.getImageSizeX(), ifd.getImageSizeY());
     }
 
     /**
@@ -1231,27 +1255,18 @@ public class TiffParser extends AbstractContextual implements Closeable {
      *
      * <p>Note: you should not change IFD in a parallel thread while calling this method.
      *
-     * @param samples work array for reading data; may be <tt>null</tt>.
-     * @return loaded samples; may be a reference to passed samples, but it is not guaranteed.
+     * @return loaded samples in a normalized form of byte sequence.
      */
-    public byte[] getSamples(IFD simpleIFD, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
+    public byte[] readSamples(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        Objects.requireNonNull(simpleIFD, "Null IFD");
+        Objects.requireNonNull(ifd, "Null IFD");
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        DetailedIFD ifd = DetailedIFD.extend(simpleIFD);
-        //!! - temporary solution, until ExtendedIFD methods will be moved into IFD
         final int size = ifd.sizeOfRegion(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
-        if (samples == null) {
-            samples = new byte[size];
-        } else if (size > samples.length) {
-            throw new IllegalArgumentException(
-                    "Insufficient length of the result samples array: " +
-                            samples.length + " < necessary " + size + " bytes");
-        }
-        if (sizeX == 0 || sizeY == 0) {
+        byte[] samples = new byte[size];
+        if (size == 0) {
             return samples;
         }
 
@@ -1263,7 +1278,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results
 
-        loadTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
+        readTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
 
         long t2 = debugTime();
         if (autoUnpackUnusualPrecisions) {
@@ -1293,13 +1308,13 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return samples;
     }
 
-    public Object getSamplesArray(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
+    public Object readSamplesArray(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
-        return getSamplesArray(
+        return readSamplesArray(
                 ifd, fromX, fromY, sizeX, sizeY, null, null);
     }
 
-    public Object getSamplesArray(
+    public Object readSamplesArray(
             DetailedIFD ifd,
             final int fromX,
             final int fromY,
@@ -1322,7 +1337,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                             + optionalElementType(ifd).map(Class::getName).orElse("unknown")
                             + "[] elements");
         }
-        final byte[] samples = getSamples(ifd, null, fromX, fromY, sizeX, sizeY);
+        final byte[] samples = readSamples(ifd, fromX, fromY, sizeX, sizeY);
         long t1 = debugTime();
         final Object samplesArray = TiffTools.planeBytesToJavaArray(samples, ifd.getPixelType(), ifd.isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
@@ -1339,33 +1354,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
                                     samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
         return samplesArray;
-    }
-
-    public TiffIFDEntry readTiffIFDEntry() throws IOException {
-        final int entryTag = in.readUnsignedShort();
-
-        // Parse the entry's "Type"
-        IFDType entryType;
-        try {
-            entryType = IFDType.get(in.readUnsignedShort());
-        } catch (final EnumException e) {
-            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
-        }
-
-        // Parse the entry's "ValueCount"
-        final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
-        if (valueCount < 0) {
-            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
-        }
-
-        final int nValueBytes = valueCount * entryType.getBytesPerElement();
-        final int threshhold = bigTiff ? 8 : 4;
-        final long offset = nValueBytes > threshhold ? getNextOffset(0) : in.offset();
-
-        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, offset);
-        LOG.log(System.Logger.Level.TRACE, () -> String.format(
-                "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
-        return result;
     }
 
     @Override
@@ -1402,7 +1390,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return numTileCols;
     }
 
-    private void loadTiles(DetailedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
+    private void readTiles(DetailedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samples, "Null samples");
@@ -1460,7 +1448,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             int effectiveYIndex = cs * numTileRows + minRow;
             for (int yIndex = minRow; yIndex <= maxRow; yIndex++, effectiveYIndex++) {
                 for (int xIndex = minCol; xIndex <= maxCol; xIndex++) {
-                    final TiffTile tile = getTile(new TiffTileIndex(ifd, xIndex, effectiveYIndex));
+                    final TiffTile tile = readTile(new TiffTileIndex(ifd, xIndex, effectiveYIndex));
                     if (tile.isEmpty()) {
                         continue;
                     }
@@ -1840,7 +1828,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         if (buf == null) {
             buf = new byte[tileIndex.sizeOfTileBasedOnBits()];
         }
-        TiffTile tile = getTile(tileIndex);
+        TiffTile tile = readTile(tileIndex);
         if (!tile.isEmpty()) {
             byte[] data = tile.getDecodedData();
             System.arraycopy(data, 0, buf, 0, data.length);
@@ -1848,16 +1836,32 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return buf;
     }
 
+    @Deprecated
+    public byte[] getSamples(final IFD ifd, final byte[] buf)
+            throws FormatException, IOException {
+        final long width = ifd.getImageWidth();
+        final long length = ifd.getImageLength();
+        return getSamples(ifd, buf, 0, 0, width, length);
+    }
+
+
     /**
-     * This function is deprecated, because it has identical behaviour with
-     * {@link #getSamples(IFD, byte[], int, int, int, int)} and actually is always called
-     * from other classes with <tt>int</tt> parameters, even in OME BioFormats.
+     * This function is deprecated, because almost identical behaviour is implemented by
+     * {@link #readSamples(DetailedIFD, int, int, int, int)}.
      */
     @Deprecated
-    public byte[] getSamples(IFD ifd, byte[] samples, int fromX, int fromY, long sizeX, long sizeY)
-            throws FormatException, IOException {
-        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        return getSamples(DetailedIFD.extend(ifd), samples, fromX, fromY, (int) sizeX, (int) sizeY);
+    public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
+                             final int y, final long width, final long height) throws FormatException,
+            IOException {
+        TiffTools.checkRequestedArea(x, y, width, height);
+        byte[] result = readSamples(DetailedIFD.extend(ifd), x, y, (int) width, (int) height);
+        if (result.length > buf.length) {
+            throw new IllegalArgumentException(
+                    "Insufficient length of the result buf array: " +
+                            buf.length + " < necessary " + result.length + " bytes");
+        }
+        System.arraycopy(result, 0, buf, 0, result.length);
+        return buf;
     }
 
     /**
