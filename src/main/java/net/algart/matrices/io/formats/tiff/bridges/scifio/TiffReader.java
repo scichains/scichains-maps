@@ -1429,11 +1429,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
         final int numberOfChannels = tile.tileIndex().numberOfChannels();
         final int[] bitsPerSample = ifd.getBitsPerSample();
-        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
         final int bps0 = bitsPerSample[0];
+        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bps0);
+        final boolean usualPrecision = equalBitsPerSample && (bps0 == 8 || bps0 == 16 || bps0 == 32 || bps0 == 64);
         final boolean noDiv8 = bps0 % 8 != 0;
-        final boolean bps8 = equalBitsPerSample && bps0 == 8;
-        final boolean bps16 = equalBitsPerSample && bps0 == 16;
 
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!planar) {
@@ -1460,7 +1459,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // semi-large datasets this can save **billions** of method calls.
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
-        if ((bps8 || bps16) && bytes.length <= samplesLength &&
+        if (usualPrecision &&
+                bytes.length <= samplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK) {
             if (bytes.length < samplesLength) {
