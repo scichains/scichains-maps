@@ -39,6 +39,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 
 public class PureScifioTiffParserTest {
     private static final int MAX_IMAGE_DIM = 12000;
@@ -51,17 +52,18 @@ public class PureScifioTiffParserTest {
         if (args.length < 3) {
             System.out.println("Usage:");
             System.out.println("    " + PureScifioTiffParserTest.class.getName()
-                    + " some_tiff_file.tif result.png ifdIndex");
+                    + " some_tiff_file.tif result.png ifdIndex [number-of-tests]");
             return;
         }
         final File tiffFile = new File(args[0]);
         final File resultFile = new File(args[1]);
         final int ifdIndex = Integer.parseInt(args[2]);
+        final int numberOfTests = args.length <= 3 ? 1 : Integer.parseInt(args[3]);
 
         System.out.printf("Opening %s...%n", tiffFile);
         Context context = new SCIFIO().getContext();
-        TiffParser reader = new TiffParser(context, new FileLocation(tiffFile));
-        IFDList ifDs = reader.getIFDs();
+        TiffParser parser = new TiffParser(context, new FileLocation(tiffFile));
+        IFDList ifDs = parser.getIFDs();
         final IFD ifd = ifDs.get(ifdIndex);
 //        ifd.put(IFD.BITS_PER_SAMPLE, new int[] {8, 12, 8});
 //        - will not work in new TiffParser
@@ -73,8 +75,18 @@ public class PureScifioTiffParserTest {
                 w, h, bandCount, ifdIndex, ifDs.size(), DetailedIFD.extend(ifd));
         final int pixelType = ifd.getPixelType();
         final int bytesPerBand = Math.max(1, FormatTools.getBytesPerPixel(pixelType));
-        byte[] bytes = new byte[w * h * bytesPerBand * bandCount];
-        reader.getSamples(ifd, bytes, START_X, START_Y, w, h);
+        byte[] bytes = null;
+        for (int test = 1; test <= numberOfTests; test++) {
+            bytes = new byte[w * h * bytesPerBand * bandCount];
+            long t1 = System.nanoTime();
+            parser.getSamples(ifd, bytes, START_X, START_Y, w, h);
+            long t2 = System.nanoTime();
+            System.out.printf(Locale.US, "Test (SCIFIO original) #%d: %dx%d (%.3f MB) loaded in %.3f ms, " +
+                            "%.3f MB/sec%n",
+                    test, w, h, bytes.length / 1048576.0,
+                    (t2 - t1) * 1e-6,
+                    (bytes.length / 1048576.0 / ((t2 - t1) * 1e-9)));
+        }
 
         System.out.printf("Converting data to BufferedImage...%n");
         final BufferedImage image = bytesToImage(bytes, w, h, bandCount);

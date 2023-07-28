@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="TiffParserTest" type="Application" factoryName="Application">
+  <configuration default="false" name="TiffReaderTest" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffReaderTest" />
     <module name="scichains-maps" />
     <option name="PROGRAM_PARAMETERS" value="\tmp\newtiff.tiff  \tmp\optimized.png  0 0 0 -1 -1 10" />

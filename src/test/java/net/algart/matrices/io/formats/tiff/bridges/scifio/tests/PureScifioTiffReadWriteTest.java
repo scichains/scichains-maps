@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Locale;
 import java.util.Map;
 
 public class PureScifioTiffReadWriteTest {
@@ -73,12 +74,13 @@ public class PureScifioTiffReadWriteTest {
                 System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), ifd);
                 final int w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
                 final int h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
+                int numberOfChannels = ifd.getSamplesPerPixel();
                 byte[] bytes = new byte[w * h
-                        * ifd.getSamplesPerPixel() * FormatTools.getBytesPerPixel(ifd.getPixelType())];
+                        * numberOfChannels * FormatTools.getBytesPerPixel(ifd.getPixelType())];
                 bytes = parser.getSamples(ifd, bytes, 0, 0, w, h);
-//                ExtendedTiffParser.correctUnusualPrecisions(ifd, bytes, w * h);
+//                bytes = TiffTools.unpackUnusualPrecisions(bytes, ifd, numberOfChannels, w * h);
                 bytes = TiffTools.toInterleavedSamples(
-                        bytes, ifd.getSamplesPerPixel(), FormatTools.getBytesPerPixel(ifd.getPixelType()),
+                        bytes, numberOfChannels, FormatTools.getBytesPerPixel(ifd.getPixelType()),
                         w * h);
                 boolean last = ifdIndex == ifdList.size() - 1;
                 final IFD newIfd = removeUndesirableTags(ifd);
