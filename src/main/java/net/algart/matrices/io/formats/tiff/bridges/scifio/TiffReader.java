@@ -30,13 +30,13 @@ import io.scif.codec.*;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
 import org.scijava.util.Bytes;
-import org.scijava.util.IntRect;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -1006,9 +1006,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
         final TiffCompression compression = ifd.getCompression();
 
-        codecOptions.interleaved = true;
-        // - Necessary for such codecs as JPEG, that work with high-level classes and need to be instructed to
-        // interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is")
         codecOptions.littleEndian = ifd.isLittleEndian();
         codecOptions.maxBytes = Math.max(samplesLength, encodedData.length);
         final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
@@ -1032,7 +1029,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
             codec = known.noContextCodec();
             // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
         }
-        tile.setInterleaved(true);
+        codecOptions.interleaved = !(codec instanceof ExtendedJPEGCodec || compression == TiffCompression.JPEG);
+        // - ExtendedJPEGCodec and standard codec JPEFCodec (it may be chosen below by scifio.codec(),
+        // but we are sure that JPEG compression will be served by it even in future versions)
+        // "understand" this settings well (unlike LZW or DECOMPRESSED codecs,
+        // which suppose that data are interleaved according TIFF format specification).
+        // Value "true" is necessary for other codecs, that work with high-level classes (like JPEG or JPEG-2000) and
+        // need to be instructed to interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is").
+
         if (codec != null) {
             tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
@@ -1042,6 +1046,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
         }
+        tile.setInterleaved(codecOptions.interleaved);
     }
 
     public void correctEncodedJpegTile(TiffTile tile) throws FormatException {
@@ -1465,7 +1470,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 bytes = Arrays.copyOf(bytes, samplesLength);
             }
             tile.setDecodedData(bytes);
-            tile.separateSamples();
+            tile.separateSamplesIfNecessary();
             return;
         }
 

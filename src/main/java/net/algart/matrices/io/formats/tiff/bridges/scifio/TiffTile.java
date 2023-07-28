@@ -246,6 +246,20 @@ public class TiffTile {
         return this;
     }
 
+    public TiffTile interleaveSamplesIfNecessary() {
+        if (!isInterleaved()) {
+            interleaveSamples();
+        }
+        return this;
+    }
+
+    public TiffTile separateSamplesIfNecessary() {
+        if (isInterleaved()) {
+            separateSamples();
+        }
+        return this;
+    }
+
     public TiffTile interleaveSamples() {
         byte[] data = getDecodedData();
         if (isInterleaved()) {
@@ -253,7 +267,8 @@ public class TiffTile {
         }
         data = TiffTools.toInterleavedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
         setInterleaved(true);
-        return setDecodedData(data);
+        setDecodedData(data);
+        return this;
     }
 
     public TiffTile separateSamples() {
@@ -263,7 +278,8 @@ public class TiffTile {
         }
         data = TiffTools.toSeparatedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
         setInterleaved(false);
-        return setDecodedData(data);
+        setDecodedData(data);
+        return this;
     }
 
     @Override
