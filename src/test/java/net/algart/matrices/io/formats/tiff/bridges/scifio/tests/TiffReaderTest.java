@@ -28,9 +28,9 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 import org.scijava.Context;
@@ -46,7 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class TiffParserTest {
+public class TiffReaderTest {
     private static final int MAX_IMAGE_DIM = 8000;
 
     public static void main(String[] args) throws IOException, FormatException {
@@ -69,7 +69,7 @@ public class TiffParserTest {
 
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffParserTest.class.getName() + " [-cache [-tiny]] " +
+            System.out.println("    " + TiffReaderTest.class.getName() + " [-cache [-tiny]] " +
                     "some_tiff_file result.png ifdIndex [x y width height [number-of-tests]]");
             return;
         }
@@ -86,14 +86,14 @@ public class TiffParserTest {
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = noContext ? null : scifio.getContext()) {
-            final TiffParser parser = cache ?
-                    CachingTiffParser.getInstance(context, tiffFile)
-                            .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffParser.DEFAULT_MAX_CACHING_MEMORY):
-                    TiffParser.getInstance(context, tiffFile);
-//            parser.setExtendedCodec(false);
-            parser.setFiller((byte) 0x80);
-            System.out.printf("Opening %s by %s...%n", tiffFile, parser);
-            final var ifds = parser.allIFD();
+            final TiffReader reader = cache ?
+                    new CachingTiffReader(context, tiffFile)
+                            .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY):
+                    new TiffReader(context, tiffFile);
+//            reader.setExtendedCodec(false);
+            reader.setFiller((byte) 0x80);
+            System.out.printf("Opening %s by %s...%n", tiffFile, reader);
+            final var ifds = reader.allIFD();
             if (ifds.isEmpty()) {
                 System.out.println("No IFDs");
                 return;
@@ -118,7 +118,7 @@ public class TiffParserTest {
                             w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
                 }
                 long t1 = System.nanoTime();
-                array = parser.readSamplesArray(ifd, x, y, w, h);
+                array = reader.readSamplesArray(ifd, x, y, w, h);
                 long t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);

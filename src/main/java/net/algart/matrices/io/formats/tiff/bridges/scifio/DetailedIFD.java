@@ -685,12 +685,6 @@ public class DetailedIFD extends IFD {
         return "%s (%d or 0x%X)".formatted(name, tag, tag);
     }
 
-    static IFDList toIFDList(List<? extends IFD> ifds) {
-        final IFDList result = new IFDList();
-        result.addAll(ifds);
-        return result;
-    }
-
     private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {
         for (int k = 1; k < bytesPerSample.length; k++) {
             if (bytesPerSample[k] != bytesPerSample[0]) {

@@ -615,7 +615,7 @@ public class TiffTools {
         return (int) result;
     }
 
-    static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY) {
+    public static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY) {
         if (fromX < 0 || fromY < 0) {
             throw new IllegalArgumentException("Negative fromX = " + fromX + " or fromY = " + fromY);
         }

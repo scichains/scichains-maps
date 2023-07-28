@@ -28,7 +28,8 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.UnsupportedCompressionException;
-import io.scif.codec.*;
+import io.scif.codec.Codec;
+import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
@@ -38,10 +39,9 @@ import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.handle.DataHandles;
 import org.scijava.io.location.BytesLocation;
-import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 
-import javax.imageio.*;
+import javax.imageio.ImageWriteParam;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,7 +58,7 @@ import java.util.*;
  * @author Gabriel Einsdorf
  * @author Daniel Alievsky
  */
-public class TiffSaver extends AbstractContextual implements Closeable {
+public class TiffWriter extends AbstractContextual implements Closeable {
 
     // Below is a copy of SCIFIO license (placed here to avoid autocorrection by IntelliJ IDEA)
     /*
@@ -95,11 +95,9 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     // did not understand LONG8 values for some popular tags like image sizes.
     // In any case, real BigTIFF files usually store most tags in standard LONG type (32 bits), not in LONG8.
 
-    private static final System.Logger LOG = System.getLogger(TiffSaver.class.getName());
+    private static final System.Logger LOG = System.getLogger(TiffWriter.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
-
-    // -- Fields --
 
     /**
      * Output stream to use when saving TIFF data.
@@ -112,20 +110,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     private final Location location;
 
     /**
-     * Output bytes.
-     */
-    private BytesLocation bytes = null;
-
-    /**
      * Whether or not to write BigTIFF data.
      */
     private boolean bigTiff = false;
 
-    private boolean writingSequentially = false;
+    private boolean writingSequentially = true;
 
     private boolean appendToExisting = false;
 
-    private boolean autoInterleave = false;
+    private boolean autoInterleave = true;
 
     private Integer defaultStripHeight = 128;
 
@@ -134,7 +127,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      */
     private CodecOptions codecOptions;
 
-    private boolean extendedCodec = false;
+    private boolean extendedCodec = true;
 
     private boolean jpegInPhotometricRGB = false;
 
@@ -146,21 +139,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     private final DataHandleService dataHandleService;
 
-    // -- Constructors --
-
-
-    public TiffSaver(Context context, Location location) throws IOException {
-        this(
-                Objects.requireNonNull(context, "Null context"),
-                context.getService(DataHandleService.class).create(location));
+    public TiffWriter(Context context, Path file) throws IOException {
+        this(context, file, true);
     }
 
-    /**
-     * Constructs a new TIFF saver from the given output source.
-     *
-     * @param out Output stream to save TIFF data to.
-     */
-    public TiffSaver(Context context, DataHandle<Location> out) {
+    public TiffWriter(Context context, Path file, boolean deleteExistingFile) throws IOException {
+        this(context, deleteFileIfRequested(file, deleteExistingFile));
+    }
+
+    public TiffWriter(Context context, DataHandle<Location> out) {
         Objects.requireNonNull(out, "Null \"out\" data handle (output stream)");
         if (context != null) {
             setContext(context);
@@ -177,27 +164,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         }
     }
 
-    public static TiffSaver getInstance(Context context, DataHandle<Location> out) throws IOException {
-        return new TiffSaver(context, out)
-                .setWritingSequentially(true)
-                .setAutoInterleave(true)
-                .setExtendedCodec(true);
-    }
-
-    public static TiffSaver getInstance(Context context, Path file) throws IOException {
-        return getInstance(context, file, true);
-    }
-
-    public static TiffSaver getInstance(Context context, Path file, boolean deleteExistingFile) throws IOException {
-        Objects.requireNonNull(file, "Null file");
-        if (deleteExistingFile) {
-            Files.deleteIfExists(file);
-        }
-        return getInstance(context, TiffTools.getFileHandle(file));
-    }
-
-    // -- TiffSaver methods --
-
 
     /**
      * Gets the stream from which TIFF data is being saved.
@@ -212,15 +178,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
 
     /**
      * Sets whether or not we know that the planes will be written sequentially.
-     * If we are writing planes sequentially and set this flag, then performance
-     * is slightly improved.
+     * If we are writing planes sequentially, this flag increases performance.
+     * Default value if <tt>true</tt>.
      *
      * <p>Note: if this flag is not set (random-access mode) and the file already exist,
      * then new IFD images will be still written after the end of the file,
      * i.e. the file will grow. So, we do not recommend using <tt>false</tt> value
      * without necessity: it leads to inefficient usage of space inside the file.
      */
-    public TiffSaver setWritingSequentially(final boolean sequential) {
+    public TiffWriter setWritingSequentially(final boolean sequential) {
         writingSequentially = sequential;
         return this;
     }
@@ -232,11 +198,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     /**
      * Sets appending mode: the specified file must be an existing TIFF file, and this saver
      * will append IFD images to the end of this file.
+     * Default value is <tt>false</tt>.
      *
      * @param appendToExisting whether we want to append IFD to an existing TIFF file.
      * @return a reference to this object.
      */
-    public TiffSaver setAppendToExisting(boolean appendToExisting) {
+    public TiffWriter setAppendToExisting(boolean appendToExisting) {
         this.appendToExisting = appendToExisting;
         return this;
     }
@@ -251,7 +218,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     /**
      * Sets whether or not little-endian data should be written.
      */
-    public TiffSaver setLittleEndian(final boolean littleEndian) {
+    public TiffWriter setLittleEndian(final boolean littleEndian) {
         out.setLittleEndian(littleEndian);
         return this;
     }
@@ -266,7 +233,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
     /**
      * Sets whether or not BigTIFF data should be written.
      */
-    public TiffSaver setBigTiff(final boolean bigTiff) {
+    public TiffWriter setBigTiff(final boolean bigTiff) {
         this.bigTiff = bigTiff;
         return this;
     }
@@ -280,7 +247,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      *
      * <p>If set, then the samples array in <tt>writeImage</tt> methods is always supposed to be unpacked.
      * For multichannel images it means the samples order like RRR..GGG..BBB...: standard form, supposed by
-     * {@link io.scif.Plane} class and returned by {@link TiffParser}. If the desired IFD format is
+     * {@link io.scif.Plane} class and returned by {@link TiffReader}. If the desired IFD format is
      * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link DetailedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}
      * (that is the typical usage), then the passes samples are automatically re-packed into chunked (interleaved)
      * form RGBRGBRGB...
@@ -295,7 +262,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param autoInterleave new auto-interleave mode. Default value is <tt>true</tt>.
      * @return a reference to this object.
      */
-    public TiffSaver setAutoInterleave(boolean autoInterleave) {
+    public TiffWriter setAutoInterleave(boolean autoInterleave) {
         this.autoInterleave = autoInterleave;
         return this;
     }
@@ -304,7 +271,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return defaultStripHeight;
     }
 
-    public TiffSaver setDefaultStripHeight(Integer defaultStripHeight) {
+    public TiffWriter setDefaultStripHeight(Integer defaultStripHeight) {
         if (defaultStripHeight != null && defaultStripHeight <= 0) {
             throw new IllegalArgumentException("Zero or negative default strip height " + defaultStripHeight);
         }
@@ -316,7 +283,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return this.defaultStripHeight == null;
     }
 
-    public TiffSaver setDefaultSingleStrip() {
+    public TiffWriter setDefaultSingleStrip() {
         this.defaultStripHeight = null;
         return this;
     }
@@ -331,7 +298,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param options The value to set.
      * @return a reference to this object.
      */
-    public TiffSaver setCodecOptions(final CodecOptions options) {
+    public TiffWriter setCodecOptions(final CodecOptions options) {
         this.codecOptions = options;
         return this;
     }
@@ -348,7 +315,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param extendedCodec whether you want to use special optimized codecs.
      * @return a reference to this object.
      */
-    public TiffSaver setExtendedCodec(boolean extendedCodec) {
+    public TiffWriter setExtendedCodec(boolean extendedCodec) {
         this.extendedCodec = extendedCodec;
         return this;
     }
@@ -367,7 +334,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param jpegInPhotometricRGB whether you want to compress JPEG in RGB encoding.
      * @return a reference to this object.
      */
-    public TiffSaver setJpegInPhotometricRGB(boolean jpegInPhotometricRGB) {
+    public TiffWriter setJpegInPhotometricRGB(boolean jpegInPhotometricRGB) {
         this.jpegInPhotometricRGB = jpegInPhotometricRGB;
         return this;
     }
@@ -390,12 +357,12 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param jpegQuality quality a {@code float} between {@code 0} and {@code 1} indicating the desired quality level.
      * @return a reference to this object.
      */
-    public TiffSaver setJpegQuality(double jpegQuality) {
+    public TiffWriter setJpegQuality(double jpegQuality) {
         this.jpegQuality = jpegQuality;
         return this;
     }
 
-    public TiffSaver setJpegCodecQuality() {
+    public TiffWriter setJpegCodecQuality() {
         if (codecOptions == null) {
             throw new IllegalStateException("Codec options was not set yet");
         }
@@ -417,7 +384,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
      * @param predefinedPhotoInterpretation custom photo inrerpretation, overriding the value, chosen by default.
      * @return a reference to this object.
      */
-    public TiffSaver setPredefinedPhotoInterpretation(PhotoInterp predefinedPhotoInterpretation) {
+    public TiffWriter setPredefinedPhotoInterpretation(PhotoInterp predefinedPhotoInterpretation) {
         this.predefinedPhotoInterpretation = predefinedPhotoInterpretation;
         return this;
     }
@@ -428,7 +395,7 @@ public class TiffSaver extends AbstractContextual implements Closeable {
             final boolean bigTiff;
             final boolean littleEndian;
             final long positionOfLastOffset;
-            try (final TiffParser parser = new TiffParser(null, in, true)) {
+            try (final TiffReader parser = new TiffReader(null, in, true)) {
                 parser.getIFDOffsets();
                 bigTiff = parser.isBigTiff();
                 littleEndian = parser.isLittleEndian();
@@ -959,8 +926,6 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         TiffTools.differenceIfRequested(tile);
     }
 
-        // -- Helper methods --
-
     /**
      * Coverts a list to a primitive array.
      *
@@ -1219,13 +1184,15 @@ public class TiffSaver extends AbstractContextual implements Closeable {
                 throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
                         " is not allowed when writing mode is not sequential");
             }
-            try (final TiffParser parser = new TiffParser(null, in)) {
-                final long[] ifdOffsets = parser.getIFDOffsets();
+            try (final TiffReader reader = new TiffReader(null, in, false)) {
+                // - note: we MUST NOT require valid TIFF here, because this file is only
+                // in a process of creating and the last offset is probably incorrect
+                final long[] ifdOffsets = reader.getIFDOffsets();
                 if (ifdIndex < ifdOffsets.length) {
-                    out.seek(ifdOffsets[(int) ifdIndex]);
+                    out.seek(ifdOffsets[ifdIndex]);
                     LOG.log(System.Logger.Level.TRACE, () ->
                             "Reading IFD from " + ifdOffsets[ifdIndex] + " for non-sequential writing");
-                    ifd = parser.getIFD(ifdOffsets[ifdIndex]);
+                    ifd = reader.getIFD(ifdOffsets[ifdIndex]);
                 }
             }
         }
@@ -1319,228 +1286,11 @@ public class TiffSaver extends AbstractContextual implements Closeable {
         return TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG ? System.nanoTime() : 0;
     }
 
-
-    /**
-     * Constructs a new TIFF saver from the given output source.
-     *
-     * @param out   Output stream to save TIFF data to.
-     * @param bytes In memory byte array handle that we may use to create extra
-     *              input or output streams as required.
-     */
-    @Deprecated
-    public TiffSaver(final DataHandle<Location> out, final BytesLocation bytes) {
-        this(new Context(), out);
-        this.bytes = bytes;
-    }
-
-
-    @Deprecated
-    public void writeImage(final byte[][] buf, final IFDList ifds,
-                           final int pixelType) throws FormatException, IOException {
-        if (ifds == null) {
-            throw new FormatException("IFD cannot be null");
+    private static DataHandle<Location> deleteFileIfRequested(Path file, boolean deleteExisting) throws IOException {
+        Objects.requireNonNull(file, "Null file");
+        if (deleteExisting) {
+            Files.deleteIfExists(file);
         }
-        if (buf == null) {
-            throw new FormatException("Image data cannot be null");
-        }
-        for (int i = 0; i < ifds.size(); i++) {
-            if (i < buf.length) {
-                writeImage(buf[i], ifds.get(i), i, pixelType, i == ifds.size() - 1);
-            }
-        }
-    }
-
-    @Deprecated
-    public void writeImage(
-            final byte[] samples, final IFD ifd, final int planeIndex,
-            final int pixelType, final boolean last) throws FormatException, IOException {
-        writeSamples(DetailedIFD.extend(ifd), samples, pixelType, planeIndex, last);
-    }
-
-    @Deprecated
-    public void writeImage(final byte[] buf, final IFD ifd, final long planeIndex,
-                           final int pixelType, final int x, final int y, final int w, final int h,
-                           final boolean last) throws FormatException, IOException {
-        writeImage(buf, ifd, planeIndex, pixelType, x, y, w, h, last, null, false);
-    }
-
-    @Deprecated
-    public void writeImage(final byte[] buf, final IFD ifd, final long planeIndex,
-                           final int pixelType, final int x, final int y, final int w, final int h,
-                           final boolean last, Integer nChannels, final boolean copyDirectly)
-            throws FormatException, IOException {
-        //Note: modern version of writeSamples doesn't need optimization via copyDirectly
-        if (nChannels == null) {
-            final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
-            nChannels = buf.length / (w * h * bytesPerSample);
-            // - like in original writeImage; but overflow will be checked more thoroughly inside writeSamples
-        }
-        writeSamples(DetailedIFD.extend(ifd), buf,
-                (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
-    }
-
-    /**
-     * Please use {@link #getInstance(Context, Path)} instead.
-     */
-    @Deprecated
-    public TiffSaver(final Context ctx, final String filename)
-            throws IOException {
-        this(ctx, new FileLocation(filename));
-    }
-
-    /**
-     * Please use code like inside {@link #startWriting()}.
-     */
-    @Deprecated
-    public void overwriteLastIFDOffset(final DataHandle<Location> handle)
-            throws FormatException, IOException {
-        if (handle == null) throw new FormatException("Output cannot be null");
-        final io.scif.formats.tiff.TiffParser parser = new io.scif.formats.tiff.TiffParser(getContext(), handle);
-        parser.getIFDOffsets();
-        out.seek(handle.offset() - (bigTiff ? 8 : 4));
-        writeIntValue(out, 0);
-    }
-
-
-    /**
-     * Surgically overwrites an existing IFD value with the given one. This method
-     * requires that the IFD directory entry already exist. It intelligently
-     * updates the count field of the entry to match the new length. If the new
-     * length is longer than the old length, it appends the new data to the end of
-     * the file and updates the offset field; if not, or if the old data is
-     * already at the end of the file, it overwrites the old data in place.
-     */
-    @Deprecated
-    public void overwriteIFDValue(final DataHandle<Location> raf, final int ifd,
-                                  final int tag, final Object value) throws FormatException, IOException {
-        if (raf == null) throw new FormatException("Output cannot be null");
-//        log.debug("overwriteIFDValue (ifd=" + ifd + "; tag=" + tag + "; value=" +
-//                value + ")");
-
-        raf.seek(0);
-        final io.scif.formats.tiff.TiffParser parser = new io.scif.formats.tiff.TiffParser(getContext(), raf);
-        final Boolean valid = parser.checkHeader();
-        if (valid == null) {
-            throw new FormatException("Invalid TIFF header");
-        }
-
-        final boolean little = valid.booleanValue();
-        final boolean bigTiff = parser.isBigTiff();
-
-        setLittleEndian(little);
-        setBigTiff(bigTiff);
-
-        final long offset = bigTiff ? 8 : 4; // offset to the IFD
-
-        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                : TiffConstants.BYTES_PER_ENTRY;
-
-        raf.seek(offset);
-
-        // skip to the correct IFD
-        final long[] offsets = parser.getIFDOffsets();
-        if (ifd >= offsets.length) {
-            throw new FormatException("No such IFD (" + ifd + " of " +
-                    offsets.length + ")");
-        }
-        raf.seek(offsets[ifd]);
-
-        // get the number of directory entries
-        final long num = bigTiff ? raf.readLong() : raf.readUnsignedShort();
-
-        // search directory entries for proper tag
-        for (int i = 0; i < num; i++) {
-            raf.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i);
-
-            final TiffIFDEntry entry = parser.readTiffIFDEntry();
-            if (entry.getTag() == tag) {
-                // write new value to buffers
-                final DataHandle<Location> ifdHandle = dataHandleService.create(
-                        new BytesLocation(bytesPerEntry));
-                final DataHandle<Location> extraHandle = dataHandleService.create(
-                        new BytesLocation(0));
-                extraHandle.setLittleEndian(little);
-                final io.scif.formats.tiff.TiffSaver saver = new io.scif.formats.tiff.TiffSaver(ifdHandle, new BytesLocation(
-                        bytesPerEntry));
-                saver.setLittleEndian(isLittleEndian());
-                saver.writeIFDValue(extraHandle, entry.getValueOffset(), tag, value);
-                ifdHandle.seek(0);
-                extraHandle.seek(0);
-
-                // extract new directory entry parameters
-                final int newTag = ifdHandle.readShort();
-                final int newType = ifdHandle.readShort();
-                int newCount;
-                long newOffset;
-                if (bigTiff) {
-                    newCount = ifdHandle.readInt();
-                    newOffset = ifdHandle.readLong();
-                } else {
-                    newCount = ifdHandle.readInt();
-                    newOffset = ifdHandle.readInt();
-                }
-//                log.debug("overwriteIFDValue:");
-//                log.debug("\told (" + entry + ");");
-//                log.debug("\tnew: (tag=" + newTag + "; type=" + newType + "; count=" +
-//                        newCount + "; offset=" + newOffset + ")");
-
-                // determine the best way to overwrite the old entry
-                if (extraHandle.length() == 0) {
-                    // new entry is inline; if old entry wasn't, old data is
-                    // orphaned
-                    // do not override new offset value since data is inline
-//                    log.debug("overwriteIFDValue: new entry is inline");
-                } else if (entry.getValueOffset() + entry.getValueCount() * entry
-                        .getType().getBytesPerElement() == raf.length()) {
-                    // old entry was already at EOF; overwrite it
-                    newOffset = entry.getValueOffset();
-//                    log.debug("overwriteIFDValue: old entry is at EOF");
-                } else if (newCount <= entry.getValueCount()) {
-                    // new entry is as small or smaller than old entry;
-                    // overwrite it
-                    newOffset = entry.getValueOffset();
-//                    log.debug("overwriteIFDValue: new entry is <= old entry");
-                } else {
-                    // old entry was elsewhere; append to EOF, orphaning old
-                    // entry
-                    newOffset = raf.length();
-//                    log.debug("overwriteIFDValue: old entry will be orphaned");
-                }
-
-                // overwrite old entry
-                out.seek(offsets[ifd] + (bigTiff ? 8 : 2) + bytesPerEntry * i + 2);
-                out.writeShort(newType);
-                writeIntValue(out, newCount);
-                writeIntValue(out, newOffset);
-                if (extraHandle.length() > 0) {
-                    out.seek(newOffset);
-                    extraHandle.seek(0l);
-                    DataHandles.copy(extraHandle, out, newCount);
-                }
-                return;
-            }
-        }
-
-        throw new FormatException("Tag not found (" + IFD.getIFDTagName(tag) + ")");
-    }
-
-    /**
-     * Convenience method for overwriting a file's first ImageDescription.
-     */
-    @Deprecated
-    public void overwriteComment(final DataHandle<Location> in,
-                                 final Object value) throws FormatException, IOException {
-        overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
-    }
-
-
-    @Deprecated
-    private void writeIntValue(final DataHandle<Location> handle,
-                               final long offset) throws IOException {
-        if (bigTiff) {
-            handle.writeLong(offset);
-        } else {
-            handle.writeInt((int) offset);
-        }
+        return TiffTools.getFileHandle(file);
     }
 }

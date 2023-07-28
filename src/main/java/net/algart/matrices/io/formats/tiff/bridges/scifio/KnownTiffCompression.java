@@ -40,11 +40,11 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * <p>{@link TiffSaver} tries to write only compressions from this list and only if not {@link #isOnlyForReading()},
+ * <p>{@link TiffWriter} tries to write only compressions from this list and only if not {@link #isOnlyForReading()},
  * because writing other compressions like ALT_JPEG is not properly supported.
  * But some of these codecs actually do not support writing and throw an exception while attempt to write.
  *
- * <p>{@link TiffParser} tries to read any compression, but may use special logic for compressions from this list.
+ * <p>{@link TiffReader} tries to read any compression, but may use special logic for compressions from this list.
  */
 enum KnownTiffCompression {
     UNCOMPRESSED(TiffCompression.UNCOMPRESSED, PassthroughCodec::new, null),

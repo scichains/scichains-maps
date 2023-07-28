@@ -36,16 +36,16 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Analog of {@link TiffParser} with built-in caching all loaded tiles.
+ * Analog of {@link TiffReader} with built-in caching all loaded tiles.
  *
  * @author Denial Alievsky
  */
-public class CachingTiffParser extends TiffParser {
+public class CachingTiffReader extends TiffReader {
     public static final long DEFAULT_MAX_CACHING_MEMORY = Math.max(0, getLongProperty(
             "net.algart.matrices.libs.scifio.tiff.defaultMaxCachingMemory", 256 * 1048576L));
     // - 256 MB maximal cache by default
 
-    private static final System.Logger LOG = System.getLogger(CachingTiffParser.class.getName());
+    private static final System.Logger LOG = System.getLogger(CachingTiffReader.class.getName());
 
     private volatile long maxCachingMemory = DEFAULT_MAX_CACHING_MEMORY;
     // - volatile is necessary for correct parallel work of the setter
@@ -55,25 +55,19 @@ public class CachingTiffParser extends TiffParser {
     private long currentCacheMemory = 0;
     private final Object tileCacheLock = new Object();
 
-    public CachingTiffParser(Context context, DataHandle<Location> in) throws IOException {
+    public CachingTiffReader (Context context, Path file) throws IOException {
+        super(context, file, true);
+    }
+
+    public CachingTiffReader(Context context, DataHandle<Location> in) throws IOException {
         super(context, in, true);
-        this.setAutoUnpackUnusualPrecisions(true);
-        this.setExtendedCodec(true);
-    }
-
-    public static CachingTiffParser getInstance(Context context, DataHandle<Location> in) throws IOException {
-        return new CachingTiffParser(context, in);
-    }
-
-    public static CachingTiffParser getInstance(final Context context, Path file) throws IOException {
-        return getInstance(context, TiffTools.getExistingFileHandle(file));
     }
 
     public long getMaxCachingMemory() {
         return maxCachingMemory;
     }
 
-    public CachingTiffParser setMaxCachingMemory(long maxCachingMemory) {
+    public CachingTiffReader setMaxCachingMemory(long maxCachingMemory) {
         if (maxCachingMemory < 0) {
             throw new IllegalArgumentException("Negative maxCachingMemory = " + maxCachingMemory);
         }
@@ -81,7 +75,7 @@ public class CachingTiffParser extends TiffParser {
         return this;
     }
 
-    public CachingTiffParser disableCaching() {
+    public CachingTiffReader disableCaching() {
         return setMaxCachingMemory(0);
     }
 

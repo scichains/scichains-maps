@@ -1,12 +1,12 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="TiffSaverTest" type="Application" factoryName="Application" nameIsGenerated="true">
-    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffSaverTest" />
+  <configuration default="false" name="TiffWriterTest" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffWriterTest" />
     <module name="scichains-maps" />
-    <option name="PROGRAM_PARAMETERS" value=" -nocontext -color -jpegRGB -tiled  \tmp\newtiff.tiff uint8 2 JPEG  2" />
+    <option name="PROGRAM_PARAMETERS" value="-nocontext -color -jpegRGB -tiled  \tmp\newtiff.tiff uint8 2 JPEG  2" />
     <option name="VM_PARAMETERS" value="-ea -esa -Dnet.algart.matrices.io.formats.tiff.timing=true -Djava.util.logging.config.file=\SciChains\conf\logging.properties" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="net.algart.matrices.io.formats.tiff.bridges.scifio.*" />
+        <option name="PATTERN" value="net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>

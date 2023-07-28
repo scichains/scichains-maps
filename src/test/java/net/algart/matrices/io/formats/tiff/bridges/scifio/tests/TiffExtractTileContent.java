@@ -27,7 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTileIndex;
 import org.scijava.Context;
@@ -56,18 +56,18 @@ public class TiffExtractTileContent {
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {
-            final TiffParser parser = TiffParser.getInstance(context, tiffFile);
-            System.out.printf("Opening %s by %s...%n", tiffFile, parser);
-            final DetailedIFD ifd = parser.ifd(ifdIndex);
+            final TiffReader reader = new TiffReader(context, tiffFile);
+            System.out.printf("Opening %s by %s...%n", tiffFile, reader);
+            final DetailedIFD ifd = reader.ifd(ifdIndex);
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             TiffTileIndex tileIndex = new TiffTileIndex(ifd, col, row);
-            TiffTile tile = parser.readEncodedTile(tileIndex);
-            parser.correctEncodedJpegTile(tile);
+            TiffTile tile = reader.readEncodedTile(tileIndex);
+            reader.correctEncodedJpegTile(tile);
             byte[] bytes = tile.getData();
             System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
             Files.write(resultFile, bytes);
             try {
-                tile = parser.readTile(tileIndex);
+                tile = reader.readTile(tileIndex);
                 System.out.printf("Decoding the same (for verification): %s%n", tile);
             } catch (FormatException | IOException e) {
                 System.err.printf("Cannot decode tile: %s%n", e);

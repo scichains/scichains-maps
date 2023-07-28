@@ -31,15 +31,15 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffSaver;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import org.scijava.Context;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class TiffSaverTest {
+public class TiffWriterTest {
     private final static int WIDTH = 1011;
     private final static int HEIGHT = 1031;
 
@@ -107,7 +107,7 @@ public class TiffSaverTest {
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffSaverTest.class.getName() +
+            System.out.println("    " + TiffWriterTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
                     "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
                     "[numberOfTests]");
@@ -135,23 +135,26 @@ public class TiffSaverTest {
         for (int test = 1; test <= numberOfTests; test++) {
             final boolean deleteExistingFile = !randomAccess && !append;
             try (Context context = noContext ? null : scifio.getContext();
-                 TiffSaver saver = TiffSaver.getInstance(context, targetFile, deleteExistingFile)) {
-//                saver.setExtendedCodec(false);
+                 TiffWriter writer = new TiffWriter(context, targetFile, deleteExistingFile)) {
+//                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
+//                writer.setExtendedCodec(false);
                 if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
-                    saver.setAutoInterleave(false);
+                    writer.setAutoInterleave(false);
                 }
-                saver.setWritingSequentially(!randomAccess);
-                saver.setAppendToExisting(append);
-                saver.setBigTiff(bigTiff);
-                saver.setLittleEndian(true);
-                saver.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
-//                saver.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
+                if (randomAccess) {
+                    writer.setWritingSequentially(false);
+                }
+                writer.setAppendToExisting(append);
+                writer.setBigTiff(bigTiff);
+                writer.setLittleEndian(true);
+                writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+//                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
                 if (singleStrip) {
-                    saver.setDefaultSingleStrip();
+                    writer.setDefaultSingleStrip();
                 } else {
-                    saver.setDefaultStripHeight(100);
+                    writer.setDefaultStripHeight(100);
                 }
-                saver.startWriting();
+                writer.startWriting();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                     Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
@@ -176,7 +179,7 @@ public class TiffSaverTest {
                     if (planarSeparated) {
                         ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
                     }
-                    saver.writeSamplesArray(ifd, samplesArray,
+                    writer.writeSamplesArray(ifd, samplesArray,
                             ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,
                             ifdIndex == numberOfImages - 1);
                 }

@@ -27,7 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 
 import java.io.File;
 import java.io.IOException;
@@ -61,18 +61,18 @@ public class TiffInfo {
     }
 
     public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
-        try (TiffParser parser = TiffParser.getInstance(null, tiffFile, false)) {
-            if (!parser.isValidHeader()) {
+        try (TiffReader reader = new TiffReader(tiffFile, false)) {
+            if (!reader.isValidHeader()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
-                parser.setRequireValidTiff(true);
-                var ifdList = parser.allIFD();
+                reader.setRequireValidTiff(true);
+                var ifdList = reader.allIFD();
                 final int ifdCount = ifdList.size();
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
                         tiffFile,
                         ifdCount,
-                        parser.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
-                        parser.getStream().isLittleEndian() ? "little" : "big");
+                        reader.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
+                        reader.getStream().isLittleEndian() ? "little" : "big");
                 for (int k = 0; k < ifdCount; k++) {
                     if (k >= firstIFDIndex && k <= lastIFDIndex) {
                         final var ifd = ifdList.get(k);

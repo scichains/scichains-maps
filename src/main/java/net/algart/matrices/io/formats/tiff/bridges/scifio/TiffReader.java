@@ -33,7 +33,6 @@ import io.scif.formats.tiff.*;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
-import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
 import org.scijava.util.Bytes;
@@ -45,6 +44,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Parses TIFF data from an input source.
@@ -55,7 +55,7 @@ import java.util.*;
  * @author Chris Allan
  * @author Denial Alievsky
  */
-public class TiffParser extends AbstractContextual implements Closeable {
+public class TiffReader extends AbstractContextual implements Closeable {
 
     // Below is a copy of SCIFIO license (placed here to avoid autocorrection by IntelliJ IDEA)
     /*
@@ -87,7 +87,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * #L%
      */
 
-    private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
+    private static final System.Logger LOG = System.getLogger(TiffReader.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
@@ -112,20 +112,20 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private boolean autoInterleave = false;
 
-    private boolean autoUnpackUnusualPrecisions = false;
+    private boolean autoUnpackUnusualPrecisions = true;
 
-    private boolean extendedCodec = false;
+    private boolean extendedCodec = true;
 
     /**
      * Whether or not 64-bit offsets are used for non-BigTIFF files.
      */
     private boolean use64BitOffsets = false;
 
-    private boolean yCbCrCorrection = true;
-
     private boolean assumeEqualStrips = false;
 
-    private boolean doCaching;
+    private boolean yCbCrCorrection = true;
+
+    private boolean cachingIFDs = true;
 
     /**
      * Cached list of IFDs in the current file.
@@ -142,54 +142,34 @@ public class TiffParser extends AbstractContextual implements Closeable {
     /**
      * Codec options to be used when decoding compressed pixel data.
      */
-    private CodecOptions codecOptions = CodecOptions.getDefaultOptions();
+    CodecOptions codecOptions = CodecOptions.getDefaultOptions();
 
     private volatile long positionOfLastOffset = -1;
     private long timeRead = 0;
     private long timeDecode = 0;
     private long timeComplete = 0;
 
-    // -- Constructors --
-
-    public TiffParser(final Context context, final Location location) {
-        this(
-                Objects.requireNonNull(context, "Null context"),
-                context.getService(DataHandleService.class).create(location));
+    public TiffReader(Path file) throws IOException {
+        this(null, file, true);
     }
 
-    /**
-     * Constructs a new TIFF parser from the given file location.
-     */
-    public TiffParser(Context context, Location location, boolean requireValidTiff) throws IOException {
-        this(
-                Objects.requireNonNull(context, "Null context"),
-                context.getService(DataHandleService.class).create(location),
-                requireValidTiff);
+    public TiffReader(Path file, boolean requireValidTiff) throws IOException {
+        this(null, file, requireValidTiff);
     }
 
-    public TiffParser(Context context, DataHandle<Location> in) {
-        Objects.requireNonNull(in, "Null in stream");
-        this.requireValidTiff = false;
-        if (context != null) {
-            setContext(context);
-            scifio = new SCIFIO(context);
-        } else {
-            scifio = null;
-        }
-        this.in = in;
-        doCaching = true;
-        try {
-            final long fp = in.offset();
-            checkHeader();
-            in.seek(fp);
-        } catch (IOException ignored) {
-        }
+    public TiffReader(Context context, Path file) throws IOException {
+        this(context, file, true);
     }
 
-    /**
-     * Constructs a new TIFF parser from the given input source.
-     */
-    public TiffParser(Context context, DataHandle<Location> in, boolean requireValidTiff) throws IOException {
+    public TiffReader(Context context, Path file, boolean requireValidTiff) throws IOException {
+        this(context, TiffTools.getExistingFileHandle(file), requireValidTiff);
+    }
+
+    public TiffReader(Context context, DataHandle<Location> in) throws IOException {
+        this(context, in, true);
+    }
+
+    public TiffReader(Context context, DataHandle<Location> in, boolean requireValidTiff) throws IOException {
         Objects.requireNonNull(in, "Null \"in\" data handle (input stream)");
         this.requireValidTiff = requireValidTiff;
         if (context != null) {
@@ -199,7 +179,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
             scifio = null;
         }
         this.in = in;
-        doCaching = true;
         try {
             final long fp = in.offset();
             checkHeader();
@@ -211,24 +190,52 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
     }
 
-    public static TiffParser getInstance(Context context, DataHandle<Location> in, boolean requireValidTiff)
-            throws IOException {
-        return new TiffParser(context, in, requireValidTiff)
-                .setAutoUnpackUnusualPrecisions(true)
-                .setExtendedCodec(true);
+    /**
+     * This form of constructor helps to make subclasses with constructors, which not throw exceptions.
+     */
+    protected TiffReader(
+            Context context,
+            DataHandle<Location> in,
+            Consumer<Exception> exceptionHandler) {
+        Objects.requireNonNull(in, "Null in stream");
+        this.requireValidTiff = false;
+        if (context != null) {
+            setContext(context);
+            scifio = new SCIFIO(context);
+        } else {
+            scifio = null;
+        }
+        this.in = in;
+        try {
+            final long fp = in.offset();
+            checkHeader();
+            in.seek(fp);
+        } catch (IOException e) {
+            if (exceptionHandler != null) {
+                exceptionHandler.accept(e);
+            }
+        }
     }
 
-    public static TiffParser getInstance(Context context, Path file) throws IOException {
-        return getInstance(context, file, true);
+    @Deprecated
+    protected void setAssumeEqualStrips(final boolean assumeEqualStrips) {
+        this.assumeEqualStrips = assumeEqualStrips;
     }
 
-    public static TiffParser getInstance(Context context, Path file, boolean requireValidTiff)
-            throws IOException {
-        return getInstance(context, TiffTools.getExistingFileHandle(file), requireValidTiff);
+    @Deprecated
+    protected boolean isAssumeEqualStrips() {
+        return assumeEqualStrips;
     }
 
+    @Deprecated
+    protected void setUse64BitOffsets(final boolean use64BitOffsets) {
+        this.use64BitOffsets = use64BitOffsets;
+    }
 
-    // -- TiffParser methods --
+    @Deprecated
+    protected boolean isUse64BitOffsets() {
+        return use64BitOffsets;
+    }
 
 
     public byte getFiller() {
@@ -245,7 +252,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @param filler new filler.
      * @return a reference to this object.
      */
-    public TiffParser setFiller(byte filler) {
+    public TiffReader setFiller(byte filler) {
         this.filler = filler;
         return this;
     }
@@ -262,7 +269,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @param requireValidTiff whether TIFF file should be correct.
      * @return a reference to this object.
      */
-    public TiffParser setRequireValidTiff(boolean requireValidTiff) {
+    public TiffReader setRequireValidTiff(boolean requireValidTiff) {
         this.requireValidTiff = requireValidTiff;
         return this;
     }
@@ -279,7 +286,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @param autoInterleave new interleavcing mode.
      * @return a reference to this object.
      */
-    public TiffParser setAutoInterleave(boolean autoInterleave) {
+    public TiffReader setAutoInterleave(boolean autoInterleave) {
         this.autoInterleave = autoInterleave;
         return this;
     }
@@ -288,7 +295,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return autoUnpackUnusualPrecisions;
     }
 
-    public TiffParser setAutoUnpackUnusualPrecisions(boolean autoUnpackUnusualPrecisions) {
+    public TiffReader setAutoUnpackUnusualPrecisions(boolean autoUnpackUnusualPrecisions) {
         this.autoUnpackUnusualPrecisions = autoUnpackUnusualPrecisions;
         return this;
     }
@@ -297,24 +304,9 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return extendedCodec;
     }
 
-    public TiffParser setExtendedCodec(boolean extendedCodec) {
+    public TiffReader setExtendedCodec(boolean extendedCodec) {
         this.extendedCodec = extendedCodec;
         return this;
-    }
-
-    /**
-     * Sets whether or not to assume that strips are of equal size.
-     *
-     * @param assumeEqualStrips Whether or not the strips are of equal size.
-     * @return a reference to this object.
-     */
-    public TiffParser setAssumeEqualStrips(final boolean assumeEqualStrips) {
-        this.assumeEqualStrips = assumeEqualStrips;
-        return this;
-    }
-
-    public boolean isAssumeEqualStrips() {
-        return assumeEqualStrips;
     }
 
     /**
@@ -323,7 +315,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
      * @param codecOptions Codec options to use.
      * @return a reference to this object.
      */
-    public TiffParser setCodecOptions(final CodecOptions codecOptions) {
+    public TiffReader setCodecOptions(final CodecOptions codecOptions) {
         this.codecOptions = codecOptions;
         return this;
     }
@@ -339,39 +331,27 @@ public class TiffParser extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Sets whether or not IFD entries should be cached.
-     */
-    public TiffParser setDoCaching(final boolean doCaching) {
-        this.doCaching = doCaching;
-        return this;
-    }
-
-    public boolean isDoCaching() {
-        return doCaching;
-    }
-
-    /**
-     * Sets whether or not 64-bit offsets are used for non-BigTIFF files.
-     */
-    public TiffParser setUse64BitOffsets(final boolean use64BitOffsets) {
-        this.use64BitOffsets = use64BitOffsets;
-        return this;
-    }
-
-    public boolean isUse64BitOffsets() {
-        return use64BitOffsets;
-    }
-
-    /**
      * Sets whether or not YCbCr color correction is allowed.
      */
-    public TiffParser setYCbCrCorrection(final boolean yCbCrCorrection) {
+    public TiffReader setYCbCrCorrection(final boolean yCbCrCorrection) {
         this.yCbCrCorrection = yCbCrCorrection;
         return this;
     }
 
     public boolean isYCbCrCorrection() {
         return yCbCrCorrection;
+    }
+
+    /**
+     * Sets whether or not IFD entries should be cached.
+     */
+    public TiffReader setCachingIFDs(final boolean cachingIFDs) {
+        this.cachingIFDs = cachingIFDs;
+        return this;
+    }
+
+    public boolean isCachingIFDs() {
+        return cachingIFDs;
     }
 
     /**
@@ -462,8 +442,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         return in.isLittleEndian();
     }
 
-    // -- TiffParser methods - IFD parsing --
-
     public DetailedIFD ifd(int ifdIndex) throws IOException {
         List<DetailedIFD> ifdList = allIFD();
         if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
@@ -494,7 +472,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
             }
             long[] subOffsets = null;
             try {
-                if (!doCaching && ifd.containsKey(IFD.SUB_IFD)) {
+                if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
                     fillInIFD(ifd);
                 }
                 subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
@@ -509,7 +487,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 }
             }
         }
-        if (doCaching) {
+        if (cachingIFDs) {
             ifdList = ifds;
         }
         return ifds;
@@ -616,7 +594,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
         }
         final long offset = getFirstOffset();
         final IFD ifd = getIFD(offset);
-        if (doCaching) {
+        if (cachingIFDs) {
             firstIFD = ifd;
         }
         return ifd;
@@ -740,7 +718,7 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 break;
             }
 
-            if (pointer != in.offset() && !doCaching) {
+            if (pointer != in.offset() && !cachingIFDs) {
                 value = entry;
             } else {
                 value = getIFDValue(entry);
@@ -758,75 +736,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 "reading IFD at offset %d: %.3f ms", offset, (t2 - t1) * 1e-6));
         return ifd;
     }
-
-    /* Deprecated code:
-    public IFD getIFD(final long offset) throws IOException {
-        if (offset < 0 || offset >= in.length()) return null;
-        final IFD ifd = new IFD(log);
-
-        // save little-endian flag to internal LITTLE_ENDIAN tag
-        ifd.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
-        ifd.put(IFD.BIG_TIFF, bigTiff);
-
-        // read in directory entries for this IFD
-        log.trace("getIFDs: seeking IFD at " + offset);
-        in.seek(offset);
-        final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-        log.trace("getIFDs: " + numEntries + " directory entries to read");
-        if (numEntries == 0 || numEntries == 1) return ifd;
-
-        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                : TiffConstants.BYTES_PER_ENTRY;
-        final int baseOffset = bigTiff ? 8 : 2;
-
-        for (int i = 0; i < numEntries; i++) {
-            in.seek(offset + baseOffset + bytesPerEntry * i);
-
-            TiffIFDEntry entry = null;
-            try {
-                entry = readTiffIFDEntry();
-            } catch (final EnumException e) {
-                log.debug("", e);
-            }
-            if (entry == null) break;
-            int count = entry.getValueCount();
-            final int tag = entry.getTag();
-            final long pointer = entry.getValueOffset();
-            final int bpe = entry.getType().getBytesPerElement();
-
-            if (count < 0 || bpe <= 0) {
-                // invalid data
-                in.skipBytes(bytesPerEntry - 4 - (bigTiff ? 8 : 4));
-                continue;
-            }
-            Object value = null;
-
-            final long inputLen = in.length();
-            if (count * (long) bpe + pointer > inputLen) {
-                final int oldCount = count;
-                count = (int) ((inputLen - pointer) / bpe);
-                log.trace("getIFDs: truncated " + (oldCount - count) +
-                        " array elements for tag " + tag);
-                if (count < 0) count = oldCount;
-                entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry
-                        .getValueOffset());
-            }
-            if (count < 0 || count > in.length()) break;
-
-            if (pointer != in.offset() && !doCaching) {
-                value = entry;
-            } else value = getIFDValue(entry);
-
-            if (value != null && !ifd.containsKey(tag)) {
-                ifd.put(tag, value);
-            }
-        }
-
-        in.seek(offset + baseOffset + bytesPerEntry * numEntries);
-
-        return ifd;
-    }
-    */
 
     /**
      * Fill in IFD entries that are stored at an arbitrary offset.
@@ -1029,9 +938,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
                 "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
         return result;
     }
-
-
-    // -- TiffParser methods - image reading --
 
     public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         long t1 = debugTime();
@@ -1363,7 +1269,6 @@ public class TiffParser extends AbstractContextual implements Closeable {
         in.close();
     }
 
-    // -- Helper methods --
     private static int checkIndexesAndGetTileCols(DetailedIFD ifd, int xIndex, int yIndex) throws FormatException {
         final int tileSizeX = ifd.getTileSizeX();
         final int tileSizeY = ifd.getTileSizeY();
@@ -1792,280 +1697,5 @@ public class TiffParser extends AbstractContextual implements Closeable {
 
     private static long debugTime() {
         return TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG ? System.nanoTime() : 0;
-    }
-
-    @Deprecated
-    public IFDList getIFDs() throws IOException {
-        return DetailedIFD.toIFDList(allIFD());
-    }
-
-    /**
-     * Returns thumbnail IFDs.
-     */
-    @Deprecated
-    public IFDList getThumbnailIFDs() throws IOException {
-        return DetailedIFD.toIFDList(allThumbnailIFD());
-    }
-
-    /**
-     * Returns non-thumbnail IFDs.
-     */
-    @Deprecated
-    public IFDList getNonThumbnailIFDs() throws IOException {
-        return DetailedIFD.toIFDList(allNonThumbnailIFD());
-    }
-
-    /**
-     * Returns EXIF IFDs.
-     */
-    @Deprecated
-    public IFDList getExifIFDs() throws FormatException, IOException {
-        return DetailedIFD.toIFDList(allExifIFD());
-    }
-
-    @Deprecated
-    public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
-            throws FormatException, IOException {
-        TiffTileIndex tileIndex = new TiffTileIndex(DetailedIFD.extend(ifd), col, row);
-        if (buf == null) {
-            buf = new byte[tileIndex.sizeOfTileBasedOnBits()];
-        }
-        TiffTile tile = readTile(tileIndex);
-        if (!tile.isEmpty()) {
-            byte[] data = tile.getDecodedData();
-            System.arraycopy(data, 0, buf, 0, data.length);
-        }
-        return buf;
-    }
-
-    @Deprecated
-    public byte[] getSamples(final IFD ifd, final byte[] buf)
-            throws FormatException, IOException {
-        final long width = ifd.getImageWidth();
-        final long length = ifd.getImageLength();
-        return getSamples(ifd, buf, 0, 0, width, length);
-    }
-
-
-    /**
-     * This function is deprecated, because almost identical behaviour is implemented by
-     * {@link #readSamples(DetailedIFD, int, int, int, int)}.
-     */
-    @Deprecated
-    public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
-                             final int y, final long width, final long height) throws FormatException,
-            IOException {
-        TiffTools.checkRequestedArea(x, y, width, height);
-        byte[] result = readSamples(DetailedIFD.extend(ifd), x, y, (int) width, (int) height);
-        if (result.length > buf.length) {
-            throw new IllegalArgumentException(
-                    "Insufficient length of the result buf array: " +
-                            buf.length + " < necessary " + result.length + " bytes");
-        }
-        System.arraycopy(result, 0, buf, 0, result.length);
-        return buf;
-    }
-
-    /**
-     * This function is deprecated, because it is almost not used - the only exception is
-     * TrestleReader from OME BioFormats.
-     */
-    @Deprecated
-    public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
-                             final int y, final long width, final long height, final int overlapX,
-                             final int overlapY) throws FormatException, IOException {
-        // get internal non-IFD entries
-        in.setLittleEndian(ifd.isLittleEndian());
-
-        // get relevant IFD entries
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
-        final long tileWidth = ifd.getTileWidth();
-        long tileLength = ifd.getTileLength();
-        if (tileLength <= 0) {
-//            log.trace("Tile length is " + tileLength + "; setting it to " + height);
-            tileLength = height;
-        }
-
-        long numTileRows = ifd.getTilesPerColumn();
-        final long numTileCols = ifd.getTilesPerRow();
-
-        final PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        final int planarConfig = ifd.getPlanarConfiguration();
-        final int pixel = ifd.getBytesPerSample()[0];
-        final int effectiveChannels = planarConfig == 2 ? 1 : samplesPerPixel;
-
-//        if (log.isTrace()) {
-//            ifd.printIFD();
-//        }
-
-        if (width * height > Integer.MAX_VALUE) {
-            throw new FormatException(
-                    "Sorry, ImageWidth x ImageLength > " +
-                            Integer.MAX_VALUE + " is not supported (" + width + " x " + height +
-                            ")");
-        }
-        if (width * height * effectiveChannels * pixel > Integer.MAX_VALUE) {
-            throw new FormatException(
-                    "Sorry, ImageWidth x ImageLength x " +
-                            "SamplesPerPixel x BitsPerSample > " + Integer.MAX_VALUE +
-                            " is not supported (" + width + " x " + height + " x " +
-                            samplesPerPixel + " x " + (pixel * 8) + ")");
-        }
-
-        // casting to int is safe because we have already determined that
-        // width * height is less than Integer.MAX_VALUE
-        final int numSamples = (int) (width * height);
-
-        // read in image strips
-        final TiffCompression compression = ifd.getCompression();
-
-        if (compression == TiffCompression.JPEG_2000 ||
-                compression == TiffCompression.JPEG_2000_LOSSY) {
-            codecOptions = compression.getCompressionCodecOptions(ifd, codecOptions);
-        } else codecOptions = compression.getCompressionCodecOptions(ifd);
-        codecOptions.interleaved = true;
-        codecOptions.littleEndian = ifd.isLittleEndian();
-        final long imageLength = ifd.getImageLength();
-
-        // special case: if we only need one tile, and that tile doesn't need
-        // any special handling, then we can just read it directly and return
-        if ((x % tileWidth) == 0 && (y % tileLength) == 0 && width == tileWidth &&
-                height == imageLength && samplesPerPixel == 1 &&
-                (ifd.getBitsPerSample()[0] % 8) == 0 &&
-                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR &&
-                compression == TiffCompression.UNCOMPRESSED) {
-            final long[] stripOffsets = ifd.getStripOffsets();
-            final long[] stripByteCounts = ifd.getStripByteCounts();
-
-            if (stripOffsets != null && stripByteCounts != null) {
-                final long column = x / tileWidth;
-                final int firstTile = (int) ((y / tileLength) * numTileCols + column);
-                int lastTile = (int) (((y + height) / tileLength) * numTileCols +
-                        column);
-                lastTile = Math.min(lastTile, stripOffsets.length - 1);
-
-                int offset = 0;
-                for (int tile = firstTile; tile <= lastTile; tile++) {
-                    long byteCount = assumeEqualStrips ? stripByteCounts[0]
-                            : stripByteCounts[tile];
-                    if (byteCount == numSamples && pixel > 1) {
-                        byteCount *= pixel;
-                    }
-
-                    in.seek(stripOffsets[tile]);
-                    final int len = (int) Math.min(buf.length - offset, byteCount);
-                    in.read(buf, offset, len);
-                    offset += len;
-                }
-            }
-            return adjustFillOrder(ifd, buf);
-        }
-
-        final long nrows = numTileRows;
-        if (planarConfig == 2) numTileRows *= samplesPerPixel;
-
-        final IntRect imageBounds = new IntRect(x, y, (int) width, (int) height);
-
-        final int endX = (int) width + x;
-        final int endY = (int) height + y;
-
-        final long w = tileWidth;
-        final long h = tileLength;
-        final int rowLen = pixel * (int) w;// tileWidth;
-        final int tileSize = (int) (rowLen * h);// tileLength);
-
-        final int planeSize = (int) (width * height * pixel);
-        final int outputRowLen = (int) (pixel * width);
-
-        int bufferSizeSamplesPerPixel = samplesPerPixel;
-        if (ifd.getPlanarConfiguration() == 2) bufferSizeSamplesPerPixel = 1;
-        final int bpp = ifd.getBytesPerSample()[0];
-        final int bufferSize = (int) tileWidth * (int) tileLength *
-                bufferSizeSamplesPerPixel * bpp;
-
-        byte[] cachedTileBuffer = new byte[bufferSize];
-
-        final IntRect tileBounds = new IntRect(0, 0, (int) tileWidth,
-                (int) tileLength);
-
-        for (int row = 0; row < numTileRows; row++) {
-            // make the first row shorter to account for row overlap
-            if (row == 0) {
-                tileBounds.height = (int) (tileLength - overlapY);
-            }
-
-            for (int col = 0; col < numTileCols; col++) {
-                // make the first column narrower to account for column overlap
-                if (col == 0) {
-                    tileBounds.width = (int) (tileWidth - overlapX);
-                }
-
-                tileBounds.x = col * (int) (tileWidth - overlapX);
-                tileBounds.y = row * (int) (tileLength - overlapY);
-
-                if (planarConfig == 2) {
-                    tileBounds.y = (int) ((row % nrows) * (tileLength - overlapY));
-                }
-
-                if (!imageBounds.intersects(tileBounds)) continue;
-
-                getTile(ifd, cachedTileBuffer, row, col);
-
-                // adjust tile bounds, if necessary
-
-                final int tileX = Math.max(tileBounds.x, x);
-                final int tileY = Math.max(tileBounds.y, y);
-                int realX = tileX % (int) (tileWidth - overlapX);
-                int realY = tileY % (int) (tileLength - overlapY);
-
-                int twidth = (int) Math.min(endX - tileX, tileWidth - realX);
-                if (twidth <= 0) {
-                    twidth = (int) Math.max(endX - tileX, tileWidth - realX);
-                }
-                int theight = (int) Math.min(endY - tileY, tileLength - realY);
-                if (theight <= 0) {
-                    theight = (int) Math.max(endY - tileY, tileLength - realY);
-                }
-
-                // copy appropriate portion of the tile to the output buffer
-
-                final int copy = pixel * twidth;
-
-                realX *= pixel;
-                realY *= rowLen;
-
-                for (int q = 0; q < effectiveChannels; q++) {
-                    int src = q * tileSize + realX + realY;
-                    int dest = q * planeSize + pixel * (tileX - x) + outputRowLen * (tileY - y);
-                    if (planarConfig == 2) dest += (planeSize * (row / nrows));
-
-                    // copying the tile directly will only work if there is no
-                    // overlap;
-                    // otherwise, we may be overwriting a previous tile
-                    // (or the current tile may be overwritten by a subsequent
-                    // tile)
-                    if (rowLen == outputRowLen && overlapX == 0 && overlapY == 0) {
-                        //!! Note: here is a bug! It is possible that x != 0!
-                        System.arraycopy(cachedTileBuffer, src, buf, dest, copy * theight);
-                    } else {
-                        for (int tileRow = 0; tileRow < theight; tileRow++) {
-                            System.arraycopy(cachedTileBuffer, src, buf, dest, copy);
-                            src += rowLen;
-                            dest += outputRowLen;
-                        }
-                    }
-                }
-            }
-        }
-
-        return adjustFillOrder(ifd, buf);
-    }
-
-    @Deprecated
-    private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)
-            throws FormatException {
-        TiffTools.invertFillOrderIfRequested(ifd, buf);
-        return buf;
     }
 }

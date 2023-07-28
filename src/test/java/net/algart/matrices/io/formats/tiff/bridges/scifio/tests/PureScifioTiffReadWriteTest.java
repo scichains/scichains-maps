@@ -41,15 +41,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
-import java.util.Objects;
 
-public class PureScifioReadWriteTiffTest {
+public class PureScifioTiffReadWriteTest {
     private static final int MAX_IMAGE_DIM = 5000;
 
     public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + PureScifioReadWriteTiffTest.class.getName()
+            System.out.println("    " + PureScifioTiffReadWriteTest.class.getName()
                     + " source.tif target.tif");
             return;
         }

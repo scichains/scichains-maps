@@ -32,8 +32,8 @@ import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffParser;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffParser;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
@@ -818,7 +818,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(
             int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        final Object data = largeData.tiffParser.readSamplesArray(
+        final Object data = largeData.tiffReader.readSamplesArray(
                 largeData.ifdList.get(ifdIndex), fromX, fromY, sizeX, sizeY, bandCount, elementType);
         return Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
@@ -906,7 +906,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // the files will be reopened every time when PlanePyramid needs to read data and creates a clone for this.
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
-        private TiffParser tiffParser = null;
+        private TiffReader tiffReader = null;
         private List<? extends DetailedIFD> ifdList = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
@@ -919,16 +919,16 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         }
 
         synchronized boolean initialized() {
-            return this.tiffParser != null;
+            return this.tiffReader != null;
         }
 
         private synchronized void init() throws IOException, FormatException {
-            if (tiffParser == null) {
+            if (tiffReader == null) {
                 long t1 = System.nanoTime();
-                tiffParser = CachingTiffParser.getInstance(sciContext, svsFile).setFiller(TIFF_FILLER);
-                tiffParser.setAutoInterleave(true);
+                tiffReader = new CachingTiffReader(sciContext, svsFile).setFiller(TIFF_FILLER);
+                tiffReader.setAutoInterleave(true);
                 // - should be removed in future versions, returning unpacked planes
-                ifdList = tiffParser.allIFD();
+                ifdList = tiffReader.allIFD();
                 long t2 = System.nanoTime();
                 LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                         "SVS parser opens file %s: %.3f ms", svsFile, (t2 - t1) * 1e-6));
@@ -937,13 +937,13 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
         private synchronized void freeResources() {
             try {
-                if (this.tiffParser != null) {
+                if (this.tiffReader != null) {
                     long t1 = System.nanoTime();
-                    tiffParser.close();
+                    tiffReader.close();
                     long t2 = System.nanoTime();
                     LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US,
                             "SVS parser closes file %s: %.3f ms", svsFile, (t2 - t1) * 1e-6));
-                    tiffParser = null;
+                    tiffReader = null;
                     ifdList = null;
                 }
             } catch (IOException e) {
