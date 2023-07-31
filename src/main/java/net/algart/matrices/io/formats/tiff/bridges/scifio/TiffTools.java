@@ -127,51 +127,77 @@ public class TiffTools {
         }
     }
 
-    public static Object planeBytesToJavaArray(byte[] samples, int pixelType, boolean littleEndian) {
+    public static Object bytesToArray(byte[] bytes, int pixelType, boolean littleEndian) {
+        Objects.requireNonNull(bytes, "Null bytes");
         switch (pixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> {
-                return samples;
+                return bytes;
             }
             case FormatTools.INT16, FormatTools.UINT16 -> {
-                final short[] shortValues = new short[samples.length / 2];
-                final ByteBuffer bb = ByteBuffer.wrap(samples);
-                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-                bb.asShortBuffer().get(shortValues);
-                return shortValues;
+                return bytesToShortArray(bytes, littleEndian);
             }
             case FormatTools.INT32, FormatTools.UINT32 -> {
-                final int[] intValues = new int[samples.length / 4];
-                final ByteBuffer bb = ByteBuffer.wrap(samples);
-                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-                bb.asIntBuffer().get(intValues);
-                return intValues;
+                return bytesToIntArray(bytes, littleEndian);
             }
             case FormatTools.FLOAT -> {
-                final float[] floatValues = new float[samples.length / 4];
-                final ByteBuffer bb = ByteBuffer.wrap(samples);
-                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-                bb.asFloatBuffer().get(floatValues);
-                return floatValues;
+                return bytesToFloatArray(bytes, littleEndian);
             }
             case FormatTools.DOUBLE -> {
-                final double[] doubleValues = new double[samples.length / 8];
-                final ByteBuffer bb = ByteBuffer.wrap(samples);
-                bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
-                bb.asDoubleBuffer().get(doubleValues);
-                return doubleValues;
+                return bytesToDoubleArray(bytes, littleEndian);
             }
         }
         throw new IllegalArgumentException("Unknown pixel type: " + pixelType);
     }
 
-    public static byte[] javaArrayToPlaneBytes(Object samplesArray, boolean signed, boolean littleEndian) {
-        int pixelType = arrayToPixelType(samplesArray, signed);
+    public static short[] bytesToShortArray(byte[] samples, boolean littleEndian) {
+        final short[] shortValues = new short[samples.length / 2];
+        final ByteBuffer bb = ByteBuffer.wrap(samples);
+        bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        bb.asShortBuffer().get(shortValues);
+        return shortValues;
+    }
+
+    public static int[] bytesToIntArray(byte[] samples, boolean littleEndian) {
+        final int[] intValues = new int[samples.length / 4];
+        final ByteBuffer bb = ByteBuffer.wrap(samples);
+        bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        bb.asIntBuffer().get(intValues);
+        return intValues;
+    }
+
+    public static long[] bytesToLongArray(byte[] samples, boolean littleEndian) {
+        final long[] longValues = new long[samples.length / 8];
+        final ByteBuffer bb = ByteBuffer.wrap(samples);
+        bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        bb.asLongBuffer().get(longValues);
+        return longValues;
+    }
+
+    public static float[] bytesToFloatArray(byte[] samples, boolean littleEndian) {
+        final float[] floatValues = new float[samples.length / 4];
+        final ByteBuffer bb = ByteBuffer.wrap(samples);
+        bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        bb.asFloatBuffer().get(floatValues);
+        return floatValues;
+    }
+
+    public static double[] bytesToDoubleArray(byte[] samples, boolean littleEndian) {
+        final double[] doubleValues = new double[samples.length / 8];
+        final ByteBuffer bb = ByteBuffer.wrap(samples);
+        bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+        bb.asDoubleBuffer().get(doubleValues);
+        return doubleValues;
+    }
+
+    public static byte[] arrayToBytes(Object javaArray, boolean littleEndian) {
+        int pixelType = arrayToPixelType(javaArray, false);
+        // - note: signed and unsigned values correspond to the same element types
         switch (pixelType) {
             case FormatTools.INT8, FormatTools.UINT8 -> {
-                return (byte[]) samplesArray;
+                return (byte[]) javaArray;
             }
             case FormatTools.INT16, FormatTools.UINT16 -> {
-                final short[] shortValues = (short[]) samplesArray;
+                final short[] shortValues = (short[]) javaArray;
                 final byte[] v = new byte[shortValues.length * 2];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
                 bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
@@ -179,7 +205,7 @@ public class TiffTools {
                 return v;
             }
             case FormatTools.INT32, FormatTools.UINT32 -> {
-                final int[] intValues = (int[]) samplesArray;
+                final int[] intValues = (int[]) javaArray;
                 final byte[] v = new byte[intValues.length * 4];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
                 bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
@@ -187,7 +213,7 @@ public class TiffTools {
                 return v;
             }
             case FormatTools.FLOAT -> {
-                final float[] floatValues = (float[]) samplesArray;
+                final float[] floatValues = (float[]) javaArray;
                 final byte[] v = new byte[floatValues.length * 4];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
                 bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
@@ -195,7 +221,7 @@ public class TiffTools {
                 return v;
             }
             case FormatTools.DOUBLE -> {
-                final double[] doubleValue = (double[]) samplesArray;
+                final double[] doubleValue = (double[]) javaArray;
                 final byte[] v = new byte[doubleValue.length * 8];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
                 bb.order(littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);

@@ -831,8 +831,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
         long t1 = debugTime();
-        final byte[] samples = TiffTools.javaArrayToPlaneBytes(
-                samplesArray, FormatTools.isSigned(pixelType), isLittleEndian());
+        final byte[] samples = TiffTools.arrayToBytes(samplesArray, isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,

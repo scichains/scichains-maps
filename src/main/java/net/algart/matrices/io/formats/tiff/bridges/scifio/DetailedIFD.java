@@ -562,10 +562,12 @@ public class DetailedIFD extends IFD {
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
             final int pixelType = getPixelType();
-            sb.append(" %s[%dx%d], precision %s, ".formatted(
+            sb.append(" %s[%dx%d], %s, precision %s%s, ".formatted(
                     TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName(),
                     imageWidth, imageLength,
-                    FormatTools.getPixelTypeString(pixelType)));
+                    isLittleEndian() ? "little-endian" : "big-endian",
+                    FormatTools.getPixelTypeString(pixelType),
+                    isBigTiff() ? " [BigTIFF]" : ""));
             if (isTiled()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
                         tilesPerRow,
@@ -599,9 +601,13 @@ public class DetailedIFD extends IFD {
         final Map<Integer, TiffIFDEntry> entries = this.entries;
         final Map<Integer, Object> sortedIFD = new TreeMap<>(this);
         for (Map.Entry<Integer, Object> entry : sortedIFD.entrySet()) {
-            sb.append(String.format("%n"));
             final Integer tag = entry.getKey();
             final Object v = entry.getValue();
+            if (tag == IFD.LITTLE_ENDIAN || tag == IFD.BIG_TIFF) {
+                // - not actual tags (but we still show REUSE: it should not occur in normal IFDs)
+                continue;
+            }
+            sb.append(String.format("%n"));
             Object additional = null;
             try {
                 switch (tag) {
@@ -675,7 +681,7 @@ public class DetailedIFD extends IFD {
      *
      * @param tag            entry Tag value.
      * @param includeNumeric include numeric value into the result.
-     * @return user-friendly name in a style of Java constant ("BIG_TIFF" etc.)
+     * @return user-friendly name in a style of Java constant
      */
     public static String ifdTagName(int tag, boolean includeNumeric) {
         String name = Objects.requireNonNullElse(IFDFriendlyNames.IFD_TAG_NAMES.get(tag), "Unknown tag");

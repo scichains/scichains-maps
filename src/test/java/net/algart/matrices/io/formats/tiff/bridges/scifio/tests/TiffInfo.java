@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 public class TiffInfo {
     public static void main(String[] args) throws IOException, FormatException {
@@ -47,6 +48,7 @@ public class TiffInfo {
         if (fileName.equals(".")) {
             final File[] files = new File(".").listFiles(TiffInfo::isPossiblyTIFF);
             assert files != null;
+            Arrays.sort(files);
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {
                 showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex);
@@ -71,7 +73,7 @@ public class TiffInfo {
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
                         tiffFile,
                         ifdCount,
-                        reader.isBigTiff() ? "BIG-TIFF" : "not big-TIFF",
+                        reader.isBigTiff() ? "BigTIFF" : "not BigTIFF",
                         reader.getStream().isLittleEndian() ? "little" : "big");
                 for (int k = 0; k < ifdCount; k++) {
                     if (k >= firstIFDIndex && k <= lastIFDIndex) {

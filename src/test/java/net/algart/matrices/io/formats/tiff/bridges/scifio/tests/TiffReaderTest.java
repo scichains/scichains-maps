@@ -82,18 +82,24 @@ public class TiffReaderTest {
         int h = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);
         final int numberOfTests = args.length <= ++startArgIndex ? 1 : Integer.parseInt(args[startArgIndex]);
 
-        TiffInfo.showTiffInfo(tiffFile);
+//        TiffInfo.showTiffInfo(tiffFile);
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = noContext ? null : scifio.getContext()) {
+            long t1 = System.nanoTime();
             final TiffReader reader = cache ?
                     new CachingTiffReader(context, tiffFile)
                             .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY):
                     new TiffReader(context, tiffFile);
+            long t2 = System.nanoTime();
 //            reader.setExtendedCodec(false);
             reader.setFiller((byte) 0x80);
-            System.out.printf("Opening %s by %s...%n", tiffFile, reader);
             final var ifds = reader.allIFD();
+            long t3 = System.nanoTime();
+            System.out.printf("Opening %s by %s in: %.3f ms opening, %.3f ms reading IFDs%n",
+                    tiffFile, reader,
+                    (t2 - t1) * 1e-6,
+                    (t3 - t2) * 1e-6);
             if (ifds.isEmpty()) {
                 System.out.println("No IFDs");
                 return;
@@ -117,9 +123,9 @@ public class TiffReaderTest {
                     System.out.printf("Reading data %dx%dx%d from %s%n",
                             w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
                 }
-                long t1 = System.nanoTime();
+                t1 = System.nanoTime();
                 array = reader.readSamplesArray(ifd, x, y, w, h);
-                long t2 = System.nanoTime();
+                t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);
                 System.gc();
