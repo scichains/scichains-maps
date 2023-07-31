@@ -748,11 +748,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (count == 1) {
                 return in.readUnsignedShort();
             }
-            final int[] shorts = new int[count];
-            for (int j = 0; j < count; j++) {
-                shorts[j] = in.readUnsignedShort();
+            if (OPTIMIZE_READING_IFD_ARRAYS) {
+                final byte[] bytes = readIFDBytes(2 * (long) count);
+                final short[] shorts = TiffTools.bytesToShortArray(bytes, in.isLittleEndian());
+                final int[] result = new int[count];
+                for (int j = 0; j < count; j++) {
+                    result[j] = shorts[j] & 0xFFFF;
+                }
+                return result;
+            } else {
+                final int[] shorts = new int[count];
+                for (int j = 0; j < count; j++) {
+                    shorts[j] = in.readUnsignedShort();
+                }
+                return shorts;
             }
-            return shorts;
         } else if (type == IFDType.LONG || type == IFDType.IFD) {
             // 32-bit (4-byte) unsigned integer
             if (count == 1) {
