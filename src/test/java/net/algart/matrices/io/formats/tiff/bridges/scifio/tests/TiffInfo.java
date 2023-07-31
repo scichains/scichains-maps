@@ -62,7 +62,7 @@ public class TiffInfo {
 
     public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
         try (TiffReader reader = new TiffReader(tiffFile, false)) {
-            if (!reader.isValidHeader()) {
+            if (!reader.isValid()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
                 reader.setRequireValidTiff(true);

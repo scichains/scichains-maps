@@ -1192,7 +1192,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.seek(ifdOffsets[ifdIndex]);
                     LOG.log(System.Logger.Level.TRACE, () ->
                             "Reading IFD from " + ifdOffsets[ifdIndex] + " for non-sequential writing");
-                    ifd = reader.getIFD(ifdOffsets[ifdIndex]);
+                    ifd = reader.readIFD(ifdOffsets[ifdIndex]);
                 }
             }
         }

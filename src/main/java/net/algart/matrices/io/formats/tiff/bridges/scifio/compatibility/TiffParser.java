@@ -26,10 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility;
 
 import io.scif.FormatException;
 import io.scif.codec.CodecOptions;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDList;
-import io.scif.formats.tiff.PhotoInterp;
-import io.scif.formats.tiff.TiffCompression;
+import io.scif.formats.tiff.*;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -118,6 +115,101 @@ public class TiffParser extends TiffReader {
     public IFDList getExifIFDs() throws FormatException, IOException {
         return toIFDList(allExifIFD());
     }
+
+    /**
+     * Tests this stream to see if it represents a TIFF file.
+     *
+     * <p>Deprecated. Use {@link #isValid()} instead.
+     */
+    @Deprecated
+    public boolean isValidHeader() {
+        try {
+            return checkHeader() != null;
+        } catch (final IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * >Deprecated. Use {@link #isValid()} and {@link #isBigTiff()} instead.
+     */
+    @Deprecated
+    public Boolean checkHeader() throws IOException {
+        final DataHandle<Location> in = getStream();
+        if (in.length() < 4) return null;
+
+        // byte order must be II or MM
+        in.seek(0);
+        final int endianOne = in.read();
+        final int endianTwo = in.read();
+        final boolean littleEndian = endianOne == TiffConstants.LITTLE &&
+                endianTwo == TiffConstants.LITTLE; // II
+        final boolean bigEndian = endianOne == TiffConstants.BIG &&
+                endianTwo == TiffConstants.BIG; // MM
+        if (!littleEndian && !bigEndian) return null;
+
+        // check magic number (42)
+        in.setLittleEndian(littleEndian);
+        final short magic = in.readShort();
+        // bigTiff = magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER;
+        // - already set by the constructor
+        if (magic != TiffConstants.MAGIC_NUMBER &&
+                magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER)
+        {
+            return null;
+        }
+
+        return littleEndian;
+    }
+
+
+    @Deprecated
+    public DetailedIFD getIFD(long offset) throws IOException {
+        if (offset < 0 || offset >= getStream().length()) {
+            return null;
+        }
+        return super.readIFD(offset);
+    }
+
+    /**
+     * Retrieve a given entry from the first IFD in the stream.
+     *
+     * @param tag the tag of the entry to be retrieved.
+     * @return an object representing the entry's fields.
+     * @throws IOException              when there is an error accessing the stream.
+     * @throws IllegalArgumentException when the tag number is unknown.
+     */
+    // TODO : Try to remove this method. It is only being used by
+    // loci.formats.in.MetamorphReader.
+    @Deprecated
+    public TiffIFDEntry getFirstIFDEntry(final int tag) throws IOException {
+        // Get the offset of the first IFD
+        final long offset = getFirstOffset();
+        if (offset < 0) {
+            return null;
+        }
+
+        final DataHandle<Location> in = getStream();
+        final boolean bigTiff = isBigTiff();
+
+        // The following loosely resembles the logic of readIFD()...
+        in.seek(offset);
+        final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
+
+        for (int i = 0; i < numEntries; i++) {
+            in.seek(offset + // The beginning of the IFD
+                    (bigTiff ? 8 : 2) + // The width of the initial numEntries field
+                    (bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
+                            : TiffConstants.BYTES_PER_ENTRY) * (long) i);
+
+            final TiffIFDEntry entry = readTiffIFDEntry();
+            if (entry.getTag() == tag) {
+                return entry;
+            }
+        }
+        throw new IllegalArgumentException("Unknown tag: " + tag);
+    }
+
 
     @Deprecated
     public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
