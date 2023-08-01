@@ -123,7 +123,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Cached first IFD in the current file.
      */
     private IFD firstIFD;
-
     private final SCIFIO scifio;
 
     /**
@@ -132,9 +131,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
     CodecOptions codecOptions = CodecOptions.getDefaultOptions();
 
     private volatile long positionOfLastOffset = -1;
-    private long timeRead = 0;
-    private long timeDecode = 0;
-    private long timeComplete = 0;
+    private long timeReading = 0;
+    private long timeCustomizingDecoding = 0;
+    private long timeDecoding = 0;
+    private long timeCompleteDecoding = 0;
 
     public TiffReader(Path file) throws IOException {
         this(null, file, true);
@@ -908,26 +908,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
-        long t1 = debugTime();
         TiffTile tile = readEncodedTile(tileIndex);
         if (tile.isEmpty()) {
             return tile;
         }
-        long t2 = debugTime();
-
         decode(tile);
-        long t3 = debugTime();
-
-        completeDecoding(tile);
-        long t4 = debugTime();
-        timeRead += t2 - t1;
-        timeDecode += t3 - t2;
-        timeComplete += t4 - t3;
         return tile;
     }
 
     public TiffTile readEncodedTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
+        long t1 = debugTime();
         final DetailedIFD ifd = tileIndex.ifd();
         final int xIndex = tileIndex.x();
         final int yIndex = tileIndex.y();
@@ -960,33 +951,22 @@ public class TiffReader extends AbstractContextual implements Closeable {
             // - empty result
             return result;
         }
+
         TiffTileIO.read(result, in, offset, byteCount);
+        long t2 = debugTime();
+        timeReading += t2 - t1;
         return result;
     }
 
     // Note: result is usually interleaved (RGBRGB...) or monochrome; it is always so in UNCOMPRESSED, LZW, DEFLATE
     public void decode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
+        long t1 = debugTime();
         correctEncodedJpegTile(tile);
 
         DetailedIFD ifd = tile.ifd();
         byte[] encodedData = tile.getEncodedData();
-        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
         final TiffCompression compression = ifd.getCompression();
-
-        codecOptions.littleEndian = ifd.isLittleEndian();
-        codecOptions.maxBytes = Math.max(samplesLength, encodedData.length);
-        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
-        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
-        // see documentation on YCbCrSubSampling TIFF tag.
-        // Default is [2,2].
-        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
-        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
-        codecOptions.ycbcr =
-                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                        && subSampleHorizontal == 1
-                        && yCbCrCorrection;
-        // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
         final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
         Codec codec = null;
@@ -997,14 +977,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             codec = known.noContextCodec();
             // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
         }
-        codecOptions.interleaved = !(codec instanceof ExtendedJPEGCodec || compression == TiffCompression.JPEG);
-        // - ExtendedJPEGCodec and standard codec JPEFCodec (it may be chosen below by scifio.codec(),
-        // but we are sure that JPEG compression will be served by it even in future versions)
-        // "understand" this settings well (unlike LZW or DECOMPRESSED codecs,
-        // which suppose that data are interleaved according TIFF format specification).
-        // Value "true" is necessary for other codecs, that work with high-level classes (like JPEG or JPEG-2000) and
-        // need to be instructed to interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is").
+        final CodecOptions codecOptions = buildReadingOptions(tile, codec);
 
+        long t2 = debugTime();
         if (codec != null) {
             tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
@@ -1015,6 +990,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
         }
         tile.setInterleaved(codecOptions.interleaved);
+        long t3 = debugTime();
+
+        completeDecoding(tile);
+        long t4 = debugTime();
+
+        timeCustomizingDecoding += t2 - t1;
+        timeDecoding += t3 - t2;
+        timeCompleteDecoding += t4 - t3;
     }
 
     public void correctEncodedJpegTile(TiffTile tile) throws FormatException {
@@ -1174,15 +1157,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
             long t4 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f load (%.3f read + %.3f decode + %.3f complete) + " +
+                            "%.3f read/decode " +
+                            "(%.3f read + %.3f customize + %.3f decode + %.3f complete) + " +
                             "%.3f unusual precisions + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, size / 1048576.0,
                     (t4 - t1) * 1e-6,
                     (t2 - t1) * 1e-6,
-                    timeRead * 1e-6,
-                    timeDecode * 1e-6,
-                    timeComplete * 1e-6,
+                    timeReading * 1e-6,
+                    timeCustomizingDecoding * 1e-6,
+                    timeDecoding * 1e-6,
+                    timeCompleteDecoding * 1e-6,
                     (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
                     size / 1048576.0 / ((t4 - t1) * 1e-9)));
         }
@@ -1242,6 +1227,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         in.close();
     }
 
+    private void clearTime() {
+        timeReading = 0;
+        timeCustomizingDecoding = 0;
+        timeDecoding = 0;
+        timeCompleteDecoding = 0;
+    }
+
     private Exception readAndTestHeader(AtomicBoolean bigTiff) {
         try {
             if (!in.exists()) {
@@ -1286,6 +1278,34 @@ public class TiffReader extends AbstractContextual implements Closeable {
             // (that is illogical, because "little-endian" mode was still changed)
         }
         return null;
+    }
+
+    private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
+        DetailedIFD ifd = tile.ifd();
+        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        CodecOptions codecOptions = new CodecOptions(this.codecOptions);
+        codecOptions.littleEndian = ifd.isLittleEndian();
+        codecOptions.maxBytes = Math.max(samplesLength, tile.getStoredDataLength());
+        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
+        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
+        // see documentation on YCbCrSubSampling TIFF tag.
+        // Default is [2,2].
+        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
+        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
+        codecOptions.ycbcr =
+                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+                        && subSampleHorizontal == 1
+                        && yCbCrCorrection;
+        // Rare case: Y_CB_CR is encoded with non-standard sub-sampling
+        codecOptions.interleaved =
+                !(customCodec instanceof ExtendedJPEGCodec || ifd.getCompression() == TiffCompression.JPEG);
+        // - ExtendedJPEGCodec and standard codec JPEFCodec (it may be chosen below by scifio.codec(),
+        // but we are sure that JPEG compression will be served by it even in future versions)
+        // "understand" this settings well (unlike LZW or DECOMPRESSED codecs,
+        // which suppose that data are interleaved according TIFF format specification).
+        // Value "true" is necessary for other codecs, that work with high-level classes (like JPEG or JPEG-2000) and
+        // need to be instructed to interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is").
+        return codecOptions;
     }
 
     private void readTiles(DetailedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
@@ -1441,30 +1461,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
         final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
-        final int numberOfChannels = tile.tileIndex().numberOfChannels();
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bps0);
         final boolean usualPrecision = equalBitsPerSample && (bps0 == 8 || bps0 == 16 || bps0 == 32 || bps0 == 64);
-        final boolean noDiv8 = bps0 % 8 != 0;
-
-        long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (!planar) {
-            sampleCount /= numberOfChannels;
-        }
-        if (sampleCount > Integer.MAX_VALUE) {
-            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
-        }
-
-        final long imageWidth = tile.getSizeX();
-        final long imageHeight = tile.getSizeY();
-
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int numberOfPixels = samplesLength / (numberOfChannels * bytesPerSample);
-
-        final boolean littleEndian = ifd.isLittleEndian();
-
-        final BitBuffer bb = new BitBuffer(bytes);
 
         // Hyper optimisation that takes any 8-bit or 16-bit data, where there is
         // only one channel, the source byte buffer's size is less than or equal to
@@ -1487,6 +1487,26 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.separateSamplesIfNecessary();
             return;
         }
+
+        final int numberOfChannels = tile.getNumberOfChannels();
+        final boolean noDiv8 = bps0 % 8 != 0;
+        long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
+        if (!planar) {
+            sampleCount /= numberOfChannels;
+        }
+        if (sampleCount > Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
+        }
+
+        final long imageWidth = tile.getSizeX();
+        final long imageHeight = tile.getSizeY();
+
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int numberOfPixels = samplesLength / (numberOfChannels * bytesPerSample);
+
+        final boolean littleEndian = ifd.isLittleEndian();
+
+        final BitBuffer bb = new BitBuffer(bytes);
 
         final byte[] unpacked = new byte[samplesLength];
 
@@ -1685,12 +1705,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         byte[] bytes = new byte[(int) length];
         in.readFully(bytes);
         return bytes;
-    }
-
-    private void clearTime() {
-        timeRead = 0;
-        timeDecode = 0;
-        timeComplete = 0;
     }
 
     private static int toUnsignedByte(double v) {

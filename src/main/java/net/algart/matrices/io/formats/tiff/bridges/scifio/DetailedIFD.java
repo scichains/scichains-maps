@@ -456,6 +456,9 @@ public class DetailedIFD extends IFD {
         final int result = bytesPerSample[0];
         // - for example, if we have 5 bits R + 6 bits G + 4 bits B, it will be ceil(6/8) = 1 byte;
         // usually the same for all components
+        if (result < 1) {
+            throw new FormatException("Invalid format: zero or negative bytes per sample = " + result);
+        }
         checkDifferentBytesPerSample(bytesPerSample);
         return result;
     }
@@ -689,6 +692,10 @@ public class DetailedIFD extends IFD {
             return name;
         }
         return "%s (%d or 0x%X)".formatted(name, tag, tag);
+    }
+
+    public static boolean isPseudoTag(int tag) {
+        return tag == LITTLE_ENDIAN || tag == BIG_TIFF || tag == REUSE;
     }
 
     private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {

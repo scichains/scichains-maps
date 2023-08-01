@@ -27,7 +27,6 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 import io.scif.FormatException;
 import io.scif.codec.*;
 import io.scif.gui.AWTImageTools;
-import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleInputStream;
 import org.scijava.io.location.Location;
@@ -48,28 +47,6 @@ public class ExtendedJPEGCodec extends AbstractCodec {
     @Parameter
     private CodecService codecService;
 
-    private boolean jpegInPhotometricRGB = false;
-
-    private double jpegQuality = 1.0;
-
-    public boolean isJpegInPhotometricRGB() {
-        return jpegInPhotometricRGB;
-    }
-
-    public ExtendedJPEGCodec setJpegInPhotometricRGB(boolean jpegInPhotometricRGB) {
-        this.jpegInPhotometricRGB = jpegInPhotometricRGB;
-        return this;
-    }
-
-    public double getJpegQuality() {
-        return jpegQuality;
-    }
-
-    public ExtendedJPEGCodec setJpegQuality(double jpegQuality) {
-        this.jpegQuality = jpegQuality;
-        return this;
-    }
-
     @Override
     public byte[] compress(byte[] data, CodecOptions options) throws FormatException {
         Objects.requireNonNull(data, "Null data");
@@ -82,6 +59,8 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
                     "(only 8-bit samples allowed)");
         }
+        final boolean photometricRGB = options instanceof ExtendedJPEGCodecOptions o && o.isPhotometricRGB();
+        final double quality = options.quality;
 
         final ByteArrayOutputStream result = new ByteArrayOutputStream();
         final BufferedImage image = AWTImageTools.makeImage(data, options.width,
@@ -96,15 +75,15 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             final ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
             writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
             writeParam.setCompressionType("JPEG");
-            writeParam.setCompressionQuality((float) jpegQuality);
+            writeParam.setCompressionQuality((float) quality);
             final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
-            if (jpegInPhotometricRGB) {
+            if (photometricRGB) {
                 writeParam.setDestinationType(imageTypeSpecifier);
                 // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
                 // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
             }
             final IIOMetadata metadata = jpegWriter.getDefaultImageMetadata(
-                    jpegInPhotometricRGB ? null : imageTypeSpecifier,
+                    photometricRGB ? null : imageTypeSpecifier,
                     writeParam);
             // - Important! imageType = null necessary for RGB, in other case setDestinationType will be ignored!
 

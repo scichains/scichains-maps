@@ -33,6 +33,7 @@ import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodecOptions;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -99,45 +100,27 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
-    /**
-     * Output stream to use when saving TIFF data.
-     */
-    private final DataHandle<Location> out;
 
-    /**
-     * Output Location.
-     */
-    private final Location location;
-
-    /**
-     * Whether or not to write BigTIFF data.
-     */
     private boolean bigTiff = false;
-
     private boolean writingSequentially = true;
-
     private boolean appendToExisting = false;
-
     private boolean autoInterleave = true;
-
     private Integer defaultStripHeight = 128;
-
-    /**
-     * The codec options if set.
-     */
     private CodecOptions codecOptions;
-
     private boolean extendedCodec = true;
-
     private boolean jpegInPhotometricRGB = false;
-
     private double jpegQuality = 1.0;
-
     private PhotoInterp predefinedPhotoInterpretation = null;
 
+    private final DataHandle<Location> out;
+    private final Location location;
     private final SCIFIO scifio;
-
     private final DataHandleService dataHandleService;
+
+    private long timeWriting = 0;
+    private long timePreparingDecoding = 0;
+    private long timeCustomizingEncoding = 0;
+    private long timeEncoding = 0;
 
     public TiffWriter(Context context, Path file) throws IOException {
         this(context, file, true);
@@ -451,17 +434,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
         final TreeSet<Integer> keys = new TreeSet<>(ifd.keySet());
-        int keyCount = keys.size();
-
-        if (ifd.containsKey(IFD.LITTLE_ENDIAN)) {
-            keyCount--;
-        }
-        if (ifd.containsKey(IFD.BIG_TIFF)) {
-            keyCount--;
-        }
-        if (ifd.containsKey(IFD.REUSE)) {
-            keyCount--;
-        }
+        final int keyCount = keys.size() - (int) ifd.keySet().stream().filter(DetailedIFD::isPseudoTag).count();
         // - Not counting pseudo-fields (not actually saved in TIFF)
 
         final long fp = out.offset();
@@ -488,7 +461,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final BytesLocation bytesLocation = new BytesLocation(0, "memory-buffer");
         try (final DataHandle<Location> extraHandle = TiffTools.getBytesHandle(bytesLocation)) {
             for (final Integer key : keys) {
-                if (key.equals(IFD.LITTLE_ENDIAN) || key.equals(IFD.BIG_TIFF) || key.equals(IFD.REUSE)) {
+                if (DetailedIFD.isPseudoTag(key)) {
                     continue;
                 }
 
@@ -700,6 +673,67 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    public void writeEncodedTile(TiffTile tile, boolean freeAfterWriting) throws IOException {
+        Objects.requireNonNull(tile, "Null tile");
+        long t1 = debugTime();
+        tile.setStoredDataFileOffset(out.length());
+        TiffTileIO.write(tile, out, freeAfterWriting);
+        long t2 = debugTime();
+        timeWriting += t2 - t1;
+    }
+
+
+    public void encode(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
+        long t1 = debugTime();
+        prepareEncoding(tile);
+        long t2 = debugTime();
+
+        DetailedIFD ifd = tile.ifd();
+        final int effectiveChannels = tile.getNumberOfChannels();
+        final int bytesPerSample = tile.getBytesPerSample();
+        final int size = tile.getNumberOfPixels();
+        final byte[] data = tile.getDecodedData();
+        if (size > data.length || (long) size * effectiveChannels > data.length / bytesPerSample) {
+            throw new IllegalArgumentException("Too short data array: " + data.length + " < " +
+                    size * effectiveChannels * bytesPerSample);
+        }
+
+        TiffCompression compression = ifd.getCompression();
+        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
+        if (known == null) {
+            throw new UnsupportedCompressionException("Compression \"" + compression.getCodecName() +
+                    "\" (TIFF code " + compression.getCode() + ") is not supported");
+        }
+        // - don't try to write unknown compressions: they may require additional processing
+
+        Codec codec = null;
+        if (extendedCodec) {
+            codec = known.extendedCodec(scifio == null ? null : scifio.getContext());
+        }
+        if (codec == null && scifio == null) {
+            codec = known.noContextCodec();
+            // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
+        }
+        final CodecOptions codecOptions = buildWritingOptions(tile, codec);
+        long t3 = debugTime();
+        if (codec != null) {
+            tile.setEncodedData(codec.compress(data, codecOptions));
+        } else {
+            if (scifio == null) {
+                throw new IllegalStateException(
+                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
+            }
+            tile.setEncodedData(compression.compress(scifio.codec(), data, codecOptions));
+        }
+        long t4 = debugTime();
+
+        timePreparingDecoding += t2 - t1;
+        timeCustomizingEncoding += t3 - t2;
+        timeEncoding += t4 - t3;
+    }
+
+
     public void writeSamples(DetailedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
             throws FormatException, IOException {
         if (!writingSequentially) {
@@ -746,6 +780,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samples, "Null samples");
+        clearTime();
         if (!writingSequentially) {
             if (appendToExisting) {
                 throw new IllegalStateException("appendToExisting mode can be used only together with " +
@@ -795,7 +830,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
         // synchronized.
         for (TiffTile tile : tiles) {
-            prepareEncoding(tile);
             encode(tile);
         }
         long t4 = debugTime();
@@ -808,13 +842,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             long t5 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f prepare + %.3f splitting " +
-                            "+ %.3f encoding + %.3f writing, %.3f MB/s",
+                            "%.3f initialize + %.3f splitting " +
+                            "+ %.3f/%.3f encoding/writing " +
+                            "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, numberOfBytes / 1048576.0,
                     (t5 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
                     (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
+                    timePreparingDecoding * 1e-6,
+                    timeCustomizingEncoding * 1e-6,
+                    timeEncoding * 1e-6,
+                    timeWriting * 1e-6,
                     numberOfBytes / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
     }
@@ -848,62 +887,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeSamples(ifd, samples, ifdIndex, numberOfChannels, pixelType, fromX, fromY, sizeX, sizeY, last);
     }
 
-    // Note: stripSamples is always interleaved (RGBRGB...) or monochrome.
-//    public byte[] encode(IFD ifd, byte[] stripSamples, int sizeX, int sizeY) throws FormatException {
-    public void encode(TiffTile tile) throws FormatException {
-        Objects.requireNonNull(tile, "Null tile");
-        DetailedIFD ifd = tile.ifd();
-        final int effectiveChannels = ifd.getPlanarConfiguration() == 1 ? ifd.getSamplesPerPixel() : 1;
-        final int bytesPerSample = ifd.getBytesPerSample()[0];
-        if (effectiveChannels < 1) {
-            throw new FormatException("Invalid format: zero or negative samples per pixel = " + effectiveChannels);
-        }
-        if (bytesPerSample < 1) {
-            throw new FormatException("Invalid format: zero or negative bytes per sample = " + bytesPerSample);
-        }
-        final int size = tile.getNumberOfPixels();
-        final byte[] stripSamples = tile.getDecodedData();
-        if (size > stripSamples.length || (long) size * effectiveChannels > stripSamples.length / bytesPerSample) {
-            throw new IllegalArgumentException("Too short stripSamples array: " + stripSamples.length + " < " +
-                    size * effectiveChannels * bytesPerSample);
-        }
-
-        TiffCompression compression = ifd.getCompression();
-        final CodecOptions codecOptions = compression.getCompressionCodecOptions(ifd, this.codecOptions);
-        codecOptions.width = tile.getSizeX();
-        codecOptions.height = tile.getSizeY();
-        codecOptions.channels = effectiveChannels;
-        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
-        if (known == null) {
-            throw new UnsupportedCompressionException("Compression \"" + compression.getCodecName() +
-                    "\" (TIFF code " + compression.getCode() + ") is not supported");
-        }
-        // - don't try to write unknown compressions: they may require additional processing
-
-        Codec codec = null;
-        if (extendedCodec) {
-            codec = known.extendedCodec(scifio == null ? null : scifio.getContext());
-            if (codec instanceof ExtendedJPEGCodec extendedJPEGCodec) {
-                extendedJPEGCodec
-                        .setJpegInPhotometricRGB(jpegInPhotometricRGB)
-                        .setJpegQuality(jpegQuality);
-            }
-        }
-        if (codec == null && scifio == null) {
-            codec = known.noContextCodec();
-            // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
-        }
-        if (codec != null) {
-            tile.setEncodedData(codec.compress(stripSamples, codecOptions));
-        } else {
-            if (scifio == null) {
-                throw new IllegalStateException(
-                        "Compression type " + compression + " requires specifying non-null SCIFIO context");
-            }
-            tile.setEncodedData(compression.compress(scifio.codec(), stripSamples, codecOptions));
-        }
-    }
-
 
     @Override
     public void close() throws IOException {
@@ -925,6 +908,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         TiffTools.differenceIfRequested(tile);
     }
 
+    private void clearTime() {
+        timeWriting = 0;
+        timeCustomizingEncoding = 0;
+        timePreparingDecoding = 0;
+        timeEncoding = 0;
+    }
+
+
     /**
      * Coverts a list to a primitive array.
      *
@@ -932,7 +923,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @return A primitive array of type {@code long[]} with the values from
      * </code>l</code>.
      */
-    private long[] toPrimitiveArray(final List<Long> l) {
+    private static long[] toPrimitiveArray(final List<Long> l) {
         final long[] toReturn = new long[l.size()];
         for (int i = 0; i < l.size(); i++) {
             toReturn[i] = l.get(i);
@@ -975,6 +966,19 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
+        DetailedIFD ifd = tile.ifd();
+        CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
+        if (customCodec instanceof ExtendedJPEGCodec) {
+            codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
+                    .setPhotometricRGB(jpegInPhotometricRGB)
+                    .setQuality(jpegQuality);
+        }
+        codecOptions.width = tile.getSizeX();
+        codecOptions.height = tile.getSizeY();
+        codecOptions.channels = tile.getNumberOfChannels();
+        return codecOptions;
+    }
 
     private void prepareValidIFD(final DetailedIFD ifd, int pixelType, int numberOfChannels) throws FormatException {
         final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
@@ -1043,7 +1047,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromX,
             final int fromY,
             final int sizeX,
-            final int sizeY) throws FormatException, IOException {
+            final int sizeY) throws FormatException {
         final boolean chunked = ifd.isContiguouslyChunked();
         final int imageSizeX = ifd.getImageSizeX();
         final int imageSizeY = ifd.getImageSizeY();
@@ -1246,16 +1250,15 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long fp = out.offset();
         writeIFD(ifd, 0);
 
+        for (TiffTile tile : tiles) {
+            writeEncodedTile(tile, true);
+        }
+
         for (int i = 0; i < tiles.size(); i++) {
             final TiffTile tile = tiles.get(i);
             final int thisOffset = firstOffset + i;
-            TiffTileIO.writeAndRemove(tile, out);
             offsets.set(thisOffset, tile.getStoredDataFileOffset());
             byteCounts.set(thisOffset, (long) tile.getStoredDataLength());
-            LOG.log(System.Logger.Level.TRACE,
-                    String.format("Writing tile/strip %d/%d size: %d offset: %d",
-                            thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(thisOffset)));
-
         }
         if (isTiled) {
             ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));

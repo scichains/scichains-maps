@@ -184,7 +184,7 @@ public class TiffTile {
         return setData(data).setEncoded(false);
     }
 
-    public TiffTile removeData() {
+    public TiffTile free() {
         this.data = null;
         return this;
     }
@@ -195,7 +195,7 @@ public class TiffTile {
      * immediately before/after writing it into file, this method returns the number of bytes,
      * which are actually stored in the file for this tile.
      *
-     * <p>Note: {@link #removeData()} method does not change this value! So, you can know the stored data size
+     * <p>Note: {@link #free()} method does not change this value! So, you can know the stored data size
      * even after freeing data inside this object.
      *
      * @return the length of the last non-null data array, which was stored in this object.

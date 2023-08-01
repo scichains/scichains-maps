@@ -25,7 +25,6 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import org.scijava.io.handle.DataHandle;
-import org.scijava.io.location.Location;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,13 +38,6 @@ public class TiffTileIO {
         Objects.requireNonNull(in, "Null input stream");
         tile.setStoredDataFileRange(filePosition, dataLength);
         read(tile, in);
-    }
-
-    public static void writeAndRemove(TiffTile tile, DataHandle<? extends Location> out) throws IOException {
-        Objects.requireNonNull(tile, "Null tile");
-        Objects.requireNonNull(out, "Null output stream");
-        tile.setStoredDataFileOffset(out.length());
-        write(tile, out, true);
     }
 
     public static void read(TiffTile tile, DataHandle<?> in) throws IOException {
@@ -63,15 +55,15 @@ public class TiffTileIO {
         tile.setEncodedData(data);
     }
 
-    public static void write(TiffTile tile, DataHandle<?> out, boolean removeAfterSave) throws IOException {
+    public static void write(TiffTile tile, DataHandle<?> out, boolean freeAfterWriting) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");
         final long filePosition = tile.getStoredDataFileOffset();
         byte[] encodedData = tile.getEncodedData();
         out.seek(filePosition);
         out.write(encodedData);
-        if (removeAfterSave) {
-            tile.removeData();
+        if (freeAfterWriting) {
+            tile.free();
         }
     }
 }
