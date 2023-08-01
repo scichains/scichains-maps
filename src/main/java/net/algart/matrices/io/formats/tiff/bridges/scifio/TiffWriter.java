@@ -673,8 +673,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    public void writeTile(TiffTile tile) throws FormatException, IOException {
+        encode(tile);
+        writeEncodedTile(tile, true);
+    }
+
     public void writeEncodedTile(TiffTile tile, boolean freeAfterWriting) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
+        if (tile.isEmpty()) {
+            return;
+        }
         long t1 = debugTime();
         tile.setStoredDataFileOffset(out.length());
         TiffTileIO.write(tile, out, freeAfterWriting);
@@ -682,9 +690,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeWriting += t2 - t1;
     }
 
-
     public void encode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
+        if (tile.isEmpty()) {
+            return;
+        }
         long t1 = debugTime();
         prepareEncoding(tile);
         long t2 = debugTime();
@@ -764,7 +774,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param fromY            The Y-coordinate of the top-left corner.
      * @param sizeX            The width of the rectangle.
      * @param sizeY            The height of the rectangle.
-     * @param last             Pass {@code true} if it is the last image, {@code false}
+     * @param lastIFD          Pass {@code true} if it is the last image, {@code false}
      *                         otherwise.
      * @throws FormatException
      * @throws IOException
@@ -776,7 +786,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int numberOfChannels,
             final int pixelType,
             final int fromX, final int fromY, final int sizeX, final int sizeY,
-            final boolean last)
+            final boolean lastIFD)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         Objects.requireNonNull(samples, "Null samples");
@@ -827,8 +837,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         // Compress tiles according to given differencing and compression schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
-        // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
-        // synchronized.
+        // methods stack that is NOT synchronized.
         for (TiffTile tile : tiles) {
             encode(tile);
         }
@@ -836,7 +845,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         // This operation is synchronized
         synchronized (this) {
-            writeSamplesAndIFD(ifd, ifdIndex, tiles, numberOfChannels, last, fromX, fromY);
+            writeSamplesAndIFD(ifd, ifdIndex, tiles, numberOfChannels, fromX, fromY, lastIFD);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
@@ -1053,7 +1062,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final int imageSizeY = ifd.getImageSizeY();
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
-        assert numberOfChannels == ifd.getSamplesPerPixel() : "SamplesPerPixel not correctly set by prepareValidIFD";
         ifd.sizeOfTile(bytesPerSample);
         // - checks that tile sizes are non-negative and <2^31,
         // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
@@ -1162,19 +1170,19 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param ifd      The Image File Directories. Mustn't be {@code null}.
      * @param ifdIndex The image index within the current file, starting from 0.
      * @param tiles    The strips/tiles to write to the file.
-     * @param last     Pass {@code true} if it is the last image, {@code false}
+     * @param fromX    The initial X offset of the strips/tiles to write.
+     * @param fromY    The initial Y offset of the strips/tiles to write.
+     * @param lastIFD  Pass {@code true} if it is the last image, {@code false}
      *                 otherwise.
-     * @param x        The initial X offset of the strips/tiles to write.
-     * @param y        The initial Y offset of the strips/tiles to write.
      * @throws FormatException
      * @throws IOException
      */
-    //TODO!! use new saveTile method of TiffTileWriter
     private void writeSamplesAndIFD(
             DetailedIFD ifd, final Integer ifdIndex,
-            final List<TiffTile> tiles, final int nChannels, final boolean last,
-            final int x,
-            final int y) throws FormatException, IOException {
+            final List<TiffTile> tiles, final int numberOfChannels,
+            final int fromX, final int fromY,
+            final boolean lastIFD)
+            throws FormatException, IOException {
         final int tilesPerRow = (int) ifd.getTilesPerRow();
         final int tilesPerColumn = (int) ifd.getTilesPerColumn();
         final boolean interleaved = ifd.getPlanarConfiguration() == 1;
@@ -1207,7 +1215,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long totalTiles = (long) tilesPerRow * (long) tilesPerColumn;
 
         if (!interleaved) {
-            totalTiles *= nChannels;
+            totalTiles *= numberOfChannels;
         }
 
         if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS)) {
@@ -1222,10 +1230,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 byteCounts.add(0L);
             }
         }
-        final int tileOrStripOffsetX = x / (int) ifd.getTileWidth();
-        final int tileOrStripOffsetY = y / (int) ifd.getTileLength();
-        final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
-                tileOrStripOffsetX;
+        final int tileXIndex = fromX / (int) ifd.getTileWidth();
+        final int tileYIndex = fromY / (int) ifd.getTileLength();
+        final int firstTileIndex = (tileYIndex * tilesPerRow) + tileXIndex;
         if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(IFD.TILE_OFFSETS)) {
             final long[] ifdOffsets = isTiled ?
                     ifd.getIFDLongArray(IFD.TILE_OFFSETS) :
@@ -1256,7 +1263,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         for (int i = 0; i < tiles.size(); i++) {
             final TiffTile tile = tiles.get(i);
-            final int thisOffset = firstOffset + i;
+            final int thisOffset = firstTileIndex + i;
             offsets.set(thisOffset, tile.getStoredDataFileOffset());
             byteCounts.set(thisOffset, (long) tile.getStoredDataLength());
         }
@@ -1278,7 +1285,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         out.seek(fp);
 
-        writeIFD(ifd, last ? 0 : endFP);
+        writeIFD(ifd, lastIFD ? 0 : endFP);
         // - rewriting IFD with already filled offsets (not too quick, but quick enough)
         out.seek(endFP);
         // - restoring correct file pointer at the end of tile

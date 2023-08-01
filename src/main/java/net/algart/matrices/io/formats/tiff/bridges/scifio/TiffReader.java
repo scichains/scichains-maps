@@ -641,7 +641,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (valueOffset != in.offset() && !cachingIFDs) {
                 value = entry;
             } else {
-                value = getIFDValue(entry);
+                value = readIFDValue(entry);
             }
             long tEntry3 = traceTime();
             timeArrays += tEntry3 - tEntry2;
@@ -678,15 +678,16 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         for (final TiffIFDEntry entry : entries) {
             if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
-                ifd.put(entry.getTag(), getIFDValue(entry));
+                ifd.put(entry.getTag(), readIFDValue(entry));
             }
         }
     }
 
     /**
      * Retrieve the value corresponding to the given TiffIFDEntry.
+     * Sometimes used to postpone actual reading data until actual necessity.
      */
-    public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
+    public Object readIFDValue(final TiffIFDEntry entry) throws IOException {
         final IFDType type = entry.getType();
         final int count = entry.getValueCount();
         final long offset = entry.getValueOffset();
@@ -948,7 +949,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final TiffTile result = new TiffTile(tileIndex);
         if (byteCount == 0 || offset < 0 || offset >= in.length()) {
-            // - empty result
+            // - We support a special case of empty result
             return result;
         }
 

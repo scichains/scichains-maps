@@ -171,14 +171,20 @@ public class TiffParser extends TiffReader {
         return super.readIFD(offset);
     }
 
-    /**
-     * Retrieve a given entry from the first IFD in the stream.
-     *
-     * @param tag the tag of the entry to be retrieved.
-     * @return an object representing the entry's fields.
-     * @throws IOException              when there is an error accessing the stream.
-     * @throws IllegalArgumentException when the tag number is unknown.
-     */
+    @Deprecated
+    public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
+        return super.readIFDValue(entry);
+    }
+
+
+        /**
+         * Retrieve a given entry from the first IFD in the stream.
+         *
+         * @param tag the tag of the entry to be retrieved.
+         * @return an object representing the entry's fields.
+         * @throws IOException              when there is an error accessing the stream.
+         * @throws IllegalArgumentException when the tag number is unknown.
+         */
     // TODO : Try to remove this method. It is only being used by
     // loci.formats.in.MetamorphReader.
     @Deprecated
