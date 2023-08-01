@@ -169,15 +169,15 @@ public class TiffWriterTest {
                     if (tiled) {
                         ifd.putTileSizes(64, 64);
                     }
+                    ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
+                    ifd.putPlanarSeparated(planarSeparated);
                     if (difference) {
                         ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
+                        // - unusual mode: no special putXxx method
                     }
                     if (reverseBits) {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
-                    }
-                    ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
-                    if (planarSeparated) {
-                        ifd.putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
+                        // - unusual mode: no special putXxx method
                     }
                     writer.writeSamplesArray(ifd, samplesArray,
                             ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,

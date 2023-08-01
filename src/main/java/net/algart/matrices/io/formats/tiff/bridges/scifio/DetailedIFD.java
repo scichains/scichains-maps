@@ -500,11 +500,58 @@ public class DetailedIFD extends IFD {
     }
 
     public DetailedIFD putCompression(TiffCompression compression) {
+        return putCompression(compression, false);
+    }
+
+    public DetailedIFD putCompression(TiffCompression compression, boolean keepDefaultValue) {
+        if (compression == null && keepDefaultValue) {
+            compression = TiffCompression.UNCOMPRESSED;
+        }
         if (compression == null) {
             remove(IFD.COMPRESSION);
         } else {
             putIFDValue(IFD.COMPRESSION, compression.getCode());
         }
+        return this;
+    }
+
+    public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
+        if (planarSeparated) {
+            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
+        } else {
+            remove(IFD.PLANAR_CONFIGURATION);
+        }
+        return this;
+    }
+
+    /**
+     * Puts pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel.
+     *
+     * <p>Note: this method is called by {@link TiffWriter} automatically, you should not call it yourself usually.
+     *
+     * @param numberOfChannels number of channels (in other words, number of samples per every pixel).
+     * @param pixelType        pixel type.
+     * @return a reference to this object.
+     */
+    public DetailedIFD putSamplesInformation(int numberOfChannels, int pixelType) {
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
+        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        final boolean signed = FormatTools.isSigned(pixelType);
+        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
+        final int bitsPerSample = 8 * bytesPerPixel;
+        final int[] bpsArray = new int[numberOfChannels];
+        Arrays.fill(bpsArray, bitsPerSample);
+        putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+        if (floatingPoint) {
+            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
+        } else if (signed) {
+            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
+        } else {
+            remove(IFD.SAMPLE_FORMAT);
+        }
+        putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
         return this;
     }
 

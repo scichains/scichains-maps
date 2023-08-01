@@ -55,7 +55,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             return data;
         }
 
-        if (options.bitsPerSample > 8) {
+        if (options.bitsPerSample != 8) {
             throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
                     "(only 8-bit samples allowed)");
         }

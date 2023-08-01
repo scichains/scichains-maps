@@ -824,10 +824,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used in getCompressionCodecOptions
 
-        prepareValidIFD(ifd, pixelType, numberOfChannels);
-
-        // These operations are synchronized
         long t2 = debugTime();
+        prepareValidIFD(ifd, numberOfChannels, pixelType);
+        // Note: we must prepare IFD BEFORE splitting tiles!
+        // In other case, TiffTile objects will be created with invalid IFD characteristics
+        // like number of channels, number of bytes per sample etc.
         final List<TiffTile> tiles;
         synchronized (this) {
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
@@ -989,20 +990,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void prepareValidIFD(final DetailedIFD ifd, int pixelType, int numberOfChannels) throws FormatException {
-        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
-        final boolean signed = FormatTools.isSigned(pixelType);
-        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
-        final int bitsPerSample = 8 * bytesPerPixel;
-        final int[] bpsArray = new int[numberOfChannels];
-        Arrays.fill(bpsArray, bitsPerSample);
-        ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+    private void prepareValidIFD(final DetailedIFD ifd, int numberOfChannels, int pixelType) throws FormatException {
+        ifd.putSamplesInformation(numberOfChannels, pixelType);
 
-        if (floatingPoint) {
-            ifd.putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
-        } else if (signed) {
-            ifd.putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
-        }
         Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
         if (compressionValue == null) {
             compressionValue = TiffCompression.UNCOMPRESSED.getCode();
@@ -1011,10 +1001,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
         final boolean jpeg = compressionValue.equals(TiffCompression.JPEG.getCode());
-        if (jpeg && (signed || bytesPerPixel != 1)) {
+        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        if (jpeg && (FormatTools.isSigned(pixelType) || bytesPerPixel != 1)) {
             throw new FormatException("JPEG compression is not supported for %d-bit%s samples (\"%s\"): %s (\"%s\")"
                     .formatted(
-                            bitsPerSample, signed & !floatingPoint ? " signed" : "",
+                            8 * bytesPerPixel,
+                            FormatTools.isSigned(pixelType) & !FormatTools.isFloatingPoint(pixelType) ?
+                                    " signed" : "",
                             FormatTools.getPixelTypeString(pixelType),
                             "only unsigned 8-bit samples allowed",
                             FormatTools.getPixelTypeString(FormatTools.UINT8)));
@@ -1027,7 +1020,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                                         PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
 
-        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
 
 //        if (ifd.get(IFD.X_RESOLUTION) == null) {
 //            ifd.putIFDValue(IFD.X_RESOLUTION, new TiffRational(1, 1));
@@ -1057,6 +1049,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromY,
             final int sizeX,
             final int sizeY) throws FormatException {
+        Objects.requireNonNull(ifd, "Null IFD");
         final boolean chunked = ifd.isContiguouslyChunked();
         final int imageSizeX = ifd.getImageSizeX();
         final int imageSizeY = ifd.getImageSizeY();

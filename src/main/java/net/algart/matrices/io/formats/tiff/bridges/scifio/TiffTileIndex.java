@@ -29,8 +29,9 @@ import io.scif.FormatException;
 import java.util.Objects;
 
 /**
- * TIFF tile index, based of row, column and IDF identity hash code.
- * Of course, identity hash code cannot provide a good universal cache,
+ * TIFF tile index, based of row, column and IDF reference (not content).
+ * <p>Note: for hashing this object uses IFD identity hash code.
+ * Of course, this  cannot provide a good universal hash,
  * but it is quite enough for optimizing usage of TiffParser:
  * usually we will not create new identical IFDs.
  *
@@ -43,10 +44,24 @@ public final class TiffTileIndex {
     private final int tileSizeX;
     private final int tileSizeY;
     private final int sizeOfTileBasedOnBits;
+    // - Note: we store here information about samples and tiles structure, but
+    // SHOULD NOT store information about image sizes (like number of tiles):
+    // it is probable that we do not know final sizes while creating tiles of the image!
     private final int ifdIdentity;
     private final int x;
     private final int y;
 
+    /**
+     * Creates new tile index.
+     *
+     * <p>Note: you should not change the tags of the passed IFD, describing pixel type, number of samples
+     * and tile sizes, after creating this object. The constructor saves this information in this object
+     * (it is available via access methods) and will not be renewed automatically.
+     *
+     * @param ifd IFD.
+     * @param x   x-index of the tile (0, 1, 2, ...).
+     * @param y   y-index of the tile (0, 1, 2, ...).
+     */
     public TiffTileIndex(DetailedIFD ifd, int x, int y) {
         Objects.requireNonNull(ifd, "Null IFD");
         if (x < 0) {
@@ -129,9 +144,15 @@ public final class TiffTileIndex {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final TiffTileIndex tileIndex = (TiffTileIndex) o;
-        return x == tileIndex.x && ifdIdentity == tileIndex.ifdIdentity && y == tileIndex.y;
-
+        final TiffTileIndex that = (TiffTileIndex) o;
+        return x == that.x && y == that.y &&
+                ifd == that.ifd &&
+                numberOfChannels == that.numberOfChannels && bytesPerSample == that.bytesPerSample &&
+                tileSizeX == that.tileSizeX && tileSizeY == that.tileSizeY &&
+                sizeOfTileBasedOnBits == that.sizeOfTileBasedOnBits;
+        // - Important! Comparing references to IFD, not content!
+        // Moreover, it makes sense to compare fields, calculated ON THE BASE of IFD:
+        // they may change as a result of changing the content of the same IFD.
     }
 
     @Override

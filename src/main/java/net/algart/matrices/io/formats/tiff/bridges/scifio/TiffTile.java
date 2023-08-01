@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  *
  * @author Denial Alievsky
  */
-public class TiffTile {
+public final class TiffTile {
     private final TiffTileIndex tileIndex;
     private final DetailedIFD ifd;
     private int sizeX;
@@ -294,6 +294,32 @@ public class TiffTile {
                 tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
                 (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
                 (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        TiffTile tiffTile = (TiffTile) o;
+        return sizeX == tiffTile.sizeX && sizeY == tiffTile.sizeY &&
+                numberOfPixels == tiffTile.numberOfPixels &&
+                interleaved == tiffTile.interleaved && encoded == tiffTile.encoded &&
+                storedDataFileOffset == tiffTile.storedDataFileOffset &&
+                storedDataLength == tiffTile.storedDataLength &&
+                Objects.equals(tileIndex, tiffTile.tileIndex) &&
+                Arrays.equals(data, tiffTile.data);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(tileIndex, sizeX, sizeY, numberOfPixels,
+                interleaved, encoded, storedDataFileOffset, storedDataLength);
+        result = 31 * result + Arrays.hashCode(data);
+        return result;
     }
 
     public static List<TiffTile> newGrid(DetailedIFD ifd) {
