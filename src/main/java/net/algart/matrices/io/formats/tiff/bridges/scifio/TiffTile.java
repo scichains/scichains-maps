@@ -24,7 +24,10 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
-import java.util.Objects;
+import io.scif.FormatException;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * TIFF tile: container for samples (encoded or decoded) with given {@link TiffTileIndex index}.
@@ -291,6 +294,33 @@ public class TiffTile {
                 tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
                 (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
                 (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "");
+    }
+
+    public static List<TiffTile> newGrid(DetailedIFD ifd) {
+        Objects.requireNonNull(ifd, "Null IFD");
+        final int numTileCols;
+        final int numTileRows;
+        try {
+            numTileCols = (int) ifd.getTilesPerRow();
+            numTileRows = (int) ifd.getTilesPerColumn();
+            if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
+                throw new FormatException("Too large number of tiles/strips: "
+                        + numTileRows + " * " + numTileCols + " > 2^31-1");
+            }
+        } catch (FormatException e) {
+            throw new IllegalArgumentException("Illegal IFD: cannot determine amount of tiles", e);
+        }
+        final List<TiffTile> tiles = new ArrayList<>();
+        for (int y = 0; y < numTileRows; y++) {
+            for (int x = 0; x < numTileCols; x++) {
+                tiles.add(new TiffTile(ifd, x, y));
+            }
+        }
+        return tiles;
+    }
+
+    public static Map<TiffTileIndex, TiffTile> newGridMap(DetailedIFD ifd) {
+        return newGrid(ifd).stream().collect(Collectors.toMap(TiffTile::tileIndex, tile -> tile));
     }
 
     protected void checkEmpty() {

@@ -586,6 +586,14 @@ public class TiffTools {
     }
 
     static int checkedMul(
+            long v1, long v2, long v3,
+            String n1, String n2, String n3,
+            Supplier<String> prefix,
+            Supplier<String> postfix) throws FormatException {
+        return checkedMul(new long[]{v1, v2, v3}, new String[]{n1, n2, n3}, prefix, postfix);
+    }
+
+    static int checkedMul(
             long v1, long v2, long v3, long v4,
             String n1, String n2, String n3, String n4,
             Supplier<String> prefix,

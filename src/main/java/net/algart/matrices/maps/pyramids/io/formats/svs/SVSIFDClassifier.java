@@ -303,7 +303,7 @@ public final class SVSIFDClassifier {
     }
 
     static String sizesToString(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null ifd");
+        Objects.requireNonNull(ifd, "Null IFD");
         try {
             return ifd.getImageWidth() + "x" + ifd.getImageLength();
         } catch (FormatException e) {
@@ -312,7 +312,7 @@ public final class SVSIFDClassifier {
     }
 
     static String compressionToString(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null ifd");
+        Objects.requireNonNull(ifd, "Null IFD");
         try {
             return String.valueOf(ifd.getCompression());
         } catch (FormatException e) {

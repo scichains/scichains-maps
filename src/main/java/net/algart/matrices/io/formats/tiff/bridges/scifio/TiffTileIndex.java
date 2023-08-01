@@ -48,7 +48,7 @@ public final class TiffTileIndex {
     private final int y;
 
     public TiffTileIndex(DetailedIFD ifd, int x, int y) {
-        Objects.requireNonNull(ifd, "Null ifd");
+        Objects.requireNonNull(ifd, "Null IFD");
         if (x < 0) {
             throw new IllegalArgumentException("Negative x = " + x);
         }
