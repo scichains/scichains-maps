@@ -700,8 +700,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t2 = debugTime();
 
         DetailedIFD ifd = tile.ifd();
-        final int effectiveChannels = tile.getNumberOfChannels();
-        final int bytesPerSample = tile.getBytesPerSample();
+        final int effectiveChannels = tile.numberOfChannels();
+        final int bytesPerSample = tile.bytesPerSample();
         final int size = tile.getNumberOfPixels();
         final byte[] data = tile.getDecodedData();
         if (size > data.length || (long) size * effectiveChannels > data.length / bytesPerSample) {
@@ -742,7 +742,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeCustomizingEncoding += t3 - t2;
         timeEncoding += t4 - t3;
     }
-
 
     public void writeSamples(DetailedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
             throws FormatException, IOException {
@@ -829,24 +828,26 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // Note: we must prepare IFD BEFORE splitting tiles!
         // In other case, TiffTile objects will be created with invalid IFD characteristics
         // like number of channels, number of bytes per sample etc.
-        final List<TiffTile> tiles;
+        final TiffTileSet tileSet;
         synchronized (this) {
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
-            tiles = splitTiles(samples, ifd, numberOfChannels, bytesPerSample, fromX, fromY, sizeX, sizeY);
+            tileSet = splitTiles(samples, ifd, numberOfChannels, bytesPerSample, fromX, fromY, sizeX, sizeY);
         }
         long t3 = debugTime();
 
         // Compress tiles according to given differencing and compression schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
         // methods stack that is NOT synchronized.
-        for (TiffTile tile : tiles) {
+        for (TiffTile tile : tileSet.tiles()) {
             encode(tile);
         }
         long t4 = debugTime();
 
         // This operation is synchronized
         synchronized (this) {
-            writeSamplesAndIFD(ifd, ifdIndex, tiles, numberOfChannels, fromX, fromY, lastIFD);
+            writeSamplesAndIFD(
+                    ifd, ifdIndex, new ArrayList<>(tileSet.tiles()),
+                    numberOfChannels, fromX, fromY, lastIFD);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
@@ -986,7 +987,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         codecOptions.width = tile.getSizeX();
         codecOptions.height = tile.getSizeY();
-        codecOptions.channels = tile.getNumberOfChannels();
+        codecOptions.channels = tile.numberOfChannels();
         return codecOptions;
     }
 
@@ -1040,7 +1041,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 //        }
     }
 
-    private List<TiffTile> splitTiles(
+    private TiffTileSet splitTiles(
             final byte[] samples,
             final DetailedIFD ifd,
             final int numberOfChannels,
@@ -1050,9 +1051,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int sizeX,
             final int sizeY) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
+        //TODO!! checkRequestedArea
         final boolean chunked = ifd.isContiguouslyChunked();
-        final int imageSizeX = ifd.getImageSizeX();
-        final int imageSizeY = ifd.getImageSizeY();
+        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
+        final int imageSizeX = tileSet.getSizeX();
+        final int imageSizeY = tileSet.getSizeY();
         final int channelSize = sizeX * sizeY * bytesPerSample;
 
         ifd.sizeOfTile(bytesPerSample);
@@ -1102,7 +1105,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 final int xOffset = xIndex * tileSizeX;
                 assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
                 final int x = fromX + xOffset;
-                final TiffTileIndex tiffTileIndex = new TiffTileIndex(ifd, x / tileSizeX, y / tileSizeY);
+                final TiffTileIndex tiffTileIndex = tileSet.newTileIndex(x / tileSizeX, y / tileSizeY);
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (alreadyInterleaved) {
                     final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
@@ -1153,7 +1156,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 }
             }
         }
-        return List.of(tiles);
+        return tileSet.addAll(List.of(tiles));
     }
 
     /**

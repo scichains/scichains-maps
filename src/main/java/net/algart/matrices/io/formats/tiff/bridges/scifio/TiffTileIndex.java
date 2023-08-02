@@ -24,29 +24,20 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
-import io.scif.FormatException;
-
 import java.util.Objects;
 
 /**
- * TIFF tile index, based of row, column and IDF reference (not content).
+ * TIFF tile index, based of row, column and IFD reference (not content).
+ *
  * <p>Note: for hashing this object uses IFD identity hash code.
  * Of course, this  cannot provide a good universal hash,
- * but it is quite enough for optimizing usage of TiffParser:
- * usually we will not create new identical IFDs.
+ * but it is quite enough for our needs: usually we will not create new identical tile sets.
  *
  * @author Denial Alievsky
  */
 public final class TiffTileIndex {
+    private final TiffTileSet tileSet;
     private final DetailedIFD ifd;
-    private final int numberOfChannels;
-    private final int bytesPerSample;
-    private final int tileSizeX;
-    private final int tileSizeY;
-    private final int sizeOfTileBasedOnBits;
-    // - Note: we store here information about samples and tiles structure, but
-    // SHOULD NOT store information about image sizes (like number of tiles):
-    // it is probable that we do not know final sizes while creating tiles of the image!
     private final int ifdIdentity;
     private final int x;
     private final int y;
@@ -54,16 +45,12 @@ public final class TiffTileIndex {
     /**
      * Creates new tile index.
      *
-     * <p>Note: you should not change the tags of the passed IFD, describing pixel type, number of samples
-     * and tile sizes, after creating this object. The constructor saves this information in this object
-     * (it is available via access methods) and will not be renewed automatically.
-     *
-     * @param ifd IFD.
-     * @param x   x-index of the tile (0, 1, 2, ...).
-     * @param y   y-index of the tile (0, 1, 2, ...).
+     * @param tileSet containing tile set.
+     * @param x       x-index of the tile (0, 1, 2, ...).
+     * @param y       y-index of the tile (0, 1, 2, ...).
      */
-    public TiffTileIndex(DetailedIFD ifd, int x, int y) {
-        Objects.requireNonNull(ifd, "Null IFD");
+    public TiffTileIndex(TiffTileSet tileSet, int x, int y) {
+        Objects.requireNonNull(tileSet, "Null containing tile set");
         if (x < 0) {
             throw new IllegalArgumentException("Negative x = " + x);
         }
@@ -73,50 +60,21 @@ public final class TiffTileIndex {
         // Note: we could check here also that x and y are in range of all tiles for this IFD, but it is a bad idea:
         // 1) while building new TIFF, we probably do not know actual images sizes until getting all tiles;
         // 2) number of tiles in column may be calculated in non-trivial way, if PLANAR_CONFIGURATION tag is 2
-        this.ifd = ifd;
+        this.tileSet = tileSet;
+        this.ifd = tileSet.ifd();
         this.ifdIdentity = System.identityHashCode(ifd);
         // - not a universal solution, but suitable for our optimization needs:
         // usually we do not create new IFD instances without necessity
-        try {
-            this.numberOfChannels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
-            this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-            this.tileSizeX = ifd.getTileSizeX();
-            this.tileSizeY = ifd.getTileSizeY();
-            if ((long) tileSizeX * (long) tileSizeY > Integer.MAX_VALUE) {
-                throw new FormatException("Very large tile " + tileSizeX + "x" + tileSizeY +
-                        " >= 2^31 pixels is not supported");
-                // - note that it is also checked deeper in the next operator
-            }
-            this.sizeOfTileBasedOnBits = ifd.sizeOfTile(this.bytesPerSample);
-        } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal IFD: cannot determine tile sizes", e);
-        }
         this.x = x;
         this.y = y;
     }
 
+    public TiffTileSet tileSet() {
+        return tileSet;
+    }
+
     public DetailedIFD ifd() {
-        return ifd;
-    }
-
-    public int numberOfChannels() {
-        return numberOfChannels;
-    }
-
-    public int bytesPerSample() {
-        return bytesPerSample;
-    }
-
-    public int tileSizeX() {
-        return tileSizeX;
-    }
-
-    public int tileSizeY() {
-        return tileSizeY;
-    }
-
-    public int sizeOfTileBasedOnBits() {
-        return sizeOfTileBasedOnBits;
+        return tileSet.ifd();
     }
 
     public int x() {
@@ -145,14 +103,10 @@ public final class TiffTileIndex {
             return false;
         }
         final TiffTileIndex that = (TiffTileIndex) o;
-        return x == that.x && y == that.y &&
-                ifd == that.ifd &&
-                numberOfChannels == that.numberOfChannels && bytesPerSample == that.bytesPerSample &&
-                tileSizeX == that.tileSizeX && tileSizeY == that.tileSizeY &&
-                sizeOfTileBasedOnBits == that.sizeOfTileBasedOnBits;
-        // - Important! Comparing references to IFD, not content!
-        // Moreover, it makes sense to compare fields, calculated ON THE BASE of IFD:
-        // they may change as a result of changing the content of the same IFD.
+        return x == that.x && y == that.y && ifd == that.ifd;
+        // - Important! Comparing references to IFD, not content and not tile set!
+        // Different tile sets may refer to the same IFD;
+        // on the other hand, we usually do not need to create identical IFDs.
     }
 
     @Override

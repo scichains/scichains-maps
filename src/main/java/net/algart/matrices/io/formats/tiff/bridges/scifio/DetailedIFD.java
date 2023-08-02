@@ -309,6 +309,10 @@ public class DetailedIFD extends IFD {
         return getImageSizeY();
     }
 
+    public boolean hasImageSizes() {
+        return containsKey(IMAGE_WIDTH) && containsKey(IMAGE_LENGTH);
+    }
+
     //!! Better analog of IFD.getImageWidth()
     public int getImageSizeX() throws FormatException {
         final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
@@ -602,6 +606,10 @@ public class DetailedIFD extends IFD {
 
     @Override
     public String toString() {
+        return toString(true);
+    }
+
+    public String toString(boolean detailed) {
         final StringBuilder sb = new StringBuilder("IFD");
         sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
         try {
@@ -647,6 +655,9 @@ public class DetailedIFD extends IFD {
         }
         if (offset != null) {
             sb.append(" (offset @%d=0x%X)".formatted(offset, offset));
+        }
+        if (!detailed) {
+            return sb.toString();
         }
         final Map<Integer, TiffIFDEntry> entries = this.entries;
         final Map<Integer, Object> sortedIFD = new TreeMap<>(this);

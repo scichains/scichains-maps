@@ -220,9 +220,10 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
             throws FormatException, IOException {
-        TiffTileIndex tileIndex = new TiffTileIndex(DetailedIFD.extend(ifd), col, row);
+        TiffTileSet tileSet = new TiffTileSet(DetailedIFD.extend(ifd), false);
+        TiffTileIndex tileIndex = tileSet.newTileIndex(col, row);
         if (buf == null) {
-            buf = new byte[tileIndex.sizeOfTileBasedOnBits()];
+            buf = new byte[tileSet.sizeOfTileBasedOnBits()];
         }
         TiffTile tile = readTile(tileIndex);
         if (!tile.isEmpty()) {

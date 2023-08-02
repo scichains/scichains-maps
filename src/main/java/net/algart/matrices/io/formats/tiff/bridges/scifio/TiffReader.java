@@ -947,7 +947,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         */
 
-        final TiffTile result = new TiffTile(tileIndex);
+        final TiffTile result = tileIndex.newTile();
         if (byteCount == 0 || offset < 0 || offset >= in.length()) {
             // - We support a special case of empty result
             return result;
@@ -1283,7 +1283,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
-        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
         CodecOptions codecOptions = new CodecOptions(this.codecOptions);
         codecOptions.littleEndian = ifd.isLittleEndian();
         codecOptions.maxBytes = Math.max(samplesLength, tile.getStoredDataLength());
@@ -1318,8 +1318,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // though TIFF supports maximal sizes 2^32 x 2^32
         // (IFD.getImageWidth/getImageLength do not allow so large results)
 
-        final int tileSizeX = ifd.getTileSizeX();
-        final int tileSizeY = ifd.getTileSizeY();
+        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
+        final int tileSizeX = tileSet.tileSizeX();
+        final int tileSizeY = tileSet.tileSizeY();
         final int numTileCols = ifd.getTilesPerRow(tileSizeX);
         final int numTileRows = ifd.getTilesPerColumn(tileSizeY);
         // - If the image is not really tiled, we will work with full image size.
@@ -1367,7 +1368,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             int effectiveYIndex = cs * numTileRows + minRow;
             for (int yIndex = minRow; yIndex <= maxRow; yIndex++, effectiveYIndex++) {
                 for (int xIndex = minCol; xIndex <= maxCol; xIndex++) {
-                    final TiffTile tile = readTile(new TiffTileIndex(ifd, xIndex, effectiveYIndex));
+                    final TiffTile tile = readTile(tileSet.newTileIndex(xIndex, effectiveYIndex));
                     if (tile.isEmpty()) {
                         continue;
                     }
@@ -1461,7 +1462,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
 
         final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
-        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bps0);
@@ -1489,7 +1490,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return;
         }
 
-        final int numberOfChannels = tile.getNumberOfChannels();
+        final int numberOfChannels = tile.numberOfChannels();
         final boolean noDiv8 = bps0 % 8 != 0;
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!planar) {
@@ -1575,7 +1576,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     "(separated component plances)");
         }
 
-        final int samplesLength = tile.tileIndex().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
         final int[] bitsPerSample = ifd.getBitsPerSample();
 
         final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();

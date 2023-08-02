@@ -24,10 +24,7 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
-import io.scif.FormatException;
-
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * TIFF tile: container for samples (encoded or decoded) with given {@link TiffTileIndex index}.
@@ -35,8 +32,8 @@ import java.util.stream.Collectors;
  * @author Denial Alievsky
  */
 public final class TiffTile {
+    private final TiffTileSet tileSet;
     private final TiffTileIndex tileIndex;
-    private final DetailedIFD ifd;
     private int sizeX;
     private int sizeY;
     private int numberOfPixels;
@@ -47,29 +44,29 @@ public final class TiffTile {
     private int storedDataLength = 0;
 
     public TiffTile(TiffTileIndex tileIndex) {
-        this.tileIndex = Objects.requireNonNull(tileIndex);
-        this.ifd = tileIndex.ifd();
-        setSizes(tileIndex.tileSizeX(), tileIndex().tileSizeY());
+        this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
+        this.tileSet = tileIndex.tileSet();
+        setSizes(tileSet.tileSizeX(), tileSet.tileSizeY());
     }
 
-    public TiffTile(DetailedIFD ifd, int x, int y) {
-        this(new TiffTileIndex(ifd, x, y));
+    public TiffTileSet tileSet() {
+        return tileSet;
     }
 
-    public final TiffTileIndex tileIndex() {
+    public DetailedIFD ifd() {
+        return tileSet.ifd();
+    }
+
+    public TiffTileIndex tileIndex() {
         return tileIndex;
     }
 
-    public final DetailedIFD ifd() {
-        return ifd;
+    public int numberOfChannels() {
+        return tileSet.numberOfChannels();
     }
 
-    public int getNumberOfChannels() {
-        return tileIndex.numberOfChannels();
-    }
-
-    public int getBytesPerSample() {
-        return tileIndex.bytesPerSample();
+    public int bytesPerSample() {
+        return tileSet.bytesPerSample();
     }
 
     public int getSizeX() {
@@ -163,7 +160,7 @@ public final class TiffTile {
         return this;
     }
 
-    public final byte[] getEncodedData() {
+    public byte[] getEncodedData() {
         checkEmpty();
         if (!isEncoded()) {
             throw new IllegalStateException("TIFF tile is not encoded: " + this);
@@ -171,11 +168,11 @@ public final class TiffTile {
         return getData();
     }
 
-    public final TiffTile setEncodedData(byte[] data) {
+    public TiffTile setEncodedData(byte[] data) {
         return setData(data).setEncoded(true);
     }
 
-    public final byte[] getDecodedData() {
+    public byte[] getDecodedData() {
         checkEmpty();
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile is not decoded: " + this);
@@ -183,7 +180,7 @@ public final class TiffTile {
         return getData();
     }
 
-    public final TiffTile setDecodedData(byte[] data) {
+    public TiffTile setDecodedData(byte[] data) {
         return setData(data).setEncoded(false);
     }
 
@@ -268,7 +265,7 @@ public final class TiffTile {
         if (isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already interleaved: " + this);
         }
-        data = TiffTools.toInterleavedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toInterleavedSamples(data, numberOfChannels(), bytesPerSample(), getNumberOfPixels());
         setInterleaved(true);
         setDecodedData(data);
         return this;
@@ -279,7 +276,7 @@ public final class TiffTile {
         if (!isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already separated: " + this);
         }
-        data = TiffTools.toSeparatedSamples(data, getNumberOfChannels(), getBytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toSeparatedSamples(data, numberOfChannels(), bytesPerSample(), getNumberOfPixels());
         setInterleaved(false);
         setDecodedData(data);
         return this;
@@ -290,10 +287,10 @@ public final class TiffTile {
         return "TIFF " +
                 (encoded ? "encoded" : "decoded") +
                 (interleaved ? " interleaved" : "") +
-                " tile " +
-                tileIndex.tileSizeX() + "x" + tileIndex.tileSizeY() + " at " + tileIndex +
+                " tile at " + tileIndex +
                 (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
-                (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "");
+                (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "") +
+                ", stored in " + tileSet;
     }
 
     @Override
@@ -312,6 +309,7 @@ public final class TiffTile {
                 storedDataLength == tiffTile.storedDataLength &&
                 Objects.equals(tileIndex, tiffTile.tileIndex) &&
                 Arrays.equals(data, tiffTile.data);
+        // Note: doesn't check containingSet to avoid infinite recursion!
     }
 
     @Override
@@ -320,36 +318,10 @@ public final class TiffTile {
                 interleaved, encoded, storedDataFileOffset, storedDataLength);
         result = 31 * result + Arrays.hashCode(data);
         return result;
+        // Note: doesn't check containingSet to avoid infinite recursion!
     }
 
-    public static List<TiffTile> newGrid(DetailedIFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
-        final int numTileCols;
-        final int numTileRows;
-        try {
-            numTileCols = (int) ifd.getTilesPerRow();
-            numTileRows = (int) ifd.getTilesPerColumn();
-            if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
-                throw new FormatException("Too large number of tiles/strips: "
-                        + numTileRows + " * " + numTileCols + " > 2^31-1");
-            }
-        } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal IFD: cannot determine amount of tiles", e);
-        }
-        final List<TiffTile> tiles = new ArrayList<>();
-        for (int y = 0; y < numTileRows; y++) {
-            for (int x = 0; x < numTileCols; x++) {
-                tiles.add(new TiffTile(ifd, x, y));
-            }
-        }
-        return tiles;
-    }
-
-    public static Map<TiffTileIndex, TiffTile> newGridMap(DetailedIFD ifd) {
-        return newGrid(ifd).stream().collect(Collectors.toMap(TiffTile::tileIndex, tile -> tile));
-    }
-
-    protected void checkEmpty() {
+    private void checkEmpty() {
         if (data == null) {
             throw new IllegalStateException("TIFF tile is still not filled by any data: " + this);
         }

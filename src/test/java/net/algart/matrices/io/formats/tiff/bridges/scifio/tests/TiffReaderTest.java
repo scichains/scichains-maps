@@ -61,9 +61,9 @@ public class TiffReaderTest {
             cache = true;
             startArgIndex++;
         }
-        boolean tinyCache = false;
+        boolean tiny = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-tiny")) {
-            tinyCache = true;
+            tiny = true;
             startArgIndex++;
         }
 
@@ -89,7 +89,7 @@ public class TiffReaderTest {
             long t1 = System.nanoTime();
             final TiffReader reader = cache ?
                     new CachingTiffReader(context, tiffFile)
-                            .setMaxCachingMemory(tinyCache ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY):
+                            .setMaxCachingMemory(tiny ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY):
                     new TiffReader(context, tiffFile);
             long t2 = System.nanoTime();
 //            reader.setExtendedCodec(false);
