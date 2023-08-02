@@ -43,14 +43,14 @@ public class DetailedIFD extends IFD {
     /**
      * Contiguous (chunked) samples format (PlanarConfiguration), for example: RGBRGBRGB....
      */
-    public static final int PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED = 1;
+    public static final int PLANAR_CONFIGURATION_CHUNKED = 1;
 
     /**
      * Planar samples format (PlanarConfiguration), for example: RRR...GGG...BBB...
      * Note: the specification adds a warning that PlanarConfiguration=2 is not in widespread use and
      * that Baseline TIFF readers are not required to support it.
      */
-    public static final int PLANAR_CONFIG_SEPARATE = 2;
+    public static final int PLANAR_CONFIGURATION_SEPARATE = 2;
 
     public static final int SAMPLE_FORMAT_UINT = 1;
     public static final int SAMPLE_FORMAT_INT = 2;
@@ -204,7 +204,7 @@ public class DetailedIFD extends IFD {
         assert rowsPerStrip <= Integer.MAX_VALUE :
                 "getImageLength() inside getRowsPerStrip() did not check that result is 31-bit";
         long numberOfStrips = (getImageLength() + rowsPerStrip - 1) / rowsPerStrip;
-        if (getPlanarConfiguration() == PLANAR_CONFIG_SEPARATE) {
+        if (getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE) {
             numberOfStrips *= getSamplesPerPixel();
         }
 
@@ -289,12 +289,12 @@ public class DetailedIFD extends IFD {
 
     // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
-        return getPlanarConfiguration() == PLANAR_CONFIG_SEPARATE;
+        return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;
     }
 
     // Usually true: PlanarConfiguration=2 is not in widespread use
-    public boolean isContiguouslyChunked() throws FormatException {
-        return getPlanarConfiguration() == PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED;
+    public boolean isChunked() throws FormatException {
+        return getPlanarConfiguration() == PLANAR_CONFIGURATION_CHUNKED;
     }
 
     public boolean isReversedBits() throws FormatException {
@@ -521,7 +521,7 @@ public class DetailedIFD extends IFD {
 
     public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
         if (planarSeparated) {
-            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIG_SEPARATE);
+            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
         } else {
             remove(IFD.PLANAR_CONFIGURATION);
         }
@@ -649,7 +649,7 @@ public class DetailedIFD extends IFD {
             sb.append(" [cannot detect sizes information: ").append(e.getMessage()).append("]");
         }
         try {
-            sb.append(isContiguouslyChunked() ? ", chunked" : ", planar");
+            sb.append(isChunked() ? ", chunked" : ", planar");
         } catch (Exception e) {
             sb.append(" [").append(e.getMessage()).append("]");
         }
@@ -677,8 +677,8 @@ public class DetailedIFD extends IFD {
                     case IFD.PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
-                                case PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED -> additional = "chunky";
-                                case PLANAR_CONFIG_SEPARATE -> additional = "rarely-used planar";
+                                case PLANAR_CONFIGURATION_CHUNKED -> additional = "chunky";
+                                case PLANAR_CONFIGURATION_SEPARATE -> additional = "rarely-used planar";
                             }
                         }
                     }

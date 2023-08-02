@@ -40,14 +40,15 @@ public class TiffExtractTileContent {
         if (args.length < startArgIndex + 5) {
             System.out.println("Usage:");
             System.out.println("    " + TiffExtractTileContent.class.getName() +
-                    " some_tiff_file result.jpg/png/dat ifdIndex tileCol tileRow");
+                    " some_tiff_file result.jpg/png/dat ifdIndex tileCol tileRow [separatedPlaneIndex]");
             return;
         }
         final Path tiffFile = Paths.get(args[startArgIndex++]);
         final Path resultFile = Paths.get(args[startArgIndex++]);
         final int ifdIndex = Integer.parseInt(args[startArgIndex++]);
         final int col = Integer.parseInt(args[startArgIndex++]);
-        final int row = Integer.parseInt(args[startArgIndex]);
+        final int row = Integer.parseInt(args[startArgIndex++]);
+        final int separatedPlaneIndex = startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 0;
 
         TiffInfo.showTiffInfo(tiffFile);
 
@@ -58,7 +59,7 @@ public class TiffExtractTileContent {
             final DetailedIFD ifd = reader.ifd(ifdIndex);
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
             final TiffTileSet tileSet = new TiffTileSet(ifd, false);
-            final TiffTileIndex tileIndex = tileSet.newTileIndex(col, row);
+            final TiffTileIndex tileIndex = tileSet.universalTileIndex(separatedPlaneIndex, col, row);
             TiffTile tile = reader.readEncodedTile(tileIndex);
             reader.correctEncodedJpegTile(tile);
             byte[] bytes = tile.getData();

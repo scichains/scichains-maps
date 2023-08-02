@@ -61,8 +61,8 @@ public final class TiffTile {
         return tileIndex;
     }
 
-    public int numberOfChannels() {
-        return tileSet.numberOfChannels();
+    public int channelsPerPixel() {
+        return tileSet.channelsPerPixel();
     }
 
     public int bytesPerSample() {
@@ -265,7 +265,7 @@ public final class TiffTile {
         if (isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already interleaved: " + this);
         }
-        data = TiffTools.toInterleavedSamples(data, numberOfChannels(), bytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toInterleavedSamples(data, channelsPerPixel(), bytesPerSample(), getNumberOfPixels());
         setInterleaved(true);
         setDecodedData(data);
         return this;
@@ -276,7 +276,7 @@ public final class TiffTile {
         if (!isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already separated: " + this);
         }
-        data = TiffTools.toSeparatedSamples(data, numberOfChannels(), bytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toSeparatedSamples(data, channelsPerPixel(), bytesPerSample(), getNumberOfPixels());
         setInterleaved(false);
         setDecodedData(data);
         return this;

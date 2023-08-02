@@ -447,15 +447,14 @@ public class TiffTools {
     // and to fix a bug: it was not work with tiles, only with strips.
     public static void differenceIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        final IFD ifd = tile.ifd();
+        final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
             final boolean little = ifd.isLittleEndian();
-            final int planarConfig = ifd.getPlanarConfiguration();
             final int bytes = ifd.getBytesPerSample()[0];
-            final int len = bytes * (planarConfig == 2 ? 1 : bitsPerSample.length);
+            final int len = bytes * (ifd.isPlanarSeparated() ? 1 : bitsPerSample.length);
             final long xSize = tile.getSizeX();
             final long xSizeInBytes = xSize * len;
 
@@ -491,16 +490,15 @@ public class TiffTools {
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
     public static void undifferenceIfRequested(TiffTile tile) throws FormatException {
-        final IFD ifd = tile.ifd();
+        final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
             final boolean little = ifd.isLittleEndian();
-            final int planarConfig = ifd.getPlanarConfiguration();
 
             final int bytes = ifd.getBytesPerSample()[0];
-            final int len = bytes * (planarConfig == DetailedIFD.PLANAR_CONFIG_SEPARATE ? 1 : bitsPerSample.length);
+            final int len = bytes * (ifd.isPlanarSeparated() ? 1 : bitsPerSample.length);
             final long xSize = tile.getSizeX();
             final long xSizeInBytes = xSize * len;
 

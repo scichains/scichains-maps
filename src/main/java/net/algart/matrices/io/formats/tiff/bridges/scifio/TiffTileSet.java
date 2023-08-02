@@ -32,7 +32,10 @@ public final class TiffTileSet {
     private final DetailedIFD ifd;
     private final Map<TiffTileIndex, TiffTile> tileMap = new LinkedHashMap<>();
     private final boolean resizable;
+    private final boolean planarSeparated;
     private final int numberOfChannels;
+    private final int numberOfSeparatedPlanes;
+    private final int channelsPerPixel;
     private final int bytesPerSample;
     private final int tileSizeX;
     private final int tileSizeY;
@@ -65,7 +68,10 @@ public final class TiffTileSet {
                 throw new IllegalArgumentException("IFD sizes (ImageWidth and ImageLength) are not specified; " +
                         "it is not allowed for non-resizable tile set");
             }
-            this.numberOfChannels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
+            this.planarSeparated = ifd.isPlanarSeparated();
+            this.numberOfChannels = ifd.getSamplesPerPixel();
+            this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
+            this.channelsPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
@@ -83,30 +89,17 @@ public final class TiffTileSet {
         }
     }
 
-    public static TiffTileSet newFixedGrid(DetailedIFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
+    public static TiffTileSet newImageGrid(DetailedIFD ifd) {
         final TiffTileSet tileSet = new TiffTileSet(ifd, false);
-        final int numTileCols;
-        final int numTileRows;
-        try {
-            numTileCols = (int) ifd.getTilesPerRow();
-            numTileRows = (int) ifd.getTilesPerColumn();
-            //TODO!! replace with tileSet fields
-        } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal IFD: cannot determine amount of tiles", e);
-        }
-        final List<TiffTile> tiles = new ArrayList<>();
-        for (int y = 0; y < numTileRows; y++) {
-            for (int x = 0; x < numTileCols; x++) {
-                tiles.add(tileSet.newTileIndex(x, y).newTile());
-            }
-        }
-        return tileSet.addAll(tiles);
+        return tileSet.addImageGrid();
     }
 
+    public TiffTileIndex chunkedTileIndex(int x, int y) {
+        return new TiffTileIndex(this, 0, x, y);
+    }
 
-    public TiffTileIndex newTileIndex(int x, int y) {
-        return new TiffTileIndex(this, x, y);
+    public TiffTileIndex universalTileIndex(int separatedPlaneIndex, int x, int y) {
+        return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
     public DetailedIFD ifd() {
@@ -125,8 +118,20 @@ public final class TiffTileSet {
         return resizable;
     }
 
+    public boolean isPlanarSeparated() {
+        return planarSeparated;
+    }
+
     public int numberOfChannels() {
         return numberOfChannels;
+    }
+
+    public int numberOfSeparatedPlanes() {
+        return numberOfSeparatedPlanes;
+    }
+
+    public int channelsPerPixel() {
+        return channelsPerPixel;
     }
 
     public int bytesPerSample() {
@@ -158,6 +163,10 @@ public final class TiffTileSet {
         return this;
     }
 
+    public TiffTileSet clear() {
+        tileMap.clear();
+        return this;
+    }
 
     public TiffTileSet add(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
@@ -176,6 +185,26 @@ public final class TiffTileSet {
         return this;
     }
 
+    public TiffTileSet addImageGrid() {
+        final int numTileCols;
+        final int numTileRows;
+        try {
+            numTileCols = (int) ifd.getTilesPerRow();
+            numTileRows = (int) ifd.getTilesPerColumn();
+            //TODO!! replace with tileSet fields
+        } catch (FormatException e) {
+            throw new IllegalArgumentException("Illegal IFD: cannot determine amount of tiles", e);
+        }
+        for (int p = 0; p < numberOfSeparatedPlanes; p++) {
+            for (int y = 0; y < numTileRows; y++) {
+                for (int x = 0; x < numTileCols; x++) {
+                    add(universalTileIndex(p, x, y).newTile());
+                }
+            }
+        }
+        return this;
+    }
+
     @Override
     public String toString() {
         return "Set of " + tileMap.size() + " TIFF tiles in the image " + ifd.toString(false);
@@ -190,9 +219,13 @@ public final class TiffTileSet {
             return false;
         }
         TiffTileSet that = (TiffTileSet) o;
-        return ifd == that.ifd && resizable == that.resizable && sizeX == that.sizeX && sizeY == that.sizeY &&
+        return ifd == that.ifd &&
+                resizable == that.resizable &&
+                sizeX == that.sizeX && sizeY == that.sizeY &&
                 Objects.equals(tileMap, that.tileMap) &&
-                numberOfChannels == that.numberOfChannels && bytesPerSample == that.bytesPerSample &&
+                planarSeparated == that.planarSeparated &&
+                numberOfChannels == that.numberOfChannels &&
+                bytesPerSample == that.bytesPerSample &&
                 tileSizeX == that.tileSizeX && tileSizeY == that.tileSizeY &&
                 sizeOfTileBasedOnBits == that.sizeOfTileBasedOnBits;
         // - Important! Comparing references to IFD, not content!
@@ -203,7 +236,7 @@ public final class TiffTileSet {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ifd, tileMap, resizable, sizeX, sizeY);
+        return Objects.hash(System.identityHashCode(ifd), tileMap, resizable, sizeX, sizeY);
     }
 
     private void setSizes(int sizeX, int sizeY, boolean checkResizable) {

@@ -231,14 +231,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>If set, then the samples array in <tt>writeImage</tt> methods is always supposed to be unpacked.
      * For multichannel images it means the samples order like RRR..GGG..BBB...: standard form, supposed by
      * {@link io.scif.Plane} class and returned by {@link TiffReader}. If the desired IFD format is
-     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link DetailedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}
+     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED}
      * (that is the typical usage), then the passes samples are automatically re-packed into chunked (interleaved)
      * form RGBRGBRGB...
      *
      * <p>If this mode is not set, as well as if {@link IFD#PLANAR_CONFIGURATION} is
-     * {@link DetailedIFD#PLANAR_CONFIG_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
-     * RRR...GGG..BBB...  for {@link DetailedIFD#PLANAR_CONFIG_SEPARATE} or as interleaved RGBRGBRGB...
-     * for {@link DetailedIFD#PLANAR_CONFIG_CONTIGUOUSLY_CHUNKED}.
+     * {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
+     * RRR...GGG..BBB...  for {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE} or as interleaved RGBRGBRGB...
+     * for {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED}.
      *
      * <p>Note that this mode has no effect for 1-channel images.
      *
@@ -700,7 +700,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t2 = debugTime();
 
         DetailedIFD ifd = tile.ifd();
-        final int effectiveChannels = tile.numberOfChannels();
+        final int effectiveChannels = tile.channelsPerPixel();
         final int bytesPerSample = tile.bytesPerSample();
         final int size = tile.getNumberOfPixels();
         final byte[] data = tile.getDecodedData();
@@ -987,7 +987,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         codecOptions.width = tile.getSizeX();
         codecOptions.height = tile.getSizeY();
-        codecOptions.channels = tile.numberOfChannels();
+        codecOptions.channels = tile.channelsPerPixel();
         return codecOptions;
     }
 
@@ -1016,7 +1016,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final PhotoInterp pi = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation :
                 indexed ? PhotoInterp.RGB_PALETTE :
                         numberOfChannels == 1 ? PhotoInterp.BLACK_IS_ZERO :
-                                jpeg && ifd.isContiguouslyChunked() && !compressJPEGInPhotometricRGB() ?
+                                jpeg && ifd.isChunked() && !compressJPEGInPhotometricRGB() ?
                                         PhotoInterp.Y_CB_CR :
                                         PhotoInterp.RGB;
         ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
@@ -1052,7 +1052,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int sizeY) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         //TODO!! checkRequestedArea
-        final boolean chunked = ifd.isContiguouslyChunked();
+        final boolean chunked = ifd.isChunked();
         final TiffTileSet tileSet = new TiffTileSet(ifd, false);
         final int imageSizeX = tileSet.getSizeX();
         final int imageSizeY = tileSet.getSizeY();
@@ -1105,9 +1105,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 final int xOffset = xIndex * tileSizeX;
                 assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
                 final int x = fromX + xOffset;
-                final TiffTileIndex tiffTileIndex = tileSet.newTileIndex(x / tileSizeX, y / tileSizeY);
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (alreadyInterleaved) {
+                    final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                            0, x / tileSizeX, y / tileSizeY);
                     final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
                     final byte[] data = new byte[tileSize];
@@ -1122,6 +1123,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 } else if (chunked) {
                     // - source data are separated, but result should be interleaved;
                     // so, we must prepare correct separated tile (it will be interleaved later)
+                    final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                            0, x / tileSizeX, y / tileSizeY);
                     final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     final byte[] data = new byte[tileSize];
@@ -1141,6 +1144,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int c = 0; c < numberOfChannels; c++) {
+                        final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                                c, x / tileSizeX, y / tileSizeY);
                         final byte[] data = new byte[tileSize];
                         // - zero-filled by Java
                         final int channelOffset = c * channelSize;
