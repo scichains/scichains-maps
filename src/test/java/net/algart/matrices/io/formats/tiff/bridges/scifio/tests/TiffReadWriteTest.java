@@ -174,13 +174,13 @@ public class TiffReadWriteTest {
                         buf1 = new byte[bytes.length];
                         byte[] buf2 = new byte[bytes.length];
                         //noinspection deprecation
-                        parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH,
+                        parser.getSamples(parserIFD, buf1, START_X, START_Y, paddedW, paddedH,
                                 0, 0);
                         // - this deprecated method is a legacy from old code
-                        originalParser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        originalParser.getSamples(parserIFD, buf2, START_X, START_Y, paddedW, paddedH);
                         if (!Arrays.equals(buf1, bytes) || !Arrays.equals(buf2, bytes)) {
                             compareResults(buf1, bytes, "Other parsing matrix");
-                            compareResults(buf1, buf2, "Old parser");
+                            compareResults(buf2, bytes, "Old parser");
                             throw new AssertionError();
                         }
                         sequentialTiffWriter.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);

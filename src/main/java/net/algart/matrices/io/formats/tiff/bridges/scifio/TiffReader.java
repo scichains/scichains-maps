@@ -1326,6 +1326,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfSeparatedPlanes = tileSet.numberOfSeparatedPlanes();
         final int channelsPerPixel = tileSet.channelsPerPixel();
 
+//        final int toX = fromX + sizeX;
+//        final int toY = fromY + sizeY;
         final int toX = Math.min(fromX + sizeX, tileSet.getSizeX());
         final int toY = Math.min(fromY + sizeY, tileSet.getSizeY());
         // - crop by image sizes to avoid reading unpredictable content of the boundary tiles outside the image
