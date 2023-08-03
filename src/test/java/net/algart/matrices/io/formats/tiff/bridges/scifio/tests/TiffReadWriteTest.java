@@ -39,6 +39,7 @@ import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -117,9 +118,13 @@ public class TiffReadWriteTest {
                 io.scif.formats.tiff.TiffParser originalParser = null;
                 SequentialTiffWriter sequentialTiffWriter = null;
                 if (legacy) {
-                    FileLocation locaion = new FileLocation(sourceFile.toFile());
-                    parser = new TiffParser(context, locaion);
-                    originalParser = new io.scif.formats.tiff.TiffParser(context, locaion);
+                    if (context == null) {
+                        throw new UnsupportedEncodingException("No-context mode is not supported by legacy code");
+                    }
+                    FileLocation location = new FileLocation(sourceFile.toFile());
+                    parser = new TiffParser(context, location);
+                    parser.setAllowReadingBoundaryTilesOutsideImage(true);
+                    originalParser = new io.scif.formats.tiff.TiffParser(context, location);
                     sequentialTiffWriter = new SequentialTiffWriter(context, targetExperimentalFile)
                             .setBigTiff(bigTiff)
                             .setLittleEndian(true)

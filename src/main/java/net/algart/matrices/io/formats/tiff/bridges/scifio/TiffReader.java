@@ -104,6 +104,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean autoInterleave = false;
     private boolean autoUnpackUnusualPrecisions = true;
     private boolean extendedCodec = true;
+    private boolean allowReadingBoundaryTilesOutsideImage = false;
     private boolean use64BitOffsets = false;
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
@@ -302,6 +303,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     public TiffReader setExtendedCodec(boolean extendedCodec) {
         this.extendedCodec = extendedCodec;
+        return this;
+    }
+
+    public boolean isAllowReadingBoundaryTilesOutsideImage() {
+        return allowReadingBoundaryTilesOutsideImage;
+    }
+
+    public TiffReader setAllowReadingBoundaryTilesOutsideImage(boolean allowReadingBoundaryTilesOutsideImage) {
+        this.allowReadingBoundaryTilesOutsideImage = allowReadingBoundaryTilesOutsideImage;
         return this;
     }
 
@@ -1326,10 +1336,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfSeparatedPlanes = tileSet.numberOfSeparatedPlanes();
         final int channelsPerPixel = tileSet.channelsPerPixel();
 
-//        final int toX = fromX + sizeX;
-//        final int toY = fromY + sizeY;
-        final int toX = Math.min(fromX + sizeX, tileSet.getSizeX());
-        final int toY = Math.min(fromY + sizeY, tileSet.getSizeY());
+        final int toX = Math.min(fromX + sizeX,
+                allowReadingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : tileSet.getSizeX());
+        final int toY = Math.min(fromY + sizeY,
+                allowReadingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : tileSet.getSizeY());
         // - crop by image sizes to avoid reading unpredictable content of the boundary tiles outside the image
         final int minXIndex = fromX / tileSizeX;
         final int minYIndex = fromY / tileSizeY;
