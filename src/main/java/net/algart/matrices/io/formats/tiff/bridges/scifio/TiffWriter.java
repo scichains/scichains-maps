@@ -372,63 +372,55 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public void startWriting() throws IOException {
-        if (appendToExisting) {
-            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
-            final boolean bigTiff;
-            final boolean littleEndian;
-            final long positionOfLastOffset;
-            try (final TiffReader parser = new TiffReader(null, in, true)) {
-                parser.getIFDOffsets();
-                bigTiff = parser.isBigTiff();
-                littleEndian = parser.isLittleEndian();
-                positionOfLastOffset = parser.getPositionOfLastOffset();
-            }
-            //noinspection resource
-            setBigTiff(bigTiff).setLittleEndian(littleEndian);
-            out.seek(positionOfLastOffset);
-            final long fileLength = out.length();
-            writeOffset(out, fileLength);
-            out.seek(fileLength);
-            // - we are ready to write after the end of the file
-        } else {
-            writeHeader();
-            // - we are ready to write after the header
-        }
-    }
-
-    /**
-     * Writes the TIFF file header.
-     */
-    public void writeHeader() throws IOException {
-        // write endianness indicator
+    public void startWritingFile() throws IOException {
         synchronized (this) {
-            out.seek(0);
-            if (isLittleEndian()) {
-                out.writeByte(TiffConstants.LITTLE);
-                out.writeByte(TiffConstants.LITTLE);
+            if (appendToExisting) {
+                final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
+                final boolean bigTiff;
+                final boolean littleEndian;
+                final long positionOfLastOffset;
+                try (final TiffReader parser = new TiffReader(null, in, true)) {
+                    parser.getIFDOffsets();
+                    bigTiff = parser.isBigTiff();
+                    littleEndian = parser.isLittleEndian();
+                    positionOfLastOffset = parser.getPositionOfLastOffset();
+                }
+                //noinspection resource
+                setBigTiff(bigTiff).setLittleEndian(littleEndian);
+                out.seek(positionOfLastOffset);
+                final long fileLength = out.length();
+                writeOffset(out, fileLength);
+                out.seek(fileLength);
+                // - we are ready to write after the end of the file
             } else {
-                out.writeByte(TiffConstants.BIG);
-                out.writeByte(TiffConstants.BIG);
+                out.seek(0);
+                if (isLittleEndian()) {
+                    out.writeByte(TiffConstants.LITTLE);
+                    out.writeByte(TiffConstants.LITTLE);
+                } else {
+                    out.writeByte(TiffConstants.BIG);
+                    out.writeByte(TiffConstants.BIG);
+                }
+                // write magic number
+                if (bigTiff) {
+                    out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
+                } else out.writeShort(TiffConstants.MAGIC_NUMBER);
+
+                // write the offset to the first IFD
+
+                // for vanilla TIFFs, 8 is the offset to the first IFD
+                // for BigTIFFs, 8 is the number of bytes in an offset
+                if (bigTiff) {
+                    out.writeShort(8);
+                    out.writeShort(0);
+
+                    // write the offset to the first IFD for BigTIFF files
+                    out.writeLong(16);
+                } else {
+                    out.writeInt(8);
+                }
             }
-            // write magic number
-            if (bigTiff) {
-                out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
-            } else out.writeShort(TiffConstants.MAGIC_NUMBER);
-
-            // write the offset to the first IFD
-
-            // for vanilla TIFFs, 8 is the offset to the first IFD
-            // for BigTIFFs, 8 is the number of bytes in an offset
-            if (bigTiff) {
-                out.writeShort(8);
-                out.writeShort(0);
-
-                // write the offset to the first IFD for BigTIFF files
-                out.writeLong(16);
-            } else {
-                out.writeInt(8);
-            }
+            // - we are ready to write after the header
         }
     }
 

@@ -154,7 +154,7 @@ public class TiffWriterTest {
                 } else {
                     writer.setDefaultStripHeight(100);
                 }
-                writer.startWriting();
+                writer.startWritingFile();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                     Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);

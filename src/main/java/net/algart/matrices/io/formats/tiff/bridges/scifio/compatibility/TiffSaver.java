@@ -81,9 +81,51 @@ public class TiffSaver extends TiffWriter {
         // but logic of the algorithm did not allow to use it - it was an obvious bug.
     }
 
+    /**
+     * Writes the TIFF file header.
+     *
+     * <p>Use {@link #startWritingFile()} instead.
+     */
+    @Deprecated
+    public void writeHeader() throws IOException {
+        final DataHandle<Location> out = getStream();
+        final boolean bigTiff = isBigTiff();
+
+        // write endianness indicator
+        synchronized (this) {
+            out.seek(0);
+            if (isLittleEndian()) {
+                out.writeByte(TiffConstants.LITTLE);
+                out.writeByte(TiffConstants.LITTLE);
+            } else {
+                out.writeByte(TiffConstants.BIG);
+                out.writeByte(TiffConstants.BIG);
+            }
+            // write magic number
+            if (bigTiff) {
+                out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
+            } else out.writeShort(TiffConstants.MAGIC_NUMBER);
+
+            // write the offset to the first IFD
+
+            // for vanilla TIFFs, 8 is the offset to the first IFD
+            // for BigTIFFs, 8 is the number of bytes in an offset
+            if (bigTiff) {
+                out.writeShort(8);
+                out.writeShort(0);
+
+                // write the offset to the first IFD for BigTIFF files
+                out.writeLong(16);
+            } else {
+                out.writeInt(8);
+            }
+        }
+    }
+
+
 
     /**
-     * Please use code like inside {@link #startWriting()}.
+     * Please use code like inside {@link #startWritingFile()}.
      */
     @Deprecated
     public void overwriteLastIFDOffset(final DataHandle<Location> handle)
