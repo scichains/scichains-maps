@@ -560,10 +560,10 @@ public class DetailedIFD extends IFD {
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
-        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         final boolean signed = FormatTools.isSigned(pixelType);
         final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
-        final int bitsPerSample = 8 * bytesPerPixel;
+        final int bitsPerSample = 8 * bytesPerSample;
         final int[] bpsArray = new int[numberOfChannels];
         Arrays.fill(bpsArray, bitsPerSample);
         putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);

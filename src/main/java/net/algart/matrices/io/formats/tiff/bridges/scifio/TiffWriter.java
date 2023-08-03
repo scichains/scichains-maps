@@ -690,6 +690,129 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeWriting += t2 - t1;
     }
 
+    public void splitTiles(
+            final TiffTileSet tileSet,
+            final byte[] sourceSamples,
+            final int fromX,
+            final int fromY,
+            final int sizeX,
+            final int sizeY) throws FormatException {
+        Objects.requireNonNull(tileSet, "Null tile set");
+        final boolean chunked = !tileSet.isPlanarSeparated();
+        final int imageSizeX = tileSet.getSizeX();
+        final int imageSizeY = tileSet.getSizeY();
+        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, imageSizeX, imageSizeY);
+        //TODO!! not require setting image sizes
+        tileSet.expandSizes(fromX + sizeX, fromY + sizeY);
+        final int bytesPerSample = tileSet.bytesPerSample();
+        final int numberOfChannels = tileSet.numberOfChannels();
+        final int channelSize = sizeX * sizeY * bytesPerSample;
+
+        // - checks that tile sizes are non-negative and <2^31,
+        // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
+        final int tileSizeX = tileSet.tileSizeX();
+        final int tileSizeY = tileSet.tileSizeY();
+        final int numTileCols = (sizeX + tileSizeX - 1) / tileSizeX;
+        final int numTileRows = (sizeY + tileSizeY - 1) / tileSizeY;
+        // Probably we write not full image!
+        if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
+            throw new FormatException("Too large number of tiles/strips: "
+                    + numTileRows + " * " + numTileCols + " > 2^31-1");
+        }
+        int tileSize = tileSizeX * tileSizeY * bytesPerSample;
+        final int numberOfActualStrips = numTileCols * numTileRows;
+        int numberOfEncodedStrips = numberOfActualStrips;
+        if (chunked) {
+            tileSize *= numberOfChannels;
+        } else {
+            if ((long) numberOfChannels * (long) numberOfEncodedStrips > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Too large number of tiles/strips " +
+                        numTileRows + " * " + numTileCols +
+                        " * number of channels " + numberOfChannels + " >= 2^31");
+            }
+            numberOfEncodedStrips *= numberOfChannels;
+        }
+        //TODO!! - all this is not necessary due to expandSizes
+
+        final boolean alreadyInterleaved = chunked && !autoInterleave;
+        // - we suppose that the data are aldeady interleaved by an external code
+        final TiffTile[] tiles = new TiffTile[numberOfEncodedStrips];
+        final boolean needToCorrectLastRow = tileSet.ifd().get(IFD.TILE_LENGTH) == null;
+        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
+        // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
+        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
+        for (int yIndex = 0, tileIndex = 0; yIndex < numTileRows; yIndex++) {
+            final int yOffset = yIndex * tileSizeY;
+            final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
+            assert (long) fromY + (long) yOffset < imageSizeY : "region must  be checked before calling splitTiles";
+            final int y = fromY + yOffset;
+            final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, imageSizeY - y);
+            // - last strip should have exact height, in other case TIFF may be read with a warning
+            final int validTileChannelSize = tileSizeX * validTileSizeY * bytesPerSample;
+            for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
+                assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
+                final int xOffset = xIndex * tileSizeX;
+                assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
+                final int x = fromX + xOffset;
+                final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
+                if (alreadyInterleaved) {
+                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
+                            0, x / tileSizeX, y / tileSizeY);
+                    final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
+                    final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
+                    final byte[] data = new byte[tileSize];
+                    // - zero-filled by Java
+                    for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
+                        final int i = yInTile + yOffset;
+                        final int tileOffset = yInTile * tileRowSizeInBytes;
+                        final int samplesOffset = (i * sizeX + xOffset) * bytesPerSample * numberOfChannels;
+                        System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                    }
+                    tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
+                } else if (chunked) {
+                    // - source data are separated, but result should be interleaved;
+                    // so, we must prepare correct separated tile (it will be interleaved later)
+                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
+                            0, x / tileSizeX, y / tileSizeY);
+                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
+                    final int partSizeXInBytes = partSizeX * bytesPerSample;
+                    final byte[] data = new byte[tileSize];
+                    // - zero-filled by Java
+                    int tileChannelOffset = 0;
+                    for (int c = 0; c < numberOfChannels; c++, tileChannelOffset += validTileChannelSize) {
+                        final int channelOffset = c * channelSize;
+                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
+                            final int i = yInTile + yOffset;
+                            final int tileOffset = tileChannelOffset + yInTile * tileRowSizeInBytes;
+                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
+                            System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                        }
+                        tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
+                    }
+                } else {
+                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
+                    final int partSizeXInBytes = partSizeX * bytesPerSample;
+                    for (int c = 0; c < numberOfChannels; c++) {
+                        final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
+                                c, x / tileSizeX, y / tileSizeY);
+                        final byte[] data = new byte[tileSize];
+                        // - zero-filled by Java
+                        final int channelOffset = c * channelSize;
+                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
+                            final int i = yInTile + yOffset;
+                            final int tileOffset = yInTile * tileRowSizeInBytes;
+                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
+                            System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                        }
+                        tiles[tileIndex + c * numberOfActualStrips] =
+                                tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
+                    }
+                }
+            }
+        }
+        tileSet.putAll(List.of(tiles));
+    }
+
     public void encode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         if (tile.isEmpty()) {
@@ -828,10 +951,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // Note: we must prepare IFD BEFORE splitting tiles!
         // In other case, TiffTile objects will be created with invalid IFD characteristics
         // like number of channels, number of bytes per sample etc.
-        final TiffTileSet tileSet;
+        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
         synchronized (this) {
             // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
-            tileSet = splitTiles(samples, ifd, numberOfChannels, bytesPerSample, fromX, fromY, sizeX, sizeY);
+            splitTiles(tileSet, samples, fromX, fromY, sizeX, sizeY);
         }
         long t3 = debugTime();
 
@@ -1039,129 +1162,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 //        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
 //            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
 //        }
-    }
-
-    private TiffTileSet splitTiles(
-            final byte[] samples,
-            final DetailedIFD ifd,
-            final int numberOfChannels,
-            final int bytesPerSample,
-            final int fromX,
-            final int fromY,
-            final int sizeX,
-            final int sizeY) throws FormatException {
-        Objects.requireNonNull(ifd, "Null IFD");
-        //TODO!! checkRequestedArea
-        final boolean chunked = ifd.isChunked();
-        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
-        final int imageSizeX = tileSet.getSizeX();
-        final int imageSizeY = tileSet.getSizeY();
-        final int channelSize = sizeX * sizeY * bytesPerSample;
-
-        ifd.sizeOfTile(bytesPerSample);
-        // - checks that tile sizes are non-negative and <2^31,
-        // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
-        final int tileSizeX = ifd.getTileSizeX();
-        final int tileSizeY = ifd.getTileSizeY();
-        final int numTileCols = tileSizeX == 0 ? 0 : (sizeX + tileSizeX - 1) / tileSizeX;
-        final int numTileRows = tileSizeY == 0 ? 0 : (sizeY + tileSizeY - 1) / tileSizeY;
-        // Not ifd.getTilesPerColumn/Row()! Probably we write not full image!
-        // Note: tileSizeX/Y should not be 0, but it is more simple to check this
-        if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
-            throw new FormatException("Too large number of tiles/strips: "
-                    + numTileRows + " * " + numTileCols + " > 2^31-1");
-        }
-        int tileSize = tileSizeX * tileSizeY * bytesPerSample;
-        final int numberOfActualStrips = numTileCols * numTileRows;
-        int numberOfEncodedStrips = numberOfActualStrips;
-        if (chunked) {
-            tileSize *= numberOfChannels;
-        } else {
-            if ((long) numberOfChannels * (long) numberOfEncodedStrips > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Too large number of tiles/strips " +
-                        numTileRows + " * " + numTileCols +
-                        " * number of channels " + numberOfChannels + " >= 2^31");
-            }
-            numberOfEncodedStrips *= numberOfChannels;
-        }
-
-        final boolean alreadyInterleaved = chunked && !autoInterleave;
-        // - we suppose that the data are aldeady interleaved by an external code
-        final TiffTile[] tiles = new TiffTile[numberOfEncodedStrips];
-        final boolean needToCorrectLastRow = ifd.get(IFD.TILE_LENGTH) == null;
-        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
-        // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
-        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
-        for (int yIndex = 0, tileIndex = 0; yIndex < numTileRows; yIndex++) {
-            final int yOffset = yIndex * tileSizeY;
-            final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
-            assert (long) fromY + (long) yOffset < imageSizeY : "region must  be checked before calling splitTiles";
-            final int y = fromY + yOffset;
-            final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, imageSizeY - y);
-            // - last strip should have exact height, in other case TIFF may be read with a warning
-            final int validTileChannelSize = tileSizeX * validTileSizeY * bytesPerSample;
-            for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
-                assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
-                final int xOffset = xIndex * tileSizeX;
-                assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
-                final int x = fromX + xOffset;
-                final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
-                if (alreadyInterleaved) {
-                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
-                            0, x / tileSizeX, y / tileSizeY);
-                    final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
-                    final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
-                    final byte[] data = new byte[tileSize];
-                    // - zero-filled by Java
-                    for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
-                        final int i = yInTile + yOffset;
-                        final int tileOffset = yInTile * tileRowSizeInBytes;
-                        final int samplesOffset = (i * sizeX + xOffset) * bytesPerSample * numberOfChannels;
-                        System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
-                    }
-                    tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
-                } else if (chunked) {
-                    // - source data are separated, but result should be interleaved;
-                    // so, we must prepare correct separated tile (it will be interleaved later)
-                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
-                            0, x / tileSizeX, y / tileSizeY);
-                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
-                    final int partSizeXInBytes = partSizeX * bytesPerSample;
-                    final byte[] data = new byte[tileSize];
-                    // - zero-filled by Java
-                    int tileChannelOffset = 0;
-                    for (int c = 0; c < numberOfChannels; c++, tileChannelOffset += validTileChannelSize) {
-                        final int channelOffset = c * channelSize;
-                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
-                            final int i = yInTile + yOffset;
-                            final int tileOffset = tileChannelOffset + yInTile * tileRowSizeInBytes;
-                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
-                            System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
-                        }
-                        tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
-                    }
-                } else {
-                    final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
-                    final int partSizeXInBytes = partSizeX * bytesPerSample;
-                    for (int c = 0; c < numberOfChannels; c++) {
-                        final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
-                                c, x / tileSizeX, y / tileSizeY);
-                        final byte[] data = new byte[tileSize];
-                        // - zero-filled by Java
-                        final int channelOffset = c * channelSize;
-                        for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
-                            final int i = yInTile + yOffset;
-                            final int tileOffset = yInTile * tileRowSizeInBytes;
-                            final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
-                            System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
-                        }
-                        tiles[tileIndex + c * numberOfActualStrips] =
-                                tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
-                    }
-                }
-            }
-        }
-        return tileSet.putAll(List.of(tiles));
     }
 
     /**

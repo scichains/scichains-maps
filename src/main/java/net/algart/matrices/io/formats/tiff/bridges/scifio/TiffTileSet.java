@@ -29,6 +29,27 @@ import io.scif.FormatException;
 import java.util.*;
 
 public final class TiffTileSet {
+    /**
+     * Maximal supported number of channels. Popular OpenCV library has the same limit.
+     *
+     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
+     */
+    public static final int MAX_NUMBER_OF_CHANNELS = 512;
+    /**
+     * Maximal supported length of a sample. So, total number of bytes per 1 pixel is not greater than
+     * {@link #MAX_NUMBER_OF_CHANNELS} * this constant.
+     *
+     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
+     */
+    public static final int MAX_BYTES_PER_SAMPLE = 32;
+
+    /**
+     * Maximal value of x/y-index of the tile.
+     *
+     * <p>This limit helps to avoid arithmetic overflow while operations with indexes.
+     */
+    public static final int MAX_TILE_INDEX = 1_000_000_000;
+
     private final DetailedIFD ifd;
     private final Map<TiffTileIndex, TiffTile> tileMap = new LinkedHashMap<>();
     private final boolean resizable;
@@ -39,7 +60,8 @@ public final class TiffTileSet {
     private final int bytesPerSample;
     private final int tileSizeX;
     private final int tileSizeY;
-    private final int sizeOfTileBasedOnBits;
+    private final int tileSizeInPixels;
+    private final int tileSizeInBytes;
     // - Note: we store here information about samples and tiles structure, but
     // SHOULD NOT store information about image sizes (like number of tiles):
     // it is probable that we do not know final sizes while creating tiles of the image!
@@ -74,6 +96,14 @@ public final class TiffTileSet {
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
             this.channelsPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+            if (numberOfChannels > MAX_NUMBER_OF_CHANNELS) {
+                throw new FormatException("Very large number of channels " + numberOfChannels + " > " +
+                        MAX_NUMBER_OF_CHANNELS + " is not supported");
+            }
+            if (bytesPerSample > MAX_BYTES_PER_SAMPLE) {
+                throw new FormatException("Very large number of bytes per sample " + bytesPerSample + " > " +
+                        MAX_BYTES_PER_SAMPLE + " is not supported");
+            }
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
@@ -81,11 +111,17 @@ public final class TiffTileSet {
                 setSizes(ifd.getImageSizeX(), ifd.getImageSizeY(), false);
             }
             if ((long) tileSizeX * (long) tileSizeY > Integer.MAX_VALUE) {
-                throw new FormatException("Very large tile " + tileSizeX + "x" + tileSizeY +
+                throw new FormatException("Very large TIFF tile " + tileSizeX + "x" + tileSizeY +
                         " >= 2^31 pixels is not supported");
                 // - note that it is also checked deeper in the next operator
             }
-            this.sizeOfTileBasedOnBits = ifd.sizeOfTile(this.bytesPerSample);
+            this.tileSizeInPixels = tileSizeX * tileSizeY;
+            if ((long) tileSizeInPixels * (long) bytesPerSample * (long) channelsPerPixel > Integer.MAX_VALUE) {
+                throw new FormatException("Very large TIFF tile " + tileSizeX + "x" + tileSizeY +
+                        ", " + channelsPerPixel + " channels per " + bytesPerSample +
+                        " bytes >= 2^31 bytes is not supported");
+            }
+            this.tileSizeInBytes = tileSizeInPixels * bytesPerSample * channelsPerPixel;
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal IFD", e);
         }
@@ -140,8 +176,8 @@ public final class TiffTileSet {
         return tileSizeY;
     }
 
-    public int sizeOfTileBasedOnBits() {
-        return sizeOfTileBasedOnBits;
+    public int tileSizeInBytes() {
+        return tileSizeInBytes;
     }
 
     public int getSizeX() {
@@ -152,12 +188,60 @@ public final class TiffTileSet {
         return sizeY;
     }
 
-    public int getTileCountX() {
+    public TiffTileSet setSizes(int sizeX, int sizeY) {
+        setSizes(sizeX, sizeY, true);
+        return this;
+    }
+
+    /**
+     * Replaces total image sizes to maximums from their current values and <tt>newMinimalSizeX/Y</tt>.
+     *
+     * <p>Note: if both new x/y-sizes are not greater than existing ones, this method does nothing
+     * and can be called even if not {@link #isResizable()}.
+     *
+     * @param newMinimalSizeX new minimal value for {@link #getSizeX() sizeX}.
+     * @param newMinimalSizeY new minimal value for {@link #getSizeY() sizeY}.
+     * @return a reference to this object.
+     */
+    public TiffTileSet expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
+        if (newMinimalSizeX < 0) {
+            throw new IllegalArgumentException("Negative new minimal x-size: " + newMinimalSizeX);
+        }
+        if (newMinimalSizeY < 0) {
+            throw new IllegalArgumentException("Negative new minimal y-size: " + newMinimalSizeY);
+        }
+        if (newMinimalSizeX > sizeX || newMinimalSizeY > sizeY) {
+            setSizes(Math.max(sizeX, newMinimalSizeX), Math.max(sizeY, newMinimalSizeY));
+        }
+        return this;
+    }
+
+    public int tileCountX() {
         return tileCountX;
     }
 
-    public int getTileCountY() {
+    public int tileCountY() {
         return tileCountY;
+    }
+
+    /**
+     * Replaces tile x/y-count to maximums from their current values and <tt>newMinimalTileCountX/Y</tt>.
+     *
+     * <p>Note: the arguments are the desired minimal tile <i>counts</i>, not tile <i>indexes</i>.
+     * So, you can freely specify zero arguments, and this method will do nothing in this case.
+     *
+     * <p>Note: if both new x/y-counts are not greater than existing ones, this method does nothing
+     * and can be called even if not {@link #isResizable()}.
+     *
+     * <p>Note: this method is called automatically while changing total image sizes.
+     *
+     * @param newMinimalTileCountX new minimal value for {@link #tileCountX()}.
+     * @param newMinimalTileCountY new minimal value for {@link #tileCountY()}.
+     * @return a reference to this object.
+     */
+    public TiffTileSet expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY) {
+        expandTileCounts(newMinimalTileCountX, newMinimalTileCountY, true);
+        return this;
     }
 
     public int getNumberOfTiles() {
@@ -171,11 +255,9 @@ public final class TiffTileSet {
         }
         int tileCountX = this.tileCountX;
         int tileCountY = this.tileCountY;
-        if (xIndex < 0 || xIndex >= tileCountX) {
-            throw new IndexOutOfBoundsException("X-index " + xIndex + " is out of range 0.." + (tileCountX - 1));
-        }
-        if (yIndex < 0 || yIndex >= tileCountY) {
-            throw new IndexOutOfBoundsException("X-index " + xIndex + " is out of range 0.." + (tileCountY - 1));
+        if (xIndex < 0 || xIndex >= tileCountX || yIndex < 0 || yIndex >= tileCountY) {
+            throw new IndexOutOfBoundsException("One of X/Y-indexes (" + xIndex + ", " + yIndex +
+                    ") of the tile is out of ranges 0.." + (tileCountX - 1) + ", 0.." + (tileCountY - 1));
         }
         // - if the tile is out of bounds, it means that we do not know actual grid dimensions
         // (even it is resizable): there is no way to calculate correct linear index
@@ -200,11 +282,6 @@ public final class TiffTileSet {
     }
 
 
-    public TiffTileSet setSizes(int sizeX, int sizeY) {
-        setSizes(sizeX, sizeY, true);
-        return this;
-    }
-
     public TiffTile get(TiffTileIndex tileIndex) {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         return tileMap.get(tileIndex);
@@ -218,14 +295,9 @@ public final class TiffTileSet {
             throw new IllegalArgumentException("Tile set cannot store tiles from different IFDs");
         }
         if (resizable) {
-            final int toX = tileIndex.toX();
-            final int toY = tileIndex.toY();
-            if (toX > -sizeX || toY > sizeY) {
-                setSizes(Math.max(sizeX, toX), Math.max(sizeY, toY));
-                // - checks correctness (no overflow) before any modifications
-            }
+            expandTileCounts(tileIndex.xIndex() + 1, tileIndex.yIndex() + 1);
         } else {
-            if (tileIndex.fromX() > sizeX - 1 || tileIndex.fromY() > sizeY - 1) {
+            if (tileIndex.xIndex() >= tileCountX || tileIndex.yIndex() >= tileCountY) {
                 // sizeX-1: tile MAY be partially outside the image, but it MUST have at least 1 pixel inside it
                 throw new IndexOutOfBoundsException("New tile is completely outside the image " +
                         "(out of maximal tileset sizes) " + sizeX + "x" + sizeY + ": " + tileIndex);
@@ -254,6 +326,9 @@ public final class TiffTileSet {
 
     public TiffTileSet clear() {
         tileMap.clear();
+        tileCountX = 0;
+        tileCountY = 0;
+        numberOfTiles = 0;
         return this;
     }
 
@@ -280,7 +355,7 @@ public final class TiffTileSet {
                 numberOfChannels == that.numberOfChannels &&
                 bytesPerSample == that.bytesPerSample &&
                 tileSizeX == that.tileSizeX && tileSizeY == that.tileSizeY &&
-                sizeOfTileBasedOnBits == that.sizeOfTileBasedOnBits;
+                tileSizeInBytes == that.tileSizeInBytes;
         // - Important! Comparing references to IFD, not content!
         // Moreover, it makes sense to compare fields, calculated ON THE BASE of IFD:
         // they may change as a result of changing the content of the same IFD.
@@ -294,7 +369,7 @@ public final class TiffTileSet {
 
     private void setSizes(int sizeX, int sizeY, boolean checkResizable) {
         if (checkResizable && !resizable) {
-            throw new IllegalArgumentException("Cannot change sizes of non-resizable tile set");
+            throw new IllegalArgumentException("Cannot change sizes of a non-resizable tile set");
         }
         if (sizeX < 0) {
             throw new IllegalArgumentException("Negative x-size: " + sizeX);
@@ -304,15 +379,35 @@ public final class TiffTileSet {
         }
         final int tileCountX = (int) ((long) sizeX + (long) tileSizeX - 1) / tileSizeX;
         final int tileCountY = (int) ((long) sizeY + (long) tileSizeY - 1) / tileSizeY;
+        expandTileCounts(tileCountX, tileCountY, checkResizable);
+        this.sizeX = sizeX;
+        this.sizeY = sizeY;
+    }
+
+    private void expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY, boolean checkResizable) {
+        if (newMinimalTileCountX < 0) {
+            throw new IllegalArgumentException("Negative new minimal tiles x-count: " + newMinimalTileCountX);
+        }
+        if (newMinimalTileCountY < 0) {
+            throw new IllegalArgumentException("Negative new minimal tiles y-count: " + newMinimalTileCountY);
+        }
+        if (newMinimalTileCountX <= tileCountX && newMinimalTileCountY <= tileCountY) {
+            return;
+            // - even in a case !resizable
+        }
+        if (checkResizable && !resizable) {
+            throw new IllegalArgumentException("Cannot expand tile counts in a non-resizable tile set");
+        }
+        final int tileCountX = Math.max(this.tileCountX, newMinimalTileCountX);
+        final int tileCountY = Math.max(this.tileCountY, newMinimalTileCountY);
         if ((long) tileCountX * (long) tileCountY > Integer.MAX_VALUE / numberOfSeparatedPlanes) {
             throw new IllegalArgumentException("Too large number of tiles/strips: " +
                     (numberOfSeparatedPlanes > 1 ? numberOfSeparatedPlanes + " separated planes * " : "") +
                     tileCountX + " * " + tileCountY + " > 2^31-1");
         }
-        this.sizeX = sizeX;
-        this.sizeY = sizeY;
         this.tileCountX = tileCountX;
         this.tileCountY = tileCountY;
         this.numberOfTiles = tileCountX * tileCountY * numberOfSeparatedPlanes;
     }
+
 }

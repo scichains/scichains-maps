@@ -62,12 +62,20 @@ public final class TiffTile {
         return tileIndex;
     }
 
+    public boolean isPlanarSeparated() {
+        return tileSet.isPlanarSeparated();
+    }
+
     public int channelsPerPixel() {
         return tileSet.channelsPerPixel();
     }
 
     public int bytesPerSample() {
         return tileSet.bytesPerSample();
+    }
+
+    public int sizeOfTileBasedOnBits() {
+        return tileSet.tileSizeInBytes();
     }
 
     public int getSizeX() {
@@ -119,6 +127,10 @@ public final class TiffTile {
 
     public boolean isInterleaved() {
         return interleaved;
+    }
+
+    public boolean isSeparated() {
+        return !interleaved;
     }
 
     /**

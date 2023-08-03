@@ -71,10 +71,16 @@ public final class TiffTileIndex {
             }
         }
         if (xIndex < 0) {
-            throw new IllegalArgumentException("Negative xIndex = " + xIndex);
+            throw new IllegalArgumentException("Negative x-index = " + xIndex);
         }
         if (yIndex < 0) {
-            throw new IllegalArgumentException("Negative yIndex = " + yIndex);
+            throw new IllegalArgumentException("Negative y-index = " + yIndex);
+        }
+        if (xIndex > TiffTileSet.MAX_TILE_INDEX) {
+            throw new IllegalArgumentException("Too large x-index = " + xIndex + " > " + TiffTileSet.MAX_TILE_INDEX);
+        }
+        if (yIndex > TiffTileSet.MAX_TILE_INDEX) {
+            throw new IllegalArgumentException("Too large y-index = " + yIndex + " > " + TiffTileSet.MAX_TILE_INDEX);
         }
         final long fromX = (long) xIndex * tileSet.tileSizeX();
         final long fromY = (long) yIndex * tileSet.tileSizeY();
@@ -143,13 +149,13 @@ public final class TiffTileIndex {
 
     public boolean isInBounds() {
         assert channel < tileSet.numberOfSeparatedPlanes() : "must be checked in the constructor!";
-        return xIndex < tileSet.getTileCountX() && yIndex < tileSet.getTileCountY();
+        return xIndex < tileSet.tileCountX() && yIndex < tileSet.tileCountY();
     }
 
     public void checkInBounds() {
         if (!isInBounds()) {
             throw new IllegalStateException("Tile index is out of maximal tileset sizes " +
-                    tileSet.getTileCountX() + "x" + tileSet.getTileCountY() + ": " + this);
+                    tileSet.tileCountX() + "x" + tileSet.tileCountY() + ": " + this);
         }
     }
 

@@ -908,6 +908,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return result;
     }
 
+    /**
+     * Reads and decodes the tile at the specified position.
+     * Note: the loaded tils is always {@link TiffTile#isSeparated() separated}.
+     *
+     * @param tileIndex position of the file
+     * @return loaded tile.
+     */
     public TiffTile readTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         TiffTile tile = readEncodedTile(tileIndex);
         if (tile.isEmpty()) {
@@ -921,40 +928,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         long t1 = debugTime();
         final DetailedIFD ifd = tileIndex.ifd();
-        final int xIndex = tileIndex.xIndex();
-        final int yIndex = tileIndex.yIndex();
-
-        final int tileSizeX = ifd.getTileSizeX();
-        final int tileSizeY = ifd.getTileSizeY();
-        final int numTileCols = ifd.getTilesPerRow(tileSizeX);
-        int numTileRows = ifd.getTilesPerColumn(tileSizeY);
-        if (ifd.isPlanarSeparated()) {
-            int channelsInSeparated = ifd.getSamplesPerPixel();
-            if ((long) channelsInSeparated * (long) numTileRows > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(
-                        "Too large image: number of tiles in column " + numTileCols
-                                + " * samples per pixel " + channelsInSeparated + " >= 2^31");
-            }
-        }
-        if (xIndex < 0 || xIndex >= numTileCols || yIndex < 0 || yIndex >= numTileRows) {
-            throw new IndexOutOfBoundsException(
-                    "Tile/strip position (xIndex, yIndex) = (" + xIndex + ", " + yIndex
-                            + ") is out of bounds 0 <= xIndex < " + numTileCols + ", 0 <= yIndex < " + numTileRows);
-        }
-        final long numberOfTiles = (long) numTileRows * (long) numTileCols ;
-        if (numberOfTiles > Integer.MAX_VALUE) {
-            // - this check allows to be sure that result tile index below is 31-bit
-            throw new FormatException(
-                    "Too large number of tiles/strips: " + numTileRows + " * " + numTileCols + " > 2^31-1");
-        }
         final int index = tileIndex.linearIndex();
-        //TODO!! - move all this into TiffTileSet
-        int countIndex = index;
-        if (assumeEqualStrips) {
-            // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
-            // filled in getIFDValue(TiffIFDEntry)
-            countIndex = 0;
-        }
+        final int countIndex = assumeEqualStrips ? 0 : index;
+        // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
+        // filled in getIFDValue(TiffIFDEntry)
         final long offset = ifd.cachedStripOffset(index);
         final int byteCount = ifd.cachedStripByteCount(countIndex);
         /*
@@ -1147,7 +1124,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        final int numberOfChannels = ifd.getSamplesPerPixel();
+        // - note: we allow this area to be outside the image
+        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
+        final int numberOfChannels = tileSet.numberOfChannels();
         final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed and that
         //      sizeX * sizeY * ifd.getSamplesPerPixel() * ifd.getBytesPerSampleBasedOnType()
@@ -1165,7 +1144,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results
 
-        readTiles(ifd, samples, fromX, fromY, sizeX, sizeY);
+        readTiles(tileSet, samples, fromX, fromY, sizeX, sizeY);
 
         long t2 = debugTime();
         if (autoUnpackUnusualPrecisions) {
@@ -1305,7 +1284,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
-        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().tileSizeInBytes();
         CodecOptions codecOptions = new CodecOptions(this.codecOptions);
         codecOptions.littleEndian = ifd.isLittleEndian();
         codecOptions.maxBytes = Math.max(samplesLength, tile.getStoredDataLength());
@@ -1331,62 +1310,40 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void readTiles(DetailedIFD ifd, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
+    // Note: this method does not store tile in the tile set.
+    private void readTiles(TiffTileSet tileSet, byte[] resultSamples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
-        Objects.requireNonNull(samples, "Null samples");
+        Objects.requireNonNull(tileSet, "Null tileSet");
+        Objects.requireNonNull(resultSamples, "Null resultSamples");
         assert fromX >= 0 && fromY >= 0 && sizeX >= 0 && sizeY >= 0;
         // Note: we cannot process image larger than 2^31 x 2^31 pixels,
         // though TIFF supports maximal sizes 2^32 x 2^32
         // (IFD.getImageWidth/getImageLength do not allow so large results)
 
-        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
         final int tileSizeX = tileSet.tileSizeX();
         final int tileSizeY = tileSet.tileSizeY();
-        final int numTileCols = ifd.getTilesPerRow(tileSizeX);
-        final int numTileRows = ifd.getTilesPerColumn(tileSizeY);
-        // - If the image is not really tiled, we will work with full image size.
-        // (Old SCIFIO code used the height of requested area instead of the full image height, as getTileHeight(),
-        // but it leads to the same results in the algorithm below.)
-        if (tileSizeX <= 0 || tileSizeY <= 0) {
-            // - strange case (probably zero-size image); in any case a tile with zero sizes cannot intersect anything
-            return;
-        }
-
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int bytesPerSample = tileSet.bytesPerSample();
         final int numberOfSeparatedPlanes = tileSet.numberOfSeparatedPlanes();
-        final int tileChannels = tileSet.channelsPerPixel();
-        if (ifd.isPlanarSeparated()) {
-            // - it is a very rare case PlanarConfiguration=2 (RRR...GGG...BBB...);
-            // we have (for 3 channels) only 1 effective channel instead of 3,
-            // but we have 3 * numTileRows effective rows
-            if ((long) numberOfSeparatedPlanes * (long) numTileRows > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(
-                        "Too large image: number of tiles in column " + numTileRows
-                                + " * samples per pixel " + numberOfSeparatedPlanes + " >= 2^31");
-            }
-            //TODO!! move to TiffTileSet
-        }
+        final int channelsPerPixel = tileSet.channelsPerPixel();
 
-        final int toX = fromX + sizeX;
-        final int toY = fromY + sizeY;
-        final int minCol = fromX / tileSizeX;
-        final int minRow = fromY / tileSizeY;
-        if (minRow >= numTileRows || minCol >= numTileCols) {
+        final int toX = Math.min(fromX + sizeX, tileSet.getSizeX());
+        final int toY = Math.min(fromY + sizeY, tileSet.getSizeY());
+        // - crop by image sizes to avoid reading unpredictable content of the boundary tiles outside the image
+        final int minXIndex = fromX / tileSizeX;
+        final int minYIndex = fromY / tileSizeY;
+        if (minXIndex >= tileSet.tileCountX() || minYIndex >= tileSet.tileCountY() || toX < fromX || toY < fromY) {
             return;
         }
-        final int maxCol = Math.min(numTileCols - 1, (toX - 1) / tileSizeX);
-        final int maxRow = Math.min(numTileRows - 1, (toY - 1) / tileSizeY);
-        assert minRow <= maxRow && minCol <= maxCol;
+        final int maxXIndex = Math.min(tileSet.tileCountX() - 1, (toX - 1) / tileSizeX);
+        final int maxYIndex = Math.min(tileSet.tileCountY() - 1, (toY - 1) / tileSizeY);
+        assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
         final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
         final int outputRowSizeInBytes = sizeX * bytesPerSample;
 
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
-            // - in a rare case PlanarConfiguration=2 (RRR...GGG...BBB...),
-            // we have (for 3 channels) 3 * numTileRows effective rows instead of numTileRows
-            int effectiveYIndex = p * numTileRows + minRow;
-            for (int yIndex = minRow; yIndex <= maxRow; yIndex++, effectiveYIndex++) {
-                for (int xIndex = minCol; xIndex <= maxCol; xIndex++) {
+            // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
+            for (int yIndex = minYIndex; yIndex <= maxYIndex; yIndex++) {
+                for (int xIndex = minXIndex; xIndex <= maxXIndex; xIndex++) {
                     final TiffTile tile = readTile(tileSet.tileIndex(p, xIndex, yIndex));
                     if (tile.isEmpty()) {
                         continue;
@@ -1406,11 +1363,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     assert partSizeY > 0 : "partSizeY=" + partSizeY;
 
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
-                    for (int c = 0; c < tileChannels; c++) {
+                    for (int c = 0; c < channelsPerPixel; c++) {
                         int srcOffset = (((c * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
                         int destOffset = (((c + p) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
                         for (int tileRow = 0; tileRow < partSizeY; tileRow++) {
-                            System.arraycopy(data, srcOffset, samples, destOffset, partSizeXInBytes);
+                            System.arraycopy(data, srcOffset, resultSamples, destOffset, partSizeXInBytes);
                             srcOffset += tileRowSizeInBytes;
                             destOffset += outputRowSizeInBytes;
                         }
@@ -1448,13 +1405,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final DetailedIFD ifd = tile.ifd();
         byte[] bytes = tile.getDecodedData();
 
-        final boolean planar = ifd.isPlanarSeparated();
         if (KnownTiffCompression.isNonJpegYCbCr(ifd)) {
             throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
         }
 
         final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
-        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().tileSizeInBytes();
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bps0);
@@ -1485,7 +1441,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfChannels = tile.channelsPerPixel();
         final boolean noDiv8 = bps0 % 8 != 0;
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (!planar) {
+        if (!tile.isPlanarSeparated()) {
             sampleCount /= numberOfChannels;
         }
         if (sampleCount > Integer.MAX_VALUE) {
@@ -1568,7 +1524,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     "(separated component plances)");
         }
 
-        final int samplesLength = tile.tileSet().sizeOfTileBasedOnBits();
+        final int samplesLength = tile.tileSet().tileSizeInBytes();
         final int[] bitsPerSample = ifd.getBitsPerSample();
 
         final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();

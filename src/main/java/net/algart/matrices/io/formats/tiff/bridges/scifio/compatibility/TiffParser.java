@@ -218,13 +218,18 @@ public class TiffParser extends TiffReader {
 
 
     @Deprecated
-    public byte[] getTile(final IFD ifd, byte[] buf, final int row, final int col)
+    public byte[] getTile(final IFD ifd, byte[] buf, int row, final int col)
             throws FormatException, IOException {
         TiffTileSet tileSet = new TiffTileSet(DetailedIFD.extend(ifd), false);
-        TiffTileIndex tileIndex = tileSet.tileIndex(0, col, row);
-        // - in terms of the old TiffParser, "row" index already contains index of the plane
+        int planeIndex = 0;
+        if (tileSet.isPlanarSeparated()) {
+            planeIndex = row / tileSet.tileCountY();
+            row = row % tileSet.tileCountY();
+            // - in terms of the old TiffParser, "row" index already contains index of the plane
+        }
+        TiffTileIndex tileIndex = tileSet.tileIndex(planeIndex, col, row);
         if (buf == null) {
-            buf = new byte[tileSet.sizeOfTileBasedOnBits()];
+            buf = new byte[tileSet.tileSizeInBytes()];
         }
         TiffTile tile = readTile(tileIndex);
         if (!tile.isEmpty()) {

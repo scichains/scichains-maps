@@ -41,6 +41,7 @@ import org.scijava.io.location.FileLocation;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -165,7 +166,16 @@ public class TiffReadWriteTest {
                                 FormatTools.getBytesPerPixel(parserIFD.getPixelType())];
                         @SuppressWarnings("deprecation")
                         byte[] buf = parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        // - this deprecated method is implemented via new methods
                         assert buf == bytes;
+                        buf = buf.clone();
+                        //noinspection deprecation
+                        parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH,
+                                0, 0);
+                        // - this deprecated method is a legacy from old code
+                        if (!Arrays.equals(buf, bytes)) {
+                            System.err.printf("%n%nDifferent behaviour!%n%n");
+                        }
                         sequentialTiffWriter.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
                         // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
 
