@@ -1161,7 +1161,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 }
             }
         }
-        return tileSet.addAll(List.of(tiles));
+        return tileSet.putAll(List.of(tiles));
     }
 
     /**

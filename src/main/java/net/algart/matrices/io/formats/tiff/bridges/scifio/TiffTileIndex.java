@@ -39,9 +39,13 @@ public final class TiffTileIndex {
     private final TiffTileSet tileSet;
     private final DetailedIFD ifd;
     private final int ifdIdentity;
-    private final int x;
-    private final int y;
     private final int channel;
+    private final int xIndex;
+    private final int yIndex;
+    private final int fromX;
+    private final int fromY;
+    private final int toX;
+    private final int toY;
 
     /**
      * Creates new tile index.
@@ -49,14 +53,11 @@ public final class TiffTileIndex {
      * @param tileSet containing tile set.
      * @param channel channel index (used only in a case of {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE},
      *                always 0 for usual case  {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED})
-     * @param x       x-index of the tile (0, 1, 2, ...).
-     * @param y       y-index of the tile (0, 1, 2, ...).
+     * @param xIndex  x-index of the tile (0, 1, 2, ...).
+     * @param yIndex  y-index of the tile (0, 1, 2, ...).
      */
-    public TiffTileIndex(TiffTileSet tileSet, int channel, int x, int y) {
+    public TiffTileIndex(TiffTileSet tileSet, int channel, int xIndex, int yIndex) {
         Objects.requireNonNull(tileSet, "Null containing tile set");
-        // Note: we could check here also that x and y are in range of all tiles for this IFD, but it is a bad idea:
-        // 1) while building new TIFF, we probably do not know actual images sizes until getting all tiles;
-        // 2) number of tiles in column may be calculated in non-trivial way, if PLANAR_CONFIGURATION tag is 2
         if (!tileSet.isPlanarSeparated()) {
             if (channel != 0) {
                 throw new IllegalArgumentException("Non-zero channel = " + channel
@@ -68,20 +69,35 @@ public final class TiffTileIndex {
                         " is out of range 0.." + tileSet.numberOfChannels());
             }
         }
-        if (x < 0) {
-            throw new IllegalArgumentException("Negative x = " + x);
+        if (xIndex < 0) {
+            throw new IllegalArgumentException("Negative xIndex = " + xIndex);
         }
-        if (y < 0) {
-            throw new IllegalArgumentException("Negative y = " + y);
+        if (yIndex < 0) {
+            throw new IllegalArgumentException("Negative yIndex = " + yIndex);
         }
+        final long fromX = (long) xIndex * tileSet.tileSizeX();
+        final long fromY = (long) yIndex * tileSet.tileSizeY();
+        final long toX = fromX + tileSet.tileSizeX();
+        final long toY = fromY + tileSet.tileSizeY();
+        if (toX > Integer.MAX_VALUE || toY > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too large tile indexes (" + xIndex + ", " + yIndex +
+                    ") lead to too large coordinates (" + (toX - 1) + ", " + (toY - 1) +
+                    ") of right-bottom pixel of the tile: coordinates >= 2^31 are not supported");
+        }
+        // Note: we could check here also that x and y are in range of all tiles for this IFD, but it is a bad idea:
+        // while building new TIFF, we probably do not know actual images sizes until getting all tiles.
         this.tileSet = tileSet;
         this.ifd = tileSet.ifd();
         this.ifdIdentity = System.identityHashCode(ifd);
         // - not a universal solution, but suitable for our optimization needs:
         // usually we do not create new IFD instances without necessity
         this.channel = channel;
-        this.x = x;
-        this.y = y;
+        this.xIndex = xIndex;
+        this.yIndex = yIndex;
+        this.fromX = (int) fromX;
+        this.fromY = (int) fromY;
+        this.toX = (int) toX;
+        this.toY = (int) toY;
     }
 
     public TiffTileSet tileSet() {
@@ -89,19 +105,35 @@ public final class TiffTileIndex {
     }
 
     public DetailedIFD ifd() {
-        return tileSet.ifd();
+        return ifd;
     }
 
     public int channel() {
         return channel;
     }
 
-    public int x() {
-        return x;
+    public int xIndex() {
+        return xIndex;
     }
 
-    public int y() {
-        return y;
+    public int yIndex() {
+        return yIndex;
+    }
+
+    public int fromX() {
+        return fromX;
+    }
+
+    public int fromY() {
+        return fromY;
+    }
+
+    public int toX() {
+        return toX;
+    }
+
+    public int toY() {
+        return toY;
     }
 
     public TiffTile newTile() {
@@ -110,8 +142,9 @@ public final class TiffTileIndex {
 
     @Override
     public String toString() {
-        return "(" + x + ", " + y + ")" +
+        return "(" + xIndex + ", " + yIndex + ")" +
                 (tileSet.isPlanarSeparated() ? ", channel " + channel : "") +
+                ") [" + (toX - fromX) + "x" + (toY - fromY) + " at coordinates (" + fromX + ", " + fromY + ")]" +
                 " in IFD @" + Integer.toHexString(ifdIdentity);
     }
 
@@ -124,7 +157,7 @@ public final class TiffTileIndex {
             return false;
         }
         final TiffTileIndex that = (TiffTileIndex) o;
-        return channel == that.channel && x == that.x && y == that.y && ifd == that.ifd;
+        return channel == that.channel && xIndex == that.xIndex && yIndex == that.yIndex && ifd == that.ifd;
         // - Important! Comparing references to IFD, not content and not tile set!
         // Different tile sets may refer to the same IFD;
         // on the other hand, we usually do not need to create identical IFDs.
@@ -134,8 +167,8 @@ public final class TiffTileIndex {
     public int hashCode() {
         int result = ifdIdentity;
         result = 31 * result + channel;
-        result = 31 * result + y;
-        result = 31 * result + x;
+        result = 31 * result + yIndex;
+        result = 31 * result + xIndex;
         return result;
     }
 }

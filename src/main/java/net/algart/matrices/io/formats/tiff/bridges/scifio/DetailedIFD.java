@@ -345,7 +345,8 @@ public class DetailedIFD extends IFD {
         final int imageSizeY = getImageSizeY();
         if (rowsPerStrip == null || rowsPerStrip.length == 0) {
             // - zero rowsPerStrip.length is possible only as a result of manual modification of this IFD
-            return imageSizeY;
+            return imageSizeY == 0 ? 1 : imageSizeY;
+            // - imageSizeY == 0 is checked to be on the safe side
         }
 
         // rowsPerStrip should never be more than the total number of rows
@@ -366,27 +367,17 @@ public class DetailedIFD extends IFD {
         return result;
     }
 
-    //!! Better analog of IFD.getTileWidth()
-    public int getTileSizeX() throws FormatException {
-        final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH, 0);
-        if (tileWidth < 0) {
-            throw new FormatException("Negative tile width = " + tileWidth);
-            // - impossible in a correct TIFF
-        }
-        if (tileWidth > Integer.MAX_VALUE) {
-            throw new FormatException("Very large tile width " + tileWidth + " >= 2^31 is not supported");
-            // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
-        }
-        if (tileWidth != 0) {
-            return (int) tileWidth;
-        }
-        final long imageWidth = getImageWidth();
-        assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        return (int) imageWidth;
-    }
-
-    //!! Better analog of IFD.getTileLength()
+    /**
+     * Returns the tile height in tiled image, strip height in other images. If there are no tiles or strips,
+     * returns max(h,1), where h is the image height.
+     *
+     * <p>Note: result is always positive!
+     *
+     * @return tile/strip height.
+     * @throws FormatException in a case of incorrect IFD.
+     */
     public int getTileSizeY() throws FormatException {
+        //!! Better analog of IFD.getTileLength()
         final long tileLength = getIFDLongValue(IFD.TILE_LENGTH, 0);
         if (tileLength < 0) {
             throw new FormatException("Negative tile height = " + tileLength);
@@ -407,9 +398,37 @@ public class DetailedIFD extends IFD {
     }
 
     //!! Better analog of IFD.getTilesPerRow() (but it makes sense to change result type to "int")
+
     @Override
     public long getTilesPerRow() throws FormatException {
         return getTilesPerRow(getTileSizeX());
+    }
+    /**
+     * Returns the tile width in tiled image. If there are no tiles,
+     * returns max(w,1), where w is the image width.
+     *
+     * <p>Note: result is always positive!
+     *
+     * @return tile width.
+     * @throws FormatException in a case of incorrect IFD.
+     */
+    public int getTileSizeX() throws FormatException {
+        //!! Better analog of IFD.getTileWidth()
+        final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH, 0);
+        if (tileWidth < 0) {
+            throw new FormatException("Negative tile width = " + tileWidth);
+            // - impossible in a correct TIFF
+        }
+        if (tileWidth > Integer.MAX_VALUE) {
+            throw new FormatException("Very large tile width " + tileWidth + " >= 2^31 is not supported");
+            // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
+        }
+        if (tileWidth != 0) {
+            return (int) tileWidth;
+        }
+        final int imageSizeX = getImageSizeX();
+        return imageSizeX == 0 ? 1 : imageSizeX;
+        // - imageSizeX == 0 is checked to be on the safe side
     }
 
     public int getTilesPerRow(int tileSizeX) throws FormatException {
@@ -578,7 +597,7 @@ public class DetailedIFD extends IFD {
         assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
-    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
+    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
         return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
                 () -> "Invalid requested area: ", () -> "");

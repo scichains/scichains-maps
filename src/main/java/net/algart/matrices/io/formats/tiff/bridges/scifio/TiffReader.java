@@ -921,8 +921,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         long t1 = debugTime();
         final DetailedIFD ifd = tileIndex.ifd();
-        final int xIndex = tileIndex.x();
-        final int yIndex = tileIndex.y();
+        final int xIndex = tileIndex.xIndex();
+        final int yIndex = tileIndex.yIndex();
 
         final int tileSizeX = ifd.getTileSizeX();
         final int tileSizeY = ifd.getTileSizeY();
@@ -1148,7 +1148,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         final int numberOfChannels = ifd.getSamplesPerPixel();
-        final int size = ifd.sizeOfRegion(sizeX, sizeY);
+        final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed and that
         //      sizeX * sizeY * ifd.getSamplesPerPixel() * ifd.getBytesPerSampleBasedOnType()
         // is calculated without overflow

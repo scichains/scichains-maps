@@ -46,6 +46,7 @@ public final class TiffTile {
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
         this.tileSet = tileIndex.tileSet();
+        assert tileIndex.ifd() == tileSet.ifd() : "tileIndex retrieved ifd from its tileSet!";
         setSizes(tileSet.tileSizeX(), tileSet.tileSizeY());
     }
 

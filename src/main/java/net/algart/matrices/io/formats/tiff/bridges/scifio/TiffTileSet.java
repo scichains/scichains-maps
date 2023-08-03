@@ -47,6 +47,7 @@ public final class TiffTileSet {
     private int sizeY = 0;
     private int tileCountX = 0;
     private int tileCountY = 0;
+    private int numberOfTiles = 0;
 
     /**
      * Creates new tile set.
@@ -55,7 +56,7 @@ public final class TiffTileSet {
      * and tile sizes, after creating this object. The constructor saves this information in this object
      * (it is available via access methods) and will not be renewed automatically.
      *
-     * @param ifd IFD.
+     * @param ifd       IFD.
      * @param resizable whether maximal dimensions of this set will grow while adding new tiles,
      *                  or they are fixed and must be specified in IFD.
      */
@@ -75,6 +76,7 @@ public final class TiffTileSet {
             this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
+            assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
             if (hasImageSizes) {
                 setSizes(ifd.getImageSizeX(), ifd.getImageSizeY(), false);
             }
@@ -91,7 +93,7 @@ public final class TiffTileSet {
 
     public static TiffTileSet newImageGrid(DetailedIFD ifd) {
         final TiffTileSet tileSet = new TiffTileSet(ifd, false);
-        return tileSet.addImageGrid();
+        return tileSet.putImageGrid();
     }
 
     public TiffTileIndex chunkedTileIndex(int x, int y) {
@@ -158,50 +160,72 @@ public final class TiffTileSet {
         return sizeY;
     }
 
+    public int getTileCountX() {
+        return tileCountX;
+    }
+
+    public int getTileCountY() {
+        return tileCountY;
+    }
+
+    public int getNumberOfTiles() {
+        return numberOfTiles;
+    }
+
     public TiffTileSet setSizes(int sizeX, int sizeY) {
         setSizes(sizeX, sizeY, true);
         return this;
     }
 
-    public TiffTileSet clear() {
-        tileMap.clear();
-        return this;
+    public TiffTile get(TiffTileIndex tileIndex) {
+        Objects.requireNonNull(tileIndex, "Null tileIndex");
+        return tileMap.get(tileIndex);
     }
 
-    public TiffTileSet add(TiffTile tile) {
+    public TiffTileSet put(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
-        if (tile.ifd() != ifd) {
+        final TiffTileIndex tileIndex = tile.tileIndex();
+        if (tileIndex.ifd() != this.ifd) {
             // - check references, not content!
             throw new IllegalArgumentException("Tile set cannot store tiles from different IFDs");
         }
-        tileMap.put(tile.tileIndex(), tile);
-        //TODO!! check or correct sizes
-        return this;
-    }
-
-    public TiffTileSet addAll(Collection<TiffTile> tiles) {
-        Objects.requireNonNull(tiles, "Null tiles");
-        tiles.forEach(this::add);
-        return this;
-    }
-
-    public TiffTileSet addImageGrid() {
-        final int numTileCols;
-        final int numTileRows;
-        try {
-            numTileCols = (int) ifd.getTilesPerRow();
-            numTileRows = (int) ifd.getTilesPerColumn();
-            //TODO!! replace with tileSet fields
-        } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal IFD: cannot determine amount of tiles", e);
+        if (resizable) {
+            final int toX = tileIndex.toX();
+            final int toY = tileIndex.toY();
+            if (toX > -sizeX || toY > sizeY) {
+                setSizes(Math.max(sizeX, toX), Math.max(sizeY, toY));
+                // - checks correctness (no overflow) before any modifications
+            }
+        } else {
+            if (tileIndex.fromX() > sizeX - 1 || tileIndex.fromY() > sizeY - 1) {
+                // sizeX-1: tile MAY be partially outside the image, but it MUST have at least 1 pixel inside it
+                throw new IndexOutOfBoundsException("New tile is completely outside the image " +
+                        "(out of maximal tileset sizes) " + sizeX + "x" + sizeY + ": " + tileIndex);
+            }
         }
+        tileMap.put(tileIndex, tile);
+        return this;
+    }
+
+    public TiffTileSet putAll(Collection<TiffTile> tiles) {
+        Objects.requireNonNull(tiles, "Null tiles");
+        tiles.forEach(this::put);
+        return this;
+    }
+
+    public TiffTileSet putImageGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
-            for (int y = 0; y < numTileRows; y++) {
-                for (int x = 0; x < numTileCols; x++) {
-                    add(universalTileIndex(p, x, y).newTile());
+            for (int y = 0; y < tileCountY; y++) {
+                for (int x = 0; x < tileCountX; x++) {
+                    put(universalTileIndex(p, x, y).newTile());
                 }
             }
         }
+        return this;
+    }
+
+    public TiffTileSet clear() {
+        tileMap.clear();
         return this;
     }
 
@@ -249,18 +273,17 @@ public final class TiffTileSet {
         if (sizeY < 0) {
             throw new IllegalArgumentException("Negative y-size: " + sizeY);
         }
-//        final int tilesPerRow = ifd.getTilesPerRow(tileSizeX);
-//        final int tilesPerColumn = ifd.getTilesPerColumn(tileSizeY);
+        final int tileCountX = (int) ((long) sizeX + (long) tileSizeX - 1) / tileSizeX;
+        final int tileCountY = (int) ((long) sizeY + (long) tileSizeY - 1) / tileSizeY;
+        if ((long) tileCountX * (long) tileCountY > Integer.MAX_VALUE / numberOfSeparatedPlanes) {
+            throw new IllegalArgumentException("Too large number of tiles/strips: " +
+                    (numberOfSeparatedPlanes > 1 ? numberOfSeparatedPlanes + " separated planes * " : "") +
+                    tileCountX + " * " + tileCountY + " > 2^31-1");
+        }
         this.sizeX = sizeX;
         this.sizeY = sizeY;
-//        this.tileCountX = tilesPerRow;
-//        this.tileCountY = tilesPerColumn;
-//        if ((long) numTileCols * (long) numTileRows > Integer.MAX_VALUE) {
-//            throw new FormatException("Too large number of tiles/strips: "
-//                    + numTileRows + " * " + numTileCols + " > 2^31-1");
-//        }
-        //TODO!! do the same without IFD methods
+        this.tileCountX = tileCountX;
+        this.tileCountY = tileCountY;
+        this.numberOfTiles = tileCountX * tileCountY * numberOfSeparatedPlanes;
     }
-
-
 }
