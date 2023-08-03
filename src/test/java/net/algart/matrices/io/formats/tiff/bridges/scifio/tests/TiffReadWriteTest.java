@@ -114,9 +114,12 @@ public class TiffReadWriteTest {
                 writer.startWritingFile();
 
                 TiffParser parser = null;
+                io.scif.formats.tiff.TiffParser originalParser = null;
                 SequentialTiffWriter sequentialTiffWriter = null;
                 if (legacy) {
-                    parser = new TiffParser(context, new FileLocation(sourceFile.toFile()));
+                    FileLocation locaion = new FileLocation(sourceFile.toFile());
+                    parser = new TiffParser(context, locaion);
+                    originalParser = new io.scif.formats.tiff.TiffParser(context, locaion);
                     sequentialTiffWriter = new SequentialTiffWriter(context, targetExperimentalFile)
                             .setBigTiff(bigTiff)
                             .setLittleEndian(true)
@@ -165,16 +168,20 @@ public class TiffReadWriteTest {
                                 parserIFD.getSamplesPerPixel() *
                                 FormatTools.getBytesPerPixel(parserIFD.getPixelType())];
                         @SuppressWarnings("deprecation")
-                        byte[] buf = parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        byte[] buf1 = parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
                         // - this deprecated method is implemented via new methods
-                        assert buf == bytes;
-                        buf = buf.clone();
+                        assert buf1 == bytes;
+                        buf1 = new byte[bytes.length];
+                        byte[] buf2 = new byte[bytes.length];
                         //noinspection deprecation
                         parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH,
                                 0, 0);
                         // - this deprecated method is a legacy from old code
-                        if (!Arrays.equals(buf, bytes)) {
-                            System.err.printf("%n%nDifferent behaviour!%n%n");
+                        originalParser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        if (!Arrays.equals(buf1, bytes) || !Arrays.equals(buf2, bytes)) {
+                            compareResults(buf1, bytes, "Other parsing matrix");
+                            compareResults(buf1, buf2, "Old parser");
+                            throw new AssertionError();
                         }
                         sequentialTiffWriter.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
                         // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
@@ -218,6 +225,25 @@ public class TiffReadWriteTest {
             }
         }
         System.out.println("Done");
+    }
+
+    private static void compareResults(byte[] buf1, byte[] bytes, String message) {
+        long sum = 0;
+        int count = 0;
+        int first = -1;
+        for (int k = 0; k < buf1.length; k++) {
+            if (buf1[k] != bytes[k]) {
+                count++;
+                if (first < 0) {
+                    first = k;
+                }
+            }
+            sum += Math.abs((buf1[k] & 0xFF) - (bytes[k] & 0xFF));
+        }
+        if (count > 0) {
+            System.err.println(message + ": different behaviour! " + count +
+                    " bytes differ since " + first + ", summary difference " + sum);
+        }
     }
 
 }
