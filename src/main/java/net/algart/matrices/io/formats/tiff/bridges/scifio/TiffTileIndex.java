@@ -64,9 +64,10 @@ public final class TiffTileIndex {
                         + " is allowed only in planar-separated images");
             }
         } else {
+            assert tileSet.numberOfSeparatedPlanes() == tileSet.numberOfChannels();
             if (channel < 0 || channel >= tileSet.numberOfChannels()) {
                 throw new IllegalArgumentException("Index of channel " + channel +
-                        " is out of range 0.." + tileSet.numberOfChannels());
+                        " is out of range 0.." + (tileSet.numberOfChannels() - 1));
             }
         }
         if (xIndex < 0) {
@@ -134,6 +135,22 @@ public final class TiffTileIndex {
 
     public int toY() {
         return toY;
+    }
+
+    public int linearIndex() {
+        return tileSet.linearIndex(channel, xIndex, yIndex);
+    }
+
+    public boolean isInBounds() {
+        assert channel < tileSet.numberOfSeparatedPlanes() : "must be checked in the constructor!";
+        return xIndex < tileSet.getTileCountX() && yIndex < tileSet.getTileCountY();
+    }
+
+    public void checkInBounds() {
+        if (!isInBounds()) {
+            throw new IllegalStateException("Tile index is out of maximal tileset sizes " +
+                    tileSet.getTileCountX() + "x" + tileSet.getTileCountY() + ": " + this);
+        }
     }
 
     public TiffTile newTile() {

@@ -1107,7 +1107,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 final int x = fromX + xOffset;
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (alreadyInterleaved) {
-                    final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
                             0, x / tileSizeX, y / tileSizeY);
                     final int tileRowSizeInBytes = tileSizeX * numberOfChannels * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * numberOfChannels * bytesPerSample;
@@ -1123,7 +1123,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 } else if (chunked) {
                     // - source data are separated, but result should be interleaved;
                     // so, we must prepare correct separated tile (it will be interleaved later)
-                    final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                    final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
                             0, x / tileSizeX, y / tileSizeY);
                     final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
@@ -1144,7 +1144,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int c = 0; c < numberOfChannels; c++) {
-                        final TiffTileIndex tiffTileIndex = tileSet.universalTileIndex(
+                        final TiffTileIndex tiffTileIndex = tileSet.tileIndex(
                                 c, x / tileSizeX, y / tileSizeY);
                         final byte[] data = new byte[tileSize];
                         // - zero-filled by Java

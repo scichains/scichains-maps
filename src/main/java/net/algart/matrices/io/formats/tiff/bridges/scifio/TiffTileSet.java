@@ -43,11 +43,11 @@ public final class TiffTileSet {
     // - Note: we store here information about samples and tiles structure, but
     // SHOULD NOT store information about image sizes (like number of tiles):
     // it is probable that we do not know final sizes while creating tiles of the image!
-    private int sizeX = 0;
-    private int sizeY = 0;
-    private int tileCountX = 0;
-    private int tileCountY = 0;
-    private int numberOfTiles = 0;
+    private volatile int sizeX = 0;
+    private volatile int sizeY = 0;
+    private volatile int tileCountX = 0;
+    private volatile int tileCountY = 0;
+    private volatile int numberOfTiles = 0;
 
     /**
      * Creates new tile set.
@@ -94,14 +94,6 @@ public final class TiffTileSet {
     public static TiffTileSet newImageGrid(DetailedIFD ifd) {
         final TiffTileSet tileSet = new TiffTileSet(ifd, false);
         return tileSet.putImageGrid();
-    }
-
-    public TiffTileIndex chunkedTileIndex(int x, int y) {
-        return new TiffTileIndex(this, 0, x, y);
-    }
-
-    public TiffTileIndex universalTileIndex(int separatedPlaneIndex, int x, int y) {
-        return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
     public DetailedIFD ifd() {
@@ -172,6 +164,42 @@ public final class TiffTileSet {
         return numberOfTiles;
     }
 
+    public int linearIndex(int separatedPlaneIndex, int xIndex, int yIndex) {
+        if (separatedPlaneIndex < 0 || separatedPlaneIndex >= numberOfSeparatedPlanes) {
+            throw new IndexOutOfBoundsException("Separated plane index " + separatedPlaneIndex +
+                    " is out of range 0.." + (numberOfSeparatedPlanes - 1));
+        }
+        int tileCountX = this.tileCountX;
+        int tileCountY = this.tileCountY;
+        if (xIndex < 0 || xIndex >= tileCountX) {
+            throw new IndexOutOfBoundsException("X-index " + xIndex + " is out of range 0.." + (tileCountX - 1));
+        }
+        if (yIndex < 0 || yIndex >= tileCountY) {
+            throw new IndexOutOfBoundsException("X-index " + xIndex + " is out of range 0.." + (tileCountY - 1));
+        }
+        // - if the tile is out of bounds, it means that we do not know actual grid dimensions
+        // (even it is resizable): there is no way to calculate correct linear index
+        return (separatedPlaneIndex * tileCountY + yIndex) * tileCountX + xIndex;
+        // - overflow impossible: setSizes checks that tileCountX * tileCountY * numberOfSeparatedPlanes < 2^31
+    }
+
+    public TiffTileIndex chunkedTileIndex(int x, int y) {
+        return new TiffTileIndex(this, 0, x, y);
+    }
+
+    public TiffTileIndex tileIndex(int separatedPlaneIndex, int x, int y) {
+        return new TiffTileIndex(this, separatedPlaneIndex, x, y);
+    }
+
+    public TiffTile newChunkedTile(int x, int y) {
+        return chunkedTileIndex(x, y).newTile();
+    }
+
+    public TiffTile newTile(int separatedPlaneIndex, int x, int y) {
+        return tileIndex(separatedPlaneIndex, x, y).newTile();
+    }
+
+
     public TiffTileSet setSizes(int sizeX, int sizeY) {
         setSizes(sizeX, sizeY, true);
         return this;
@@ -217,7 +245,7 @@ public final class TiffTileSet {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < tileCountY; y++) {
                 for (int x = 0; x < tileCountX; x++) {
-                    put(universalTileIndex(p, x, y).newTile());
+                    put(tileIndex(p, x, y).newTile());
                 }
             }
         }
@@ -231,7 +259,8 @@ public final class TiffTileSet {
 
     @Override
     public String toString() {
-        return "Set of " + tileMap.size() + " TIFF tiles in the image " + ifd.toString(false);
+        return "set of " + tileMap.size() + " TIFF tiles (grid " + tileCountX + "x" + tileCountY +
+                ") at the image " + ifd.toString(false);
     }
 
     @Override

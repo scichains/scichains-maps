@@ -947,7 +947,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new FormatException(
                     "Too large number of tiles/strips: " + numTileRows + " * " + numTileCols + " > 2^31-1");
         }
-        final int index = (tileIndex.channel() * numTileRows + yIndex) * numTileCols + xIndex;
+        final int index = tileIndex.linearIndex();
         //TODO!! - move all this into TiffTileSet
         int countIndex = index;
         if (assumeEqualStrips) {
@@ -1387,7 +1387,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             int effectiveYIndex = p * numTileRows + minRow;
             for (int yIndex = minRow; yIndex <= maxRow; yIndex++, effectiveYIndex++) {
                 for (int xIndex = minCol; xIndex <= maxCol; xIndex++) {
-                    final TiffTile tile = readTile(tileSet.universalTileIndex(p, xIndex, yIndex));
+                    final TiffTile tile = readTile(tileSet.tileIndex(p, xIndex, yIndex));
                     if (tile.isEmpty()) {
                         continue;
                     }
