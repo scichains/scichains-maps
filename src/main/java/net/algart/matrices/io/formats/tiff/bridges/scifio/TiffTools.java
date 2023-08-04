@@ -659,16 +659,16 @@ public class TiffTools {
         }
     }
 
-    static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY, long imageSizeX, long imageSizeY) {
+    static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY, long imageDimX, long imageDimY) {
         checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        if (imageSizeX < 0 || imageSizeY < 0) {
-            throw new IllegalArgumentException("Negative imageSizeX = " + imageSizeX +
-                    " or imageSizeY = " + imageSizeY);
+        if (imageDimX < 0 || imageDimY < 0) {
+            throw new IllegalArgumentException("Negative imageDimX = " + imageDimX +
+                    " or imageDimY = " + imageDimY);
         }
-        if (fromX > imageSizeX - sizeX || fromY > imageSizeY - sizeY) {
+        if (fromX > imageDimX - sizeX || fromY > imageDimY - sizeY) {
             throw new IllegalArgumentException("Requested area [" + fromX + ".." + (fromX + sizeX - 1) +
                     " x " + fromY + ".." + (fromY + sizeY - 1) + " is out of image ranges " +
-                    imageSizeX + "x" + imageSizeY);
+                    imageDimX + "x" + imageDimY);
         }
     }
 

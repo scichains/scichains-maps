@@ -1119,7 +1119,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     public byte[] readSamples(final DetailedIFD ifd) throws FormatException, IOException {
-        return readSamples(ifd, 0, 0, ifd.getImageSizeX(), ifd.getImageSizeY());
+        return readSamples(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
     }
 
     /**
@@ -1336,8 +1336,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
         final int channelsPerPixel = map.channelsPerPixel();
 
-        final int toX = Math.min(fromX + sizeX, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.getSizeX());
-        final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.getSizeY());
+        final int toX = Math.min(fromX + sizeX, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimX());
+        final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimY());
         // - crop by image sizes (if !readingBoundaryTilesOutsideImage) to avoid
         // reading unpredictable content of the boundary tiles outside the image
         final int minXIndex = fromX / tileSizeX;

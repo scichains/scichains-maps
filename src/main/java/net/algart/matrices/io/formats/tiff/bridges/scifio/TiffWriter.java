@@ -691,9 +691,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int sizeY) throws FormatException {
         Objects.requireNonNull(map, "Null tile map");
         final boolean chunked = !map.isPlanarSeparated();
-        final int imageSizeX = map.getSizeX();
-        final int imageSizeY = map.getSizeY();
-        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, imageSizeX, imageSizeY);
+        final int dimX = map.dimX();
+        final int dimY = map.dimY();
+        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, dimX, dimY);
         //TODO!! not require setting image sizes
         map.expandSizes(fromX + sizeX, fromY + sizeY);
         final int bytesPerSample = map.bytesPerSample();
@@ -736,15 +736,15 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         for (int yIndex = 0, tileIndex = 0; yIndex < numTileRows; yIndex++) {
             final int yOffset = yIndex * tileSizeY;
             final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
-            assert (long) fromY + (long) yOffset < imageSizeY : "region must  be checked before calling splitTiles";
+            assert (long) fromY + (long) yOffset < dimY : "region must  be checked before calling splitTiles";
             final int y = fromY + yOffset;
-            final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, imageSizeY - y);
+            final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, dimY - y);
             // - last strip should have exact height, in other case TIFF may be read with a warning
             final int validTileChannelSize = tileSizeX * validTileSizeY * bytesPerSample;
             for (int xIndex = 0; xIndex < numTileCols; xIndex++, tileIndex++) {
                 assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
                 final int xOffset = xIndex * tileSizeX;
-                assert (long) fromX + (long) xOffset < imageSizeX : "region must be checked before calling splitTiles";
+                assert (long) fromX + (long) xOffset < dimX : "region must be checked before calling splitTiles";
                 final int x = fromX + xOffset;
                 final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                 if (alreadyInterleaved) {
@@ -870,8 +870,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final DetailedIFD ifd, final byte[] samples, final Integer ifdIndex,
             final int numberOfChannels, final int pixelType, final boolean last) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
-        final int sizeX = ifd.getImageSizeX();
-        final int sizeY = ifd.getImageSizeY();
+        final int sizeX = ifd.getImageDimX();
+        final int sizeY = ifd.getImageDimY();
         writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
@@ -917,7 +917,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
         }
         long t1 = debugTime();
-        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageSizeX(), ifd.getImageSizeY());
+        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageDimX(), ifd.getImageDimY());
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }

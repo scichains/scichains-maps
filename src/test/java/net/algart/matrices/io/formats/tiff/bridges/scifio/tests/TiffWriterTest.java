@@ -163,7 +163,7 @@ public class TiffWriterTest {
                         samplesArray = TiffTools.toInterleavedSamples(
                                 (byte[]) samplesArray, bandCount, 1, WIDTH * HEIGHT);
                     }
-                    ifd.putImageSizes(WIDTH, HEIGHT);
+                    ifd.putImageDimensions(WIDTH, HEIGHT);
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {

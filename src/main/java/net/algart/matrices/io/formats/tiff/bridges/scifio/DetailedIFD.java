@@ -302,19 +302,19 @@ public class DetailedIFD extends IFD {
     }
 
     public long getImageWidth() throws FormatException {
-        return getImageSizeX();
+        return getImageDimX();
     }
 
     public long getImageLength() throws FormatException {
-        return getImageSizeY();
+        return getImageDimY();
     }
 
-    public boolean hasImageSizes() {
+    public boolean hasImageDimensions() {
         return containsKey(IMAGE_WIDTH) && containsKey(IMAGE_LENGTH);
     }
 
     //!! Better analog of IFD.getImageWidth()
-    public int getImageSizeX() throws FormatException {
+    public int getImageDimX() throws FormatException {
         final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
         if (imageWidth <= 0) {
             throw new FormatException("Zero or negative image width = " + imageWidth);
@@ -327,7 +327,7 @@ public class DetailedIFD extends IFD {
     }
 
     //!! Better analog of IFD.getImageLength()
-    public int getImageSizeY() throws FormatException {
+    public int getImageDimY() throws FormatException {
         final long imageLength = getIFDLongValue(IMAGE_LENGTH);
         if (imageLength <= 0) {
             throw new FormatException("Zero or negative image height = " + imageLength);
@@ -342,16 +342,16 @@ public class DetailedIFD extends IFD {
     //!! Better analog of getRowsPerStrip()
     public int getStripSizeY() throws FormatException {
         final long[] rowsPerStrip = getIFDLongArray(ROWS_PER_STRIP);
-        final int imageSizeY = getImageSizeY();
+        final int imageDimY = getImageDimY();
         if (rowsPerStrip == null || rowsPerStrip.length == 0) {
             // - zero rowsPerStrip.length is possible only as a result of manual modification of this IFD
-            return imageSizeY == 0 ? 1 : imageSizeY;
-            // - imageSizeY == 0 is checked to be on the safe side
+            return imageDimY == 0 ? 1 : imageDimY;
+            // - imageDimY == 0 is checked to be on the safe side
         }
 
         // rowsPerStrip should never be more than the total number of rows
         for (int i = 0; i < rowsPerStrip.length; i++) {
-            int rows = (int) Math.min(rowsPerStrip[i], imageSizeY);
+            int rows = (int) Math.min(rowsPerStrip[i], imageDimY);
             if (rows <= 0) {
                 throw new FormatException("Zero or negative RowsPerStrip[" + i + "] = " + rows);
             }
@@ -426,9 +426,9 @@ public class DetailedIFD extends IFD {
         if (tileWidth != 0) {
             return (int) tileWidth;
         }
-        final int imageSizeX = getImageSizeX();
-        return imageSizeX == 0 ? 1 : imageSizeX;
-        // - imageSizeX == 0 is checked to be on the safe side
+        final int imageDimX = getImageDimX();
+        return imageDimX == 0 ? 1 : imageDimX;
+        // - imageDimX == 0 is checked to be on the safe side
     }
 
     public int getTilesPerRow(int tileSizeX) throws FormatException {
@@ -494,24 +494,24 @@ public class DetailedIFD extends IFD {
         return number.longValue();
     }
 
-    public DetailedIFD putImageSizes(int width, int height) {
-        if (width <= 0) {
-            throw new IllegalArgumentException("Zero or negative image width");
+    public DetailedIFD putImageDimensions(int dimX, int dimY) {
+        if (dimX <= 0) {
+            throw new IllegalArgumentException("Zero or negative image width (x-dimension)");
         }
-        if (height <= 0) {
-            throw new IllegalArgumentException("Zero or negative image height");
+        if (dimY <= 0) {
+            throw new IllegalArgumentException("Zero or negative image height (y-dimension)");
         }
-        putIFDValue(IFD.IMAGE_WIDTH, width);
-        putIFDValue(IFD.IMAGE_LENGTH, height);
+        putIFDValue(IFD.IMAGE_WIDTH, dimX);
+        putIFDValue(IFD.IMAGE_LENGTH, dimY);
         return this;
     }
 
     public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
-            throw new IllegalArgumentException("Zero or negative tile X-size");
+            throw new IllegalArgumentException("Zero or negative tile x-size");
         }
         if (tileSizeY <= 0) {
-            throw new IllegalArgumentException("Zero or negative tile Y-size");
+            throw new IllegalArgumentException("Zero or negative tile y-size");
         }
         if ((tileSizeX & 15) != 0 || (tileSizeY & 15) != 0) {
             throw new IllegalArgumentException("Illegal tile sizes " + tileSizeX + "x" + tileSizeY

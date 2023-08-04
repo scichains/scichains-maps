@@ -161,7 +161,7 @@ public class TiffReadWriteTest {
                         writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
                     }
-                    writerIFD.putImageSizes(w, h);
+                    writerIFD.putImageDimensions(w, h);
                     writer.writeSamples(writerIFD, bytes, null, bandCount,
                             readerIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
@@ -209,7 +209,7 @@ public class TiffReadWriteTest {
                             writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                             // - not remove! Removing means default value!
                         }
-                        writerIFD.putImageSizes(w, h);
+                        writerIFD.putImageDimensions(w, h);
                         writeSeveralTilesOrStrips(sequentialTiffSaver, bytes,
                                 writerIFD, readerIFD.getPixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH,  last);
