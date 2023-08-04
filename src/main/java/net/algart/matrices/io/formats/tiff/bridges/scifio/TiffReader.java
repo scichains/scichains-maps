@@ -1150,7 +1150,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifd.sizeOfTileBasedOnBits();
         // - checks that we can multiply tile sizes by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         long t1 = debugTime();
-        Arrays.fill(samples, 0, size, filler);
+        if (filler != 0) {
+            // - samples is zero-filled by Java
+            Arrays.fill(samples, 0, size, filler);
+        }
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results
 
