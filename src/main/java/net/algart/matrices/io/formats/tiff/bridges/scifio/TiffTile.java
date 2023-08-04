@@ -33,19 +33,24 @@ import java.util.*;
  */
 public final class TiffTile {
     private final TiffMap map;
+    private final int channelsPerPixel;
+    private final int bytesPerSample;
     private final TiffTileIndex tileIndex;
     private int sizeX;
     private int sizeY;
-    private int numberOfPixels;
+    private int sizeInPixels;
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
     private long storedDataFileOffset = -1;
     private int storedDataLength = 0;
+    private int storedNumberOfPixels = 0;
 
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
         this.map = tileIndex.map();
+        this.channelsPerPixel = map.channelsPerPixel();
+        this.bytesPerSample = map.bytesPerSample();
         assert tileIndex.ifd() == map.ifd() : "tileIndex retrieved ifd from its tile map!";
         setSizes(map.tileSizeX(), map.tileSizeY());
     }
@@ -67,15 +72,11 @@ public final class TiffTile {
     }
 
     public int channelsPerPixel() {
-        return map.channelsPerPixel();
+        return channelsPerPixel;
     }
 
     public int bytesPerSample() {
-        return map.bytesPerSample();
-    }
-
-    public int sizeOfTileBasedOnBits() {
-        return map.tileSizeInBytes();
+        return bytesPerSample;
     }
 
     public int getSizeX() {
@@ -94,8 +95,8 @@ public final class TiffTile {
         return setSizes(this.sizeX, sizeY);
     }
 
-    public int getNumberOfPixels() {
-        return numberOfPixels;
+    public int getSizeInPixels() {
+        return sizeInPixels;
     }
 
     /**
@@ -121,7 +122,7 @@ public final class TiffTile {
         }
         this.sizeX = sizeX;
         this.sizeY = sizeY;
-        this.numberOfPixels = sizeX * sizeY;
+        this.sizeInPixels = sizeX * sizeY;
         return this;
     }
 
@@ -175,19 +176,19 @@ public final class TiffTile {
     }
 
     public TiffTile setEncodedData(byte[] data) {
-        return setData(data).setEncoded(true);
+        return setData(data, true);
     }
 
     public byte[] getDecodedData() {
         checkEmpty();
         if (isEncoded()) {
-            throw new IllegalStateException("TIFF tile is not decoded: " + this);
+            throw new IllegalStateException("TIFF tile data are not decoded and cannot be retrieved: " + this);
         }
         return getData();
     }
 
     public TiffTile setDecodedData(byte[] data) {
-        return setData(data).setEncoded(false);
+        return setData(data, false);
     }
 
     public TiffTile free() {
@@ -208,14 +209,6 @@ public final class TiffTile {
      */
     public int getStoredDataLength() {
         return storedDataLength;
-    }
-
-    public TiffTile setStoredDataLength(int storedDataLength) {
-        if (storedDataLength < 0) {
-            throw new IllegalArgumentException("Negative storedDataLength = " + storedDataLength);
-        }
-        this.storedDataLength = storedDataLength;
-        return this;
     }
 
     public boolean hasStoredDataFileOffset() {
@@ -252,6 +245,14 @@ public final class TiffTile {
         return this;
     }
 
+    public int getStoredNumberOfPixels() {
+        checkEmpty();
+        if (isEncoded()) {
+            throw new IllegalStateException("TIFF tile data are not decoded, number of pixels is unknown: " + this);
+        }
+        return storedNumberOfPixels;
+    }
+
     public TiffTile interleaveSamplesIfNecessary() {
         if (!isInterleaved()) {
             interleaveSamples();
@@ -271,7 +272,7 @@ public final class TiffTile {
         if (isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already interleaved: " + this);
         }
-        data = TiffTools.toInterleavedSamples(data, channelsPerPixel(), bytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toInterleavedSamples(data, channelsPerPixel(), bytesPerSample(), getSizeInPixels());
         setInterleaved(true);
         setDecodedData(data);
         return this;
@@ -282,7 +283,7 @@ public final class TiffTile {
         if (!isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already separated: " + this);
         }
-        data = TiffTools.toSeparatedSamples(data, channelsPerPixel(), bytesPerSample(), getNumberOfPixels());
+        data = TiffTools.toSeparatedSamples(data, channelsPerPixel(), bytesPerSample(), getSizeInPixels());
         setInterleaved(false);
         setDecodedData(data);
         return this;
@@ -309,7 +310,7 @@ public final class TiffTile {
         }
         TiffTile tiffTile = (TiffTile) o;
         return sizeX == tiffTile.sizeX && sizeY == tiffTile.sizeY &&
-                numberOfPixels == tiffTile.numberOfPixels &&
+                sizeInPixels == tiffTile.sizeInPixels &&
                 interleaved == tiffTile.interleaved && encoded == tiffTile.encoded &&
                 storedDataFileOffset == tiffTile.storedDataFileOffset &&
                 storedDataLength == tiffTile.storedDataLength &&
@@ -320,17 +321,25 @@ public final class TiffTile {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(tileIndex, sizeX, sizeY, numberOfPixels,
+        int result = Objects.hash(tileIndex, sizeX, sizeY, sizeInPixels,
                 interleaved, encoded, storedDataFileOffset, storedDataLength);
         result = 31 * result + Arrays.hashCode(data);
         return result;
-        // Note: doesn't check containingSet to avoid infinite recursion!
+        // Note: doesn't check this.map to avoid infinite recursion!
     }
 
-    private TiffTile setData(byte[] data) {
-        Objects.requireNonNull(data, "Null data");
+    private TiffTile setData(byte[] data, boolean encoded) {
+        Objects.requireNonNull(data, "Null " + (encoded ? "encoded" : "decoded") + " data");
+        if (!encoded && data.length % (channelsPerPixel * bytesPerSample) != 0) {
+            throw new IllegalArgumentException("Invalid length of decoded data " + data.length +
+                    ": it must be a multiple of the pixel length = " +
+                    (channelsPerPixel * bytesPerSample) + " = " +
+                    channelsPerPixel + " * " + bytesPerSample +
+                    " (channels per pixel * bytes per channel sample)");
+        }
         this.data = data;
         this.storedDataLength = data.length;
+        this.encoded = encoded;
         return this;
     }
 

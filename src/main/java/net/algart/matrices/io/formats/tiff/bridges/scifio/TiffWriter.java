@@ -817,7 +817,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         DetailedIFD ifd = tile.ifd();
         final int effectiveChannels = tile.channelsPerPixel();
         final int bytesPerSample = tile.bytesPerSample();
-        final int size = tile.getNumberOfPixels();
+        final int size = tile.getSizeInPixels();
         final byte[] data = tile.getDecodedData();
         if (size > data.length || (long) size * effectiveChannels > data.length / bytesPerSample) {
             throw new IllegalArgumentException("Too short data array: " + data.length + " < " +
