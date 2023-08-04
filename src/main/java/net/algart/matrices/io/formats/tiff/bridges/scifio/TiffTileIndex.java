@@ -31,12 +31,12 @@ import java.util.Objects;
  *
  * <p>Note: for hashing this object uses IFD identity hash code.
  * Of course, this  cannot provide a good universal hash,
- * but it is quite enough for our needs: usually we will not create new identical tile sets.
+ * but it is quite enough for our needs: usually we will not create new IDF.
  *
  * @author Denial Alievsky
  */
 public final class TiffTileIndex {
-    private final TiffTileSet tileSet;
+    private final TiffMap map;
     private final DetailedIFD ifd;
     private final int ifdIdentity;
     private final int channel;
@@ -50,24 +50,24 @@ public final class TiffTileIndex {
     /**
      * Creates new tile index.
      *
-     * @param tileSet containing tile set.
+     * @param map containing tile map.
      * @param channel channel index (used only in a case of {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE},
      *                always 0 for usual case  {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED})
      * @param xIndex  x-index of the tile (0, 1, 2, ...).
      * @param yIndex  y-index of the tile (0, 1, 2, ...).
      */
-    public TiffTileIndex(TiffTileSet tileSet, int channel, int xIndex, int yIndex) {
-        Objects.requireNonNull(tileSet, "Null containing tile set");
-        if (!tileSet.isPlanarSeparated()) {
+    public TiffTileIndex(TiffMap map, int channel, int xIndex, int yIndex) {
+        Objects.requireNonNull(map, "Null containing tile map");
+        if (!map.isPlanarSeparated()) {
             if (channel != 0) {
                 throw new IllegalArgumentException("Non-zero channel = " + channel
                         + " is allowed only in planar-separated images");
             }
         } else {
-            assert tileSet.numberOfSeparatedPlanes() == tileSet.numberOfChannels();
-            if (channel < 0 || channel >= tileSet.numberOfChannels()) {
+            assert map.numberOfSeparatedPlanes() == map.numberOfChannels();
+            if (channel < 0 || channel >= map.numberOfChannels()) {
                 throw new IllegalArgumentException("Index of channel " + channel +
-                        " is out of range 0.." + (tileSet.numberOfChannels() - 1));
+                        " is out of range 0.." + (map.numberOfChannels() - 1));
             }
         }
         if (xIndex < 0) {
@@ -76,16 +76,16 @@ public final class TiffTileIndex {
         if (yIndex < 0) {
             throw new IllegalArgumentException("Negative y-index = " + yIndex);
         }
-        if (xIndex > TiffTileSet.MAX_TILE_INDEX) {
-            throw new IllegalArgumentException("Too large x-index = " + xIndex + " > " + TiffTileSet.MAX_TILE_INDEX);
+        if (xIndex > TiffMap.MAX_TILE_INDEX) {
+            throw new IllegalArgumentException("Too large x-index = " + xIndex + " > " + TiffMap.MAX_TILE_INDEX);
         }
-        if (yIndex > TiffTileSet.MAX_TILE_INDEX) {
-            throw new IllegalArgumentException("Too large y-index = " + yIndex + " > " + TiffTileSet.MAX_TILE_INDEX);
+        if (yIndex > TiffMap.MAX_TILE_INDEX) {
+            throw new IllegalArgumentException("Too large y-index = " + yIndex + " > " + TiffMap.MAX_TILE_INDEX);
         }
-        final long fromX = (long) xIndex * tileSet.tileSizeX();
-        final long fromY = (long) yIndex * tileSet.tileSizeY();
-        final long toX = fromX + tileSet.tileSizeX();
-        final long toY = fromY + tileSet.tileSizeY();
+        final long fromX = (long) xIndex * map.tileSizeX();
+        final long fromY = (long) yIndex * map.tileSizeY();
+        final long toX = fromX + map.tileSizeX();
+        final long toY = fromY + map.tileSizeY();
         if (toX > Integer.MAX_VALUE || toY > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Too large tile indexes (" + xIndex + ", " + yIndex +
                     ") lead to too large coordinates (" + (toX - 1) + ", " + (toY - 1) +
@@ -93,8 +93,8 @@ public final class TiffTileIndex {
         }
         // Note: we could check here also that x and y are in range of all tiles for this IFD, but it is a bad idea:
         // while building new TIFF, we probably do not know actual images sizes until getting all tiles.
-        this.tileSet = tileSet;
-        this.ifd = tileSet.ifd();
+        this.map = map;
+        this.ifd = map.ifd();
         this.ifdIdentity = System.identityHashCode(ifd);
         // - not a universal solution, but suitable for our optimization needs:
         // usually we do not create new IFD instances without necessity
@@ -107,8 +107,8 @@ public final class TiffTileIndex {
         this.toY = (int) toY;
     }
 
-    public TiffTileSet tileSet() {
-        return tileSet;
+    public TiffMap map() {
+        return map;
     }
 
     public DetailedIFD ifd() {
@@ -144,18 +144,18 @@ public final class TiffTileIndex {
     }
 
     public int linearIndex() {
-        return tileSet.linearIndex(channel, xIndex, yIndex);
+        return map.linearIndex(channel, xIndex, yIndex);
     }
 
     public boolean isInBounds() {
-        assert channel < tileSet.numberOfSeparatedPlanes() : "must be checked in the constructor!";
-        return xIndex < tileSet.tileCountX() && yIndex < tileSet.tileCountY();
+        assert channel < map.numberOfSeparatedPlanes() : "must be checked in the constructor!";
+        return xIndex < map.tileCountX() && yIndex < map.tileCountY();
     }
 
     public void checkInBounds() {
         if (!isInBounds()) {
-            throw new IllegalStateException("Tile index is out of maximal tileset sizes " +
-                    tileSet.tileCountX() + "x" + tileSet.tileCountY() + ": " + this);
+            throw new IllegalStateException("Tile index is out of maximal tilemap sizes " +
+                    map.tileCountX() + "x" + map.tileCountY() + ": " + this);
         }
     }
 
@@ -166,7 +166,7 @@ public final class TiffTileIndex {
     @Override
     public String toString() {
         return "(" + xIndex + ", " + yIndex + ")" +
-                (tileSet.isPlanarSeparated() ? ", channel " + channel : "") +
+                (map.isPlanarSeparated() ? ", channel " + channel : "") +
                 ") [" + (toX - fromX) + "x" + (toY - fromY) + " at coordinates (" + fromX + ", " + fromY + ")]" +
                 " in IFD @" + Integer.toHexString(ifdIdentity);
     }
@@ -181,8 +181,8 @@ public final class TiffTileIndex {
         }
         final TiffTileIndex that = (TiffTileIndex) o;
         return channel == that.channel && xIndex == that.xIndex && yIndex == that.yIndex && ifd == that.ifd;
-        // - Important! Comparing references to IFD, not content and not tile set!
-        // Different tile sets may refer to the same IFD;
+        // - Important! Comparing references to IFD, not content and not tile map!
+        // Different tile maps may refer to the same IFD;
         // on the other hand, we usually do not need to create identical IFDs.
     }
 

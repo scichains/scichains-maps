@@ -32,7 +32,7 @@ import java.util.*;
  * @author Denial Alievsky
  */
 public final class TiffTile {
-    private final TiffTileSet tileSet;
+    private final TiffMap map;
     private final TiffTileIndex tileIndex;
     private int sizeX;
     private int sizeY;
@@ -45,17 +45,17 @@ public final class TiffTile {
 
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
-        this.tileSet = tileIndex.tileSet();
-        assert tileIndex.ifd() == tileSet.ifd() : "tileIndex retrieved ifd from its tileSet!";
-        setSizes(tileSet.tileSizeX(), tileSet.tileSizeY());
+        this.map = tileIndex.map();
+        assert tileIndex.ifd() == map.ifd() : "tileIndex retrieved ifd from its tile map!";
+        setSizes(map.tileSizeX(), map.tileSizeY());
     }
 
-    public TiffTileSet tileSet() {
-        return tileSet;
+    public TiffMap map() {
+        return map;
     }
 
     public DetailedIFD ifd() {
-        return tileSet.ifd();
+        return map.ifd();
     }
 
     public TiffTileIndex tileIndex() {
@@ -63,19 +63,19 @@ public final class TiffTile {
     }
 
     public boolean isPlanarSeparated() {
-        return tileSet.isPlanarSeparated();
+        return map.isPlanarSeparated();
     }
 
     public int channelsPerPixel() {
-        return tileSet.channelsPerPixel();
+        return map.channelsPerPixel();
     }
 
     public int bytesPerSample() {
-        return tileSet.bytesPerSample();
+        return map.bytesPerSample();
     }
 
     public int sizeOfTileBasedOnBits() {
-        return tileSet.tileSizeInBytes();
+        return map.tileSizeInBytes();
     }
 
     public int getSizeX() {
@@ -303,7 +303,7 @@ public final class TiffTile {
                 " tile at " + tileIndex +
                 (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
                 (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "") +
-                ", stored in " + tileSet;
+                ", stored in " + map;
     }
 
     @Override

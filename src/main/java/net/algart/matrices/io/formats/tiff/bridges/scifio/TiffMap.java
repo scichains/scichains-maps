@@ -28,7 +28,7 @@ import io.scif.FormatException;
 
 import java.util.*;
 
-public final class TiffTileSet {
+public final class TiffMap {
     /**
      * Maximal supported number of channels. Popular OpenCV library has the same limit.
      *
@@ -72,7 +72,7 @@ public final class TiffTileSet {
     private volatile int numberOfTiles = 0;
 
     /**
-     * Creates new tile set.
+     * Creates new tile map.
      *
      * <p>Note: you should not change the tags of the passed IFD, describing pixel type, number of samples
      * and tile sizes, after creating this object. The constructor saves this information in this object
@@ -82,14 +82,14 @@ public final class TiffTileSet {
      * @param resizable whether maximal dimensions of this set will grow while adding new tiles,
      *                  or they are fixed and must be specified in IFD.
      */
-    public TiffTileSet(DetailedIFD ifd, boolean resizable) {
+    public TiffMap(DetailedIFD ifd, boolean resizable) {
         this.ifd = Objects.requireNonNull(ifd, "Null IFD");
         this.resizable = resizable;
         try {
             final boolean hasImageSizes = ifd.hasImageSizes();
             if (!hasImageSizes && !resizable) {
                 throw new IllegalArgumentException("IFD sizes (ImageWidth and ImageLength) are not specified; " +
-                        "it is not allowed for non-resizable tile set");
+                        "it is not allowed for non-resizable tile map");
             }
             this.planarSeparated = ifd.isPlanarSeparated();
             this.numberOfChannels = ifd.getSamplesPerPixel();
@@ -127,9 +127,9 @@ public final class TiffTileSet {
         }
     }
 
-    public static TiffTileSet newImageGrid(DetailedIFD ifd) {
-        final TiffTileSet tileSet = new TiffTileSet(ifd, false);
-        return tileSet.putImageGrid();
+    public static TiffMap newImageGrid(DetailedIFD ifd) {
+        final TiffMap map = new TiffMap(ifd, false);
+        return map.putImageGrid();
     }
 
     public DetailedIFD ifd() {
@@ -188,7 +188,7 @@ public final class TiffTileSet {
         return sizeY;
     }
 
-    public TiffTileSet setSizes(int sizeX, int sizeY) {
+    public TiffMap setSizes(int sizeX, int sizeY) {
         setSizes(sizeX, sizeY, true);
         return this;
     }
@@ -203,7 +203,7 @@ public final class TiffTileSet {
      * @param newMinimalSizeY new minimal value for {@link #getSizeY() sizeY}.
      * @return a reference to this object.
      */
-    public TiffTileSet expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
+    public TiffMap expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
         if (newMinimalSizeX < 0) {
             throw new IllegalArgumentException("Negative new minimal x-size: " + newMinimalSizeX);
         }
@@ -239,7 +239,7 @@ public final class TiffTileSet {
      * @param newMinimalTileCountY new minimal value for {@link #tileCountY()}.
      * @return a reference to this object.
      */
-    public TiffTileSet expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY) {
+    public TiffMap expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY) {
         expandTileCounts(newMinimalTileCountX, newMinimalTileCountY, true);
         return this;
     }
@@ -287,12 +287,12 @@ public final class TiffTileSet {
         return tileMap.get(tileIndex);
     }
 
-    public TiffTileSet put(TiffTile tile) {
+    public TiffMap put(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
         final TiffTileIndex tileIndex = tile.tileIndex();
         if (tileIndex.ifd() != this.ifd) {
             // - check references, not content!
-            throw new IllegalArgumentException("Tile set cannot store tiles from different IFDs");
+            throw new IllegalArgumentException("Tile map cannot store tiles from different IFDs");
         }
         if (resizable) {
             expandTileCounts(tileIndex.xIndex() + 1, tileIndex.yIndex() + 1);
@@ -300,20 +300,20 @@ public final class TiffTileSet {
             if (tileIndex.xIndex() >= tileCountX || tileIndex.yIndex() >= tileCountY) {
                 // sizeX-1: tile MAY be partially outside the image, but it MUST have at least 1 pixel inside it
                 throw new IndexOutOfBoundsException("New tile is completely outside the image " +
-                        "(out of maximal tileset sizes) " + sizeX + "x" + sizeY + ": " + tileIndex);
+                        "(out of maximal tilemap sizes) " + sizeX + "x" + sizeY + ": " + tileIndex);
             }
         }
         tileMap.put(tileIndex, tile);
         return this;
     }
 
-    public TiffTileSet putAll(Collection<TiffTile> tiles) {
+    public TiffMap putAll(Collection<TiffTile> tiles) {
         Objects.requireNonNull(tiles, "Null tiles");
         tiles.forEach(this::put);
         return this;
     }
 
-    public TiffTileSet putImageGrid() {
+    public TiffMap putImageGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < tileCountY; y++) {
                 for (int x = 0; x < tileCountX; x++) {
@@ -324,7 +324,7 @@ public final class TiffTileSet {
         return this;
     }
 
-    public TiffTileSet clear() {
+    public TiffMap clear() {
         tileMap.clear();
         tileCountX = 0;
         tileCountY = 0;
@@ -346,7 +346,7 @@ public final class TiffTileSet {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        TiffTileSet that = (TiffTileSet) o;
+        TiffMap that = (TiffMap) o;
         return ifd == that.ifd &&
                 resizable == that.resizable &&
                 sizeX == that.sizeX && sizeY == that.sizeY &&
@@ -369,7 +369,7 @@ public final class TiffTileSet {
 
     private void setSizes(int sizeX, int sizeY, boolean checkResizable) {
         if (checkResizable && !resizable) {
-            throw new IllegalArgumentException("Cannot change sizes of a non-resizable tile set");
+            throw new IllegalArgumentException("Cannot change sizes of a non-resizable tile map");
         }
         if (sizeX < 0) {
             throw new IllegalArgumentException("Negative x-size: " + sizeX);
@@ -396,7 +396,7 @@ public final class TiffTileSet {
             // - even in a case !resizable
         }
         if (checkResizable && !resizable) {
-            throw new IllegalArgumentException("Cannot expand tile counts in a non-resizable tile set");
+            throw new IllegalArgumentException("Cannot expand tile counts in a non-resizable tile map");
         }
         final int tileCountX = Math.max(this.tileCountX, newMinimalTileCountX);
         final int tileCountY = Math.max(this.tileCountY, newMinimalTileCountY);

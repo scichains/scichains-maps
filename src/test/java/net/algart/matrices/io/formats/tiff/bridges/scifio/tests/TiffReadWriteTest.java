@@ -128,7 +128,7 @@ public class TiffReadWriteTest {
                     }
                     FileLocation location = new FileLocation(sourceFile.toFile());
                     parser = new TiffParser(context, location);
-                    parser.setAllowReadingBoundaryTilesOutsideImage(true);
+                    parser.setReadingBoundaryTilesOutsideImage(true);
                     originalParser = new io.scif.formats.tiff.TiffParser(context, location);
 
                     Files.deleteIfExists(targetExperimentalFile);

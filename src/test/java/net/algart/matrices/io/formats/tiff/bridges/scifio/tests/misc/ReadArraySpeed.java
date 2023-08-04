@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 
+// See https://github.com/scijava/scijava-common/issues/467
 public class ReadArraySpeed {
     public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 1) {
