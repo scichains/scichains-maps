@@ -727,7 +727,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         //TODO!! - all this is not necessary due to expandSizes
 
         final boolean alreadyInterleaved = chunked && !autoInterleave;
-        // - we suppose that the data are aldeady interleaved by an external code
+        // - we suppose that the data are already interleaved by an external code
         final TiffTile[] tiles = new TiffTile[numberOfEncodedStrips];
         final boolean needToCorrectLastRow = map.ifd().get(IFD.TILE_LENGTH) == null;
         // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
@@ -763,7 +763,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     tiles[tileIndex] = tiffTileIndex.newTile().setDecodedData(data).setSizeY(validTileSizeY);
                 } else if (chunked) {
                     // - source data are separated, but result should be interleaved;
-                    // so, we must prepare correct separated tile (it will be interleaved later)
+                    // so, we must prepare correct SEPARATED tile (it will be interleaved later)
                     final TiffTileIndex tiffTileIndex = map.tileIndex(
                             0, x / tileSizeX, y / tileSizeY);
                     final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
