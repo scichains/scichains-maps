@@ -166,13 +166,6 @@ public final class TiffTile {
         return data;
     }
 
-    public TiffTile setData(byte[] data) {
-        Objects.requireNonNull(data, "Null data");
-        this.data = data;
-        this.storedDataLength = data.length;
-        return this;
-    }
-
     public byte[] getEncodedData() {
         checkEmpty();
         if (!isEncoded()) {
@@ -332,6 +325,13 @@ public final class TiffTile {
         result = 31 * result + Arrays.hashCode(data);
         return result;
         // Note: doesn't check containingSet to avoid infinite recursion!
+    }
+
+    private TiffTile setData(byte[] data) {
+        Objects.requireNonNull(data, "Null data");
+        this.data = data;
+        this.storedDataLength = data.length;
+        return this;
     }
 
     private void checkEmpty() {

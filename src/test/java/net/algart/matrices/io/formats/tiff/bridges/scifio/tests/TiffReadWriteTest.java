@@ -179,30 +179,46 @@ public class TiffReadWriteTest {
                         if (singleStrip) {
                             paddedH = h;
                         }
-                        bytes = new byte[paddedW * paddedH *
-                                readerIFD.getSamplesPerPixel() *
-                                FormatTools.getBytesPerPixel(readerIFD.getPixelType())];
+                        final int samplesPerPixel = readerIFD.getSamplesPerPixel();
+                        final int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.getPixelType());
+                        bytes = new byte[paddedW * paddedH * samplesPerPixel * bytesPerSample];
                         @SuppressWarnings("deprecation")
                         byte[] buf1 = parser.getSamples(readerIFD, bytes, START_X, START_Y, paddedW, paddedH);
                         // - this deprecated method is implemented via new methods
+                        // and actually equivalent to TiffReader.readSamples
                         assert buf1 == bytes;
                         buf1 = new byte[bytes.length];
                         byte[] buf2 = new byte[bytes.length];
                         //noinspection deprecation
                         parser.getSamples(readerIFD, buf1, START_X, START_Y, paddedW, paddedH,
                                 0, 0);
-                        // - this deprecated method is a compatibility from old code
+                        // - this deprecated method is a legacy code from old class
                         originalParser.getSamples(readerIFD, buf2, START_X, START_Y, paddedW, paddedH);
-                        if (!Arrays.equals(buf1, bytes) || !Arrays.equals(buf2, bytes)) {
+                        // - this is absolute old TiffParser
+                        if (!planar) {
+                            bytes = TiffTools.toInterleavedSamples(
+                                    bytes, samplesPerPixel, bytesPerSample, paddedW * paddedH);
+                            buf1 = TiffTools.toInterleavedSamples(
+                                    buf1, samplesPerPixel, bytesPerSample, paddedW * paddedH);
+                            buf2 = TiffTools.toInterleavedSamples(
+                                    buf2, samplesPerPixel, bytesPerSample, paddedW * paddedH);
+                        }
+                        final int checkedLength = paddedW * h * samplesPerPixel * bytesPerSample;
+                        // - In a case of stripped image (but not tiled!), the last strip is usually stored
+                        // with its actual sizes, i.e. with the height R = min(tileSizeY, imageLength-y).
+                        // It means that the end part of the tile buffer inside TiffParser - after 1st R lines -
+                        // is not defined: it may be filled anyhow.
+                        // Old code reuses the same buffer for all tiles, but compatibility TiffParser.getTile method,
+                        // based on TiffReader.readTile, always creates new zero-filled buffer.
+                        // Only first R lines of this buffer are filled correctly, but this buffer
+                        // is copied completely into getSamples byte[] argument.
+                        // It is the reason why we should check only first h lines while comparing with the old parser.
+                        // It is also the reason why we should perform interleaving before comparison.
+                        if (!Arrays.equals(buf1, bytes) ||
+                                !Arrays.equals(buf2, 0, checkedLength, bytes, 0, checkedLength)) {
                             compareResults(buf1, bytes, "Other parsing matrix");
                             compareResults(buf2, bytes, "Old parser");
                             throw new AssertionError();
-                        }
-                        if (!planar) {
-                            int numberOfChannels = readerIFD.getSamplesPerPixel();
-                            int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.getPixelType());
-                            bytes = TiffTools.toInterleavedSamples(
-                                    bytes, numberOfChannels, bytesPerSample, paddedW * paddedH);
                         }
                         writerIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
                         if (singleStrip) {
