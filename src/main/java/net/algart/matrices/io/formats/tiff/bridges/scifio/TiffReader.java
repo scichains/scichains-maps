@@ -585,7 +585,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         if (offset >= in.length()) {
             throw new IOException("File offset " + offset + " is outside the file");
         }
-        long t1 = traceTime();
+        long t1 = debugTime();
         final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
         final DetailedIFD ifd = new DetailedIFD(offset);
         ifd.setSubIFDType(subIFDType);
@@ -608,7 +608,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long timeEntries = 0;
         long timeArrays = 0;
         for (int i = 0; i < numEntries; i++) {
-            long tEntry1 = traceTime();
+            long tEntry1 = debugTime();
             in.seek(offset + baseOffset + bytesPerEntry * (long) i);
 
             TiffIFDEntry entry;
@@ -623,7 +623,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final int tag = entry.getTag();
             final long valueOffset = entry.getValueOffset();
             final int bpe = entry.getType().getBytesPerElement();
-            long tEntry2 = traceTime();
+            long tEntry2 = debugTime();
             timeEntries += tEntry2 - tEntry1;
 
             if (count < 0 || bpe <= 0) {
@@ -653,7 +653,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             } else {
                 value = readIFDValue(entry);
             }
-            long tEntry3 = traceTime();
+            long tEntry3 = debugTime();
             timeArrays += tEntry3 - tEntry2;
 //            System.out.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
 
@@ -665,9 +665,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifd.setEntries(entries);
 
         in.seek(offset + baseOffset + bytesPerEntry * numEntries);
-        if (TiffTools.BUILT_IN_TIMING && LOGGABLE_TRACE) {
-            long t2 = traceTime();
-            LOG.log(System.Logger.Level.TRACE, String.format(Locale.US,
+        if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
+            long t2 = debugTime();
+            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read IFD at offset %d: %.3f ms, including %.6f entries + %.6f arrays",
                     getClass().getSimpleName(), offset,
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
@@ -1699,9 +1699,5 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private static long debugTime() {
         return TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG ? System.nanoTime() : 0;
-    }
-
-    private static long traceTime() {
-        return TiffTools.BUILT_IN_TIMING && LOGGABLE_TRACE ? System.nanoTime() : 0;
     }
 }

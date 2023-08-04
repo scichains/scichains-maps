@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 public class ByteFillerToFloatTest {
     public static void main(String[] args) {

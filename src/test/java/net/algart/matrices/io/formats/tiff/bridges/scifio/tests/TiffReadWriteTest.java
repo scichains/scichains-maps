@@ -28,18 +28,22 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
+import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.experimental.SequentialTiffWriter;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tests.legacy.PureScifioTiffReadWriteTest;
 import org.scijava.Context;
+import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.FileLocation;
+import org.scijava.io.location.Location;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -78,9 +82,9 @@ public class TiffReadWriteTest {
             planar = true;
             startArgIndex++;
         }
-        boolean legacy = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-legacy")) {
-            legacy = true;
+        boolean compatibility = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-compatibility")) {
+            compatibility = true;
             startArgIndex++;
         }
         if (args.length < startArgIndex + 2) {
@@ -116,53 +120,59 @@ public class TiffReadWriteTest {
 
                 TiffParser parser = null;
                 io.scif.formats.tiff.TiffParser originalParser = null;
-                SequentialTiffWriter sequentialTiffWriter = null;
-                if (legacy) {
+                io.scif.formats.tiff.TiffSaver sequentialTiffSaver = null;
+                if (compatibility) {
                     if (context == null) {
-                        throw new UnsupportedEncodingException("No-context mode is not supported by legacy code");
+                        throw new UnsupportedEncodingException(
+                                "No-context mode is not supported by compatibility code");
                     }
                     FileLocation location = new FileLocation(sourceFile.toFile());
                     parser = new TiffParser(context, location);
                     parser.setAllowReadingBoundaryTilesOutsideImage(true);
                     originalParser = new io.scif.formats.tiff.TiffParser(context, location);
-                    sequentialTiffWriter = new SequentialTiffWriter(context, targetExperimentalFile)
-                            .setBigTiff(bigTiff)
-                            .setLittleEndian(true)
-                            .open();
+
+                    Files.deleteIfExists(targetExperimentalFile);
+                    // - strange, but necessary
+                    sequentialTiffSaver = new io.scif.formats.tiff.TiffSaver(context,
+                            new FileLocation(targetExperimentalFile.toFile()));
+                    sequentialTiffSaver.setWritingSequentially(true);
+                    sequentialTiffSaver.setBigTiff(writer.isBigTiff());
+                    sequentialTiffSaver.setLittleEndian(writer.isLittleEndian());
+                    sequentialTiffSaver.writeHeader();
                 }
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
                 final List<DetailedIFD> ifdList = reader.allIFD();
                 lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final boolean last = ifdIndex == ifdList.size() - 1;
-                    final DetailedIFD parserIFD = ifdList.get(ifdIndex);
-                    System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), parserIFD);
-                    final int w = (int) Math.min(parserIFD.getImageWidth(), MAX_IMAGE_DIM);
-                    final int h = (int) Math.min(parserIFD.getImageLength(), MAX_IMAGE_DIM);
-                    final int tileSizeX = parserIFD.getTileSizeX();
-                    final int tileSizeY = parserIFD.getTileSizeY();
+                    final DetailedIFD readerIFD = ifdList.get(ifdIndex);
+                    System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), readerIFD);
+                    final int w = (int) Math.min(readerIFD.getImageWidth(), MAX_IMAGE_DIM);
+                    final int h = (int) Math.min(readerIFD.getImageLength(), MAX_IMAGE_DIM);
+                    final int tileSizeX = readerIFD.getTileSizeX();
+                    final int tileSizeY = readerIFD.getTileSizeY();
 
-                    final int bandCount = parserIFD.getSamplesPerPixel();
+                    final int bandCount = readerIFD.getSamplesPerPixel();
                     long t1 = System.nanoTime();
-                    byte[] bytes = reader.readSamples(parserIFD, START_X, START_Y, w, h);
+                    byte[] bytes = reader.readSamples(readerIFD, START_X, START_Y, w, h);
                     long t2 = System.nanoTime();
-                    DetailedIFD saverIFD = new DetailedIFD(parserIFD);
+                    DetailedIFD writerIFD = new DetailedIFD(readerIFD);
                     if (singleStrip) {
-                        saverIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
+                        writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
                     }
-                    saverIFD.putImageSizes(w, h);
-                    writer.writeSamples(saverIFD, bytes, null, bandCount,
-                            parserIFD.getPixelType(), START_X, START_Y, w, h, last);
+                    writerIFD.putImageSizes(w, h);
+                    writer.writeSamples(writerIFD, bytes, null, bandCount,
+                            readerIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
-                    System.out.printf("Effective IFD:%n%s%n", saverIFD);
+                    System.out.printf("Effective IFD:%n%s%n", writerIFD);
                     System.out.printf(Locale.US,
                             "%dx%d (%.3f MB) read in %.3f ms (%.3f MB/s) and written in %.3f ms (%.3f MB/s)%n",
                             w, h, bytes.length / 1048576.0,
                             (t2 - t1) * 1e-6, bytes.length / 1048576.0 / ((t2 - t1) * 1e-9),
                             (t3 - t2) * 1e-6, bytes.length / 1048576.0 / ((t3 - t2) * 1e-9));
 
-                    if (legacy) {
+                    if (compatibility) {
                         System.out.println();
                         final int paddedW = ((w + tileSizeX - 1) / tileSizeX) * tileSizeX;
                         int paddedH = ((h + tileSizeY - 1) / tileSizeY) * tileSizeY;
@@ -170,66 +180,92 @@ public class TiffReadWriteTest {
                             paddedH = h;
                         }
                         bytes = new byte[paddedW * paddedH *
-                                parserIFD.getSamplesPerPixel() *
-                                FormatTools.getBytesPerPixel(parserIFD.getPixelType())];
+                                readerIFD.getSamplesPerPixel() *
+                                FormatTools.getBytesPerPixel(readerIFD.getPixelType())];
                         @SuppressWarnings("deprecation")
-                        byte[] buf1 = parser.getSamples(parserIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        byte[] buf1 = parser.getSamples(readerIFD, bytes, START_X, START_Y, paddedW, paddedH);
                         // - this deprecated method is implemented via new methods
                         assert buf1 == bytes;
                         buf1 = new byte[bytes.length];
                         byte[] buf2 = new byte[bytes.length];
                         //noinspection deprecation
-                        parser.getSamples(parserIFD, buf1, START_X, START_Y, paddedW, paddedH,
+                        parser.getSamples(readerIFD, buf1, START_X, START_Y, paddedW, paddedH,
                                 0, 0);
-                        // - this deprecated method is a legacy from old code
-                        originalParser.getSamples(parserIFD, buf2, START_X, START_Y, paddedW, paddedH);
+                        // - this deprecated method is a compatibility from old code
+                        originalParser.getSamples(readerIFD, buf2, START_X, START_Y, paddedW, paddedH);
                         if (!Arrays.equals(buf1, bytes) || !Arrays.equals(buf2, bytes)) {
                             compareResults(buf1, bytes, "Other parsing matrix");
                             compareResults(buf2, bytes, "Old parser");
                             throw new AssertionError();
                         }
-                        sequentialTiffWriter.setPhotometricInterpretation(PhotoInterp.Y_CB_CR);
-                        // - necessary for correct colors in JPEG; ignored (overridden) by original TiffSaver
-
-                        sequentialTiffWriter.setInterleaved(!planar);
-                        sequentialTiffWriter.setCompression(parserIFD.getCompression());
-                        sequentialTiffWriter.setImageSizes(w, h);
-                        if (parserIFD.isTiled()) {
-                            sequentialTiffWriter.setTiling(true);
-                            sequentialTiffWriter.setTileSizes((int) parserIFD.getTileWidth(), (int) parserIFD.getTileLength());
-                        } else {
-                            sequentialTiffWriter.setTiling(false);
-                        }
                         if (!planar) {
-                            int numberOfChannels = parserIFD.getSamplesPerPixel();
-                            int bytesPerSample = FormatTools.getBytesPerPixel(parserIFD.getPixelType());
+                            int numberOfChannels = readerIFD.getSamplesPerPixel();
+                            int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.getPixelType());
                             bytes = TiffTools.toInterleavedSamples(
                                     bytes, numberOfChannels, bytesPerSample, paddedW * paddedH);
                         }
-                        saverIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(parserIFD));
+                        writerIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
                         if (singleStrip) {
-                            saverIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
+                            writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
                             // - not remove! Removing means default value!
                         }
-                        sequentialTiffWriter.writeSeveralTilesOrStrips(bytes, saverIFD, parserIFD.getPixelType(), bandCount,
-                                START_X, START_Y, paddedW, paddedH, true, last);
-                        System.out.printf("Effective IFD (legacy):%n%s%n", saverIFD);
-//                writer.setBigTiff(true);
-
-//                ifdCopy.putIFDValue(IFD.PLANAR_CONFIGURATION, ExtendedIFD.PLANAR_CONFIG_SEPARATE);
-//                ifdCopy.remove(IFD.STRIP_BYTE_COUNTS);
-//                ifdCopy.remove(IFD.STRIP_OFFSETS);
+                        writerIFD.putImageSizes(w, h);
+                        writeSeveralTilesOrStrips(sequentialTiffSaver, bytes,
+                                writerIFD, readerIFD.getPixelType(), bandCount,
+                                START_X, START_Y, paddedW, paddedH,  last);
+                        System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                     }
                 }
                 reader.close();
                 writer.close();
-                if (legacy) {
+                if (compatibility) {
                     parser.close();
-                    sequentialTiffWriter.close();
+                    sequentialTiffSaver.getStream().close();
                 }
             }
         }
         System.out.println("Done");
+    }
+
+    private static void writeSeveralTilesOrStrips(
+            final io.scif.formats.tiff.TiffSaver saver,
+            final byte[] data, final IFD ifd,
+            final int pixelType, int bandCount,
+            final int lefTopX, final int leftTopY,
+            final int width, final int height,
+            final boolean lastImageInTiff) throws FormatException, IOException {
+        ifd.remove(IFD.STRIP_OFFSETS);
+        ifd.remove(IFD.STRIP_BYTE_COUNTS);
+        ifd.remove(IFD.TILE_OFFSETS);
+        ifd.remove(IFD.TILE_BYTE_COUNTS);
+        // - enforces TiffSaver to recalculate these fields
+        if (ifd.getCompression() == TiffCompression.JPEG) {
+            ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.Y_CB_CR);
+        }
+        DataHandle<Location> out = saver.getStream();
+        final long fp = out.offset();
+        final PhotoInterp requestedPhotoInterp = ifd.containsKey(IFD.PHOTOMETRIC_INTERPRETATION) ?
+                ifd.getPhotometricInterpretation() :
+                null;
+        saver.writeImage(
+                data, ifd,
+                -1, pixelType, lefTopX, leftTopY, width, height, lastImageInTiff, bandCount,
+                false);
+        // - copyDirectly = true is a BUG for PLANAR_CONFIG_SEPARATE
+        // - planeIndex = -1 is not used in Writing-Sequentially mode
+        if (ifd.getCompression() == TiffCompression.JPEG &&
+                bandCount > 1
+                && requestedPhotoInterp == PhotoInterp.Y_CB_CR
+                && ifd.getPhotometricInterpretation() == PhotoInterp.RGB) {
+            out.seek(fp);
+            ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, requestedPhotoInterp.getCode());
+            saver.writeIFD(ifd, lastImageInTiff ? 0 : out.length());
+            // - I don't know why, but we need to replace RGB photometric, automatically
+            // set by TiffSaver, with YCbCr, in other case this image is shown incorrectly.
+            // We must do this here, not before writeImage: writeImage automatically sets it to RGB.
+        }
+        out.seek(out.length());
+        // - this stupid SCIFIO class requires this little help to work correctly
     }
 
     private static void compareResults(byte[] buf1, byte[] bytes, String message) {

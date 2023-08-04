@@ -571,8 +571,7 @@ public class TiffTools {
      * For file location, this function works even with dataHandleService == null.
      */
     static DataHandle<Location> getDataHandle(DataHandleService dataHandleService, Location location) {
-        Objects.requireNonNull(location, "Nu<ll location");
-        DataHandle<Location> dataHandle;
+        Objects.requireNonNull(location, "Null location");
         if (location instanceof FileLocation fileLocation) {
             return getFileHandle(fileLocation);
         } else {

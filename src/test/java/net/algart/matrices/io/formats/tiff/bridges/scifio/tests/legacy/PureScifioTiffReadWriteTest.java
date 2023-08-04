@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.legacy;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Locale;
 import java.util.Map;
 
 public class PureScifioTiffReadWriteTest {
@@ -93,7 +92,7 @@ public class PureScifioTiffReadWriteTest {
         System.out.println("Done");
     }
 
-    static IFD removeUndesirableTags(IFD ifd) {
+    public static IFD removeUndesirableTags(IFD ifd) {
         IFD newIFD = new IFD(ifd, null);
         for (Map.Entry<Integer, Object> entry : ifd.entrySet()) {
             switch (entry.getKey()) {

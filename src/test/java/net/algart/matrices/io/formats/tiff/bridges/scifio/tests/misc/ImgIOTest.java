@@ -22,10 +22,9 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 import io.scif.SCIFIO;
-import io.scif.codec.CompressionType;
 import io.scif.config.SCIFIOConfig;
 import io.scif.img.ImgOpener;
 import io.scif.img.ImgSaver;

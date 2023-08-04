@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.legacy;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
@@ -31,6 +31,7 @@ import io.scif.formats.tiff.IFDList;
 import io.scif.formats.tiff.TiffParser;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffInfo;
 import org.scijava.Context;
 import org.scijava.io.location.FileLocation;
 
