@@ -37,6 +37,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCod
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
+import org.scijava.io.handle.ReadBufferDataHandle;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
 import org.scijava.util.Bytes;
@@ -91,11 +92,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * #L%
      */
 
-    private static final boolean OPTIMIZE_READING_IFD_ARRAYS = false;
+    private static final boolean OPTIMIZE_READING_IFD_ARRAYS = true;
     // - Note: this optimization allows to speed up reading large array of offsets.
-    // If we use simple FileHandle for reading data (based on RandomAccessFile),
+    // If we use simple FileHandle for reading file (based on RandomAccessFile),
     // acceleration is up to 100 and more times:
-    // on my computer, 23220 int32 values were loaded in 0.15 ms instead of 570 ms.
+    // on my computer, 23220 int32 values were loaded in 0.2 ms instead of 570 ms.
+    // Since scijava-common 2.95.1, we use optimized ReadBufferDataHandle for reading file;
+    // now acceleration for 23220 int32 values is 0.2 ms instead of 0.4 ms.
 
     private static final boolean USE_OLD_UNPACK_BYTES = true;
     // - Should be false for better performance; necessary for debugging needs only.
@@ -122,7 +125,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Cached list of IFDs in the current file.
      */
-    private List<DetailedIFD> ifdList;
+    private volatile List<DetailedIFD> ifdList;
 
     /**
      * Cached first IFD in the current file.
@@ -208,7 +211,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         } else {
             scifio = null;
         }
-        this.in = in;
+        this.in = in instanceof ReadBufferDataHandle ? in : new ReadBufferDataHandle<>(in);
         AtomicBoolean bigTiff = new AtomicBoolean(false);
         this.openingException = readAndTestHeader(bigTiff);
         this.valid = openingException == null;
@@ -414,12 +417,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Returns all IFDs in the file.
      */
     public List<DetailedIFD> allIFD() throws IOException {
+        List<DetailedIFD> ifdList = this.ifdList;
         if (cachingIFDs && ifdList != null) {
             return ifdList;
         }
 
+        long t1 = debugTime();
         final long[] offsets = getIFDOffsets();
-        final List<DetailedIFD> ifds = new ArrayList<>();
+        ifdList = new ArrayList<>();
 
         for (final long offset : offsets) {
             final DetailedIFD ifd = readIFD(offset);
@@ -427,7 +432,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 continue;
             }
             if (ifd.containsKey(IFD.IMAGE_WIDTH)) {
-                ifds.add(ifd);
+                ifdList.add(ifd);
             }
             long[] subOffsets = null;
             try {
@@ -441,15 +446,22 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 for (final long subOffset : subOffsets) {
                     final DetailedIFD sub = readIFD(subOffset, IFD.SUB_IFD);
                     if (sub != null) {
-                        ifds.add(sub);
+                        ifdList.add(sub);
                     }
                 }
             }
         }
         if (cachingIFDs) {
-            ifdList = ifds;
+            this.ifdList = ifdList;
         }
-        return ifds;
+        if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
+            long t2 = debugTime();
+            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
+                    "%s read %d IFDs: %.3f ms",
+                    getClass().getSimpleName(), ifdList.size(),
+                    (t2 - t1) * 1e-6));
+        }
+        return ifdList;
     }
 
     /**
@@ -640,8 +652,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if ((long) count * (long) bpe + valueOffset > inputLen) {
                 final int oldCount = count;
                 count = (int) ((inputLen - valueOffset) / bpe);
-//                log.trace("getIFDs: truncated " + (oldCount - count) +
-//                        " array elements for tag " + tag);
                 if (count < 0) {
                     count = oldCount;
                 }

@@ -70,7 +70,8 @@ public class TiffReaderTest {
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
             System.out.println("    " + TiffReaderTest.class.getName() + " [-cache [-tiny]] " +
-                    "some_tiff_file result.png ifdIndex [x y width height [number-of-tests]]");
+                    "some_tiff_file result.png ifdIndex " +
+                    "[x y width height [number-of-tests] [number-of-complete-repeats]");
             return;
         }
         final Path tiffFile = Paths.get(args[startArgIndex++]);
@@ -81,64 +82,66 @@ public class TiffReaderTest {
         int w = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);
         int h = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);
         final int numberOfTests = args.length <= ++startArgIndex ? 1 : Integer.parseInt(args[startArgIndex]);
+        final int numberOfCompleteRepeats = args.length <= ++startArgIndex ? 1 : Integer.parseInt(args[startArgIndex]);
 
 //        TiffInfo.showTiffInfo(tiffFile);
 
-        final SCIFIO scifio = new SCIFIO();
-        try (final Context context = noContext ? null : scifio.getContext()) {
-            long t1 = System.nanoTime();
-            final TiffReader reader = cache ?
-                    new CachingTiffReader(context, tiffFile)
-                            .setMaxCachingMemory(tiny ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY):
-                    new TiffReader(context, tiffFile);
-            long t2 = System.nanoTime();
+        for (int repeat = 1; repeat <= numberOfCompleteRepeats; repeat++) {
+            try (final Context context = noContext ? null : new SCIFIO().getContext()) {
+                long t1 = System.nanoTime();
+                final TiffReader reader = cache ?
+                        new CachingTiffReader(context, tiffFile)
+                                .setMaxCachingMemory(tiny ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY) :
+                        new TiffReader(context, tiffFile);
+                long t2 = System.nanoTime();
 //            reader.setExtendedCodec(false);
-            reader.setFiller((byte) 0x80);
-            final var ifds = reader.allIFD();
-            long t3 = System.nanoTime();
-            System.out.printf("Opening %s by %s in: %.3f ms opening, %.3f ms reading IFDs%n",
-                    tiffFile, reader,
-                    (t2 - t1) * 1e-6,
-                    (t3 - t2) * 1e-6);
-            if (ifds.isEmpty()) {
-                System.out.println("No IFDs");
-                return;
-            }
-            if (ifdIndex >= ifds.size()) {
-                System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, ifds.size() - 1);
-                ifdIndex = ifds.size() - 1;
-            }
-            final DetailedIFD ifd = ifds.get(ifdIndex);
-            if (w < 0) {
-                w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
-            }
-            if (h < 0) {
-                h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
-            }
-            final int bandCount = ifd.getSamplesPerPixel();
-
-            Object array = null;
-            for (int test = 1; test <= numberOfTests; test++) {
-                if (test == 1) {
-                    System.out.printf("Reading data %dx%dx%d from %s%n",
-                            w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
+                reader.setFiller((byte) 0x80);
+                final var ifds = reader.allIFD();
+                long t3 = System.nanoTime();
+                System.out.printf("Opening %s by %s in: %.3f ms opening, %.3f ms reading IFDs%n",
+                        tiffFile, reader,
+                        (t2 - t1) * 1e-6,
+                        (t3 - t2) * 1e-6);
+                if (ifds.isEmpty()) {
+                    System.out.println("No IFDs");
+                    return;
                 }
-                t1 = System.nanoTime();
-                array = reader.readSamplesArray(ifd, x, y, w, h);
-                t2 = System.nanoTime();
-                System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
-                        test, w, h, (t2 - t1) * 1e-6);
-                System.gc();
-            }
+                if (ifdIndex >= ifds.size()) {
+                    System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, ifds.size() - 1);
+                    ifdIndex = ifds.size() - 1;
+                }
+                final DetailedIFD ifd = ifds.get(ifdIndex);
+                if (w < 0) {
+                    w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
+                }
+                if (h < 0) {
+                    h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
+                }
+                final int bandCount = ifd.getSamplesPerPixel();
 
-            System.out.printf("Converting data to BufferedImage...%n");
-            final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
-            System.out.printf("Saving result image into %s...%n", resultFile);
-            if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
-                throw new IIOException("Cannot write " + resultFile);
+                Object array = null;
+                for (int test = 1; test <= numberOfTests; test++) {
+                    if (test == 1 && repeat == 1) {
+                        System.out.printf("Reading data %dx%dx%d from %s%n",
+                                w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
+                    }
+                    t1 = System.nanoTime();
+                    array = reader.readSamplesArray(ifd, x, y, w, h);
+                    t2 = System.nanoTime();
+                    System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
+                            test, w, h, (t2 - t1) * 1e-6);
+                    System.gc();
+                }
+
+                System.out.printf("Converting data to BufferedImage...%n");
+                final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
+                System.out.printf("Saving result image into %s...%n", resultFile);
+                if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
+                    throw new IIOException("Cannot write " + resultFile);
+                }
             }
+            System.out.printf("Done repeat %d/%d%n%n", repeat, numberOfCompleteRepeats);
         }
-        System.out.println("Done");
     }
 
     private static BufferedImage unpackedArrayToImage(Object data, int sizeX, int sizeY, int bandCount) {

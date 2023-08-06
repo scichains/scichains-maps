@@ -69,11 +69,17 @@
             <scope>test</scope>
             <version>${net.algart.scichains-core.version}</version>
         </dependency>
+        <!-- SCientific Image Format Input and Output: -->
         <dependency>
-            <!-- SCientific Image Format Input and Output -->
             <groupId>io.scif</groupId>
             <artifactId>scifio</artifactId>
             <version>0.46.0</version>
+        </dependency>
+        <!-- Enforce usage of the last scijava-common:  -->
+        <dependency>
+            <groupId>org.scijava</groupId>
+            <artifactId>scijava-common</artifactId>
+            <version>2.95.1</version>
         </dependency>
     </dependencies>
     <build>
