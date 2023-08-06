@@ -41,7 +41,7 @@ import java.nio.file.Paths;
 
 public class TiffWriterTest {
     private final static int WIDTH = 1011;
-    private final static int HEIGHT = 1031;
+    private final static int HEIGHT = 1051;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -130,6 +130,10 @@ public class TiffWriterTest {
         final String compression = startArgIndex + 3 < args.length ? args[startArgIndex + 3] : null;
         final int numberOfTests = startArgIndex + 4 < args.length ? Integer.parseInt(args[startArgIndex + 4]) : 1;
         final int bandCount = color ? 3 : 1;
+        if (planarSeparated) {
+            // - we must not interleave data at all
+            interleaveOutside = false;
+        }
 
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {

@@ -100,7 +100,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     // Since scijava-common 2.95.1, we use optimized ReadBufferDataHandle for reading file;
     // now acceleration for 23220 int32 values is 0.2 ms instead of 0.4 ms.
 
-    private static final boolean USE_OLD_UNPACK_BYTES = true;
+    private static final boolean USE_OLD_UNPACK_BYTES = false;
     // - Should be false for better performance; necessary for debugging needs only.
 
     private static final System.Logger LOG = System.getLogger(TiffReader.class.getName());
@@ -1172,7 +1172,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // - checks that we can multiply tile sizes by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         long t1 = debugTime();
         if (filler != 0) {
-            // - samples is zero-filled by Java
+            // - samples array is already zero-filled by Java
             Arrays.fill(samples, 0, size, filler);
         }
         // - important for a case when the requested area is outside the image;
@@ -1341,9 +1341,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             codecOptions.interleaved =
                     !(customCodec instanceof ExtendedJPEGCodec || ifd.getCompression() == TiffCompression.JPEG);
         }
-        // - ExtendedJPEGCodec and standard codec JPEFCodec (it may be chosen below by scifio.codec(),
-        // but we are sure that JPEG compression will be served by it even in future versions)
-        // "understand" this settings well (unlike LZW or DECOMPRESSED codecs,
+        // - ExtendedJPEGCodec or standard codec JPEFCodec (it may be chosen below by scifio.codec(),
+        // but we are sure that JPEG compression will be served by it even in future versions):
+        // they "understand" this settings well (unlike LZW or DECOMPRESSED codecs,
         // which suppose that data are interleaved according TIFF format specification).
         // Value "true" is necessary for other codecs, that work with high-level classes (like JPEG or JPEG-2000) and
         // need to be instructed to interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is").
@@ -1364,7 +1364,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int tileSizeY = map.tileSizeY();
         final int bytesPerSample = map.bytesPerSample();
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
-        final int channelsPerPixel = map.channelsPerPixel();
+        final int channelsPerPixel = map.tileSamplesPerPixel();
 
         final int toX = Math.min(fromX + sizeX, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimX());
         final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimY());
@@ -1389,7 +1389,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     if (tile.isEmpty()) {
                         continue;
                     }
-                    byte[] data = tile.getData();
+                    if (!tile.isSeparated()) {
+                        throw new AssertionError("Illegal behavior of readTile: it returned interleaved tile!");
+                        // - theoretically possible in subclasses
+                    }
+                    byte[] data = tile.getDecodedData();
 
                     final int tileStartX = Math.max(xIndex * tileSizeX, fromX);
                     final int tileStartY = Math.max(yIndex * tileSizeY, fromY);
@@ -1439,6 +1443,111 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
+    private static boolean decodeYCbCr(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile);
+        final DetailedIFD ifd = tile.ifd();
+        byte[] bytes = tile.getDecodedData();
+
+        if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
+            return false;
+        }
+        // - JPEG codec, based on Java API BufferedImage, always returns RGB data
+
+        if (ifd.isPlanarSeparated()) {
+            // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
+            throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
+                    "(separated component plances)");
+        }
+
+        final int samplesLength = tile.map().tileSizeInBytes();
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+
+        final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
+        final long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
+        if (channels != 3) {
+            throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
+                    "there are " + channels + " channels in SamplesPerPixel TIFF tag");
+        }
+        // - Note: we do not divide sampleCount by number of channels!
+        // It is necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
+        if (sampleCount > Integer.MAX_VALUE) {
+            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
+        }
+
+        final long tileSizeX = tile.getSizeX();
+
+        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
+
+        final byte[] unpacked = new byte[samplesLength];
+
+        // unpack pixels
+        // set up YCbCr-specific values
+        float lumaRed = PhotoInterp.LUMA_RED;
+        float lumaGreen = PhotoInterp.LUMA_GREEN;
+        float lumaBlue = PhotoInterp.LUMA_BLUE;
+        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
+        if (reference == null) {
+            reference = new int[]{0, 0, 0, 0, 0, 0};
+        }
+        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
+        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(IFD.Y_CB_CR_COEFFICIENTS);
+        if (coefficients != null) {
+            lumaRed = coefficients[0].floatValue();
+            lumaGreen = coefficients[1].floatValue();
+            lumaBlue = coefficients[2].floatValue();
+        }
+        final double lumaGreenInv = 1.0 / lumaGreen;
+        final int subX = subsampling == null ? 2 : subsampling[0];
+        final int subY = subsampling == null ? 2 : subsampling[1];
+        final int block = subX * subY;
+        final int nTiles = (int) (tileSizeX / subX);
+        for (int i = 0; i < sampleCount; i++) {
+            if (i >= numberOfPixels) break;
+
+            for (int channel = 0; channel < channels; channel++) {
+                // unpack non-YCbCr samples
+                // unpack YCbCr unpacked; these need special handling, as
+                // each of the RGB components depends upon two or more of the YCbCr
+                // components
+                if (channel == channels - 1) {
+                    final int lumaIndex = i + (2 * (i / block));
+                    final int chromaIndex = (i / block) * (block + 2) + block;
+
+                    if (chromaIndex + 1 >= bytes.length) break;
+
+                    final int tileIndex = i / block;
+                    final int pixel = i % block;
+                    final long r = subY * (tileIndex / nTiles) + (pixel / subX);
+                    final long c = subX * (tileIndex % nTiles) + (pixel % subX);
+
+                    final int idx = (int) (r * tileSizeX + c);
+
+                    if (idx < numberOfPixels) {
+                        final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                        final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                        final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+
+                        final double red = cr * (2 - 2 * lumaRed) + y;
+                        final double blue = cb * (2 - 2 * lumaBlue) + y;
+                        final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
+
+//                            unpacked[idx] = (byte) (red & 0xff);
+//                            unpacked[nSamples + idx] = (byte) (green & 0xff);
+//                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
+                        unpacked[idx] = (byte) toUnsignedByte(red);
+                        unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
+                        unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
+                    }
+                }
+            }
+        }
+
+        tile.setDecodedData(unpacked);
+        tile.setInterleaved(false);
+        return true;
+    }
+
     // Made from unpackBytes method of old TiffParser
     // Processing Y_CB_CR is extracted to decodeYCbCr() method.
     private static void unpackBytes(TiffTile tile) throws FormatException {
@@ -1450,11 +1559,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
         }
 
-        final int numberOfChannels = tile.channelsPerPixel();
+        final int samplesPerPixel = tile.samplesPerPixel();
         final PhotoInterp photoInterpretation = ifd.getPhotometricInterpretation();
-        final int samplesLength = tile.map().tileSizeInBytes();
+        final int resultSamplesLength = tile.map().tileSizeInBytes();
         // - the length of the RESULT array, that should be stored in the returning tile
         // (in the old code it was just the length of the passed byte[] "samples" array)
+
+        final int bytesPerSample = tile.bytesPerSample();
+        final int numberOfPixels = resultSamplesLength / (samplesPerPixel * bytesPerSample);
+        assert numberOfPixels == tile.map().tileSizeInPixels();
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
@@ -1469,16 +1582,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
         if (usualPrecision &&
-                bytes.length <= samplesLength &&
+                bytes.length <= resultSamplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK) {
-            if (bytes.length < samplesLength) {
-                // Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
-                // we need to check it before quick returning
-                // Daniel Alievsky
-                bytes = Arrays.copyOf(bytes, samplesLength);
-            }
-            tile.setDecodedData(bytes);
+            tile.rearrangePixels();
+            // - Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
+            // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter than a full tile.
+            // Also note: it is better to rearrange pixels before separating (if necessary),
+            // because rearranging interleaved pixels is little more simple.
             tile.separateSamplesIfNecessary();
             return;
         }
@@ -1486,7 +1597,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final boolean noDiv8 = bps0 % 8 != 0;
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!tile.isPlanarSeparated()) {
-            sampleCount /= numberOfChannels;
+            sampleCount /= samplesPerPixel;
         }
         if (sampleCount > Integer.MAX_VALUE) {
             throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
@@ -1495,20 +1606,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final long imageWidth = tile.getSizeX();
         final long imageHeight = tile.getSizeY();
 
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int numberOfPixels = samplesLength / (numberOfChannels * bytesPerSample);
-
         final boolean littleEndian = ifd.isLittleEndian();
 
         final BitBuffer bb = new BitBuffer(bytes);
 
-        final byte[] unpacked = new byte[samplesLength];
+        final byte[] unpacked = new byte[resultSamplesLength];
 
         long maxValue = (long) Math.pow(2, bps0) - 1;
         if (photoInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
-        int skipBits = (int) (8 - ((imageWidth * bps0 * numberOfChannels) % 8));
-        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (numberOfChannels * imageWidth + imageHeight))) {
+        int skipBits = (int) (8 - ((imageWidth * bps0 * samplesPerPixel) % 8));
+        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * imageWidth + imageHeight))) {
             skipBits = 0;
         }
 
@@ -1516,8 +1624,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         for (int i = 0; i < sampleCount; i++) {
             if (i >= numberOfPixels) break;
 
-            for (int channel = 0; channel < numberOfChannels; channel++) {
-                final int index = bytesPerSample * (i * numberOfChannels + channel);
+            for (int channel = 0; channel < samplesPerPixel; channel++) {
+                final int index = bytesPerSample * (i * samplesPerPixel + channel);
                 final int outputIndex = (channel * numberOfPixels + i) * bytesPerSample;
 
                 // unpack non-YCbCr samples
@@ -1710,111 +1818,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
             }
         }
-    }
-
-    private static boolean decodeYCbCr(TiffTile tile) throws FormatException {
-        Objects.requireNonNull(tile);
-        final DetailedIFD ifd = tile.ifd();
-        byte[] bytes = tile.getDecodedData();
-
-        if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
-            return false;
-        }
-        // - JPEG codec, based on Java API BufferedImage, always returns RGB data
-
-        if (ifd.isPlanarSeparated()) {
-            // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
-            throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
-                    "(separated component plances)");
-        }
-
-        final int samplesLength = tile.map().tileSizeInBytes();
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-
-        final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
-        final long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (channels != 3) {
-            throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
-                    "there are " + channels + " channels in SamplesPerPixel TIFF tag");
-        }
-        // - Note: we do not divide sampleCount by number of channels!
-        // It is necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
-        if (sampleCount > Integer.MAX_VALUE) {
-            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
-        }
-
-        final long tileSizeX = tile.getSizeX();
-
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
-        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
-
-        final byte[] unpacked = new byte[samplesLength];
-
-        // unpack pixels
-        // set up YCbCr-specific values
-        float lumaRed = PhotoInterp.LUMA_RED;
-        float lumaGreen = PhotoInterp.LUMA_GREEN;
-        float lumaBlue = PhotoInterp.LUMA_BLUE;
-        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
-        if (reference == null) {
-            reference = new int[]{0, 0, 0, 0, 0, 0};
-        }
-        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
-        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(IFD.Y_CB_CR_COEFFICIENTS);
-        if (coefficients != null) {
-            lumaRed = coefficients[0].floatValue();
-            lumaGreen = coefficients[1].floatValue();
-            lumaBlue = coefficients[2].floatValue();
-        }
-        final double lumaGreenInv = 1.0 / lumaGreen;
-        final int subX = subsampling == null ? 2 : subsampling[0];
-        final int subY = subsampling == null ? 2 : subsampling[1];
-        final int block = subX * subY;
-        final int nTiles = (int) (tileSizeX / subX);
-        for (int i = 0; i < sampleCount; i++) {
-            if (i >= numberOfPixels) break;
-
-            for (int channel = 0; channel < channels; channel++) {
-                // unpack non-YCbCr samples
-                // unpack YCbCr unpacked; these need special handling, as
-                // each of the RGB components depends upon two or more of the YCbCr
-                // components
-                if (channel == channels - 1) {
-                    final int lumaIndex = i + (2 * (i / block));
-                    final int chromaIndex = (i / block) * (block + 2) + block;
-
-                    if (chromaIndex + 1 >= bytes.length) break;
-
-                    final int tileIndex = i / block;
-                    final int pixel = i % block;
-                    final long r = subY * (tileIndex / nTiles) + (pixel / subX);
-                    final long c = subX * (tileIndex % nTiles) + (pixel % subX);
-
-                    final int idx = (int) (r * tileSizeX + c);
-
-                    if (idx < numberOfPixels) {
-                        final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                        final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                        final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
-
-                        final double red = cr * (2 - 2 * lumaRed) + y;
-                        final double blue = cb * (2 - 2 * lumaBlue) + y;
-                        final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
-
-//                            unpacked[idx] = (byte) (red & 0xff);
-//                            unpacked[nSamples + idx] = (byte) (green & 0xff);
-//                            unpacked[2 * nSamples + idx] = (byte) (blue & 0xff);
-                        unpacked[idx] = (byte) toUnsignedByte(red);
-                        unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
-                        unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
-                    }
-                }
-            }
-        }
-
-        tile.setDecodedData(unpacked);
-        tile.setInterleaved(false);
-        return true;
     }
 
     /**

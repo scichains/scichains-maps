@@ -659,6 +659,25 @@ public class TiffTools {
         }
     }
 
+    public static void checkRequestedAreaInArray(byte[] array, long sizeX, long sizeY, int bytesPerPixel) {
+        Objects.requireNonNull(array, "Null array");
+        checkRequestedAreaInArray(array.length, sizeX, sizeY, bytesPerPixel);
+    }
+
+    public static void checkRequestedAreaInArray(int arrayLength, long sizeX, long sizeY, int pixelLength) {
+        if (arrayLength < 0) {
+            throw new IllegalArgumentException("Negative arrayLength = " + arrayLength);
+        }
+        if (pixelLength <= 0) {
+            throw new IllegalArgumentException("Zero or negative pixelLength = " + pixelLength);
+        }
+        checkRequestedArea(0, 0, sizeX, sizeY);
+        if (sizeX * sizeY > arrayLength || sizeX * sizeY * (long) pixelLength > arrayLength) {
+            throw new IllegalArgumentException("Requested area " + sizeX + "x" + sizeY +
+                    " is too large for array of " + arrayLength + " elements, " + pixelLength + " per pixel");
+        }
+    }
+
     static void checkRequestedArea(long fromX, long fromY, long sizeX, long sizeY, long imageDimX, long imageDimY) {
         checkRequestedArea(fromX, fromY, sizeX, sizeY);
         if (imageDimX < 0 || imageDimY < 0) {

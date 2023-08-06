@@ -33,12 +33,12 @@ import java.util.*;
  */
 public final class TiffTile {
     private final TiffMap map;
-    private final int channelsPerPixel;
+    private final int samplesPerPixel;
     private final int bytesPerSample;
+    private final int bytesPerPixel;
     private final TiffTileIndex tileIndex;
     private int sizeX;
     private int sizeY;
-    private int sizeInPixels;
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
@@ -49,8 +49,11 @@ public final class TiffTile {
     public TiffTile(TiffTileIndex tileIndex) {
         this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
         this.map = tileIndex.map();
-        this.channelsPerPixel = map.channelsPerPixel();
+        this.samplesPerPixel = map.tileSamplesPerPixel();
         this.bytesPerSample = map.bytesPerSample();
+        this.bytesPerPixel = samplesPerPixel * bytesPerSample;
+        assert bytesPerPixel <= TiffMap.MAX_TOTAL_BYTES_PER_PIXEL :
+                samplesPerPixel + "*" + bytesPerPixel + " were not checked in TiffMap!";
         assert tileIndex.ifd() == map.ifd() : "tileIndex retrieved ifd from its tile map!";
         setSizes(map.tileSizeX(), map.tileSizeY());
     }
@@ -71,12 +74,16 @@ public final class TiffTile {
         return map.isPlanarSeparated();
     }
 
-    public int channelsPerPixel() {
-        return channelsPerPixel;
+    public int samplesPerPixel() {
+        return samplesPerPixel;
     }
 
     public int bytesPerSample() {
         return bytesPerSample;
+    }
+
+    public int bytesPerPixel() {
+        return bytesPerPixel;
     }
 
     public int getSizeX() {
@@ -93,10 +100,6 @@ public final class TiffTile {
 
     public TiffTile setSizeY(int sizeY) {
         return setSizes(this.sizeX, sizeY);
-    }
-
-    public int getSizeInPixels() {
-        return sizeInPixels;
     }
 
     /**
@@ -122,7 +125,6 @@ public final class TiffTile {
         }
         this.sizeX = sizeX;
         this.sizeY = sizeY;
-        this.sizeInPixels = sizeX * sizeY;
         return this;
     }
 
@@ -149,13 +151,9 @@ public final class TiffTile {
         return this;
     }
 
+    //Note: there is no setEncoded() method, it could violate invariants provided by setDecodedData
     public boolean isEncoded() {
         return encoded;
-    }
-
-    public TiffTile setEncoded(boolean encoded) {
-        this.encoded = encoded;
-        return this;
     }
 
     public boolean isEmpty() {
@@ -198,8 +196,10 @@ public final class TiffTile {
 
     /**
      * Return the length of the last non-null {@link #getData() data array}, stored in this tile,
-     * or 0 after creating this object. Immediately before/after reading tile from file, as well as
-     * immediately before/after writing it into file, this method returns the number of bytes,
+     * or 0 after creating this object.
+     *
+     * <p>Immediately after reading tile from file, as well as
+     * immediately before/after writing it into file, this method returns the number of encoded bytes,
      * which are actually stored in the file for this tile.
      *
      * <p>Note: {@link #free()} method does not change this value! So, you can know the stored data size
@@ -245,12 +245,88 @@ public final class TiffTile {
         return this;
     }
 
+    /**
+     * Returns the number of pixels, actually stored in the {@link #getData() data array} in this tile
+     * in the decoded form, or 0 after creating this object.
+     *
+     * <p>Note: that this method throws <tt>IllegalStateException</tt> if the data are {@link #isEncoded() encoded},
+     * for example, immediately after reading tile from file. If the tile is {@link #isEmpty() empty} (no data),
+     * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
+     *
+     * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
+     *
+     * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
+     *
+     * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile size
+     * {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
+     * decoding method returns only sequence of pixels and does not return information about the size.
+     * In this situation, the external code sets the tile sizes from a priory information, but the decoded tile
+     * may be actually less; for example, it takes place for the last strip in non-tiled TIFF format.
+     * You can check, does the actual number of stored pixels equal to tile size, via
+     * {@link #checkStoredNumberOfPixels()} method.
+     *
+     * @return the number of pixels in the last non-null data array, which was stored in this object.
+     */
+    @SuppressWarnings("JavadocDeclaration")
     public int getStoredNumberOfPixels() {
-        checkEmpty();
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are not decoded, number of pixels is unknown: " + this);
         }
         return storedNumberOfPixels;
+    }
+
+    public TiffTile checkStoredNumberOfPixels() throws IllegalStateException {
+        checkEmpty();
+        int storedNumberOfPixels = getStoredNumberOfPixels();
+        if (storedNumberOfPixels != sizeX * sizeY) {
+            throw new IllegalStateException("Number of stored pixels " + storedNumberOfPixels +
+                    " does not match tile sizes " + sizeX + "x" + sizeY + " = " + (sizeX * sizeY));
+        }
+        assert storedNumberOfPixels * bytesPerPixel == storedDataLength;
+        return this;
+    }
+
+    public TiffTile rearrangePixels() {
+        return rearrangePixels(sizeX * sizeY);
+    }
+
+    public TiffTile rearrangePixels(int newNumberOfPixels) {
+        return rearrangePixels(newNumberOfPixels, false);
+    }
+
+    public TiffTile rearrangePixels(int newNumberOfPixels, boolean allowDecreasing) {
+        if (newNumberOfPixels < 0) {
+            throw new IllegalArgumentException("Negative new number of pixels = " + newNumberOfPixels);
+        }
+        final byte[] data = getDecodedData();
+        // - performs all necessary state checks
+        int numberOfPixels = storedNumberOfPixels;
+        if (numberOfPixels == newNumberOfPixels) {
+            return this;
+        }
+        if ((long) newNumberOfPixels * (long) bytesPerPixel > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too large requested number of pixels in tile: " + newNumberOfPixels +
+                     " pixels * " + samplesPerPixel + " samples/pixel * " + bytesPerSample + " bytes/sample >= 2^31");
+        }
+        if (newNumberOfPixels < numberOfPixels && !allowDecreasing) {
+            throw new IllegalArgumentException("The new number of pixels " + newNumberOfPixels +
+                    " is less than actually stored " + numberOfPixels + "; this is not allowed: data may be lost");
+        }
+        final int newLength = newNumberOfPixels * bytesPerPixel;
+        byte[] newData;
+        if (interleaved) {
+            newData = Arrays.copyOf(data, newLength);
+        } else {
+            newData = new byte[newLength];
+            // - zero-filled by Java
+            final int size = numberOfPixels * bytesPerSample;
+            final int newSize = newNumberOfPixels * bytesPerSample;
+            final int sizeToCopy = Math.min(size, newSize);
+            for (int s = 0, disp = 0, newDisp = 0; s < samplesPerPixel; s++, disp += size, newDisp += newSize) {
+                System.arraycopy(data, disp, newData, newDisp, sizeToCopy);
+            }
+        }
+        return setDecodedData(newData);
     }
 
     public TiffTile interleaveSamplesIfNecessary() {
@@ -272,7 +348,7 @@ public final class TiffTile {
         if (isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already interleaved: " + this);
         }
-        data = TiffTools.toInterleavedSamples(data, channelsPerPixel(), bytesPerSample(), getSizeInPixels());
+        data = TiffTools.toInterleavedSamples(data, samplesPerPixel(), bytesPerSample(), getStoredNumberOfPixels());
         setInterleaved(true);
         setDecodedData(data);
         return this;
@@ -283,7 +359,7 @@ public final class TiffTile {
         if (!isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already separated: " + this);
         }
-        data = TiffTools.toSeparatedSamples(data, channelsPerPixel(), bytesPerSample(), getSizeInPixels());
+        data = TiffTools.toSeparatedSamples(data, samplesPerPixel(), bytesPerSample(), getStoredNumberOfPixels());
         setInterleaved(false);
         setDecodedData(data);
         return this;
@@ -294,10 +370,13 @@ public final class TiffTile {
         return "TIFF " +
                 (encoded ? "encoded" : "decoded") +
                 (interleaved ? " interleaved" : "") +
-                " tile at " + tileIndex +
-                (isEmpty() ? ", empty" : ", " + storedDataLength + " bytes") +
+                " tile, index " + tileIndex +
+                (isEmpty() ?
+                        ", empty" :
+                        ", actual sizes " + sizeX + "x" + sizeY + " (" +
+                                storedNumberOfPixels + " pixels, " + storedDataLength + " bytes)") +
                 (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "") +
-                ", stored in " + map;
+                ", stored in map: " + map;
     }
 
     @Override
@@ -310,18 +389,18 @@ public final class TiffTile {
         }
         TiffTile tiffTile = (TiffTile) o;
         return sizeX == tiffTile.sizeX && sizeY == tiffTile.sizeY &&
-                sizeInPixels == tiffTile.sizeInPixels &&
                 interleaved == tiffTile.interleaved && encoded == tiffTile.encoded &&
+                samplesPerPixel == tiffTile.samplesPerPixel && bytesPerSample == tiffTile.bytesPerSample &&
                 storedDataFileOffset == tiffTile.storedDataFileOffset &&
                 storedDataLength == tiffTile.storedDataLength &&
                 Objects.equals(tileIndex, tiffTile.tileIndex) &&
                 Arrays.equals(data, tiffTile.data);
-        // Note: doesn't check containingSet to avoid infinite recursion!
+        // Note: doesn't check "map" to avoid infinite recursion!
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(tileIndex, sizeX, sizeY, sizeInPixels,
+        int result = Objects.hash(tileIndex, sizeX, sizeY,
                 interleaved, encoded, storedDataFileOffset, storedDataLength);
         result = 31 * result + Arrays.hashCode(data);
         return result;
@@ -330,16 +409,21 @@ public final class TiffTile {
 
     private TiffTile setData(byte[] data, boolean encoded) {
         Objects.requireNonNull(data, "Null " + (encoded ? "encoded" : "decoded") + " data");
-        if (!encoded && data.length % (channelsPerPixel * bytesPerSample) != 0) {
+        final int storedNumberOfPixels = data.length / bytesPerPixel;
+        if (!encoded && storedNumberOfPixels * bytesPerPixel != data.length) {
             throw new IllegalArgumentException("Invalid length of decoded data " + data.length +
-                    ": it must be a multiple of the pixel length = " +
-                    (channelsPerPixel * bytesPerSample) + " = " +
-                    channelsPerPixel + " * " + bytesPerSample +
+                    ": it must be a multiple of the pixel length " +
+                    bytesPerPixel + " = " + samplesPerPixel + " * " + bytesPerSample +
                     " (channels per pixel * bytes per channel sample)");
         }
         this.data = data;
         this.storedDataLength = data.length;
+        this.storedNumberOfPixels = storedNumberOfPixels;
         this.encoded = encoded;
+        if (!encoded) {
+            removeStoredDataFileOffset();
+            // - data file offset has no sense for decoded data
+        }
         return this;
     }
 

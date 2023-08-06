@@ -167,8 +167,8 @@ public final class TiffTileIndex {
     public String toString() {
         return "(" + xIndex + ", " + yIndex + ")" +
                 (map.isPlanarSeparated() ? ", channel " + channel : "") +
-                ") [" + (toX - fromX) + "x" + (toY - fromY) + " at coordinates (" + fromX + ", " + fromY + ")]" +
-                " in IFD @" + Integer.toHexString(ifdIdentity);
+                " [" + (toX - fromX) + "x" + (toY - fromY) + " at coordinates (" + fromX + ", " + fromY + ")" +
+                " in IFD @" + Integer.toHexString(ifdIdentity) + "]";
     }
 
     @Override

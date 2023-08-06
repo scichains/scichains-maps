@@ -36,12 +36,11 @@ public final class TiffMap {
      */
     public static final int MAX_NUMBER_OF_CHANNELS = 512;
     /**
-     * Maximal supported length of a sample. So, total number of bytes per 1 pixel is not greater than
-     * {@link #MAX_NUMBER_OF_CHANNELS} * this constant.
+     * Maximal supported length of pixel (including all channels).
      *
      * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
      */
-    public static final int MAX_BYTES_PER_SAMPLE = 32;
+    public static final int MAX_TOTAL_BYTES_PER_PIXEL = 4096;
 
     /**
      * Maximal value of x/y-index of the tile.
@@ -56,8 +55,10 @@ public final class TiffMap {
     private final boolean planarSeparated;
     private final int numberOfChannels;
     private final int numberOfSeparatedPlanes;
-    private final int channelsPerPixel;
+    private final int tileSamplesPerPixel;
     private final int bytesPerSample;
+    private final int tileBytesPerPixel;
+    private final int totalBytesPerPixel;
     private final int tileSizeX;
     private final int tileSizeY;
     private final int tileSizeInPixels;
@@ -94,16 +95,18 @@ public final class TiffMap {
             this.planarSeparated = ifd.isPlanarSeparated();
             this.numberOfChannels = ifd.getSamplesPerPixel();
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
-            this.channelsPerPixel = planarSeparated ? 1 : numberOfChannels;
+            this.tileSamplesPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
             if (numberOfChannels > MAX_NUMBER_OF_CHANNELS) {
                 throw new FormatException("Very large number of channels " + numberOfChannels + " > " +
                         MAX_NUMBER_OF_CHANNELS + " is not supported");
             }
-            if (bytesPerSample > MAX_BYTES_PER_SAMPLE) {
-                throw new FormatException("Very large number of bytes per sample " + bytesPerSample + " > " +
-                        MAX_BYTES_PER_SAMPLE + " is not supported");
+            if ((long) numberOfChannels * (long) bytesPerSample > MAX_TOTAL_BYTES_PER_PIXEL) {
+                throw new FormatException("Very large number of bytes per pixel " + numberOfChannels + " * " +
+                        bytesPerSample + " > " + MAX_TOTAL_BYTES_PER_PIXEL + " is not supported");
             }
+            this.tileBytesPerPixel = tileSamplesPerPixel * bytesPerSample;
+            this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
@@ -116,12 +119,12 @@ public final class TiffMap {
                 // - note that it is also checked deeper in the next operator
             }
             this.tileSizeInPixels = tileSizeX * tileSizeY;
-            if ((long) tileSizeInPixels * (long) bytesPerSample * (long) channelsPerPixel > Integer.MAX_VALUE) {
+            if ((long) tileSizeInPixels * (long) tileBytesPerPixel > Integer.MAX_VALUE) {
                 throw new FormatException("Very large TIFF tile " + tileSizeX + "x" + tileSizeY +
-                        ", " + channelsPerPixel + " channels per " + bytesPerSample +
+                        ", " + tileSamplesPerPixel + " channels per " + bytesPerSample +
                         " bytes >= 2^31 bytes is not supported");
             }
-            this.tileSizeInBytes = tileSizeInPixels * bytesPerSample * channelsPerPixel;
+            this.tileSizeInBytes = tileSizeInPixels * tileBytesPerPixel;
         } catch (FormatException e) {
             throw new IllegalArgumentException("Illegal IFD", e);
         }
@@ -160,12 +163,20 @@ public final class TiffMap {
         return numberOfSeparatedPlanes;
     }
 
-    public int channelsPerPixel() {
-        return channelsPerPixel;
+    public int tileSamplesPerPixel() {
+        return tileSamplesPerPixel;
     }
 
     public int bytesPerSample() {
         return bytesPerSample;
+    }
+
+    public int tileBytesPerPixel() {
+        return tileBytesPerPixel;
+    }
+
+    public int totalBytesPerPixel() {
+        return totalBytesPerPixel;
     }
 
     public int tileSizeX() {
