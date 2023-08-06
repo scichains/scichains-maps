@@ -91,9 +91,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * #L%
      */
 
-    private static final boolean OPTIMIZE_READING_IFD_ARRAYS = true;
-    // - Note: this optimization allows to speed up reading large array of offsets in 100 and more times:
-    // on my computer, 23220 int32 values were loaded in 3 ms instead of 500 ms.
+    private static final boolean OPTIMIZE_READING_IFD_ARRAYS = false;
+    // - Note: this optimization allows to speed up reading large array of offsets.
+    // If we use simple FileHandle for reading data (based on RandomAccessFile),
+    // acceleration is up to 100 and more times:
+    // on my computer, 23220 int32 values were loaded in 0.15 ms instead of 570 ms.
+
     private static final boolean USE_OLD_UNPACK_BYTES = true;
     // - Should be false for better performance; necessary for debugging needs only.
 
@@ -411,7 +414,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Returns all IFDs in the file.
      */
     public List<DetailedIFD> allIFD() throws IOException {
-        if (ifdList != null) {
+        if (cachingIFDs && ifdList != null) {
             return ifdList;
         }
 
@@ -656,7 +659,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             long tEntry3 = debugTime();
             timeArrays += tEntry3 - tEntry2;
-//            System.out.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
+//            System.err.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
 
             if (value != null && !ifd.containsKey(tag)) {
                 entries.put(tag, entry);
@@ -668,7 +671,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         in.seek(offset + baseOffset + bytesPerEntry * numEntries);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
-            LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
+            LOG.log(System.Logger.Level.TRACE, String.format(Locale.US,
                     "%s read IFD at offset %d: %.3f ms, including %.6f entries + %.6f arrays",
                     getClass().getSimpleName(), offset,
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
