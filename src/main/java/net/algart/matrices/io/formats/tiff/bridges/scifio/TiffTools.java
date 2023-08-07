@@ -535,9 +535,7 @@ public class TiffTools {
             throw new FileNotFoundException("File " + file
                     + (Files.exists(file) ? " is not a regular file" : " does not exist"));
         }
-        DataHandle<Location> fileHandle = getFileHandle(file);
-        fileHandle.set(new BytesLocation(100));
-        return fileHandle;
+        return getFileHandle(file);
     }
 
     static DataHandle<Location> getFileHandle(Path file) {
