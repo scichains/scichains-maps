@@ -535,27 +535,35 @@ public class TiffTools {
             throw new FileNotFoundException("File " + file
                     + (Files.exists(file) ? " is not a regular file" : " does not exist"));
         }
-        return getFileHandle(file);
+        DataHandle<Location> fileHandle = getFileHandle(file);
+        fileHandle.set(new BytesLocation(100));
+        return fileHandle;
     }
 
-    public static DataHandle<Location> getFileHandle(Path file) {
+    static DataHandle<Location> getFileHandle(Path file) {
         Objects.requireNonNull(file, "Null file");
         return getFileHandle(new FileLocation(file.toFile()));
     }
 
+    /**
+     * Warning: you should never call {@link DataHandle#set(Object)} method of the returned result!
+     * It can lead to unpredictable <tt>ClassCastException</tt>.
+     */
     @SuppressWarnings("rawtypes, unchecked")
-    public static DataHandle<Location> getFileHandle(FileLocation fileLocation) {
+    static DataHandle<Location> getFileHandle(FileLocation fileLocation) {
         Objects.requireNonNull(fileLocation, "Null fileLocation");
-        FileHandle fileHandle = new FileHandle();
-        fileHandle.set(fileLocation);
+        FileHandle fileHandle = new FileHandle(fileLocation);
         return (DataHandle) fileHandle;
     }
 
+    /**
+     * Warning: you should never call {@link DataHandle#set(Object)} method of the returned result!
+     * It can lead to unpredictable <tt>ClassCastException</tt>.
+     */
     @SuppressWarnings("rawtypes, unchecked")
-    public static DataHandle<Location> getBytesHandle(BytesLocation bytesLocation) {
+    static DataHandle<Location> getBytesHandle(BytesLocation bytesLocation) {
         Objects.requireNonNull(bytesLocation, "Null bytesLocation");
-        BytesHandle bytesHandle = new BytesHandle();
-        bytesHandle.set(bytesLocation);
+        BytesHandle bytesHandle = new BytesHandle(bytesLocation);
         return (DataHandle) bytesHandle;
     }
 
