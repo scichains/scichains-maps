@@ -184,7 +184,7 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    TiffMap map = writer.startWritingTiles(ifd, bandCount, pixelType, false);
+                    TiffMap map = writer.startWritingImage(ifd, bandCount, pixelType, false);
                     writer.writeSamplesArray(map, samplesArray,
                             ifdIndex, 0, 0, WIDTH, HEIGHT,
                             ifdIndex == numberOfImages - 1);

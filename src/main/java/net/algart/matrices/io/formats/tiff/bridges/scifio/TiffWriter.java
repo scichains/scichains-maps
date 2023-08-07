@@ -863,7 +863,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
-    public TiffMap startWritingTiles(
+    public TiffMap startWritingImage(
             final DetailedIFD ifd,
             final int numberOfChannels,
             final int pixelType,
@@ -887,7 +887,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean lastIFD)
             throws FormatException, IOException {
-        TiffMap map = startWritingTiles(ifd, numberOfChannels, pixelType, false);
+        TiffMap map = startWritingImage(ifd, numberOfChannels, pixelType, false);
         writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
     }
 
