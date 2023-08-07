@@ -286,15 +286,15 @@ public final class TiffTile {
         return this;
     }
 
-    public TiffTile rearrangePixels() {
-        return rearrangePixels(sizeX * sizeY);
+    public TiffTile completeNumberOfPixels() {
+        return changeNumberOfPixels(sizeX * sizeY);
     }
 
-    public TiffTile rearrangePixels(int newNumberOfPixels) {
-        return rearrangePixels(newNumberOfPixels, false);
+    public TiffTile changeNumberOfPixels(int newNumberOfPixels) {
+        return changeNumberOfPixels(newNumberOfPixels, false);
     }
 
-    public TiffTile rearrangePixels(int newNumberOfPixels, boolean allowDecreasing) {
+    public TiffTile changeNumberOfPixels(int newNumberOfPixels, boolean allowDecreasing) {
         if (newNumberOfPixels < 0) {
             throw new IllegalArgumentException("Negative new number of pixels = " + newNumberOfPixels);
         }

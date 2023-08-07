@@ -696,6 +696,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final int dimY = map.dimY();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         TiffTools.checkRequestedAreaInArray(sourceSamples, sizeX, sizeY, map.totalBytesPerPixel());
+        int bits = map.ifd().equalBitsPerSample();
+        final boolean usualPrecision = bits == 8 || bits == 16 || bits == 32 || bits == 64;
+        if (!usualPrecision) {
+            throw new FormatException("Unsupported number of bits per sample: " + bits);
+        }
         map.expandSizes(fromX + sizeX, fromY + sizeY);
 
         final int bytesPerSample = map.bytesPerSample();
@@ -716,7 +721,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final boolean alreadyInterleaved = chunked && !autoInterleave;
         // - we suppose that the data are already interleaved by an external code
         final TiffTile[] tiles = new TiffTile[numberOfEncodedTiles];
-        final boolean needToCorrectLastRow = map.ifd().get(IFD.TILE_LENGTH) == null;
+        final boolean needToCorrectLastRow = !map.ifd().hasTileInformation();
         // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
         // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
         // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
@@ -858,24 +863,21 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
-    /**
-     * Writes to any rectangle from the passed block.
-     *
-     * @param ifd              The Image File Directories. Mustn't be {@code null}.
-     * @param samples          The block that is to be written.
-     * @param ifdIndex         The image index within the current file, starting from 0;
-     *                         may be <tt>null</tt> in <tt>writingSequentially</tt> mode.
-     * @param numberOfChannels The number of channels.
-     * @param pixelType        The type of pixels.
-     * @param fromX            The X-coordinate of the top-left corner.
-     * @param fromY            The Y-coordinate of the top-left corner.
-     * @param sizeX            The width of the rectangle.
-     * @param sizeY            The height of the rectangle.
-     * @param lastIFD          Pass {@code true} if it is the last image, {@code false}
-     *                         otherwise.
-     * @throws FormatException
-     * @throws IOException
-     */
+    public TiffMap startWritingTiles(
+            final DetailedIFD ifd,
+            final int numberOfChannels,
+            final int pixelType,
+            boolean resizable) {
+        Objects.requireNonNull(ifd, "Null IFD");
+        ifd.putBaseInformation(numberOfChannels, pixelType);
+        if (!ifd.hasTileInformation() && !ifd.hasStripInformation()){
+            if (!isDefaultSingleStrip()) {
+                ifd.putStripInformation(getDefaultStripHeight());
+            }
+        }
+        return new TiffMap(ifd, resizable);
+    }
+
     public void writeSamples(
             final DetailedIFD ifd,
             byte[] samples,
@@ -885,8 +887,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean lastIFD)
             throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
+        TiffMap map = startWritingTiles(ifd, numberOfChannels, pixelType, false);
+        writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
+    }
+
+    public void writeSamples(
+            final TiffMap map,
+            byte[] samples,
+            final Integer ifdIndex,
+            final int fromX, final int fromY, final int sizeX, final int sizeY,
+            final boolean lastIFD)
+            throws FormatException, IOException {
+        Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samples, "Null samples");
+        DetailedIFD ifd = map.ifd();
         clearTime();
         if (!writingSequentially) {
             if (appendToExisting) {
@@ -901,38 +915,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         long t1 = debugTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, ifd.getImageDimX(), ifd.getImageDimY());
-        if (numberOfChannels <= 0) {
-            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
-        }
-        final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
-        assert bytesPerSample >= 1;
-        final long numberOfPixels = (long) sizeX * (long) sizeY;
-        if (numberOfPixels > samples.length || numberOfPixels * bytesPerSample > samples.length) {
-            throw new IllegalArgumentException("Too short samples array, even for 1 channel: " + samples.length
-                    + " < " + numberOfPixels * bytesPerSample);
-        }
-        final int channelSize = (int) numberOfPixels * bytesPerSample;
-        if ((long) channelSize * (long) numberOfChannels > samples.length) {
-            throw new IllegalArgumentException("Too short samples array for " + numberOfChannels +
-                    " channels: " + samples.length + " < " + channelSize * numberOfChannels);
-        }
-        final int numberOfBytes = channelSize * numberOfChannels;
-
-        ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
-        // - will be used in getCompressionCodecOptions
+        int sizeOf = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
 
         long t2 = debugTime();
-        prepareValidIFD(ifd, numberOfChannels, pixelType);
-        // Note: we must prepare IFD BEFORE splitting tiles!
-        // In other case, TiffTile objects will be created with invalid IFD characteristics
-        // like number of channels, number of bytes per sample etc.
-        final TiffMap map = new TiffMap(ifd, false);
-        // - Must be called after prepareValidIFD, which saves bytes per sample and samples per pixel
         synchronized (this) {
-            // Following methods only read ifd, not modify it; so, we can translate it into ExtendedIFD
+            // Following methods only read ifd, not modify it
             splitTiles(map, samples, fromX, fromY, sizeX, sizeY);
         }
         long t3 = debugTime();
+
+        prepareValidIFD(ifd);
+        // - Note: already created tiles will have access to newly update information,
+        // because they contain references to this IFD
 
         // Compress tiles according to given differencing and compression schemes,
         // this operation is NOT synchronized and is the ONLY portion of the
@@ -946,7 +940,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         synchronized (this) {
             writeSamplesAndIFD(
                     ifd, ifdIndex, new ArrayList<>(map.tiles()),
-                    numberOfChannels, fromX, fromY, lastIFD);
+                    fromX, fromY, lastIFD);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
@@ -956,7 +950,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             "+ %.3f/%.3f encoding/writing " +
                             "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
-                    numberOfChannels, sizeX, sizeY, numberOfBytes / 1048576.0,
+                    map.numberOfChannels(), sizeX, sizeY, sizeOf / 1048576.0,
                     (t5 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
                     (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
@@ -964,20 +958,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     timeCustomizingEncoding * 1e-6,
                     timeEncoding * 1e-6,
                     timeWriting * 1e-6,
-                    numberOfBytes / 1048576.0 / ((t5 - t1) * 1e-9)));
+                    sizeOf / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
     }
 
     public void writeSamplesArray(
-            final DetailedIFD ifd,
+            final TiffMap map,
             Object samplesArray,
             final Integer ifdIndex,
-            int numberOfChannels,
-            final int pixelType,
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean last)
             throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
+        Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
         long t1 = debugTime();
         final byte[] samples = TiffTools.arrayToBytes(samplesArray, isLittleEndian());
@@ -994,7 +986,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             String.format(Locale.US, " %.3f MB/s",
                                     samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
-        writeSamples(ifd, samples, ifdIndex, numberOfChannels, pixelType, fromX, fromY, sizeX, sizeY, last);
+        writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, last);
     }
 
 
@@ -1090,15 +1082,17 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void prepareValidIFD(final DetailedIFD ifd, int numberOfChannels, int pixelType) throws FormatException {
-        ifd.putSamplesInformation(numberOfChannels, pixelType);
+    private void prepareValidIFD(final DetailedIFD ifd) throws FormatException {
+        ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
+        // - will be used in getCompressionCodecOptions
 
         Object compressionValue = ifd.getIFDValue(IFD.COMPRESSION);
         if (compressionValue == null) {
             compressionValue = TiffCompression.UNCOMPRESSED.getCode();
             ifd.putIFDValue(IFD.COMPRESSION, compressionValue);
         }
-
+        final int numberOfChannels = ifd.getSamplesPerPixel();
+        final int pixelType = ifd.getPixelType();
         final boolean indexed = numberOfChannels == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
         final boolean jpeg = compressionValue.equals(TiffCompression.JPEG.getCode());
         final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
@@ -1130,11 +1124,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 //        if (ifd.get(IFD.SOFTWARE) == null) {
 //            ifd.putIFDValue(IFD.SOFTWARE, "SCIFIO");
 //        }
-        if (ifd.get(IFD.ROWS_PER_STRIP) == null && ifd.get(IFD.TILE_LENGTH) == null) {
-            if (!isDefaultSingleStrip()) {
-                ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[]{getDefaultStripHeight()});
-            }
-        }
 //        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
 //            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
 //        }
@@ -1156,10 +1145,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     private void writeSamplesAndIFD(
             DetailedIFD ifd, final Integer ifdIndex,
-            final List<TiffTile> tiles, final int numberOfChannels,
+            final List<TiffTile> tiles,
             final int fromX, final int fromY,
             final boolean lastIFD)
             throws FormatException, IOException {
+        //TODO!! use TiffMap
         final int tilesPerRow = (int) ifd.getTilesPerRow();
         final int tilesPerColumn = (int) ifd.getTilesPerColumn();
         final boolean interleaved = ifd.getPlanarConfiguration() == 1;
@@ -1192,7 +1182,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long totalTiles = (long) tilesPerRow * (long) tilesPerColumn;
 
         if (!interleaved) {
-            totalTiles *= numberOfChannels;
+            totalTiles *= ifd.getSamplesPerPixel();
         }
 
         if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS)) {

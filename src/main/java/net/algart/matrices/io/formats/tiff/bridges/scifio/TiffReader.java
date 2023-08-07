@@ -1551,7 +1551,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private static void unpackBytes(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
-        byte[] bytes = tile.getDecodedData();
 
         if (KnownTiffCompression.isNonJpegYCbCr(ifd)) {
             throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
@@ -1567,8 +1566,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfPixels = resultSamplesLength / (samplesPerPixel * bytesPerSample);
         assert numberOfPixels == tile.map().tileSizeInPixels();
 
-        final int bps = ifd.tryEqualBitsPerSample().orElse(-1);
-        final boolean usualPrecision = bps == 8 || bps == 16 || bps == 32 || bps == 64;
+        final int bits = ifd.tryEqualBitsPerSample().orElse(-1);
+        final boolean usualPrecision = bits == 8 || bits == 16 || bits == 32 || bits == 64;
 
         // Hyper optimisation that takes any 8-bit or 16-bit data, where there is
         // only one channel, the source byte buffer's size is less than or equal to
@@ -1578,10 +1577,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
         if (usualPrecision &&
-                bytes.length <= resultSamplesLength &&
+                tile.getStoredDataLength() <= resultSamplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK) {
-            tile.rearrangePixels();
+            tile.completeNumberOfPixels();
             // - Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
             // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter than a full tile.
             // Also note: it is better to rearrange pixels before separating (if necessary),
@@ -1593,6 +1592,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
+        byte[] bytes = tile.getDecodedData();
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!tile.isPlanarSeparated()) {
             sampleCount /= samplesPerPixel;

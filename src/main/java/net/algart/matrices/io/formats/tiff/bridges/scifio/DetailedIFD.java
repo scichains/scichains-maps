@@ -506,8 +506,7 @@ public class DetailedIFD extends IFD {
                 return OptionalInt.empty();
             }
         }
-        return OptionalInt.of((bits0 + 7) >>> 3);
-        // - works even in a case of overflow
+        return OptionalInt.of(bits0);
     }
 
     /**
@@ -568,7 +567,40 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
+    /**
+     * Puts base pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel
+     *
+     * @param numberOfChannels number of channels (in other words, number of samples per every pixel).
+     * @param pixelType        pixel type.
+     * @return a reference to this object.
+     */
+    public DetailedIFD putBaseInformation(int numberOfChannels, int pixelType) {
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
+        final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
+        final boolean signed = FormatTools.isSigned(pixelType);
+        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
+        final int bitsPerSample = 8 * bytesPerSample;
+        final int[] bpsArray = new int[numberOfChannels];
+        Arrays.fill(bpsArray, bitsPerSample);
+        putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+        if (floatingPoint) {
+            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
+        } else if (signed) {
+            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
+        } else {
+            remove(IFD.SAMPLE_FORMAT);
+        }
+        putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
+        return this;
+    }
+
+    public boolean hasTileInformation() {
+        return containsKey(IFD.TILE_LENGTH);
+    }
+
+    public DetailedIFD putTileInformation(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
             throw new IllegalArgumentException("Zero or negative tile x-size");
         }
@@ -581,6 +613,29 @@ public class DetailedIFD extends IFD {
         }
         putIFDValue(IFD.TILE_WIDTH, tileSizeX);
         putIFDValue(IFD.TILE_LENGTH, tileSizeY);
+        return this;
+    }
+
+    public DetailedIFD removeTileInformation() {
+        remove(IFD.TILE_WIDTH);
+        remove(IFD.TILE_LENGTH);
+        return this;
+    }
+
+    public boolean hasStripInformation() {
+        return containsKey(IFD.ROWS_PER_STRIP);
+    }
+
+    public DetailedIFD putStripInformation(int stripSizeY) {
+        if (stripSizeY <= 0) {
+            throw new IllegalArgumentException("Zero or negative strip y-size");
+        }
+        putIFDValue(IFD.ROWS_PER_STRIP, new long[]{stripSizeY});
+        return this;
+    }
+
+    public DetailedIFD removeStripInformation(int stripSizeY) {
+        remove(IFD.ROWS_PER_STRIP);
         return this;
     }
 
@@ -606,37 +661,6 @@ public class DetailedIFD extends IFD {
         } else {
             remove(IFD.PLANAR_CONFIGURATION);
         }
-        return this;
-    }
-
-    /**
-     * Puts pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel.
-     *
-     * <p>Note: this method is called by {@link TiffWriter} automatically, you should not call it yourself usually.
-     *
-     * @param numberOfChannels number of channels (in other words, number of samples per every pixel).
-     * @param pixelType        pixel type.
-     * @return a reference to this object.
-     */
-    public DetailedIFD putSamplesInformation(int numberOfChannels, int pixelType) {
-        if (numberOfChannels <= 0) {
-            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
-        }
-        final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
-        final boolean signed = FormatTools.isSigned(pixelType);
-        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
-        final int bitsPerSample = 8 * bytesPerSample;
-        final int[] bpsArray = new int[numberOfChannels];
-        Arrays.fill(bpsArray, bitsPerSample);
-        putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
-        if (floatingPoint) {
-            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
-        } else if (signed) {
-            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
-        } else {
-            remove(IFD.SAMPLE_FORMAT);
-        }
-        putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
         return this;
     }
 

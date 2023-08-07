@@ -31,6 +31,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import org.scijava.Context;
@@ -171,7 +172,7 @@ public class TiffWriterTest {
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
-                        ifd.putTileSizes(64, 64);
+                        ifd.putTileInformation(64, 64);
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     ifd.putPlanarSeparated(planarSeparated);
@@ -183,8 +184,9 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    writer.writeSamplesArray(ifd, samplesArray,
-                            ifdIndex, bandCount, pixelType, 0, 0, WIDTH, HEIGHT,
+                    TiffMap map = writer.startWritingTiles(ifd, bandCount, pixelType, false);
+                    writer.writeSamplesArray(map, samplesArray,
+                            ifdIndex, 0, 0, WIDTH, HEIGHT,
                             ifdIndex == numberOfImages - 1);
                 }
             }
