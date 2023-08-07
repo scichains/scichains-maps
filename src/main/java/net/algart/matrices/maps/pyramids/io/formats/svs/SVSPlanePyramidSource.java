@@ -926,7 +926,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (tiffReader == null) {
                 long t1 = System.nanoTime();
                 tiffReader = new CachingTiffReader(sciContext, svsFile).setFiller(TIFF_FILLER);
-                tiffReader.setAutoInterleave(true);
+                tiffReader.setInterleaveResults(true);
                 // - should be removed in future versions, returning unpacked planes
                 ifdList = tiffReader.allIFD();
                 long t2 = System.nanoTime();

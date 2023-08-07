@@ -108,7 +108,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private byte filler = 0;
     private boolean requireValidTiff;
-    private boolean autoInterleave = false;
+    private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
     private boolean extendedCodec = true;
     private boolean readingBoundaryTilesOutsideImage = false;
@@ -278,8 +278,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isAutoInterleave() {
-        return autoInterleave;
+    public boolean isInterleaveResults() {
+        return interleaveResults;
     }
 
     /**
@@ -287,11 +287,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * in a case of RGB image. If not set (default behaviour), the samples are returned in unpacked form:
      * RRR...GGG...BBB...
      *
-     * @param autoInterleave new interleavcing mode.
+     * @param interleaveResults new interleaving mode.
      * @return a reference to this object.
      */
-    public TiffReader setAutoInterleave(boolean autoInterleave) {
-        this.autoInterleave = autoInterleave;
+    public TiffReader setInterleaveResults(boolean interleaveResults) {
+        this.interleaveResults = interleaveResults;
         return this;
     }
 
@@ -1168,8 +1168,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return samples;
         }
 
-        ifd.sizeOfTileBasedOnBits();
-        // - checks that we can multiply tile sizes by bytesPerSample and ifd.getSamplesPerPixel() without overflow
         long t1 = debugTime();
         if (filler != 0) {
             // - samples array is already zero-filled by Java
@@ -1185,9 +1183,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             samples = TiffTools.unpackUnusualPrecisions(samples, ifd, numberOfChannels, sizeX * sizeY);
         }
         long t3 = debugTime();
-        if (autoInterleave) {
+        if (interleaveResults) {
             samples = TiffTools.toInterleavedSamples(
-                    samples, numberOfChannels, ifd.getBytesPerSampleBasedOnType(), sizeX * sizeY);
+                    samples, numberOfChannels, ifd.bytesPerSampleBasedOnType(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t4 = debugTime();
@@ -1476,7 +1474,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final long tileSizeX = tile.getSizeX();
 
-        final int bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+        final int bytesPerSample = ifd.equalBytesPerSample();
         final int numberOfPixels = samplesLength / (channels * bytesPerSample);
 
         final byte[] unpacked = new byte[samplesLength];
@@ -1569,10 +1567,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfPixels = resultSamplesLength / (samplesPerPixel * bytesPerSample);
         assert numberOfPixels == tile.map().tileSizeInPixels();
 
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        final int bps0 = bitsPerSample[0];
-        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bps0);
-        final boolean usualPrecision = equalBitsPerSample && (bps0 == 8 || bps0 == 16 || bps0 == 32 || bps0 == 64);
+        final int bps = ifd.tryEqualBitsPerSample().orElse(-1);
+        final boolean usualPrecision = bps == 8 || bps == 16 || bps == 32 || bps == 64;
 
         // Hyper optimisation that takes any 8-bit or 16-bit data, where there is
         // only one channel, the source byte buffer's size is less than or equal to
@@ -1594,6 +1590,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return;
         }
 
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+        final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!tile.isPlanarSeparated()) {

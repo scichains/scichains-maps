@@ -164,6 +164,7 @@ public class DetailedIFD extends IFD {
         int[] bitsPerSample = getIFDIntArray(BITS_PER_SAMPLE);
         if (bitsPerSample == null) {
             bitsPerSample = new int[]{1};
+            // - In the following loop, this array will be appended to necessary length.
         }
 
         final int samplesPerPixel = getSamplesPerPixel();
@@ -174,13 +175,12 @@ public class DetailedIFD extends IFD {
             Arrays.fill(bitsPerSample, bits);
         }
         for (int i = 0; i < samplesPerPixel; i++) {
-            if (bitsPerSample[i] < 1) {
-                throw new FormatException("Illegal BitsPerSample[" + i + "] = " + bitsPerSample[i]);
+            if (bitsPerSample[i] <= 0) {
+                throw new FormatException("Zero or negative BitsPerSample[" + i + "] = " + bitsPerSample[i]);
             }
         }
         return bitsPerSample;
     }
-
 
     // This method is overridden to remove extra support of absence of StripByteCounts
     // and to remove extra doubling result for LZW (may lead to a bug)
@@ -469,21 +469,83 @@ public class DetailedIFD extends IFD {
         return (int) n;
     }
 
-    public int getBytesPerSampleBasedOnType() throws FormatException {
-        final int pixelType = getPixelType();
-        return FormatTools.getBytesPerPixel(pixelType);
+    /**
+     * Checks that all bits per sample (BitsPerSample tag) for all channels are equal to the same positive integer,
+     * and returns this integer. If it is not so, throws {@link FormatException}.
+     * Note that unequal bits per sample is not supported by all software.
+     *
+     * <p>Note: {@link TiffReader} class does not strictly require this condition, it just requires
+     * equality of number of <i>bytes</i> per sample: see {@link #equalBytesPerSample()}.
+     * In comparison, {@link TiffWriter} class <i>does</i> require this condition: it cannot
+     * create TIFF files with different number of bits per channel.
+     *
+     * @return bits per sample (if this value is the same for all channels).
+     * @throws FormatException if IFD contains different number of bits per sample for some channels.
+     */
+    public int equalBitsPerSample() throws FormatException {
+        final OptionalInt bits = tryEqualBitsPerSample();
+        if (bits.isEmpty()) {
+            throw new FormatException("Unsupported TIFF IFD: different number of bits per samples (" +
+                            Arrays.toString(getBitsPerSample()) + ")");
+        }
+        return bits.getAsInt();
     }
 
-    public int getBytesPerSampleBasedOnBits() throws FormatException {
+    /**
+     * Analog of {@link #equalBitsPerSample()}, returning empty result instead of throwing exception
+     * in a case of unequal number of bits per samples.
+     *
+     * @return bits per sample, if this value is the same for all channels, or empty value in other case.
+     * @throws FormatException in a case of any problems while parsing IFD.
+     */
+    public OptionalInt tryEqualBitsPerSample() throws FormatException {
+        final int[] bitsPerSample = getBitsPerSample();
+        final int bits0 = bitsPerSample[0];
+        for (int i = 1; i < bitsPerSample.length; i++) {
+            if (bitsPerSample[i] != bits0) {
+                return OptionalInt.empty();
+            }
+        }
+        return OptionalInt.of((bits0 + 7) >>> 3);
+        // - works even in a case of overflow
+    }
+
+    /**
+     * Returns the number of bytes per each sample. It is calculated by rounding the number of
+     * {@link #getBitsPerSample() bits per sample},
+     * divided by 8 with rounding up to nearest integer: &#8968;BitsPerSample/8&#8969;.
+     *
+     * <p>This method requires that the number of bytes, calculated by this formula, must be positive and
+     * equal for all channels.
+     * This is also requirement for TIFF files, that can be read by {@link TiffReader} class.
+     * However, equality of number of <i>bits</i> is not required.
+     *
+     * @return number of bytes per each sample.
+     * @throws FormatException if &#8968;bitsPerSample/8&#8969; values are different for some channels.
+     */
+    public int equalBytesPerSample() throws FormatException {
         final int[] bytesPerSample = getBytesPerSample();
-        final int result = bytesPerSample[0];
+        final int bytes0 = bytesPerSample[0];
         // - for example, if we have 5 bits R + 6 bits G + 4 bits B, it will be ceil(6/8) = 1 byte;
         // usually the same for all components
-        if (result < 1) {
-            throw new FormatException("Invalid format: zero or negative bytes per sample = " + result);
+        if (bytes0 < 1) {
+            throw new FormatException("Invalid format: zero or negative bytes per sample = " + bytes0);
         }
-        checkDifferentBytesPerSample(bytesPerSample);
-        return result;
+        for (int k = 1; k < bytesPerSample.length; k++) {
+            if (bytesPerSample[k] != bytes0) {
+                throw new FormatException("Unsupported TIFF IFD: different number of bytes per samples (" +
+                        Arrays.toString(bytesPerSample) + "), based on the following number of bits (" +
+                        Arrays.toString(getBitsPerSample()) + ")");
+            }
+            // - note that LibTiff does not support different BitsPerSample values for different components;
+            // we do not support different number of BYTES for different components
+        }
+        return bytes0;
+    }
+
+    public int bytesPerSampleBasedOnType() throws FormatException {
+        final int pixelType = getPixelType();
+        return FormatTools.getBytesPerPixel(pixelType);
     }
 
     public long getIFDLongValue(final int tag) throws FormatException {
@@ -578,10 +640,21 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
+    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
     /**
      * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
      * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
-     * This class does not require this condition, but it is a reasonable requirement for many applications.
      *
      * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
      */
@@ -595,32 +668,6 @@ public class DetailedIFD extends IFD {
         }
         assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
         assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
-    }
-
-    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnType(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
-                () -> "Invalid requested area: ", () -> "");
-    }
-
-    public int sizeOfRegionBasedOnBits(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), getBytesPerSampleBasedOnBits(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
-                () -> "Invalid requested area: ", () -> "");
-    }
-
-    public int sizeOfTileBasedOnBits() throws FormatException {
-        return sizeOfTile(getBytesPerSampleBasedOnBits());
-    }
-
-    public int sizeOfTile(int bytesPerSample) throws FormatException {
-        final int channels = isPlanarSeparated() ? 1 : getSamplesPerPixel();
-        // - if separate (RRR...GGG...BBB...),
-        // we have (for 3 channels) only 1 channel instead of 3, but number of tiles is greater:
-        // 3 * numTileRows effective rows of tiles instead of numTileRows
-        return TiffTools.checkedMul(getTileSizeX(), getTileSizeY(), channels, bytesPerSample,
-                "tile width", "tile height", "effective number of channels", "bytes per sample",
-                () -> "Invalid TIFF tile sizes: ", () -> "");
     }
 
     @Override
@@ -773,18 +820,6 @@ public class DetailedIFD extends IFD {
 
     public static boolean isPseudoTag(int tag) {
         return tag == LITTLE_ENDIAN || tag == BIG_TIFF || tag == REUSE;
-    }
-
-    private void checkDifferentBytesPerSample(int[] bytesPerSample) throws FormatException {
-        for (int k = 1; k < bytesPerSample.length; k++) {
-            if (bytesPerSample[k] != bytesPerSample[0]) {
-                throw new FormatException("Unsupported TIFF IFD: different number of bytes per samples: " +
-                        Arrays.toString(bytesPerSample) + ", based on the following number of bits: " +
-                        Arrays.toString(getBitsPerSample()));
-            }
-            // - note that LibTiff does not support different BitsPerSample values for different components;
-            // we do not support different number of BYTES for different components
-        }
     }
 
     private static String prettyCompression(TiffCompression compression) {

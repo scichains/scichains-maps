@@ -96,7 +96,7 @@ public final class TiffMap {
             this.numberOfChannels = ifd.getSamplesPerPixel();
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
             this.tileSamplesPerPixel = planarSeparated ? 1 : numberOfChannels;
-            this.bytesPerSample = ifd.getBytesPerSampleBasedOnBits();
+            this.bytesPerSample = ifd.equalBytesPerSample();
             if (numberOfChannels > MAX_NUMBER_OF_CHANNELS) {
                 throw new FormatException("Very large number of channels " + numberOfChannels + " > " +
                         MAX_NUMBER_OF_CHANNELS + " is not supported");
