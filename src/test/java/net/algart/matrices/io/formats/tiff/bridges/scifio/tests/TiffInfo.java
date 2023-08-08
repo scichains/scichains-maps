@@ -68,7 +68,7 @@ public class TiffInfo {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
                 reader.setRequireValidTiff(true);
-                var ifdList = reader.allIFD();
+                var ifdList = reader.allIFDs();
                 final int ifdCount = ifdList.size();
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",
                         tiffFile,

@@ -96,7 +96,7 @@ public class TiffReaderTest {
                 long t2 = System.nanoTime();
 //            reader.setExtendedCodec(false);
                 reader.setFiller((byte) 0x80);
-                final var ifds = reader.allIFD();
+                final var ifds = reader.allIFDs();
                 long t3 = System.nanoTime();
                 System.out.printf("Opening %s by %s in: %.3f ms opening, %.3f ms reading IFDs%n",
                         tiffFile, reader,

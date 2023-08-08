@@ -141,12 +141,12 @@ public class TiffReadWriteTest {
                     sequentialTiffSaver.writeHeader();
                 }
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
-                final List<DetailedIFD> ifdList = reader.allIFD();
-                lastIFDIndex = Math.min(lastIFDIndex, ifdList.size() - 1);
+                final List<DetailedIFD> ifds = reader.allIFDs();
+                lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final boolean last = ifdIndex == ifdList.size() - 1;
-                    final DetailedIFD readerIFD = ifdList.get(ifdIndex);
-                    System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifdList.size(), readerIFD);
+                    final boolean last = ifdIndex == ifds.size() - 1;
+                    final DetailedIFD readerIFD = ifds.get(ifdIndex);
+                    System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
                     final int w = (int) Math.min(readerIFD.getImageWidth(), MAX_IMAGE_DIM);
                     final int h = (int) Math.min(readerIFD.getImageLength(), MAX_IMAGE_DIM);
                     final int tileSizeX = readerIFD.getTileSizeX();

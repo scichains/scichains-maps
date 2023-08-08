@@ -89,7 +89,7 @@ public class TiffParser extends TiffReader {
 
     @Deprecated
     public IFDList getIFDs() throws IOException {
-        return toIFDList(allIFD());
+        return toIFDList(allIFDs());
     }
 
     /**
@@ -97,7 +97,7 @@ public class TiffParser extends TiffReader {
      */
     @Deprecated
     public IFDList getThumbnailIFDs() throws IOException {
-        return toIFDList(allThumbnailIFD());
+        return toIFDList(allThumbnailIFDs());
     }
 
     /**
@@ -105,7 +105,7 @@ public class TiffParser extends TiffReader {
      */
     @Deprecated
     public IFDList getNonThumbnailIFDs() throws IOException {
-        return toIFDList(allNonThumbnailIFD());
+        return toIFDList(allNonThumbnailIFDs());
     }
 
     /**
@@ -113,7 +113,7 @@ public class TiffParser extends TiffReader {
      */
     @Deprecated
     public IFDList getExifIFDs() throws FormatException, IOException {
-        return toIFDList(allExifIFD());
+        return toIFDList(allExifIFDs());
     }
 
     /**

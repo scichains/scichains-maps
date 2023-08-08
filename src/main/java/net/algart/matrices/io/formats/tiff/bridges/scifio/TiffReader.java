@@ -125,7 +125,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Cached list of IFDs in the current file.
      */
-    private volatile List<DetailedIFD> ifdList;
+    private volatile List<DetailedIFD> ifds;
 
     /**
      * Cached first IFD in the current file.
@@ -405,7 +405,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     public DetailedIFD ifd(int ifdIndex) throws IOException {
-        List<DetailedIFD> ifdList = allIFD();
+        List<DetailedIFD> ifdList = allIFDs();
         if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
             throw new IndexOutOfBoundsException(
                     "IFD index " + ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
@@ -416,15 +416,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns all IFDs in the file.
      */
-    public List<DetailedIFD> allIFD() throws IOException {
-        List<DetailedIFD> ifdList = this.ifdList;
-        if (cachingIFDs && ifdList != null) {
-            return ifdList;
+    public List<DetailedIFD> allIFDs() throws IOException {
+        List<DetailedIFD> ifds = this.ifds;
+        if (cachingIFDs && ifds != null) {
+            return ifds;
         }
 
         long t1 = debugTime();
         final long[] offsets = getIFDOffsets();
-        ifdList = new ArrayList<>();
+        ifds = new ArrayList<>();
 
         for (final long offset : offsets) {
             final DetailedIFD ifd = readIFD(offset);
@@ -432,7 +432,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 continue;
             }
             if (ifd.containsKey(IFD.IMAGE_WIDTH)) {
-                ifdList.add(ifd);
+                ifds.add(ifd);
             }
             long[] subOffsets = null;
             try {
@@ -446,29 +446,29 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 for (final long subOffset : subOffsets) {
                     final DetailedIFD sub = readIFD(subOffset, IFD.SUB_IFD);
                     if (sub != null) {
-                        ifdList.add(sub);
+                        ifds.add(sub);
                     }
                 }
             }
         }
         if (cachingIFDs) {
-            this.ifdList = ifdList;
+            this.ifds = ifds;
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %d IFDs: %.3f ms",
-                    getClass().getSimpleName(), ifdList.size(),
+                    getClass().getSimpleName(), ifds.size(),
                     (t2 - t1) * 1e-6));
         }
-        return ifdList;
+        return ifds;
     }
 
     /**
      * Returns thumbnail IFDs.
      */
-    public List<DetailedIFD> allThumbnailIFD() throws IOException {
-        final List<DetailedIFD> ifds = allIFD();
+    public List<DetailedIFD> allThumbnailIFDs() throws IOException {
+        final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> thumbnails = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
             final Number subfile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
@@ -483,8 +483,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns non-thumbnail IFDs.
      */
-    public List<DetailedIFD> allNonThumbnailIFD() throws IOException {
-        final List<DetailedIFD> ifds = allIFD();
+    public List<DetailedIFD> allNonThumbnailIFDs() throws IOException {
+        final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> nonThumbs = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
             final Number subFile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
@@ -499,8 +499,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns EXIF IFDs.
      */
-    public List<DetailedIFD> allExifIFD() throws FormatException, IOException {
-        final List<DetailedIFD> ifds = allIFD();
+    public List<DetailedIFD> allExifIFDs() throws FormatException, IOException {
+        final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> exif = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
             final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
