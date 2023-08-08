@@ -18,6 +18,9 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>io.scif:*</include>
+                <include>org.scijava:*</include>
+                <!-- must be specified directly: we sometimes include later version of scijava-common,
+                 and in this case it is automatically excluded from "io.scif:*" specification -->
             </includes>
             <outputDirectory>./java/lib/scifio</outputDirectory>
         </dependencySet>

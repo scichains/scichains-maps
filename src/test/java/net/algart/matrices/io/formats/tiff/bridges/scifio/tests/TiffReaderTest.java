@@ -96,12 +96,16 @@ public class TiffReaderTest {
                 long t2 = System.nanoTime();
 //            reader.setExtendedCodec(false);
                 reader.setFiller((byte) 0x80);
+                final long positionOfLastOffset = reader.positionOfLastOffset();
+                assert positionOfLastOffset > 0 : "constructor should set it by non-zero value";
                 final var ifds = reader.allIFDs();
                 long t3 = System.nanoTime();
-                System.out.printf("Opening %s by %s in: %.3f ms opening, %.3f ms reading IFDs%n",
+                System.out.printf(
+                        "Opening %s by %s: %.3f ms opening, %.3f ms reading IFDs (position of first IFD offset: %d)%n",
                         tiffFile, reader,
                         (t2 - t1) * 1e-6,
-                        (t3 - t2) * 1e-6);
+                        (t3 - t2) * 1e-6,
+                        positionOfLastOffset);
                 if (ifds.isEmpty()) {
                     System.out.println("No IFDs");
                     return;

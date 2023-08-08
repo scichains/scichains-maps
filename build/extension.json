@@ -26,7 +26,7 @@
           "java/lib/scifio/parsington-3.1.0.jar",
           "java/lib/scifio/scifio-0.46.0.jar",
           "java/lib/scifio/scifio-jai-imageio-1.1.1.jar",
-          "java/lib/scifio/scijava-common-2.94.2.jar",
+          "java/lib/scifio/scijava-common-2.96.0.jar",
           "java/lib/scifio/scijava-optional-1.0.1.jar",
           "java/lib/scifio/scijava-table-1.0.2.jar",
           "java/lib/scifio/slf4j-api-1.7.32.jar",

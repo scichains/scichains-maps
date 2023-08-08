@@ -159,7 +159,7 @@ public class TiffWriterTest {
                 } else {
                     writer.setDefaultStripHeight(100);
                 }
-                writer.startWritingFile();
+                writer.startWriting();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                     Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
@@ -184,7 +184,7 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    TiffMap map = writer.startWritingImage(ifd, bandCount, pixelType, false);
+                    TiffMap map = writer.startNewImage(ifd, bandCount, pixelType, false);
                     writer.writeSamplesArray(map, samplesArray,
                             ifdIndex, 0, 0, WIDTH, HEIGHT,
                             ifdIndex == numberOfImages - 1);

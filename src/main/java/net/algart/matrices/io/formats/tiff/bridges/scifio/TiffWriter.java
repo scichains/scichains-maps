@@ -117,6 +117,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private final SCIFIO scifio;
     private final DataHandleService dataHandleService;
 
+    private volatile long positionOfLastOffset = 0;
+
     private long timeWriting = 0;
     private long timePreparingDecoding = 0;
     private long timeCustomizingEncoding = 0;
@@ -372,7 +374,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public void startWritingFile() throws IOException {
+    public long positionOfLastOffset() {
+        return positionOfLastOffset;
+    }
+
+    public void startWriting() throws IOException {
         synchronized (this) {
             if (appendToExisting) {
                 final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
@@ -383,7 +389,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     parser.getIFDOffsets();
                     bigTiff = parser.isBigTiff();
                     littleEndian = parser.isLittleEndian();
-                    positionOfLastOffset = parser.getPositionOfLastOffset();
+                    positionOfLastOffset = parser.positionOfLastOffset();
                 }
                 //noinspection resource
                 setBigTiff(bigTiff).setLittleEndian(littleEndian);
@@ -422,6 +428,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
             // - we are ready to write after the header
         }
+    }
+
+    public void finish() {
+        //TODO!! correct last offset
     }
 
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
@@ -863,7 +873,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
-    public TiffMap startWritingImage(
+    public TiffMap startNewImage(
             final DetailedIFD ifd,
             final int numberOfChannels,
             final int pixelType,
@@ -887,7 +897,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromX, final int fromY, final int sizeX, final int sizeY,
             final boolean lastIFD)
             throws FormatException, IOException {
-        TiffMap map = startWritingImage(ifd, numberOfChannels, pixelType, false);
+        TiffMap map = startNewImage(ifd, numberOfChannels, pixelType, false);
         writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
     }
 

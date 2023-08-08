@@ -138,7 +138,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     CodecOptions codecOptions = CodecOptions.getDefaultOptions();
 
-    private volatile long positionOfLastOffset = -1;
+    private volatile long positionOfLastOffset;
+
     private long timeReading = 0;
     private long timeCustomizingDecoding = 0;
     private long timeDecoding = 0;
@@ -213,7 +214,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         this.in = in instanceof ReadBufferDataHandle ? in : new ReadBufferDataHandle<>(in);
         AtomicBoolean bigTiff = new AtomicBoolean(false);
-        this.openingException = readAndTestHeader(bigTiff);
+        this.openingException = startReading(bigTiff);
         this.valid = openingException == null;
         this.bigTiff = bigTiff.get();
         if (exceptionHandler != null) {
@@ -400,7 +401,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      *
      * @return file position of the last IFD offset.
      */
-    public long getPositionOfLastOffset() {
+    public long positionOfLastOffset() {
         return positionOfLastOffset;
     }
 
@@ -579,11 +580,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return -1;
         }
         in.seek(bigTiff ? 8 : 4);
-        final long offset = readNextOffset(0);
-        if (offset == 0) {
-            throw new IOException("Invalid TIFF" + prettyInName() + ": zero first offset");
-        }
-        return offset;
+        return readFirstOffset();
     }
 
     /**
@@ -1268,50 +1265,58 @@ public class TiffReader extends AbstractContextual implements Closeable {
         timeCompleteDecoding = 0;
     }
 
-    private Exception readAndTestHeader(AtomicBoolean bigTiff) {
+    // We prefer make this.bigTiff a final field, so we cannot set it outside the constructor
+    private Exception startReading(AtomicBoolean bigTiffReference) {
         try {
             if (!in.exists()) {
                 return new FileNotFoundException("Input TIFF data" + prettyInName() + " does not exist");
             }
-            final long length = in.length();
-            if (length < 10) {
-                // - sometimes we can meet 8-byte "TIFF-files", containing only header and no actual data
-                // (for example, results of debugging writing algorithm)
-                return new FormatException("Too short TIFF file" + prettyInName() + ": only " + length + " bytes");
-            }
-            return testHeader(bigTiff);
-        } catch (IOException e) {
+            testHeader(bigTiffReference);
+            return null;
+        } catch (IOException | FormatException e) {
             return e;
         }
     }
 
-    private FormatException testHeader(AtomicBoolean bigTiff) throws IOException {
+    private void testHeader(AtomicBoolean bigTiffReference) throws IOException, FormatException {
         final long savedOffset = in.offset();
-        in.seek(0);
         try {
+            in.seek(0);
+            final long length = in.length();
+            if (length < 32) {
+                // - sometimes we can meet 8-byte "TIFF-files" (or 16-byte "Big-TIFF"), containing only header
+                // and no actual data (for example, results of debugging writing algorithm)
+                throw new FormatException("Too short TIFF file" + prettyInName() + ": only " + length +
+                        " bytes (minimum 32 bytes required)");
+            }
             final int endianOne = in.read();
             final int endianTwo = in.read();
             // byte order must be II or MM
             final boolean littleEndian = endianOne == TiffConstants.LITTLE && endianTwo == TiffConstants.LITTLE; // II
             final boolean bigEndian = endianOne == TiffConstants.BIG && endianTwo == TiffConstants.BIG; // MM
             if (!littleEndian && !bigEndian) {
-                return new FormatException("The file" + prettyInName() + " is not TIFF");
+                throw new FormatException("The file" + prettyInName() + " is not TIFF");
             }
 
             // check magic number (42)
             in.setLittleEndian(littleEndian);
             final short magic = in.readShort();
-            bigTiff.set(magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER);
+            final boolean bigTiff = magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER;
+            bigTiffReference.set(bigTiff);
             if (magic != TiffConstants.MAGIC_NUMBER && magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER) {
-                return new FormatException("The file" + prettyInName() + " is not TIFF");
+                throw new FormatException("The file" + prettyInName() + " is not TIFF");
             }
+            if (bigTiff) {
+                in.seek(8);
+            }
+            readFirstOffset(bigTiff);
+            // - additional check, filling positionOfLastOffset
         } finally {
             in.seek(savedOffset);
             // - for maximal compatibility: in old versions, constructor of this class
             // guaranteed that file position in the input stream will not change
             // (that is illogical, because "little-endian" mode was still changed)
         }
-        return null;
     }
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
@@ -1818,12 +1823,28 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
+    private long readFirstOffset() throws IOException {
+        return readFirstOffset(this.bigTiff);
+    }
+
+    private long readFirstOffset(boolean bigTiff) throws IOException {
+        final long offset = readNextOffset(0, true, bigTiff);
+        if (offset == 0) {
+            throw new IOException("Invalid TIFF" + prettyInName() + ": zero first offset");
+        }
+        return offset;
+    }
+
+    private long readNextOffset(final long previous) throws IOException {
+        return readNextOffset(previous, this.requireValidTiff, this.bigTiff);
+    }
+
     /**
      * Read a file offset. For bigTiff, a 64-bit number is read. For other Tiffs,
      * a 32-bit number is read and possibly adjusted for a possible carry-over
      * from the previous offset.
      */
-    private long readNextOffset(final long previous) throws IOException {
+    private long readNextOffset(final long previous, boolean requireValidTiff, boolean bigTiff) throws IOException {
         long fp = in.offset();
         long offset;
         if (bigTiff || use64BitOffsets) {

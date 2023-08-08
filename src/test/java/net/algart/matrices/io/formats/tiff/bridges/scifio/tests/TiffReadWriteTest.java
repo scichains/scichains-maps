@@ -116,7 +116,7 @@ public class TiffReadWriteTest {
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
-                writer.startWritingFile();
+                writer.startWriting();
 
                 TiffParser parser = null;
                 io.scif.formats.tiff.TiffParser originalParser = null;

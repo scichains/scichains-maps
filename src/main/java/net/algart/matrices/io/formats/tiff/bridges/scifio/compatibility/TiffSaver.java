@@ -84,7 +84,7 @@ public class TiffSaver extends TiffWriter {
     /**
      * Writes the TIFF file header.
      *
-     * <p>Use {@link #startWritingFile()} instead.
+     * <p>Use {@link #startWriting()} instead.
      */
     @Deprecated
     public void writeHeader() throws IOException {
@@ -125,7 +125,7 @@ public class TiffSaver extends TiffWriter {
 
 
     /**
-     * Please use code like inside {@link #startWritingFile()}.
+     * Please use code like inside {@link #startWriting()}.
      */
     @Deprecated
     public void overwriteLastIFDOffset(final DataHandle<Location> handle)
