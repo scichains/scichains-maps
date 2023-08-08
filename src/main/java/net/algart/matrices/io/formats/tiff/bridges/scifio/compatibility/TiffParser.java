@@ -227,13 +227,13 @@ public class TiffParser extends TiffReader {
             row = row % map.tileCountY();
             // - in terms of the old TiffParser, "row" index already contains index of the plane
         }
-        TiffTileIndex tileIndex = map.tileIndex(planeIndex, col, row);
+        TiffTileIndex tileIndex = map.newMultiplaneIndex(planeIndex, col, row);
         if (buf == null) {
             buf = new byte[map.tileSizeInBytes()];
         }
         TiffTile tile = readTile(tileIndex);
         if (!tile.isEmpty()) {
-            byte[] data = tile.getDecodedData();
+            byte[] data = tile.getDecoded();
             System.arraycopy(data, 0, buf, 0, data.length);
         }
         return buf;

@@ -61,7 +61,6 @@ import java.util.function.Consumer;
  * @author Denial Alievsky
  */
 public class TiffReader extends AbstractContextual implements Closeable {
-
     // Below is a copy of SCIFIO license (placed here to avoid autocorrection by IntelliJ IDEA)
     /*
      * #%L
@@ -102,6 +101,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private static final boolean USE_OLD_UNPACK_BYTES = false;
     // - Should be false for better performance; necessary for debugging needs only.
+
+    private static final int MINIMAL_ALLOWED_TIFF_FILE_LENGTH = 8 + 2 + 12 + 4;
+    // - 8 bytes header + at least 1 IFD entry (usually at least 2 entries required: ImageWidth + ImageLength);
+    // this constant should be > 16 to detect "dummy" BigTIFF file, containing header only
 
     private static final System.Logger LOG = System.getLogger(TiffReader.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
@@ -967,7 +970,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         */
 
-        final TiffTile result = tileIndex.newTile();
+        final TiffTile result = new TiffTile(tileIndex);
+        // - no reasons to put it into the map: this class do not provide access to temporary created map
         if (byteCount == 0 || offset < 0 || offset >= in.length()) {
             // - We support a special case of empty result
             return result;
@@ -986,7 +990,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         correctEncodedJpegTile(tile);
 
         DetailedIFD ifd = tile.ifd();
-        byte[] encodedData = tile.getEncodedData();
+        byte[] encodedData = tile.getEncoded();
         final TiffCompression compression = ifd.getCompression();
 
         final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
@@ -1002,13 +1006,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t2 = debugTime();
         if (codec != null) {
-            tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
+            tile.setDecoded(codecDecompress(encodedData, codec, codecOptions));
         } else {
             if (scifio == null) {
                 throw new IllegalStateException(
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             }
-            tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
+            tile.setDecoded(compression.decompress(scifio.codec(), encodedData, codecOptions));
         }
         tile.setInterleaved(codecOptions.interleaved);
         long t3 = debugTime();
@@ -1026,7 +1030,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
         if (KnownTiffCompression.isJpeg(compression)) {
-            final byte[] data = tile.getEncodedData();
+            final byte[] data = tile.getEncoded();
             final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
             // Structure of data:
             //      FF D8 (SOI, start of image)
@@ -1070,7 +1074,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 // - skipping both SOI and EOI (2 first and 2 last bytes) from jpegTable
                 System.arraycopy(data, 2, appended, jpegTable.length - 2, data.length - 2);
                 // - skipping SOI (2 first bytes) from main data
-                tile.setEncodedData(appended);
+                tile.setEncoded(appended);
             }
         }
     }
@@ -1082,8 +1086,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         if (USE_OLD_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
-            unpackBytesLegacy(samples, 0, tile.getDecodedData(), tile.ifd());
-            tile.setDecodedData(samples);
+            unpackBytesLegacy(samples, 0, tile.getDecoded(), tile.ifd());
+            tile.setDecoded(samples);
             tile.setInterleaved(false);
         } else {
             if (!decodeYCbCr(tile)) {
@@ -1283,11 +1287,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
         try {
             in.seek(0);
             final long length = in.length();
-            if (length < 32) {
+            if (length < MINIMAL_ALLOWED_TIFF_FILE_LENGTH) {
                 // - sometimes we can meet 8-byte "TIFF-files" (or 16-byte "Big-TIFF"), containing only header
                 // and no actual data (for example, results of debugging writing algorithm)
                 throw new FormatException("Too short TIFF file" + prettyInName() + ": only " + length +
-                        " bytes (minimum 32 bytes required)");
+                        " bytes (minimum " + MINIMAL_ALLOWED_TIFF_FILE_LENGTH + " bytes required)");
             }
             final int endianOne = in.read();
             final int endianTwo = in.read();
@@ -1388,7 +1392,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
             for (int yIndex = minYIndex; yIndex <= maxYIndex; yIndex++) {
                 for (int xIndex = minXIndex; xIndex <= maxXIndex; xIndex++) {
-                    final TiffTile tile = readTile(map.tileIndex(p, xIndex, yIndex));
+                    final TiffTile tile = readTile(map.newMultiplaneIndex(p, xIndex, yIndex));
                     if (tile.isEmpty()) {
                         continue;
                     }
@@ -1396,7 +1400,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                         throw new AssertionError("Illegal behavior of readTile: it returned interleaved tile!");
                         // - theoretically possible in subclasses
                     }
-                    byte[] data = tile.getDecodedData();
+                    byte[] data = tile.getDecoded();
 
                     final int tileStartX = Math.max(xIndex * tileSizeX, fromX);
                     final int tileStartY = Math.max(yIndex * tileSizeY, fromY);
@@ -1449,7 +1453,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private static boolean decodeYCbCr(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
-        byte[] bytes = tile.getDecodedData();
+        byte[] bytes = tile.getDecoded();
 
         if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
             return false;
@@ -1546,7 +1550,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
         }
 
-        tile.setDecodedData(unpacked);
+        tile.setDecoded(unpacked);
         tile.setInterleaved(false);
         return true;
     }
@@ -1597,7 +1601,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
-        byte[] bytes = tile.getDecodedData();
+        byte[] bytes = tile.getDecoded();
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!tile.isPlanarSeparated()) {
             sampleCount /= samplesPerPixel;
@@ -1659,7 +1663,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
             }
         }
-        tile.setDecodedData(unpacked);
+        tile.setDecoded(unpacked);
         tile.setInterleaved(false);
     }
 

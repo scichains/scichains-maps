@@ -132,7 +132,8 @@ public final class TiffMap {
 
     public static TiffMap newImageGrid(DetailedIFD ifd) {
         final TiffMap map = new TiffMap(ifd, false);
-        return map.putImageGrid();
+        map.putImageGrid();
+        return map;
     }
 
     public DetailedIFD ifd() {
@@ -203,9 +204,8 @@ public final class TiffMap {
         return dimY;
     }
 
-    public TiffMap setDimensions(int dimX, int dimY) {
+    public void setDimensions(int dimX, int dimY) {
         setDimensions(dimX, dimY, true);
-        return this;
     }
 
     /**
@@ -216,9 +216,8 @@ public final class TiffMap {
      *
      * @param newMinimalSizeX new minimal value for {@link #dimX() sizeX}.
      * @param newMinimalSizeY new minimal value for {@link #dimY() sizeY}.
-     * @return a reference to this object.
      */
-    public TiffMap expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
+    public void expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
         if (newMinimalSizeX < 0) {
             throw new IllegalArgumentException("Negative new minimal x-size: " + newMinimalSizeX);
         }
@@ -228,7 +227,6 @@ public final class TiffMap {
         if (newMinimalSizeX > dimX || newMinimalSizeY > dimY) {
             setDimensions(Math.max(dimX, newMinimalSizeX), Math.max(dimY, newMinimalSizeY));
         }
-        return this;
     }
 
     public int tileCountX() {
@@ -252,11 +250,9 @@ public final class TiffMap {
      *
      * @param newMinimalTileCountX new minimal value for {@link #tileCountX()}.
      * @param newMinimalTileCountY new minimal value for {@link #tileCountY()}.
-     * @return a reference to this object.
      */
-    public TiffMap expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY) {
+    public void expandTileCounts(int newMinimalTileCountX, int newMinimalTileCountY) {
         expandTileCounts(newMinimalTileCountX, newMinimalTileCountY, true);
-        return this;
     }
 
     public int getNumberOfTiles() {
@@ -280,35 +276,48 @@ public final class TiffMap {
         // - overflow impossible: setDimensions checks that tileCountX * tileCountY * numberOfSeparatedPlanes < 2^31
     }
 
-    public TiffTileIndex chunkedTileIndex(int x, int y) {
+    public TiffTileIndex newIndex(int x, int y) {
         return new TiffTileIndex(this, 0, x, y);
     }
 
-    public TiffTileIndex tileIndex(int separatedPlaneIndex, int x, int y) {
+    public TiffTileIndex newMultiplaneIndex(int separatedPlaneIndex, int x, int y) {
         return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
-    public TiffTile newChunkedTile(int x, int y) {
-        return chunkedTileIndex(x, y).newTile();
+    public void checkTileIndex(TiffTileIndex tileIndex) {
+        Objects.requireNonNull(tileIndex, "Null tile index");
+        if (tileIndex.map() != this) {
+            // - check references, not content!
+            throw new IllegalArgumentException("Illegal tile index: tile map cannot process tiles from different map");
+        }
     }
 
-    public TiffTile newTile(int separatedPlaneIndex, int x, int y) {
-        return tileIndex(separatedPlaneIndex, x, y).newTile();
+    public TiffTile getOrNew(int x, int y) {
+        return getOrNew(newIndex(x, y));
     }
 
+    public TiffTile getOrNewMultiplane(int separatedPlaneIndex, int x, int y) {
+        return getOrNew(newMultiplaneIndex(separatedPlaneIndex, x, y));
+    }
+
+    public TiffTile getOrNew(TiffTileIndex tileIndex) {
+        TiffTile result = get(tileIndex);
+        if (result == null) {
+            result = new TiffTile(tileIndex);
+            put(result);
+        }
+        return result;
+    }
 
     public TiffTile get(TiffTileIndex tileIndex) {
-        Objects.requireNonNull(tileIndex, "Null tileIndex");
+        checkTileIndex(tileIndex);
         return tileMap.get(tileIndex);
     }
 
-    public TiffMap put(TiffTile tile) {
+    public void put(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
         final TiffTileIndex tileIndex = tile.tileIndex();
-        if (tileIndex.ifd() != this.ifd) {
-            // - check references, not content!
-            throw new IllegalArgumentException("Tile map cannot store tiles from different IFDs");
-        }
+        checkTileIndex(tileIndex);
         if (resizable) {
             expandTileCounts(tileIndex.xIndex() + 1, tileIndex.yIndex() + 1);
         } else {
@@ -319,32 +328,32 @@ public final class TiffMap {
             }
         }
         tileMap.put(tileIndex, tile);
-        return this;
     }
 
-    public TiffMap putAll(Collection<TiffTile> tiles) {
+    public void putAll(Collection<TiffTile> tiles) {
         Objects.requireNonNull(tiles, "Null tiles");
         tiles.forEach(this::put);
-        return this;
     }
 
-    public TiffMap putImageGrid() {
+    public void putImageGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < tileCountY; y++) {
                 for (int x = 0; x < tileCountX; x++) {
-                    put(tileIndex(p, x, y).newTile());
+                    put(new TiffTile(newMultiplaneIndex(p, x, y)));
                 }
             }
         }
-        return this;
     }
 
-    public TiffMap clear() {
+    public void clear(boolean clearDimensions) {
         tileMap.clear();
-        tileCountX = 0;
-        tileCountY = 0;
-        numberOfTiles = 0;
-        return this;
+        if (clearDimensions) {
+            setDimensions(0, 0);
+            tileCountX = 0;
+            tileCountY = 0;
+            numberOfTiles = 0;
+            // - note: this is the only way to reduce tileCountX/Y!
+        }
     }
 
     @Override

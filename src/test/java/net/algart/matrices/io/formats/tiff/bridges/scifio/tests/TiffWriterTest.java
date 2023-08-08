@@ -41,8 +41,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class TiffWriterTest {
-    private final static int WIDTH = 1011;
-    private final static int HEIGHT = 1051;
+    private final static int IMAGE_WIDTH = 1011;
+    private final static int IMAGE_HEIGHT = 1051;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -106,16 +106,16 @@ public class TiffWriterTest {
             reverseBits = true;
             startArgIndex++;
         }
-        if (args.length < startArgIndex + 1) {
+        if (args.length < startArgIndex + 2) {
             System.out.println("Usage:");
             System.out.println("    " + TiffWriterTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
                     "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
-                    "[numberOfTests]");
+                    "[x y width height [numberOfTests]]");
             return;
         }
-        final Path targetFile = Paths.get(args[startArgIndex]);
-        final int pixelType = switch (args[startArgIndex + 1]) {
+        final Path targetFile = Paths.get(args[startArgIndex++]);
+        final int pixelType = switch (args[startArgIndex]) {
             case "uint8" -> FormatTools.UINT8;
             case "int8" -> FormatTools.INT8;
             case "uint16" -> FormatTools.UINT16;
@@ -124,12 +124,22 @@ public class TiffWriterTest {
             case "int32" -> FormatTools.INT32;
             case "float" -> FormatTools.FLOAT;
             case "double" -> FormatTools.DOUBLE;
-            default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex + 1]);
+            default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex]);
         };
 
-        final int numberOfImages = startArgIndex + 2 < args.length ? Integer.parseInt(args[startArgIndex + 2]) : 1;
-        final String compression = startArgIndex + 3 < args.length ? args[startArgIndex + 3] : null;
-        final int numberOfTests = startArgIndex + 4 < args.length ? Integer.parseInt(args[startArgIndex + 4]) : 1;
+        final int numberOfImages = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 1;
+        final String compression = ++startArgIndex < args.length ? args[startArgIndex] : null;
+        final int x = args.length <= ++startArgIndex ? 0 : Integer.parseInt(args[startArgIndex]);
+        final int y = args.length <= ++startArgIndex ? 0 : Integer.parseInt(args[startArgIndex]);
+        int w = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);
+        int h = args.length <= ++startArgIndex ? -1 : Integer.parseInt(args[startArgIndex]);
+        if (w < 0) {
+            w = IMAGE_WIDTH - x;
+        }
+        if (h < 0) {
+            h = IMAGE_HEIGHT - y;
+        }
+        final int numberOfTests = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 1;
         final int bandCount = color ? 3 : 1;
         if (planarSeparated) {
             // - we must not interleave data at all
@@ -162,13 +172,13 @@ public class TiffWriterTest {
                 writer.startWriting();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                    Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, WIDTH, HEIGHT);
+                    Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, w, h);
                     DetailedIFD ifd = new DetailedIFD();
                     if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
                         samplesArray = TiffTools.toInterleavedSamples(
-                                (byte[]) samplesArray, bandCount, 1, WIDTH * HEIGHT);
+                                (byte[]) samplesArray, bandCount, 1, w * h);
                     }
-                    ifd.putImageDimensions(WIDTH, HEIGHT);
+                    ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
@@ -186,7 +196,7 @@ public class TiffWriterTest {
                     }
                     TiffMap map = writer.startNewImage(ifd, bandCount, pixelType, false);
                     writer.writeSamplesArray(map, samplesArray,
-                            ifdIndex, 0, 0, WIDTH, HEIGHT,
+                            ifdIndex, x, y, w, h,
                             ifdIndex == numberOfImages - 1);
                 }
             }

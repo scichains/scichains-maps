@@ -474,9 +474,10 @@ public class DetailedIFD extends IFD {
      * and returns this integer. If it is not so, throws {@link FormatException}.
      * Note that unequal bits per sample is not supported by all software.
      *
-     * <p>Note: {@link TiffReader} class does not strictly require this condition, it just requires
-     * equality of number of <i>bytes</i> per sample: see {@link #equalBytesPerSample()}.
-     * In comparison, {@link TiffWriter} class <i>does</i> require this condition: it cannot
+     * <p>Note: {@link TiffReader} class does not strictly require this condition, it requires only
+     * equality of number of <i>bytes</i> per sample: see {@link #equalBytesPerSample()}
+     * (though the complete support of TIFF with different number of bits is not provided).
+     * In comparison, {@link TiffWriter} class really <i>does</i> require this condition: it cannot
      * create TIFF files with different number of bits per channel.
      *
      * @return bits per sample (if this value is the same for all channels).

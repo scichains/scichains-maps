@@ -421,7 +421,7 @@ public class TiffTools {
 
     public static void invertFillOrderIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        invertFillOrderIfRequested(tile.ifd(), tile.getDecodedData());
+        invertFillOrderIfRequested(tile.ifd(), tile.getDecoded());
     }
 
     /**
@@ -448,7 +448,7 @@ public class TiffTools {
     public static void differenceIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         final DetailedIFD ifd = tile.ifd();
-        final byte[] data = tile.getDecodedData();
+        final byte[] data = tile.getDecoded();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
@@ -491,7 +491,7 @@ public class TiffTools {
     // and to fix a bug: it was not work with tiles, only with strips.
     public static void undifferenceIfRequested(TiffTile tile) throws FormatException {
         final DetailedIFD ifd = tile.ifd();
-        final byte[] data = tile.getDecodedData();
+        final byte[] data = tile.getDecoded();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
@@ -692,7 +692,7 @@ public class TiffTools {
         }
         if (fromX > imageDimX - sizeX || fromY > imageDimY - sizeY) {
             throw new IllegalArgumentException("Requested area [" + fromX + ".." + (fromX + sizeX - 1) +
-                    " x " + fromY + ".." + (fromY + sizeY - 1) + " is out of image ranges " +
+                    " x " + fromY + ".." + (fromY + sizeY - 1) + "] is out of image ranges " +
                     imageDimX + "x" + imageDimY);
         }
     }
