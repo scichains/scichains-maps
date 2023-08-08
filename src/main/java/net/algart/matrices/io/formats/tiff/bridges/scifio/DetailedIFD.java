@@ -66,7 +66,7 @@ public class DetailedIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
-    private final Long offset;
+    private Long offset = null;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
@@ -116,6 +116,11 @@ public class DetailedIFD extends IFD {
 
     public Long getOffset() {
         return offset;
+    }
+
+    public DetailedIFD setOffset(Long offset) {
+        this.offset = offset;
+        return this;
     }
 
     public Map<Integer, TiffIFDEntry> getEntries() {
