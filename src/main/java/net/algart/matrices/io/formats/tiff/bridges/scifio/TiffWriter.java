@@ -856,6 +856,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public void prepareWritingImage(final TiffMap map) throws IOException {
         Objects.requireNonNull(map);
+        boolean exists = out.exists();
+        if (!exists || out.length() < (bigTiff ? 16 : 8)) {
+            throw new IllegalStateException(
+                    (exists ?
+                            "Existing TIFF file is too short (" + out.length() + " bytes)" :
+                            "TIFF file does not exists yet") +
+                            ": probably file header was not written by startWriting() method");
+        }
         if (map.isResizable()) {
             return;
         }
@@ -873,7 +881,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         ifd.putBaseInformation(numberOfChannels, pixelType);
         TiffMap map = prepareImage(ifd, false);
-        prepareWritingImage(map);
         writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
     }
 
@@ -888,6 +895,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         Objects.requireNonNull(samples, "Null samples");
         DetailedIFD ifd = map.ifd();
         clearTime();
+        prepareWritingImage(map);
         if (!writingSequentially) {
             if (appendToExisting) {
                 throw new IllegalStateException("appendToExisting mode can be used only together with " +
@@ -1106,9 +1114,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final boolean jpeg = compression == TiffCompression.JPEG;
         if (jpeg && (signed || bits != 8)) {
             throw new FormatException("JPEG compression is not supported for %d-bit%s samples%s".formatted(
-                            bits,
-                            signed ? " signed" : "",
-                            bits == 8 ? " (samples must be unsigned)" : ""));
+                    bits,
+                    signed ? " signed" : "",
+                    bits == 8 ? " (samples must be unsigned)" : ""));
         }
         final PhotoInterp pi = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
                 : palette ? PhotoInterp.RGB_PALETTE
@@ -1119,6 +1127,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
+        ifd.removeIFDFileOffset();
+        // - informs that this IFD was not written yet
+
+//        ifd.freezeForWriting();
+        //TODO!!
     }
 
     /**
