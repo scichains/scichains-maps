@@ -132,7 +132,7 @@ public final class TiffMap {
 
     public static TiffMap newImageGrid(DetailedIFD ifd) {
         final TiffMap map = new TiffMap(ifd, false);
-        map.putImageGrid();
+        map.completeImageGrid();
         return map;
     }
 
@@ -150,6 +150,10 @@ public final class TiffMap {
 
     public boolean isResizable() {
         return resizable;
+    }
+
+    public boolean isReadyForWriting() {
+        return ifd.isReadyForWriting();
     }
 
     public boolean isPlanarSeparated() {
@@ -276,28 +280,30 @@ public final class TiffMap {
         // - overflow impossible: setDimensions checks that tileCountX * tileCountY * numberOfSeparatedPlanes < 2^31
     }
 
-    public TiffTileIndex newIndex(int x, int y) {
+    public TiffTileIndex index(int x, int y) {
         return new TiffTileIndex(this, 0, x, y);
     }
 
-    public TiffTileIndex newMultiplaneIndex(int separatedPlaneIndex, int x, int y) {
+    public TiffTileIndex multiplaneIndex(int separatedPlaneIndex, int x, int y) {
         return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
     public void checkTileIndex(TiffTileIndex tileIndex) {
         Objects.requireNonNull(tileIndex, "Null tile index");
-        if (tileIndex.map() != this) {
-            // - check references, not content!
-            throw new IllegalArgumentException("Illegal tile index: tile map cannot process tiles from different map");
+        if (tileIndex.ifd() != this.ifd) {
+            // - Checking references, not content!
+            // Checking IFD, not reference to map ("this"): there is no sense to disable creating new map
+            // and copying there the tiles from the given map.
+            throw new IllegalArgumentException("Illegal tile index: tile map cannot process tiles from different IFD");
         }
     }
 
     public TiffTile getOrNew(int x, int y) {
-        return getOrNew(newIndex(x, y));
+        return getOrNew(index(x, y));
     }
 
     public TiffTile getOrNewMultiplane(int separatedPlaneIndex, int x, int y) {
-        return getOrNew(newMultiplaneIndex(separatedPlaneIndex, x, y));
+        return getOrNew(multiplaneIndex(separatedPlaneIndex, x, y));
     }
 
     public TiffTile getOrNew(TiffTileIndex tileIndex) {
@@ -335,11 +341,11 @@ public final class TiffMap {
         tiles.forEach(this::put);
     }
 
-    public void putImageGrid() {
+    public void completeImageGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < tileCountY; y++) {
                 for (int x = 0; x < tileCountX; x++) {
-                    put(new TiffTile(newMultiplaneIndex(p, x, y)));
+                    getOrNewMultiplane(p, x, y);
                 }
             }
         }

@@ -140,7 +140,7 @@ public class TiffWriterTest {
             h = IMAGE_HEIGHT - y;
         }
         final int numberOfTests = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 1;
-        final int bandCount = color ? 3 : 1;
+        final int numberOfChannels = color ? 3 : 1;
         if (planarSeparated) {
             // - we must not interleave data at all
             interleaveOutside = false;
@@ -172,11 +172,11 @@ public class TiffWriterTest {
                 writer.startWriting();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
-                    Object samplesArray = makeSamples(ifdIndex, bandCount, pixelType, w, h);
+                    Object samplesArray = makeSamples(ifdIndex, numberOfChannels, pixelType, w, h);
                     DetailedIFD ifd = new DetailedIFD();
                     if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
                         samplesArray = TiffTools.toInterleavedSamples(
-                                (byte[]) samplesArray, bandCount, 1, w * h);
+                                (byte[]) samplesArray, numberOfChannels, 1, w * h);
                     }
                     ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
@@ -194,7 +194,8 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    TiffMap map = writer.startNewImage(ifd, bandCount, pixelType, false);
+                    ifd.putBaseInformation(numberOfChannels, pixelType);
+                    TiffMap map = writer.startNewImage(ifd, false);
                     writer.writeSamplesArray(map, samplesArray,
                             ifdIndex, x, y, w, h,
                             ifdIndex == numberOfImages - 1);

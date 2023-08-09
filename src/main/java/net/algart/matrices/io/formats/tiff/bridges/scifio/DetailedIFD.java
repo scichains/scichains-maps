@@ -66,10 +66,11 @@ public class DetailedIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
-    private Long offset = null;
+    private long fileOffset = -1;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
+    private volatile boolean frozenForWriting = false;
 
     private volatile long[] cachedStripByteCounts = null;
     private volatile long[] cachedStripOffsets = null;
@@ -79,11 +80,11 @@ public class DetailedIFD extends IFD {
         super(ifd, null);
         // Note: log argument is never used in this class.
         if (ifd instanceof DetailedIFD detailedIFD) {
-            offset = detailedIFD.offset;
+            fileOffset = detailedIFD.fileOffset;
             entries = detailedIFD.entries;
             subIFDType = detailedIFD.subIFDType;
         } else {
-            offset = null;
+            fileOffset = -1;
             entries = null;
             subIFDType = null;
         }
@@ -92,7 +93,7 @@ public class DetailedIFD extends IFD {
     public DetailedIFD(DetailedIFD detailedIFD) {
         super(detailedIFD, null);
         // Note: log argument is never used in this class.
-        offset = detailedIFD.offset;
+        fileOffset = detailedIFD.fileOffset;
         entries = detailedIFD.entries;
         subIFDType = detailedIFD.subIFDType;
     }
@@ -100,13 +101,6 @@ public class DetailedIFD extends IFD {
     public DetailedIFD() {
         super(null);
         // Note: log argument is never used in this class.
-        this.offset = null;
-    }
-
-    public DetailedIFD(long offset) {
-        super(null);
-        // Note: log argument is never used in this class.
-        this.offset = offset;
     }
 
     public static DetailedIFD extend(IFD ifd) {
@@ -114,12 +108,27 @@ public class DetailedIFD extends IFD {
         return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
-    public Long getOffset() {
-        return offset;
+    public boolean hasFileOffset() {
+        return fileOffset >= 0;
     }
 
-    public DetailedIFD setOffset(Long offset) {
-        this.offset = offset;
+    public long getFileOffset() {
+        if (fileOffset < 0) {
+            throw new IllegalStateException("IFD offset of the TIFF tile is not set");
+        }
+        return fileOffset;
+    }
+
+    public DetailedIFD setFileOffset(long fileOffset) {
+        if (fileOffset < 0) {
+            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffset);
+        }
+        this.fileOffset = fileOffset;
+        return this;
+    }
+
+    public DetailedIFD removeIFDFileOffset() {
+        this.fileOffset = -1;
         return this;
     }
 
@@ -147,6 +156,39 @@ public class DetailedIFD extends IFD {
     public DetailedIFD setSubIFDType(Integer subIFDType) {
         this.subIFDType = subIFDType;
         return this;
+    }
+
+    public boolean isReadyForWriting() {
+        return frozenForWriting;
+    }
+
+    public DetailedIFD freezeForWriting() {
+        this.frozenForWriting = true;
+        return this;
+    }
+
+    @Override
+    public Object put(Integer key, Object value) {
+        checkImmutable();
+        return super.put(key, value);
+    }
+
+    @Override
+    public void putAll(Map<? extends Integer, ?> m) {
+        checkImmutable();
+        super.putAll(m);
+    }
+
+    @Override
+    public Object remove(Object key) {
+        checkImmutable();
+        return super.remove(key);
+    }
+
+    @Override
+    public void clear() {
+        checkImmutable();
+        super.clear();
     }
 
     // This method is overridden to check that result is positive and to avoid exception for illegal compression.
@@ -749,8 +791,8 @@ public class DetailedIFD extends IFD {
         } catch (Exception e) {
             sb.append(" [").append(e.getMessage()).append("]");
         }
-        if (offset != null) {
-            sb.append(" (offset @%d=0x%X)".formatted(offset, offset));
+        if (hasFileOffset()) {
+            sb.append(" (offset @%d=0x%X)".formatted(fileOffset, fileOffset));
         }
         if (!detailed) {
             return sb.toString();
@@ -831,6 +873,11 @@ public class DetailedIFD extends IFD {
         LOG.log(System.Logger.Level.TRACE, this);
     }
 
+    private void checkImmutable() {
+        if (frozenForWriting) {
+            throw new IllegalStateException("IFD is frozen for writing TIFF and cannot be modified");
+        }
+    }
 
     /**
      * Returns user-friendly name of the given TIFF tag.

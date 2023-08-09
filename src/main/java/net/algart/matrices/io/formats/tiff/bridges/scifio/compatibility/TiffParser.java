@@ -227,7 +227,7 @@ public class TiffParser extends TiffReader {
             row = row % map.tileCountY();
             // - in terms of the old TiffParser, "row" index already contains index of the plane
         }
-        TiffTileIndex tileIndex = map.newMultiplaneIndex(planeIndex, col, row);
+        TiffTileIndex tileIndex = map.multiplaneIndex(planeIndex, col, row);
         if (buf == null) {
             buf = new byte[map.tileSizeInBytes()];
         }

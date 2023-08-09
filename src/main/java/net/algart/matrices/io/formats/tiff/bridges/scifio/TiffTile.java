@@ -245,6 +245,11 @@ public final class TiffTile {
         return this;
     }
 
+    public TiffTile removeStoredDataFileOffset() {
+        storedDataFileOffset = -1;
+        return this;
+    }
+
     public TiffTile setStoredDataFileRange(long storedDataFileOffset, int storedDataLength) {
         if (storedDataFileOffset < 0) {
             throw new IllegalArgumentException("Negative storedDataFileOffset = " + storedDataFileOffset);
@@ -254,11 +259,6 @@ public final class TiffTile {
         }
         this.storedDataLength = storedDataLength;
         this.storedDataFileOffset = storedDataFileOffset;
-        return this;
-    }
-
-    public TiffTile removeStoredDataFileOffset() {
-        storedDataFileOffset = -1;
         return this;
     }
 
@@ -452,7 +452,7 @@ public final class TiffTile {
 
     private void checkStoredFilePosition() {
         if (storedDataFileOffset < 0) {
-            throw new IllegalStateException("File offset of this TIFF tile is not set yet: " + this);
+            throw new IllegalStateException("File offset of the TIFF tile is not set yet: " + this);
         }
     }
 }

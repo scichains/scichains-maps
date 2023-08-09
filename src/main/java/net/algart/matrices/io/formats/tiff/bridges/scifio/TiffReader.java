@@ -590,20 +590,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFD(long offset) throws IOException {
-        return readIFD(offset, null);
+    public DetailedIFD readIFD(long fileOffset) throws IOException {
+        return readIFD(fileOffset, null);
     }
 
-    public DetailedIFD readIFD(long offset, Integer subIFDType) throws IOException {
-        if (offset < 0) {
-            throw new IllegalArgumentException("Negative file offset = " + offset);
+    public DetailedIFD readIFD(long fileOffset, Integer subIFDType) throws IOException {
+        if (fileOffset < 0) {
+            throw new IllegalArgumentException("Negative file offset = " + fileOffset);
         }
-        if (offset >= in.length()) {
-            throw new IOException("File offset " + offset + " is outside the file");
+        if (fileOffset >= in.length()) {
+            throw new IOException("File offset " + fileOffset + " is outside the file");
         }
         long t1 = debugTime();
         final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-        final DetailedIFD ifd = new DetailedIFD(offset);
+        final DetailedIFD ifd = new DetailedIFD().setFileOffset(fileOffset);
         ifd.setSubIFDType(subIFDType);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -611,7 +611,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifd.put(IFD.BIG_TIFF, bigTiff);
 
         // read in directory entries for this IFD
-        in.seek(offset);
+        in.seek(fileOffset);
         final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
         if (numEntries == 0) {
             //!! - In the SCIFIO core, this is performed also if numEntries == 1, but why?
@@ -625,7 +625,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long timeArrays = 0;
         for (int i = 0; i < numEntries; i++) {
             long tEntry1 = debugTime();
-            in.seek(offset + baseOffset + bytesPerEntry * (long) i);
+            in.seek(fileOffset + baseOffset + bytesPerEntry * (long) i);
 
             TiffIFDEntry entry;
             try {
@@ -678,12 +678,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         ifd.setEntries(entries);
 
-        in.seek(offset + baseOffset + bytesPerEntry * numEntries);
+        in.seek(fileOffset + baseOffset + bytesPerEntry * numEntries);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.TRACE, String.format(Locale.US,
                     "%s read IFD at offset %d: %.3f ms, including %.6f entries + %.6f arrays",
-                    getClass().getSimpleName(), offset,
+                    getClass().getSimpleName(), fileOffset,
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
         }
         return ifd;
@@ -1371,7 +1371,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int tileSizeY = map.tileSizeY();
         final int bytesPerSample = map.bytesPerSample();
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
-        final int channelsPerPixel = map.tileSamplesPerPixel();
+        final int samplesPerPixel = map.tileSamplesPerPixel();
 
         final int toX = Math.min(fromX + sizeX, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimX());
         final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimY());
@@ -1392,7 +1392,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
             for (int yIndex = minYIndex; yIndex <= maxYIndex; yIndex++) {
                 for (int xIndex = minXIndex; xIndex <= maxXIndex; xIndex++) {
-                    final TiffTile tile = readTile(map.newMultiplaneIndex(p, xIndex, yIndex));
+                    final TiffTile tile = readTile(map.multiplaneIndex(p, xIndex, yIndex));
                     if (tile.isEmpty()) {
                         continue;
                     }
@@ -1415,9 +1415,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     assert partSizeY > 0 : "partSizeY=" + partSizeY;
 
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
-                    for (int c = 0; c < channelsPerPixel; c++) {
-                        int srcOffset = (((c * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
-                        int destOffset = (((c + p) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
+                    for (int s = 0; s < samplesPerPixel; s++) {
+                        int srcOffset = (((s * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
+                        int destOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
                         for (int tileRow = 0; tileRow < partSizeY; tileRow++) {
                             System.arraycopy(data, srcOffset, resultSamples, destOffset, partSizeXInBytes);
                             srcOffset += tileRowSizeInBytes;
