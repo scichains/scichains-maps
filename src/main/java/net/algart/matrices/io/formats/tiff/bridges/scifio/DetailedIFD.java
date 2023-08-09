@@ -529,8 +529,8 @@ public class DetailedIFD extends IFD {
     }
 
     /**
-     * Checks that all bits per sample (BitsPerSample tag) for all channels are equal to the same positive integer,
-     * and returns this integer. If it is not so, throws {@link FormatException}.
+     * Checks that all bits per sample (<tt>BitsPerSample</tt> tag) for all channels are equal to the same integer,
+     * and returns this integer. If it is not so, returns empty optional result.
      * Note that unequal bits per sample is not supported by all software.
      *
      * <p>Note: {@link TiffReader} class does not strictly require this condition, it requires only
@@ -539,24 +539,9 @@ public class DetailedIFD extends IFD {
      * In comparison, {@link TiffWriter} class really <i>does</i> require this condition: it cannot
      * create TIFF files with different number of bits per channel.
      *
-     * @return bits per sample (if this value is the same for all channels).
-     * @throws FormatException if IFD contains different number of bits per sample for some channels.
-     */
-    public int equalBitsPerSample() throws FormatException {
-        final OptionalInt bits = tryEqualBitsPerSample();
-        if (bits.isEmpty()) {
-            throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: different number of bits per samples (" +
-                    Arrays.toString(getBitsPerSample()) + ")");
-        }
-        return bits.getAsInt();
-    }
-
-    /**
-     * Analog of {@link #equalBitsPerSample()}, returning empty result instead of throwing exception
-     * in a case of unequal number of bits per samples.
-     *
      * @return bits per sample, if this value is the same for all channels, or empty value in other case.
-     * @throws FormatException in a case of any problems while parsing IFD.
+     * @throws FormatException in a case of any problems while parsing IFD, in particular,
+     *                         if <tt>BitsPerSample</tt> tag contains zero or negative values.
      */
     public OptionalInt tryEqualBitsPerSample() throws FormatException {
         final int[] bitsPerSample = getBitsPerSample();
@@ -657,11 +642,24 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
+    /**
+     * Returns <tt>true</tt> if IFD contains tag <tt>TileLength</tt>.
+     * It means that the image is stored in tiled form, not separated by strips.
+     * In particular, the height of tile is based on this tag, not on <tt>RowsPerStrip</tt>.
+     *
+     * <p>In comparison, {@link #isTiled()} returns <tt>true</tt>
+     * if IFD contains tag <tt>TileWidth</tt> <i>and</i> does not contain tag <tt>StripOffsets</tt>.
+     * However, some TIFF files use <tt>StripOffsets</tt> and <tt>StripByteCounts</tt> tags even
+     * in a case of tiled image, for example, cramps-tile.tif from the known image set <i>libtiffpic</i>
+     * (see https://download.osgeo.org/libtiff/ ).
+     *
+     * @return whether this IFD contain tile size information.
+     */
     public boolean hasTileInformation() {
         return containsKey(IFD.TILE_LENGTH);
     }
 
-    public DetailedIFD putTileInformation(int tileSizeX, int tileSizeY) {
+    public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
             throw new IllegalArgumentException("Zero or negative tile x-size");
         }
@@ -687,7 +685,7 @@ public class DetailedIFD extends IFD {
         return containsKey(IFD.ROWS_PER_STRIP);
     }
 
-    public DetailedIFD putStripInformation(int stripSizeY) {
+    public DetailedIFD putStripSize(int stripSizeY) {
         if (stripSizeY <= 0) {
             throw new IllegalArgumentException("Zero or negative strip y-size");
         }
@@ -777,7 +775,7 @@ public class DetailedIFD extends IFD {
                     isLittleEndian() ? "little-endian" : "big-endian",
                     FormatTools.getPixelTypeString(pixelType),
                     isBigTiff() ? " [BigTIFF]" : ""));
-            if (isTiled()) {
+            if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
                         tilesPerRow,
                         tilesPerColumn,

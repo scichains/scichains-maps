@@ -164,12 +164,6 @@ public class TiffWriterTest {
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
-                if (singleStrip) {
-                    writer.setDefaultSingleStrip();
-                } else {
-                    writer.setDefaultStripHeight(100);
-                }
-                writer.startWriting();
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
                     Object samplesArray = makeSamples(ifdIndex, numberOfChannels, pixelType, w, h);
@@ -182,7 +176,9 @@ public class TiffWriterTest {
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
-                        ifd.putTileInformation(64, 64);
+                        ifd.putTileSizes(64, 64);
+                    } else if (!singleStrip) {
+                        ifd.putStripSize(100);
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     ifd.putPlanarSeparated(planarSeparated);
@@ -195,7 +191,11 @@ public class TiffWriterTest {
                         // - unusual mode: no special putXxx method
                     }
                     ifd.putBaseInformation(numberOfChannels, pixelType);
-                    TiffMap map = writer.startNewImage(ifd, false);
+                    TiffMap map = writer.prepareImage(ifd, false);
+                    if (ifdIndex == 0) {
+                        writer.startWriting();
+                        // - begin writing after checking possible format problem
+                    }
                     writer.writeSamplesArray(map, samplesArray,
                             ifdIndex, x, y, w, h,
                             ifdIndex == numberOfImages - 1);
