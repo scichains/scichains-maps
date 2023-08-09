@@ -1129,7 +1129,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         ifd.removeDataLocationInformation();
         ifd.removeIFDFileOffset();
-        // - informs that this IFD was not written yet
+        // - informs prepareWritingImage method that this IFD was not written yet and should be written
 
 //        ifd.freezeForWriting();
         //TODO!!
