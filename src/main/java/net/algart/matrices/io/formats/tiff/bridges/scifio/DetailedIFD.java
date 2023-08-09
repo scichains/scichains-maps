@@ -25,6 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
+import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 
@@ -334,6 +335,16 @@ public class DetailedIFD extends IFD {
         return result;
     }
 
+    @Override
+    public TiffCompression getCompression() throws FormatException {
+        final int code = getIFDIntValue(COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+        try {
+            return TiffCompression.get(code);
+        } catch (EnumException e) {
+            throw new UnsupportedTiffFormatException("Unknown TIFF compression code: " + code);
+        }
+    }
+
     // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;
@@ -450,6 +461,7 @@ public class DetailedIFD extends IFD {
     public long getTilesPerRow() throws FormatException {
         return getTilesPerRow(getTileSizeX());
     }
+
     /**
      * Returns the tile width in tiled image. If there are no tiles,
      * returns max(w,1), where w is the image width.
@@ -533,8 +545,8 @@ public class DetailedIFD extends IFD {
     public int equalBitsPerSample() throws FormatException {
         final OptionalInt bits = tryEqualBitsPerSample();
         if (bits.isEmpty()) {
-            throw new FormatException("Unsupported TIFF IFD: different number of bits per samples (" +
-                            Arrays.toString(getBitsPerSample()) + ")");
+            throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: different number of bits per samples (" +
+                    Arrays.toString(getBitsPerSample()) + ")");
         }
         return bits.getAsInt();
     }
@@ -580,7 +592,8 @@ public class DetailedIFD extends IFD {
         }
         for (int k = 1; k < bytesPerSample.length; k++) {
             if (bytesPerSample[k] != bytes0) {
-                throw new FormatException("Unsupported TIFF IFD: different number of bytes per samples (" +
+                throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: " +
+                        "different number of bytes per samples (" +
                         Arrays.toString(bytesPerSample) + "), based on the following number of bits (" +
                         Arrays.toString(getBitsPerSample()) + ")");
             }

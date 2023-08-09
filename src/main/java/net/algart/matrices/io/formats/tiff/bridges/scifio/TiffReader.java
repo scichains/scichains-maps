@@ -912,7 +912,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         IFDType entryType;
         try {
             entryType = IFDType.get(in.readUnsignedShort());
-        } catch (final EnumException e) {
+        } catch (EnumException e) {
             throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
         }
 
