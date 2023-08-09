@@ -693,7 +693,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD removeStripInformation(int stripSizeY) {
+    public DetailedIFD removeStripInformation() {
         remove(IFD.ROWS_PER_STRIP);
         return this;
     }
@@ -882,6 +882,23 @@ public class DetailedIFD extends IFD {
     @Override
     public void printIFD() {
         LOG.log(System.Logger.Level.TRACE, this);
+    }
+
+    // User does not need this operation: it is performed inside TiffWriter
+    void removeDataLocationInformation() {
+        remove(IFD.STRIP_OFFSETS);
+        remove(IFD.STRIP_BYTE_COUNTS);
+        remove(IFD.TILE_OFFSETS);
+        remove(IFD.TILE_BYTE_COUNTS);
+    }
+
+    // User does not need this operation: it is performed inside TiffWriter
+    void putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+        if (photometricInterpretation == null) {
+            remove(IFD.PHOTOMETRIC_INTERPRETATION);
+        } else {
+            putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, photometricInterpretation.getCode());
+        }
     }
 
     private void checkImmutable() {

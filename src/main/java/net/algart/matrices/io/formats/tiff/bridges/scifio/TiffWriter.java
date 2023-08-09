@@ -1118,15 +1118,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     signed ? " signed" : "",
                     bits == 8 ? " (samples must be unsigned)" : ""));
         }
-        final PhotoInterp pi = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
+        ifd.putPhotometricInterpretation(predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
                 : palette ? PhotoInterp.RGB_PALETTE
                 : samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO
                 : jpeg && ifd.isChunked() && !compressJPEGInPhotometricRGB() ? PhotoInterp.Y_CB_CR
-                : PhotoInterp.RGB;
-        ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
+                : PhotoInterp.RGB);
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
+
+        ifd.removeDataLocationInformation();
         ifd.removeIFDFileOffset();
         // - informs that this IFD was not written yet
 
