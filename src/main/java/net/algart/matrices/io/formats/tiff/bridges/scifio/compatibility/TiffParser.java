@@ -284,14 +284,14 @@ public class TiffParser extends TiffReader {
 
     /**
      * This function is deprecated, because almost identical behaviour is implemented by
-     * {@link #readSamples(DetailedIFD, int, int, int, int)}.
+     * {@link #readImage(DetailedIFD, int, int, int, int)}.
      */
     @Deprecated
     public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
                              final int y, final long width, final long height) throws FormatException,
             IOException {
         TiffTools.checkRequestedArea(x, y, width, height);
-        byte[] result = readSamples(DetailedIFD.extend(ifd), x, y, (int) width, (int) height);
+        byte[] result = readImage(DetailedIFD.extend(ifd), x, y, (int) width, (int) height);
         if (result.length > buf.length) {
             throw new IllegalArgumentException(
                     "Insufficient length of the result buf array: " +

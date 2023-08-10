@@ -820,21 +820,21 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeEncoding += t4 - t3;
     }
 
-    public void writeSamples(DetailedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
+    public void writeImage(DetailedIFD ifd, byte[] samples, int numberOfChannels, int pixelType, boolean last)
             throws FormatException, IOException {
         if (!writingSequentially) {
             throw new IllegalStateException("Writing samples without IFD index is possible only in sequential mode");
         }
-        writeSamples(ifd, samples, null, numberOfChannels, pixelType, last);
+        writeImage(ifd, samples, null, numberOfChannels, pixelType, last);
     }
 
-    public void writeSamples(
+    public void writeImage(
             final DetailedIFD ifd, final byte[] samples, final Integer ifdIndex,
             final int numberOfChannels, final int pixelType, final boolean last) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         final int sizeX = ifd.getImageDimX();
         final int sizeY = ifd.getImageDimY();
-        writeSamples(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
+        writeImage(ifd, samples, ifdIndex, pixelType, numberOfChannels, 0, 0, sizeX, sizeY, last);
     }
 
     public TiffMap prepareImage(final DetailedIFD ifd, boolean resizable) throws FormatException {
@@ -872,7 +872,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         //TODO!!
     }
 
-    public void writeSamples(
+    public void writeImage(
             final DetailedIFD ifd,
             byte[] samples,
             final Integer ifdIndex,
@@ -883,10 +883,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         ifd.putBaseInformation(numberOfChannels, pixelType);
         TiffMap map = prepareImage(ifd, false);
-        writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
+        writeImage(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, lastIFD);
     }
 
-    public void writeSamples(
+    public void writeImage(
             final TiffMap map,
             byte[] samples,
             final Integer ifdIndex,
@@ -957,7 +957,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void writeSamplesArray(
+    public void writeImageFromArray(
             final TiffMap map,
             Object samplesArray,
             final Integer ifdIndex,
@@ -990,7 +990,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             String.format(Locale.US, " %.3f MB/s",
                                     samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
-        writeSamples(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, last);
+        writeImage(map, samples, ifdIndex, fromX, fromY, sizeX, sizeY, last);
     }
 
 
@@ -1179,12 +1179,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             try (final TiffReader reader = new TiffReader(null, in, false)) {
                 // - note: we MUST NOT require valid TIFF here, because this file is only
                 // in a process of creating and the last offset is probably incorrect
-                final long[] ifdOffsets = reader.readIFDOffsets();
-                if (ifdIndex < ifdOffsets.length) {
-                    out.seek(ifdOffsets[ifdIndex]);
+                final long offset = reader.readIFDOffset(ifdIndex);
+                if (offset >= 0) {
+                    out.seek(offset);
                     LOG.log(System.Logger.Level.TRACE, () ->
-                            "Reading IFD from " + ifdOffsets[ifdIndex] + " for non-sequential writing");
-                    ifd = reader.readIFDAtOffset(ifdOffsets[ifdIndex]);
+                            "Reading IFD from " + offset + " for non-sequential writing");
+                    ifd = reader.readIFDAtOffset(offset);
                 }
             }
         }

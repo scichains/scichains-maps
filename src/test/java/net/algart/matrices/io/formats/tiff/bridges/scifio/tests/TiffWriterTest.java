@@ -191,12 +191,17 @@ public class TiffWriterTest {
                         // - unusual mode: no special putXxx method
                     }
                     ifd.putBaseInformation(numberOfChannels, pixelType);
+                    if (randomAccess) {
+                        // - ignoring previous IFD
+                        //TODO!! read IFD at ifdIndex
+                    }
                     TiffMap map = writer.prepareImage(ifd, false);
+
                     if (ifdIndex == 0) {
                         writer.startWriting();
                         // - begin writing after checking possible format problem
                     }
-                    writer.writeSamplesArray(map, samplesArray,
+                    writer.writeImageFromArray(map, samplesArray,
                             ifdIndex, x, y, w, h,
                             ifdIndex == numberOfImages - 1);
                 }

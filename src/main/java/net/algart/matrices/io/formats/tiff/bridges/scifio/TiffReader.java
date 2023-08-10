@@ -1151,8 +1151,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         TiffTools.invertFillOrderIfRequested(tile);
     }
 
-    public byte[] readSamples(final DetailedIFD ifd) throws FormatException, IOException {
-        return readSamples(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
+    public byte[] readImage(final DetailedIFD ifd) throws FormatException, IOException {
+        return readImage(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
     }
 
     /**
@@ -1162,7 +1162,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      *
      * @return loaded samples in a normalized form of byte sequence.
      */
-    public byte[] readSamples(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
+    public byte[] readImage(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         long t1 = debugTime();
@@ -1222,13 +1222,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return samples;
     }
 
-    public Object readSamplesArray(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
+    public Object readImageIntoArray(final DetailedIFD ifd) throws FormatException, IOException {
+        return readImageIntoArray(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
+    }
+
+    public Object readImageIntoArray(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
-        return readSamplesArray(
+        return readImageIntoArray(
                 ifd, fromX, fromY, sizeX, sizeY, null, null);
     }
 
-    public Object readSamplesArray(
+    public Object readImageIntoArray(
             DetailedIFD ifd,
             final int fromX,
             final int fromY,
@@ -1240,7 +1244,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         if (requiredSamplesPerPixel != null && ifd.getSamplesPerPixel() != requiredSamplesPerPixel) {
             throw new FormatException(
-                    "Number of bands mismatch: expected " + requiredSamplesPerPixel
+                    "Number of channel mismatch: expected " + requiredSamplesPerPixel
                             + " samples per pixel, but IFD image contains " + ifd.getSamplesPerPixel()
                             + " samples per pixel");
         }
@@ -1251,7 +1255,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                             + optionalElementType(ifd).map(Class::getName).orElse("unknown")
                             + "[] elements");
         }
-        final byte[] samples = readSamples(ifd, fromX, fromY, sizeX, sizeY);
+        final byte[] samples = readImage(ifd, fromX, fromY, sizeX, sizeY);
         long t1 = debugTime();
         final Object samplesArray = TiffTools.bytesToArray(samples, ifd.getPixelType(), ifd.isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {

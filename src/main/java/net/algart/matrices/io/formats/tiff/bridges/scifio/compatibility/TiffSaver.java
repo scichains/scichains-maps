@@ -291,7 +291,7 @@ public class TiffSaver extends TiffWriter {
     public void writeImage(
             final byte[] samples, final IFD ifd, final int planeIndex,
             final int pixelType, final boolean last) throws FormatException, IOException {
-        writeSamples(DetailedIFD.extend(ifd), samples, pixelType, planeIndex, last);
+        writeImage(DetailedIFD.extend(ifd), samples, pixelType, planeIndex, last);
     }
 
     @Deprecated
@@ -312,7 +312,7 @@ public class TiffSaver extends TiffWriter {
             nChannels = buf.length / (w * h * bytesPerSample);
             // - like in original writeImage; but overflow will be checked more thoroughly inside writeSamples
         }
-        writeSamples(DetailedIFD.extend(ifd), buf,
+        writeImage(DetailedIFD.extend(ifd), buf,
                 (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
     }
 
