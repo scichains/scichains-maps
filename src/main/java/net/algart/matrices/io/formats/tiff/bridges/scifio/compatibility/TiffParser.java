@@ -164,11 +164,26 @@ public class TiffParser extends TiffReader {
 
 
     @Deprecated
+    public long[] getIFDOffsets() throws IOException {
+        return super.readIFDOffsets();
+    }
+
+    @Deprecated
+    public long getFirstOffset() throws IOException {
+        return super.readFirstIFDOffset();
+    }
+
+    @Deprecated
+    public IFD getFirstIFD() throws IOException {
+        return super.firstIFD();
+    }
+
+    @Deprecated
     public DetailedIFD getIFD(long offset) throws IOException {
         if (offset < 0 || offset >= getStream().length()) {
             return null;
         }
-        return super.readIFD(offset);
+        return super.readIFDAtOffset(offset);
     }
 
     @Deprecated
@@ -209,7 +224,7 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public TiffIFDEntry getFirstIFDEntry(final int tag) throws IOException {
         // Get the offset of the first IFD
-        final long offset = getFirstOffset();
+        final long offset = readFirstIFDOffset();
         if (offset < 0) {
             return null;
         }

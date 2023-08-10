@@ -364,7 +364,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 final boolean littleEndian;
                 final long positionOfLastOffset;
                 try (final TiffReader parser = new TiffReader(null, in, true)) {
-                    parser.getIFDOffsets();
+                    parser.readIFDOffsets();
                     bigTiff = parser.isBigTiff();
                     littleEndian = parser.isLittleEndian();
                     positionOfLastOffset = parser.positionOfLastOffset();
@@ -1179,12 +1179,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             try (final TiffReader reader = new TiffReader(null, in, false)) {
                 // - note: we MUST NOT require valid TIFF here, because this file is only
                 // in a process of creating and the last offset is probably incorrect
-                final long[] ifdOffsets = reader.getIFDOffsets();
+                final long[] ifdOffsets = reader.readIFDOffsets();
                 if (ifdIndex < ifdOffsets.length) {
                     out.seek(ifdOffsets[ifdIndex]);
                     LOG.log(System.Logger.Level.TRACE, () ->
                             "Reading IFD from " + ifdOffsets[ifdIndex] + " for non-sequential writing");
-                    ifd = reader.readIFD(ifdOffsets[ifdIndex]);
+                    ifd = reader.readIFDAtOffset(ifdOffsets[ifdIndex]);
                 }
             }
         }
