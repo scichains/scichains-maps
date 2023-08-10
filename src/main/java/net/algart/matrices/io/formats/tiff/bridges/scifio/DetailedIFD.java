@@ -109,6 +109,36 @@ public class DetailedIFD extends IFD {
         return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
+    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    /**
+     * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
+     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
+     *
+     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
+     */
+    public void checkSizesArePositive() throws FormatException {
+        long dimX = getImageWidth();
+        long dimY = getImageLength();
+        if (dimX <= 0 || dimY <= 0) {
+            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
+            // - important for some classes, processing IFD images, that cannot work with zero-size areas
+            // (for example, due to usage of AlgART IRectangularArea)
+        }
+        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
+        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
+    }
+
     public boolean hasFileOffset() {
         return fileOffset >= 0;
     }
@@ -166,30 +196,6 @@ public class DetailedIFD extends IFD {
     public DetailedIFD freezeForWriting() {
         this.frozenForWriting = true;
         return this;
-    }
-
-    @Override
-    public Object put(Integer key, Object value) {
-        checkImmutable();
-        return super.put(key, value);
-    }
-
-    @Override
-    public void putAll(Map<? extends Integer, ?> m) {
-        checkImmutable();
-        super.putAll(m);
-    }
-
-    @Override
-    public Object remove(Object key) {
-        checkImmutable();
-        return super.remove(key);
-    }
-
-    @Override
-    public void clear() {
-        checkImmutable();
-        super.clear();
     }
 
     // This method is overridden to check that result is positive and to avoid exception for illegal compression.
@@ -602,19 +608,13 @@ public class DetailedIFD extends IFD {
     }
 
     public DetailedIFD putImageDimensions(int dimX, int dimY) {
-        if (dimX <= 0) {
-            throw new IllegalArgumentException("Zero or negative image width (x-dimension)");
-        }
-        if (dimY <= 0) {
-            throw new IllegalArgumentException("Zero or negative image height (y-dimension)");
-        }
-        putIFDValue(IFD.IMAGE_WIDTH, dimX);
-        putIFDValue(IFD.IMAGE_LENGTH, dimY);
+        checkImmutable();
+        updateImageDimensions(dimX, dimY);
         return this;
     }
 
-    public DetailedIFD putBaseInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
-        return putBaseInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
+    public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
+        return putPixelInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
     }
 
     /**
@@ -624,7 +624,7 @@ public class DetailedIFD extends IFD {
      * @param pixelType        pixel type.
      * @return a reference to this object.
      */
-    public DetailedIFD putBaseInformation(int numberOfChannels, int pixelType) {
+    public DetailedIFD putPixelInformation(int numberOfChannels, int pixelType) {
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
@@ -643,6 +643,31 @@ public class DetailedIFD extends IFD {
             remove(IFD.SAMPLE_FORMAT);
         }
         putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
+        return this;
+    }
+
+    public DetailedIFD putCompression(TiffCompression compression) {
+        return putCompression(compression, false);
+    }
+
+    public DetailedIFD putCompression(TiffCompression compression, boolean keepDefaultValue) {
+        if (compression == null && keepDefaultValue) {
+            compression = TiffCompression.UNCOMPRESSED;
+        }
+        if (compression == null) {
+            remove(IFD.COMPRESSION);
+        } else {
+            putIFDValue(IFD.COMPRESSION, compression.getCode());
+        }
+        return this;
+    }
+
+    public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
+        if (planarSeparated) {
+            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
+        } else {
+            remove(IFD.PLANAR_CONFIGURATION);
+        }
         return this;
     }
 
@@ -702,60 +727,89 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD putCompression(TiffCompression compression) {
-        return putCompression(compression, false);
+    public void removeStripPositioning() {
+        remove(IFD.STRIP_OFFSETS);
+        remove(IFD.STRIP_BYTE_COUNTS);
     }
 
-    public DetailedIFD putCompression(TiffCompression compression, boolean keepDefaultValue) {
-        if (compression == null && keepDefaultValue) {
-            compression = TiffCompression.UNCOMPRESSED;
-        }
-        if (compression == null) {
-            remove(IFD.COMPRESSION);
-        } else {
-            putIFDValue(IFD.COMPRESSION, compression.getCode());
-        }
-        return this;
-    }
-
-    public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
-        if (planarSeparated) {
-            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
-        } else {
-            remove(IFD.PLANAR_CONFIGURATION);
-        }
-        return this;
-    }
-
-    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
-                () -> "Invalid requested area: ", () -> "");
-    }
-
-    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
-                () -> "Invalid requested area: ", () -> "");
+    public void removeTilePositioning() {
+        remove(IFD.TILE_OFFSETS);
+        remove(IFD.TILE_BYTE_COUNTS);
     }
 
     /**
-     * Checks that the sizes of this IFD (ImageWidth and ImageLength) are positive integers
-     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
+     * Puts new values for <tt>ImageWidth</tt> and <tt>ImageLength</tt> tags.
      *
-     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
+     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
+     *
+     * @param dimX new TIFF image width (<tt>ImageWidth</tt> tag).
+     * @param dimY new TIFF image height (<tt>ImageLength</tt> tag).
      */
-    public void checkSizesArePositive() throws FormatException {
-        long dimX = getImageWidth();
-        long dimY = getImageLength();
-        if (dimX <= 0 || dimY <= 0) {
-            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
-            // - important for some classes, processing IFD images, that cannot work with zero-size areas
-            // (for example, due to usage of AlgART IRectangularArea)
+    public DetailedIFD updateImageDimensions(int dimX, int dimY) {
+        if (dimX <= 0) {
+            throw new IllegalArgumentException("Zero or negative image width (x-dimension)");
         }
-        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
+        if (dimY <= 0) {
+            throw new IllegalArgumentException("Zero or negative image height (y-dimension)");
+        }
+        super.put(IFD.IMAGE_WIDTH, dimX);
+        super.put(IFD.IMAGE_LENGTH, dimY);
+        return this;
     }
+
+    /**
+     * Puts new values for <tt>TileOffsets</tt> and <tt>TileByteCounts</tt> tags.
+     *
+     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
+     *
+     * @param offsets byte offset of each tile in TIFF file.
+     * @param byteCounts number of (compressed) bytes in each tile.
+     */
+    public void updateTilePositioning(long[] offsets, long[] byteCounts) {
+        Objects.requireNonNull(offsets, "Null tile offsets");
+        Objects.requireNonNull(byteCounts, "Null tile byte counts");
+        updatePositioning(offsets, byteCounts, true);
+    }
+
+    /**
+     * Puts new values for <tt>StripOffsets</tt> and <tt>StripByteCounts</tt> tags.
+     *
+     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
+     *
+     * @param offsets byte offset of each strip in TIFF file.
+     * @param byteCounts number of (compressed) bytes in each strip.
+     */
+    public void updateStripPositioning(long[] offsets, long[] byteCounts) {
+        Objects.requireNonNull(offsets, "Null tile offsets");
+        Objects.requireNonNull(byteCounts, "Null tile byte counts");
+        updatePositioning(offsets, byteCounts, false);
+    }
+
+
+    @Override
+    public Object put(Integer key, Object value) {
+        checkImmutable();
+        return super.put(key, value);
+    }
+
+    @Override
+    public void putAll(Map<? extends Integer, ?> m) {
+        checkImmutable();
+        super.putAll(m);
+    }
+
+    @Override
+    public Object remove(Object key) {
+        checkImmutable();
+        return super.remove(key);
+    }
+
+    @Override
+    public void clear() {
+        checkImmutable();
+        super.clear();
+    }
+
 
     @Override
     public String toString() {
@@ -889,14 +943,6 @@ public class DetailedIFD extends IFD {
     }
 
     // User does not need this operation: it is performed inside TiffWriter
-    void removeDataLocationInformation() {
-        remove(IFD.STRIP_OFFSETS);
-        remove(IFD.STRIP_BYTE_COUNTS);
-        remove(IFD.TILE_OFFSETS);
-        remove(IFD.TILE_BYTE_COUNTS);
-    }
-
-    // User does not need this operation: it is performed inside TiffWriter
     void putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
         if (photometricInterpretation == null) {
             remove(IFD.PHOTOMETRIC_INTERPRETATION);
@@ -910,6 +956,28 @@ public class DetailedIFD extends IFD {
             throw new IllegalStateException("IFD is frozen for writing TIFF and cannot be modified");
         }
     }
+
+    private void updatePositioning(long[] offsets, long[] byteCounts, boolean tiles) {
+        final long tilesPerRow;
+        final long tilesPerColumn;
+        try {
+            tilesPerRow = getTilesPerRow();
+            tilesPerColumn = getTilesPerColumn();
+        } catch (FormatException e) {
+            throw new IllegalStateException("IFD contains invalid information", e);
+        }
+        final long totalCount = tilesPerRow * tilesPerColumn;
+        if (offsets.length != totalCount || byteCounts.length != totalCount) {
+            throw new IllegalArgumentException("Incorrect offsets array (" +
+                    offsets.length + " values) or byte-counts array (" + byteCounts.length +
+                    " values): not equal to actual number of " +
+                    (tiles ? "tiles is " + tilesPerRow + "x" + tilesPerColumn + "=" + totalCount :
+                            "strips is " + tilesPerColumn));
+        }
+        super.put(tiles ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
+        super.put(tiles ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
+    }
+
 
     /**
      * Returns user-friendly name of the given TIFF tag.

@@ -190,7 +190,7 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    ifd.putBaseInformation(numberOfChannels, pixelType);
+                    ifd.putPixelInformation(numberOfChannels, pixelType);
                     if (randomAccess) {
                         // - ignoring previous IFD
                         //TODO!! read IFD at ifdIndex
