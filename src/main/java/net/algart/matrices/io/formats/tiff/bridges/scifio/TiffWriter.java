@@ -842,6 +842,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         prepareValidIFD(ifd);
         ifd.freezeForWriting();
         final TiffMap map = new TiffMap(ifd, resizable);
+        if (!resizable) {
+            map.completeImageGrid();
+        }
         return map;
     }
 
@@ -869,7 +872,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (map.isResizable()) {
             return;
         }
-        map.completeImageGrid();
         final int tileCount = map.size();
         DetailedIFD ifd = map.ifd();
         //TODO!!
