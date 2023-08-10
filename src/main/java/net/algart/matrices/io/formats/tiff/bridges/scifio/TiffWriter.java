@@ -840,6 +840,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     public TiffMap prepareImage(final DetailedIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
+//        ifd.freezeForWriting();
+        //TODO!!
         return new TiffMap(ifd, resizable);
     }
 
@@ -939,7 +941,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             long t5 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f initialize + %.3f splitting " +
+                            "%.3f initializing + %.3f splitting " +
                             "+ %.3f/%.3f encoding/writing " +
                             "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
@@ -964,6 +966,15 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
+        final Class<?> elementType = samplesArray.getClass().getComponentType();
+        if (elementType == null) {
+            throw new IllegalArgumentException("The specified samplesArray is not actual an array: " +
+                    "it is " + samplesArray.getClass());
+        }
+        if (elementType != map.elementType()) {
+            throw new IllegalArgumentException("Invalid element type of samples array: " + elementType +
+                    ", but the specified TIFF map stores " + map.elementType());
+        }
         long t1 = debugTime();
         final byte[] samples = TiffTools.arrayToBytes(samplesArray, isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
@@ -972,7 +983,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     "%s converted %d bytes (%.3f MB) from %s[] in %.3f ms%s",
                     getClass().getSimpleName(),
                     samples.length, samples.length / 1048576.0,
-                    samplesArray.getClass().getComponentType().getSimpleName(),
+                    elementType.getSimpleName(),
                     (t2 - t1) * 1e-6,
                     samples == samplesArray ?
                             "" :
@@ -1130,9 +1141,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         ifd.removeDataLocationInformation();
         ifd.removeIFDFileOffset();
         // - informs prepareWritingImage method that this IFD was not written yet and should be written
-
-//        ifd.freezeForWriting();
-        //TODO!!
     }
 
     /**

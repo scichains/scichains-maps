@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.legacy;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.nobridge;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;

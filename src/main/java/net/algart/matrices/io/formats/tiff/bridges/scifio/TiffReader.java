@@ -360,7 +360,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Sets whether or not IFD entries should be cached.
+     * Sets whether IFD entries, returned by {@link #allIFDs()} method, should be cached.
+     *
+     * <p>Default value is <tt>true</tt>. Possible reason to set is to <tt>false</tt>
+     * is reading file which is dynamically modified.
+     * In other cases, usually it should be <tt>true</tt>, though <tt>false</tt> value
+     * also works well if you are not going to call {@link #allIFDs()} more than once.
+     *
+     * @param cachingIFDs whether caching IFD is enabled.
+     * @return a reference to this object.
      */
     public TiffReader setCachingIFDs(final boolean cachingIFDs) {
         this.cachingIFDs = cachingIFDs;
@@ -440,9 +448,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             long[] subOffsets = null;
             try {
-                if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
-                    fillInIFD(ifd);
-                }
+                // Deprecated solution: "fillInIFD" technique is no longer used
+//                if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
+//                    fillInIFD(ifd);
+//                }
                 subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
             } catch (final FormatException ignored) {
             }
@@ -564,15 +573,16 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * a valid TIFF file.
      */
     public IFD getFirstIFD() throws IOException {
-        if (firstIFD != null) {
-            return firstIFD;
+        IFD firstIFD = this.firstIFD;
+        if (cachingIFDs && firstIFD != null) {
+            return this.firstIFD;
         }
         final long offset = getFirstOffset();
-        final IFD ifd = readIFD(offset);
+        firstIFD = readIFD(offset);
         if (cachingIFDs) {
-            firstIFD = ifd;
+            this.firstIFD = firstIFD;
         }
-        return ifd;
+        return firstIFD;
     }
 
     /**
@@ -661,12 +671,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 break;
             }
 
-            Object value;
-            if (valueOffset != in.offset() && !cachingIFDs) {
-                value = entry;
-            } else {
-                value = readIFDValue(entry);
-            }
+            final Object value = readIFDValue(entry);
+            // Deprecated solution: "fillInIFD" technique is no longer used
+//            if (valueOffset != in.offset() && !cachingIFDs) {
+//                value = entry;
+//            } else {
+//                value = readIFDValue(entry);
+//            }
             long tEntry3 = debugTime();
             timeArrays += tEntry3 - tEntry2;
 //            System.err.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
@@ -687,24 +698,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
         }
         return ifd;
-    }
-
-    /**
-     * Fill in IFD entries that are stored at an arbitrary offset.
-     */
-    public void fillInIFD(final IFD ifd) throws IOException {
-        final HashSet<TiffIFDEntry> entries = new HashSet<>();
-        for (final Integer key : ifd.keySet()) {
-            if (ifd.get(key) instanceof TiffIFDEntry) {
-                entries.add((TiffIFDEntry) ifd.get(key));
-            }
-        }
-
-        for (final TiffIFDEntry entry : entries) {
-            if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
-                ifd.put(entry.getTag(), readIFDValue(entry));
-            }
-        }
     }
 
     /**
@@ -901,7 +894,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         if (firstIFD == null) {
             return null;
         }
-        fillInIFD(firstIFD);
+        // Deprecated solution: "fillInIFD" technique is no longer used
+        //
+        // fillInIFD(firstIFD);
+        //
         return firstIFD.getComment();
     }
 
@@ -922,11 +918,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
         }
 
-        final int nValueBytes = valueCount * entryType.getBytesPerElement();
-        final int threshhold = bigTiff ? 8 : 4;
-        final long offset = nValueBytes > threshhold ? readNextOffset(0) : in.offset();
+        final long valueLength = (long) valueCount * (long) entryType.getBytesPerElement();
+        final int threshold = bigTiff ? 8 : 4;
+        final long valueOffset = valueLength > threshold ? readNextOffset(0) : in.offset();
 
-        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, offset);
+        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
                 "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
         return result;
@@ -1154,6 +1150,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public byte[] readSamples(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
+        long t1 = debugTime();
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         // - note: we allow this area to be outside the image
@@ -1169,42 +1166,43 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return samples;
         }
 
-        long t1 = debugTime();
         if (filler != 0) {
             // - samples array is already zero-filled by Java
             Arrays.fill(samples, 0, size, filler);
         }
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results
+        long t2 = debugTime();
 
         readTiles(map, samples, fromX, fromY, sizeX, sizeY);
 
-        long t2 = debugTime();
+        long t3 = debugTime();
         if (autoUnpackUnusualPrecisions) {
             samples = TiffTools.unpackUnusualPrecisions(samples, ifd, numberOfChannels, sizeX * sizeY);
         }
-        long t3 = debugTime();
+        long t4 = debugTime();
         if (interleaveResults) {
             samples = TiffTools.toInterleavedSamples(
                     samples, numberOfChannels, ifd.bytesPerSampleBasedOnType(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
-            long t4 = debugTime();
+            long t5 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f read/decode " +
+                            "%.3f initializing + %.3f read/decode " +
                             "(%.3f read + %.3f customize + %.3f decode + %.3f complete) + " +
-                            "%.3f unusual precisions + %.3f interleave, %.3f MB/s",
+                            "%.3f unusual + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, size / 1048576.0,
-                    (t4 - t1) * 1e-6,
+                    (t5 - t1) * 1e-6,
                     (t2 - t1) * 1e-6,
+                    (t3 - t2) * 1e-6,
                     timeReading * 1e-6,
                     timeCustomizingDecoding * 1e-6,
                     timeDecoding * 1e-6,
                     timeCompleteDecoding * 1e-6,
-                    (t3 - t2) * 1e-6, (t4 - t3) * 1e-6,
-                    size / 1048576.0 / ((t4 - t1) * 1e-9)));
+                    (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
+                    size / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
         return samples;
     }

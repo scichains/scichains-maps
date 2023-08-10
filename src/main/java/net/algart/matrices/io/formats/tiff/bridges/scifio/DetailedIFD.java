@@ -613,6 +613,10 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
+    public DetailedIFD putBaseInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
+        return putBaseInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
+    }
+
     /**
      * Puts base pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel
      *

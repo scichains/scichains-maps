@@ -109,14 +109,14 @@ public class TiffTools {
         return elementTypeToPixelType(elementType, signed);
     }
 
-    public static int elementTypeToPixelType(Class<?> elementType, boolean signed) {
+    public static int elementTypeToPixelType(Class<?> elementType, boolean signedIntegers) {
         Objects.requireNonNull(elementType, "Null elementType");
         if (elementType == byte.class) {
-            return signed ? FormatTools.INT8 : FormatTools.UINT8;
+            return signedIntegers ? FormatTools.INT8 : FormatTools.UINT8;
         } else if (elementType == short.class) {
-            return signed ? FormatTools.INT16 : FormatTools.UINT16;
+            return signedIntegers ? FormatTools.INT16 : FormatTools.UINT16;
         } else if (elementType == int.class) {
-            return signed ? FormatTools.INT32 : FormatTools.UINT32;
+            return signedIntegers ? FormatTools.INT32 : FormatTools.UINT32;
         } else if (elementType == float.class) {
             return FormatTools.FLOAT;
         } else if (elementType == double.class) {

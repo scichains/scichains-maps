@@ -176,7 +176,7 @@ public class TiffWriterTest {
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
-                        ifd.putTileSizes(64, 64);
+                        ifd.putTileSizes(80, 80);
                     } else if (!singleStrip) {
                         ifd.putStripSize(100);
                     }

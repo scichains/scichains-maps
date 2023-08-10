@@ -94,7 +94,8 @@ public class TiffReaderTest {
                                 .setMaxCachingMemory(tiny ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY) :
                         new TiffReader(context, tiffFile);
                 long t2 = System.nanoTime();
-//            reader.setExtendedCodec(false);
+//                reader.setExtendedCodec(false);
+//                reader.setCachingIFDs(false);
                 reader.setFiller((byte) 0x80);
                 final long positionOfLastOffset = reader.positionOfLastOffset();
                 assert positionOfLastOffset > 0 : "constructor should set it by non-zero value";

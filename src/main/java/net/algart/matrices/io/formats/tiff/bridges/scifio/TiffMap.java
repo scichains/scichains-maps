@@ -59,6 +59,8 @@ public final class TiffMap {
     private final int bytesPerSample;
     private final int tileBytesPerPixel;
     private final int totalBytesPerPixel;
+    private final int pixelType;
+    private final Class<?> elementType;
     private final int tileSizeX;
     private final int tileSizeY;
     private final int tileSizeInPixels;
@@ -107,6 +109,8 @@ public final class TiffMap {
             }
             this.tileBytesPerPixel = tileSamplesPerPixel * bytesPerSample;
             this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
+            this.pixelType = ifd.getPixelType();
+            this.elementType = TiffTools.pixelTypeToElementType(pixelType);
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
@@ -182,6 +186,14 @@ public final class TiffMap {
 
     public int totalBytesPerPixel() {
         return totalBytesPerPixel;
+    }
+
+    public int pixelType() {
+        return pixelType;
+    }
+
+    public Class<?> elementType() {
+        return elementType;
     }
 
     public int tileSizeX() {

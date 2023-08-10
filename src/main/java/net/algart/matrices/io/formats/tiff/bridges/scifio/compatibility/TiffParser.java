@@ -172,6 +172,25 @@ public class TiffParser extends TiffReader {
     }
 
     @Deprecated
+    public void fillInIFD(final IFD ifd) throws IOException {
+        // Unnecessary code: new TiffReader never stores TiffIFDEntry in IFD map
+//        final HashSet<TiffIFDEntry> entries = new HashSet<>();
+//        for (final Integer key : ifd.keySet()) {
+//            if (ifd.get(key) instanceof TiffIFDEntry) {
+//                entries.add((TiffIFDEntry) ifd.get(key));
+//            }
+//        }
+//
+//        for (final TiffIFDEntry entry : entries) {
+//            if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
+//                ifd.put(entry.getTag(), readIFDValue(entry));
+//            }
+//        }
+    }
+
+
+
+    @Deprecated
     public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
         return super.readIFDValue(entry);
     }

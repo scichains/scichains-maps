@@ -35,7 +35,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.tests.legacy.PureScifioTiffReadWriteTest;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tests.nobridge.PureScifioTiffReadWriteTest;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.FileLocation;
