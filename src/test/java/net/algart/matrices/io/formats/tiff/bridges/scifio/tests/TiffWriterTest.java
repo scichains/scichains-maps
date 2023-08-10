@@ -30,10 +30,7 @@ import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffMap;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
 import org.scijava.Context;
 
 import java.io.IOException;
@@ -159,6 +156,8 @@ public class TiffWriterTest {
                 if (randomAccess) {
                     writer.setWritingSequentially(false);
                 }
+                // - the simple check below works better!
+                //TODO!! not yet: we don't use offset in DetailedIFD class
                 writer.setAppendToExisting(append);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
@@ -193,7 +192,11 @@ public class TiffWriterTest {
                     ifd.putPixelInformation(numberOfChannels, pixelType);
                     if (randomAccess) {
                         // - ignoring previous IFD
-                        //TODO!! read IFD at ifdIndex
+//                        try (TiffReader reader = new TiffReader(null, targetFile, false)) {
+//                            long offset = reader.readIFDOffset(ifdIndex);
+//                            ifd = reader.readIFDAtOffset(offset);
+//                        }
+                        //TODO!!
                     }
                     TiffMap map = writer.prepareImage(ifd, false);
 

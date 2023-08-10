@@ -727,12 +727,9 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public void removeStripPositioning() {
+    public void removeDataPositioning() {
         remove(IFD.STRIP_OFFSETS);
         remove(IFD.STRIP_BYTE_COUNTS);
-    }
-
-    public void removeTilePositioning() {
         remove(IFD.TILE_OFFSETS);
         remove(IFD.TILE_BYTE_COUNTS);
     }
@@ -758,33 +755,38 @@ public class DetailedIFD extends IFD {
     }
 
     /**
-     * Puts new values for <tt>TileOffsets</tt> and <tt>TileByteCounts</tt> tags.
+     * Puts new values for <tt>TileOffsets</tt> / <tt>TileByteCounts</tt> tags or
+     *  <tt>StripOffsets</tt> / <tt>StripByteCounts</tt> tag, depending on result of
+     *  {@link #hasTileInformation()} methods (<tt>true</tt> or <tt>false</tt> correspondingly).
      *
      * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
      *
-     * @param offsets byte offset of each tile in TIFF file.
-     * @param byteCounts number of (compressed) bytes in each tile.
+     * @param offsets byte offset of each tile/strip in TIFF file.
+     * @param byteCounts number of (compressed) bytes in each tile/strip.
      */
-    public void updateTilePositioning(long[] offsets, long[] byteCounts) {
-        Objects.requireNonNull(offsets, "Null tile offsets");
-        Objects.requireNonNull(byteCounts, "Null tile byte counts");
-        updatePositioning(offsets, byteCounts, true);
+    public void updateDataPositioning(long[] offsets, long[] byteCounts) {
+        Objects.requireNonNull(offsets, "Null offsets");
+        Objects.requireNonNull(byteCounts, "Null byte counts");
+        final boolean tiled = hasTileInformation();
+        final long tilesPerRow;
+        final long tilesPerColumn;
+        try {
+            tilesPerRow = getTilesPerRow();
+            tilesPerColumn = getTilesPerColumn();
+        } catch (FormatException e) {
+            throw new IllegalStateException("IFD contains invalid information", e);
+        }
+        final long totalCount = tilesPerRow * tilesPerColumn;
+        if (offsets.length != totalCount || byteCounts.length != totalCount) {
+            throw new IllegalArgumentException("Incorrect offsets array (" +
+                    offsets.length + " values) or byte-counts array (" + byteCounts.length +
+                    " values): not equal to actual number of " +
+                    (tiled ? "tiles is " + tilesPerRow + "x" + tilesPerColumn + "=" + totalCount :
+                            "strips is " + tilesPerColumn));
+        }
+        super.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
+        super.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
     }
-
-    /**
-     * Puts new values for <tt>StripOffsets</tt> and <tt>StripByteCounts</tt> tags.
-     *
-     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
-     *
-     * @param offsets byte offset of each strip in TIFF file.
-     * @param byteCounts number of (compressed) bytes in each strip.
-     */
-    public void updateStripPositioning(long[] offsets, long[] byteCounts) {
-        Objects.requireNonNull(offsets, "Null tile offsets");
-        Objects.requireNonNull(byteCounts, "Null tile byte counts");
-        updatePositioning(offsets, byteCounts, false);
-    }
-
 
     @Override
     public Object put(Integer key, Object value) {
@@ -955,27 +957,6 @@ public class DetailedIFD extends IFD {
         if (frozenForWriting) {
             throw new IllegalStateException("IFD is frozen for writing TIFF and cannot be modified");
         }
-    }
-
-    private void updatePositioning(long[] offsets, long[] byteCounts, boolean tiles) {
-        final long tilesPerRow;
-        final long tilesPerColumn;
-        try {
-            tilesPerRow = getTilesPerRow();
-            tilesPerColumn = getTilesPerColumn();
-        } catch (FormatException e) {
-            throw new IllegalStateException("IFD contains invalid information", e);
-        }
-        final long totalCount = tilesPerRow * tilesPerColumn;
-        if (offsets.length != totalCount || byteCounts.length != totalCount) {
-            throw new IllegalArgumentException("Incorrect offsets array (" +
-                    offsets.length + " values) or byte-counts array (" + byteCounts.length +
-                    " values): not equal to actual number of " +
-                    (tiles ? "tiles is " + tilesPerRow + "x" + tilesPerColumn + "=" + totalCount :
-                            "strips is " + tilesPerColumn));
-        }
-        super.put(tiles ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
-        super.put(tiles ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
     }
 
 

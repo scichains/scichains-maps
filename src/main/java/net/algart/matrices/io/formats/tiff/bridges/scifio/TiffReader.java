@@ -448,7 +448,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return firstIFD;
     }
 
-
     /**
      * Returns all IFDs in the file.
      *
@@ -1396,11 +1395,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // reading unpredictable content of the boundary tiles outside the image
         final int minXIndex = fromX / tileSizeX;
         final int minYIndex = fromY / tileSizeY;
-        if (minXIndex >= map.tileCountX() || minYIndex >= map.tileCountY() || toX < fromX || toY < fromY) {
+        if (minXIndex >= map.gridTileCountX() || minYIndex >= map.gridTileCountY() || toX < fromX || toY < fromY) {
             return;
         }
-        final int maxXIndex = Math.min(map.tileCountX() - 1, (toX - 1) / tileSizeX);
-        final int maxYIndex = Math.min(map.tileCountY() - 1, (toY - 1) / tileSizeY);
+        final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / tileSizeX);
+        final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / tileSizeY);
         assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
         final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
         final int outputRowSizeInBytes = sizeX * bytesPerSample;

@@ -857,7 +857,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param map map, describing the image.
      */
     public void prepareWritingImage(final TiffMap map) throws IOException {
-        Objects.requireNonNull(map);
+        Objects.requireNonNull(map, "Null TIFF map");
         boolean exists = out.exists();
         if (!exists || out.length() < (bigTiff ? 16 : 8)) {
             throw new IllegalStateException(
@@ -869,6 +869,21 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (map.isResizable()) {
             return;
         }
+        map.completeImageGrid();
+        final int tileCount = map.size();
+        DetailedIFD ifd = map.ifd();
+        //TODO!!
+    }
+
+    public void completeWritingImage(final TiffMap map) throws IOException {
+        Objects.requireNonNull(map, "Null TIFF map");
+        if (map.isResizable()) {
+            map.completeImageGrid();
+        }
+
+        Collection<TiffTile> tiles = map.all();
+        long[] offsets = tiles.stream().mapToLong(TiffTile::getStoredDataFileOffset).toArray();
+        long[] byteCounts = tiles.stream().mapToLong(TiffTile::getStoredDataLength).toArray();
         //TODO!!
     }
 
@@ -1138,8 +1153,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
 
-        ifd.removeStripPositioning();
-        ifd.removeTilePositioning();
+        ifd.removeDataPositioning();
         ifd.removeIFDFileOffset();
         // - informs prepareWritingImage method that this IFD was not written yet and should be written
     }
@@ -1228,11 +1242,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
         }
 
-        if (isTiled) {
-            ifd.updateTilePositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-        } else {
-            ifd.updateStripPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-        }
+        ifd.updateDataPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
 
         final long fp = out.offset();
         writeIFD(ifd, 0);
@@ -1247,11 +1257,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             offsets.set(thisOffset, tile.getStoredDataFileOffset());
             byteCounts.set(thisOffset, (long) tile.getStoredDataLength());
         }
-        if (isTiled) {
-            ifd.updateTilePositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-        } else {
-            ifd.updateStripPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-        }
+        ifd.updateDataPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
         long endFP = out.offset();
         if ((endFP & 0x1) != 0) {
             out.writeByte(0);
