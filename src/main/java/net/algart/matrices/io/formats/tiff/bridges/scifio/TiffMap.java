@@ -61,6 +61,7 @@ public final class TiffMap {
     private final int totalBytesPerPixel;
     private final int pixelType;
     private final Class<?> elementType;
+    private final boolean tiled;
     private final int tileSizeX;
     private final int tileSizeY;
     private final int tileSizeInPixels;
@@ -91,8 +92,15 @@ public final class TiffMap {
         try {
             final boolean hasImageDimensions = ifd.hasImageDimensions();
             if (!hasImageDimensions && !resizable) {
-                throw new IllegalArgumentException("IFD sizes (ImageWidth and ImageLength) are not specified; " +
-                        "it is not allowed for non-resizable tile map");
+                throw new IllegalArgumentException("TIFF image sizes (ImageWidth and ImageLength tags) " +
+                        "are not specified; it is not allowed for non-resizable tile map");
+            }
+            this.tiled = ifd.hasTileInformation();
+            if (resizable && !tiled) {
+                throw new IllegalArgumentException("TIFF image is not tiled (TileWidth and TileLength tags " +
+                        "are not specified); it is not allowed for resizable tile map: any processing " +
+                        "TIFF image, such as writing its fragments, requires either knowing its final fixed sizes, " +
+                        "or splitting image into tiles with known fixed sizes");
             }
             this.planarSeparated = ifd.isPlanarSeparated();
             this.numberOfChannels = ifd.getSamplesPerPixel();
