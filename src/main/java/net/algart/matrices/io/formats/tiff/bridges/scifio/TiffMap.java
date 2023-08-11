@@ -130,7 +130,7 @@ public final class TiffMap {
             }
             this.tileSizeInBytes = tileSizeInPixels * tileBytesPerPixel;
         } catch (FormatException e) {
-            throw new IllegalArgumentException("Illegal IFD", e);
+            throw new IllegalArgumentException("Illegal IFD: " + e.getMessage(), e);
         }
     }
 

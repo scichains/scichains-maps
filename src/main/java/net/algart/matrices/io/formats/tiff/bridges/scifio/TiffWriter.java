@@ -413,6 +413,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
+        //TODO!! DetailedIFD in new function
         final TreeSet<Integer> keys = new TreeSet<>(ifd.keySet());
         final int keyCount = keys.size() - (int) ifd.keySet().stream().filter(DetailedIFD::isPseudoTag).count();
         // - Not counting pseudo-fields (not actually saved in TIFF)
