@@ -116,7 +116,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private final SCIFIO scifio;
     private final DataHandleService dataHandleService;
 
-    private volatile long positionOfLastOffset = 0;
+    private volatile long positionOfLastOffset = -1;
 
     private long timeWriting = 0;
     private long timePreparingDecoding = 0;

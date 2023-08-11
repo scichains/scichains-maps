@@ -147,7 +147,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     CodecOptions codecOptions = CodecOptions.getDefaultOptions();
 
-    private volatile long positionOfLastOffset;
+    private volatile long positionOfLastOffset = -1;
 
     private long timeReading = 0;
     private long timeCustomizingDecoding = 0;
@@ -414,7 +414,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns position in the file of the last offset, loaded by {@link #readIFDOffsets()},
      * {@link #readIFDOffset(int)} or {@link #readFirstIFDOffset()} methods.
-     * Usually it is just a position of the offset of the last IFD.
+     * Usually it is just a position of the offset of the last IFD, because
+     * popular {@link #allIFDs()} method calls {@link #readIFDOffsets()} inside.
+     *
+     * <p>Immediately after creating new object this position is <tt>-1</tt>.
      *
      * @return file position of the last IFD offset.
      */

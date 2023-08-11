@@ -98,7 +98,7 @@ public class TiffReaderTest {
 //                reader.setCachingIFDs(false);
                 reader.setFiller((byte) 0x80);
                 final long positionOfLastOffset = reader.positionOfLastOffset();
-                assert positionOfLastOffset > 0 : "constructor should set it by non-zero value";
+                assert positionOfLastOffset == -1 : "constructor should not set positionOfLastOffset";
                 final var ifds = reader.allIFDs();
                 long t3 = System.nanoTime();
                 System.out.printf(
