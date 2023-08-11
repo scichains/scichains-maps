@@ -67,7 +67,9 @@ public class DetailedIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
-    private long fileOffset = -1;
+    private long fileOffsetOfReading = -1;
+    private long fileOffsetForWriting = -1;
+    private long nextIFDOffset = -1;
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
@@ -81,22 +83,20 @@ public class DetailedIFD extends IFD {
         super(ifd, null);
         // Note: log argument is never used in this class.
         if (ifd instanceof DetailedIFD detailedIFD) {
-            fileOffset = detailedIFD.fileOffset;
+            fileOffsetOfReading = detailedIFD.fileOffsetOfReading;
+            fileOffsetForWriting = detailedIFD.fileOffsetForWriting;
+            nextIFDOffset = detailedIFD.nextIFDOffset;
             entries = detailedIFD.entries;
             subIFDType = detailedIFD.subIFDType;
-        } else {
-            fileOffset = -1;
-            entries = null;
-            subIFDType = null;
+            frozenForWriting = false;
+            // - Important: a copy is not frozen!
+            // And it is the only way to clear this flag.
         }
     }
 
+    @SuppressWarnings("CopyConstructorMissesField")
     public DetailedIFD(DetailedIFD detailedIFD) {
-        super(detailedIFD, null);
-        // Note: log argument is never used in this class.
-        fileOffset = detailedIFD.fileOffset;
-        entries = detailedIFD.entries;
-        subIFDType = detailedIFD.subIFDType;
+        this((IFD) detailedIFD);
     }
 
     public DetailedIFD() {
@@ -139,27 +139,80 @@ public class DetailedIFD extends IFD {
         assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
-    public boolean hasFileOffset() {
-        return fileOffset >= 0;
+    public boolean hasFileOffsetOfReading() {
+        return fileOffsetOfReading >= 0;
     }
 
-    public long getFileOffset() {
-        if (fileOffset < 0) {
-            throw new IllegalStateException("IFD offset of the TIFF tile is not set");
+    public long getFileOffsetOfReading() {
+        if (fileOffsetOfReading < 0) {
+            throw new IllegalStateException("IFD offset of the TIFF tile is not set while reading");
         }
-        return fileOffset;
+        return fileOffsetOfReading;
     }
 
-    public DetailedIFD setFileOffset(long fileOffset) {
-        if (fileOffset < 0) {
-            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffset);
+    public DetailedIFD setFileOffsetOfReading(long fileOffsetOfReading) {
+        if (fileOffsetOfReading < 0) {
+            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetOfReading);
         }
-        this.fileOffset = fileOffset;
+        this.fileOffsetOfReading = fileOffsetOfReading;
         return this;
     }
 
-    public DetailedIFD removeIFDFileOffset() {
-        this.fileOffset = -1;
+    public DetailedIFD removeFileOffsetOfReading() {
+        this.fileOffsetOfReading = -1;
+        return this;
+    }
+
+    public boolean hasFileOffsetForWriting() {
+        return fileOffsetForWriting >= 0;
+    }
+
+    public long getFileOffsetForWriting() {
+        if (fileOffsetForWriting < 0) {
+            throw new IllegalStateException("IFD offset of the TIFF tile for writing is not set");
+        }
+        return fileOffsetForWriting;
+    }
+
+    public DetailedIFD setFileOffsetForWriting(long fileOffsetForWriting) {
+        if (fileOffsetForWriting < 0) {
+            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetForWriting);
+        }
+        this.fileOffsetForWriting = fileOffsetForWriting;
+        return this;
+    }
+
+    public DetailedIFD removeFileOffsetForWriting() {
+        this.fileOffsetForWriting = -1;
+        return this;
+    }
+
+    public boolean hasNextIFDOffset() {
+        return nextIFDOffset >= 0;
+    }
+
+    public boolean isLastIFD() {
+        return nextIFDOffset == 0;
+    }
+
+    public long getNextIFDOffset() {
+        return nextIFDOffset;
+    }
+
+    public DetailedIFD setNextIFDOffset(long nextIFDOffset) {
+        if (nextIFDOffset < 0) {
+            throw new IllegalArgumentException("Negative next IFD offset: " + nextIFDOffset);
+        }
+        this.nextIFDOffset = nextIFDOffset;
+        return this;
+    }
+
+    public DetailedIFD setLastIFDOffset() {
+        return setNextIFDOffset(0);
+    }
+
+    public DetailedIFD removeNextIFDOffset() {
+        this.nextIFDOffset = -1;
         return this;
     }
 
@@ -880,8 +933,14 @@ public class DetailedIFD extends IFD {
         } catch (Exception e) {
             sb.append(" [").append(e.getMessage()).append("]");
         }
-        if (hasFileOffset()) {
-            sb.append(" (offset @%d=0x%X)".formatted(fileOffset, fileOffset));
+        if (hasFileOffsetOfReading()) {
+            sb.append(", reading offset @%d=0x%X".formatted(fileOffsetOfReading, fileOffsetOfReading));
+        }
+        if (hasFileOffsetForWriting()) {
+            sb.append(", writing offset @%d=0x%X".formatted(fileOffsetForWriting, fileOffsetForWriting));
+        }
+        if (hasNextIFDOffset()) {
+            sb.append(isLastIFD() ? ", LAST" : ", next IFD at @%d=0x%X".formatted(nextIFDOffset, nextIFDOffset));
         }
         if (!detailed) {
             return sb.toString();

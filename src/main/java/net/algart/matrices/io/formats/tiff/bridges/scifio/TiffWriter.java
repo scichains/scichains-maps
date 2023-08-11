@@ -426,9 +426,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if ((fp & 0x1) != 0) {
             throw new FormatException("Attempt to write IFD at odd offset " + fp + " is prohibited for valid TIFF");
         }
-        final int keyCountLimit = bigTiff ? 10_000_000 : 65535;
-        if (keyCount > keyCountLimit) {
-            throw new FormatException("Too many number of IFD entries: " + keyCount + " > " + keyCountLimit);
+        final int numberOfEntriesLimit = bigTiff ? TiffReader.MAX_NUMBER_OF_IFD_ENTRIES : 65535;
+        if (keyCount > numberOfEntriesLimit) {
+            throw new FormatException("Too many number of IFD entries: " + keyCount + " > " + numberOfEntriesLimit);
             // - theoretically BigTIFF allows to write more, but we prefer to make some restriction and
             // guarantee 32-bit number of bytes
         }
@@ -1171,7 +1171,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - will be used, for example, in getCompressionCodecOptions
 
         ifd.removeDataPositioning();
-        ifd.removeIFDFileOffset();
+        ifd.removeFileOffsetForWriting();
+        ifd.removeNextIFDOffset();
         // - informs prepareWritingImage method that this IFD was not written yet and should be written
     }
 
@@ -1216,7 +1217,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.seek(offset);
                     LOG.log(System.Logger.Level.TRACE, () ->
                             "Reading IFD from " + offset + " for non-sequential writing");
-                    ifd = reader.readIFDAtOffset(offset);
+                    ifd = reader.readIFD(offset);
                 }
             }
         }

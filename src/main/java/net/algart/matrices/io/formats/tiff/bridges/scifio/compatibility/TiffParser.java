@@ -180,10 +180,11 @@ public class TiffParser extends TiffReader {
 
     @Deprecated
     public DetailedIFD getIFD(long offset) throws IOException {
+        DataHandle<Location> in = getStream();
         if (offset < 0 || offset >= getStream().length()) {
             return null;
         }
-        return super.readIFDAtOffset(offset);
+        return super.readIFD(offset);
     }
 
     @Deprecated

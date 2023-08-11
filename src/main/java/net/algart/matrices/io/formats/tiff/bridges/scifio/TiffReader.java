@@ -91,6 +91,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * #L%
      */
 
+    /**
+     * IFD with number of entries, greater than this limit, is not allowed:
+     * it is mostly probable that it is corrupted file.
+     */
+    public static int MAX_NUMBER_OF_IFD_ENTRIES = 100_000_000;
+
     private static final boolean OPTIMIZE_READING_IFD_ARRAYS = true;
     // - Note: this optimization allows to speed up reading large array of offsets.
     // If we use simple FileHandle for reading file (based on RandomAccessFile),
@@ -406,8 +412,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Returns position in the file of the last offset, loaded by {@link #readIFDOffsets()} or
-     * {@link #readFirstIFDOffset()} methods.
+     * Returns position in the file of the last offset, loaded by {@link #readIFDOffsets()},
+     * {@link #readIFDOffset(int)} or {@link #readFirstIFDOffset()} methods.
      * Usually it is just a position of the offset of the last IFD.
      *
      * @return file position of the last IFD offset.
@@ -441,7 +447,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return this.firstIFD;
         }
         final long offset = readFirstIFDOffset();
-        firstIFD = readIFDAtOffset(offset);
+        firstIFD = readIFD(offset);
         if (cachingIFDs) {
             this.firstIFD = firstIFD;
         }
@@ -465,7 +471,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifds = new ArrayList<>();
 
         for (final long offset : offsets) {
-            final DetailedIFD ifd = readIFDAtOffset(offset);
+            final DetailedIFD ifd = readIFD(offset);
             if (ifd == null) {
                 continue;
             }
@@ -483,7 +489,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
-                    final DetailedIFD sub = readIFDAtOffset(subOffset, IFD.SUB_IFD);
+                    final DetailedIFD sub = readIFD(subOffset, IFD.SUB_IFD, false);
                     if (sub != null) {
                         ifds.add(sub);
                     }
@@ -544,7 +550,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         for (final DetailedIFD ifd : ifds) {
             final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
             if (offset != 0) {
-                final DetailedIFD exifIFD = readIFDAtOffset(offset, IFD.EXIF);
+                final DetailedIFD exifIFD = readIFD(offset, IFD.EXIF, false);
                 if (exifIFD != null) {
                     exif.add(exifIFD);
                 }
@@ -555,20 +561,22 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Gets offset to the first IFD, or -1 if stream is not TIFF.
+     * Updates {@link #positionOfLastOffset()} to the position of first offset (4, for Bit-TIFF 8).
      */
     public long readFirstIFDOffset() throws IOException {
         if (!isValid()) {
             return -1;
         }
         in.seek(bigTiff ? 8 : 4);
-        return readFirstOffsetFromCurrentPosition(this.bigTiff);
+        return readFirstOffsetFromCurrentPosition(true, this.bigTiff);
     }
 
     /**
      * Returns the file offset of IFD with given index or <tt>-1</tt> if the index is too high.
+     * Updates {@link #positionOfLastOffset()} to position of this offset.
      *
-     * @param ifdIndex index of IFD (0, 1, ...)
-     * @return offset of this IFD in the file
+     * @param ifdIndex index of IFD (0, 1, ...).
+     * @return offset of this IFD in the file.
      */
     public long readIFDOffset(int ifdIndex) throws IOException {
         if (ifdIndex < 0) {
@@ -583,7 +591,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             in.seek(offset);
             skipIFDEntries(fileLength);
-            offset = readNextOffset(offset);
+            offset = readNextOffset(offset, true);
         }
         return -1;
     }
@@ -602,7 +610,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             in.seek(offset);
             offsets.add(offset);
             skipIFDEntries(fileLength);
-            offset = readNextOffset(offset);
+            offset = readNextOffset(offset, true);
         }
         if (requireValidTiff && offsets.isEmpty()) {
             throw new AssertionError("No IFDs, but it was not checked in getFirstOffset");
@@ -614,20 +622,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFDAtOffset(long fileOffset) throws IOException {
-        return readIFDAtOffset(fileOffset, null);
+    public DetailedIFD readIFD(long startOffset) throws IOException {
+        return readIFD(startOffset, null, true);
     }
 
-    public DetailedIFD readIFDAtOffset(long fileOffset, Integer subIFDType) throws IOException {
-        if (fileOffset < 0) {
-            throw new IllegalArgumentException("Negative file offset = " + fileOffset);
+    public DetailedIFD readIFD(final long startOffset, Integer subIFDType, boolean readNextOffset) throws IOException {
+        if (startOffset < 0) {
+            throw new IllegalArgumentException("Negative file offset = " + startOffset);
         }
-        if (fileOffset >= in.length()) {
-            throw new IOException("File offset " + fileOffset + " is outside the file");
+        if (startOffset >= in.length()) {
+            throw new IOException("File offset " + startOffset + " is outside the file");
         }
         long t1 = debugTime();
         final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-        final DetailedIFD ifd = new DetailedIFD().setFileOffset(fileOffset);
+        final DetailedIFD ifd = new DetailedIFD().setFileOffsetOfReading(startOffset);
         ifd.setSubIFDType(subIFDType);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -635,11 +643,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifd.put(IFD.BIG_TIFF, bigTiff);
 
         // read in directory entries for this IFD
-        in.seek(fileOffset);
+        in.seek(startOffset);
         final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-        if (numEntries == 0) {
-            //!! - In the SCIFIO core, this is performed also if numEntries == 1, but why?
-            return ifd;
+        if (numEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
+            throw new IOException("Too many number of IFD entries: " + numEntries + " > " + MAX_NUMBER_OF_IFD_ENTRIES);
+            // - theoretically BigTIFF allows to have more entries, but we prefer to make some restriction;
+            // in any case, billions if entries will probably lead to OutOfMemoryError or integer overflow
         }
 
         final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY : TiffConstants.BYTES_PER_ENTRY;
@@ -647,9 +656,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long timeEntries = 0;
         long timeArrays = 0;
-        for (int i = 0; i < numEntries; i++) {
+        for (long i = 0; i < numEntries; i++) {
             long tEntry1 = debugTime();
-            in.seek(fileOffset + baseOffset + bytesPerEntry * (long) i);
+            in.seek(startOffset + baseOffset + bytesPerEntry * i);
 
             TiffIFDEntry entry;
             try {
@@ -702,13 +711,22 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
         }
         ifd.setEntries(entries);
+        final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numEntries;
+        in.seek(positionOfNextOffset);
 
-        in.seek(fileOffset + baseOffset + bytesPerEntry * numEntries);
+        if (readNextOffset) {
+            final long nextOffset = readNextOffset(startOffset, false);
+            ifd.setNextIFDOffset(nextOffset);
+            in.seek(positionOfNextOffset);
+            // - for maximal compatibility with old code (which did not read next IFD offset)
+            // and with behaviour when readNextOffset is not requested
+        }
+
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.TRACE, String.format(Locale.US,
                     "%s read IFD at offset %d: %.3f ms, including %.6f entries + %.6f arrays",
-                    getClass().getSimpleName(), fileOffset,
+                    getClass().getSimpleName(), startOffset,
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
         }
         return ifd;
@@ -934,7 +952,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final long valueLength = (long) valueCount * (long) entryType.getBytesPerElement();
         final int threshold = bigTiff ? 8 : 4;
-        final long valueOffset = valueLength > threshold ? readNextOffset(0) : in.offset();
+        final long valueOffset = valueLength > threshold ?
+                readNextOffset(0, false) :
+                in.offset();
 
         final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
@@ -1329,7 +1349,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (bigTiff) {
                 in.seek(8);
             }
-            readFirstOffsetFromCurrentPosition(bigTiff);
+            readFirstOffsetFromCurrentPosition(false, bigTiff);
             // - additional check, filling positionOfLastOffset
         } finally {
             in.seek(savedOffset);
@@ -1843,17 +1863,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
-    private long readFirstOffsetFromCurrentPosition(boolean bigTiff) throws IOException {
-        final long offset = readNextOffset(0, true, bigTiff);
+    private long readFirstOffsetFromCurrentPosition(
+            boolean updatePositionOfLastOffset,
+            boolean bigTiff) throws IOException {
+        final long offset = readNextOffset(0, updatePositionOfLastOffset, true, bigTiff);
         if (offset == 0) {
             throw new IOException("Invalid TIFF" + prettyInName() +
                     ": zero first offset (TIFF must contain at least one IFD!)");
         }
         return offset;
-    }
-
-    private long readNextOffset(final long previousIFDOffset) throws IOException {
-        return readNextOffset(previousIFDOffset, this.requireValidTiff, this.bigTiff);
     }
 
     private void skipIFDEntries(long fileLength) throws IOException {
@@ -1875,12 +1893,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
         in.skipBytes((int) skippedIFDBytes);
     }
 
+    private long readNextOffset(final long previousIFDOffset, boolean updatePositionOfLastOffset) throws IOException {
+        return readNextOffset(previousIFDOffset, updatePositionOfLastOffset, this.requireValidTiff, this.bigTiff);
+    }
+
     /**
      * Read a file offset. For bigTiff, a 64-bit number is read. For other Tiffs,
      * a 32-bit number is read and possibly adjusted for a possible carry-over
      * from the previous offset.
      */
-    private long readNextOffset(final long previous, boolean requireValidTiff, boolean bigTiff) throws IOException {
+    private long readNextOffset(
+            final long previous,
+            boolean updatePositionOfLastOffset,
+            boolean requireValidTiff,
+            boolean bigTiff) throws IOException {
         long fp = in.offset();
         long offset;
         if (bigTiff || use64BitOffsets) {
@@ -1906,7 +1932,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                                 " is outside the file");
             }
         }
-        this.positionOfLastOffset = fp;
+        if (updatePositionOfLastOffset) {
+            this.positionOfLastOffset = fp;
+        }
         return offset;
     }
 

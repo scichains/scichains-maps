@@ -194,6 +194,8 @@ public class TiffWriterTest {
                     ifd.putPixelInformation(numberOfChannels, pixelType);
                     if (randomAccess) {
                         // - ignoring previous IFD
+                        // Note: flush of writer.getStream() is not performed, because
+                        // DataHandle has not any analogs of flush() method.
 //                        try (TiffReader reader = new TiffReader(null, targetFile, false)) {
 //                            long offset = reader.readIFDOffset(ifdIndex);
 //                            ifd = reader.readIFDAtOffset(offset);
