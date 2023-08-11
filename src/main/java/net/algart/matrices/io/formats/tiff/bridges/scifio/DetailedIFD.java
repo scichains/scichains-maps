@@ -483,6 +483,7 @@ public class DetailedIFD extends IFD {
                 throw new FormatException("Very large tile height " + tileLength + " >= 2^31 is not supported");
                 // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
             }
+            return (int) tileLength;
         }
         final int stripRows = getStripRows();
         assert stripRows > 0 : "getStripRows() did not check non-positive result";
@@ -782,20 +783,24 @@ public class DetailedIFD extends IFD {
         final boolean tiled;
         final long tilesPerRow;
         final long tilesPerColumn;
+        final int numberOfSeparatedPlanes;
         try {
             tiled = hasTileInformation();
             tilesPerRow = getTilesPerRow();
             tilesPerColumn = getTilesPerColumn();
+            numberOfSeparatedPlanes = isPlanarSeparated() ? getSamplesPerPixel() : 1;
         } catch (FormatException e) {
             throw new IllegalStateException("Illegal IFD: " + e.getMessage(), e);
         }
-        final long totalCount = tilesPerRow * tilesPerColumn;
-        if (offsets.length != totalCount || byteCounts.length != totalCount) {
+        final long totalCount = tilesPerRow * tilesPerColumn * numberOfSeparatedPlanes;
+        if (tilesPerRow * tilesPerColumn > Integer.MAX_VALUE || totalCount > Integer.MAX_VALUE ||
+                offsets.length != totalCount || byteCounts.length != totalCount) {
             throw new IllegalArgumentException("Incorrect offsets array (" +
                     offsets.length + " values) or byte-counts array (" + byteCounts.length +
-                    " values): not equal to actual number of " +
-                    (tiled ? "tiles is " + tilesPerRow + "x" + tilesPerColumn + "=" + totalCount :
-                            "strips is " + tilesPerColumn));
+                    " values) not equal to " + totalCount + " - actual number of " +
+                    (tiled ? "tiles, " + tilesPerRow + " x " + tilesPerColumn:
+                            "strips, " + tilesPerColumn) +
+                    (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
         super.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
         super.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
