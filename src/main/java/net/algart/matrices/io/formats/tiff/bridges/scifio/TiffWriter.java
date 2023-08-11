@@ -412,6 +412,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         //TODO!! correct last offset
     }
 
+    public void rewriteIFD(final DetailedIFD ifd) throws FormatException, IOException {
+        //TODO!!
+    }
+
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
         //TODO!! DetailedIFD in new function
         final TreeSet<Integer> keys = new TreeSet<>(ifd.keySet());
@@ -458,22 +462,32 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Writes the given IFD value to the given output object.
+     * Writes the given IFD value to the {@link #getStream() main output stream}, excepting "extra" data,
+     * which are written into the specified <tt>extraBuffer</tt>. After calling this method, you
+     * should copy full content of <tt>extraBuffer</tt> into the main stream at the position,
+     * specified by the 2nd argument; {@link #rewriteIFD(DetailedIFD)} method does it automatically.
      *
-     * @param extraOut buffer to which "extra" IFD information should be written
-     *                 (any data, for which IFD contains its offsets instead of data itself)
-     * @param offset   global offset to use for IFD offset values
-     * @param tag      IFD tag to write
-     * @param value    IFD value to write
+     * <p>Here "extra" data means all data, for which IFD contains their offsets instead of data itself,
+     * like arrays or text strings. The "main" data is 12-byte IFD record (20-byte for Big-TIFF),
+     * which is written by this method into the main output stream from its current position.
+     *
+     * @param extraBuffer                       buffer to which "extra" IFD information should be written.
+     * @param startPositionOfBufferInResultFile position of "extra" data in the result TIFF file =
+     *                                          startPositionOfBufferInResultFile +
+     *                                          offset of the written "extra" data inside <tt>extraBuffer</tt>>;
+     *                                          for example, this argument may be a position directly after
+     *                                           the "main" content (sequence of 12/20-byte records).
+     * @param tag                               IFD tag to write.
+     * @param value                             IFD value to write.
      */
     public void writeIFDValue(
-            final DataHandle<Location> extraOut,
-            final long offset,
+            final DataHandle<Location> extraBuffer,
+            final long startPositionOfBufferInResultFile,
             final int tag,
             Object value) throws FormatException, IOException {
-        extraOut.setLittleEndian(isLittleEndian());
-        if ((extraOut.offset() & 0x1) != 0) {
-            extraOut.writeByte(0);
+        extraBuffer.setLittleEndian(isLittleEndian());
+        if ((extraBuffer.offset() & 0x1) != 0) {
+            extraBuffer.writeByte(0);
             // - Well-formed IFD requires even offsets
         }
 
@@ -510,8 +524,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
-                extraOut.write(q);
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
+                extraBuffer.write(q);
             }
         } else if (value instanceof short[]) {
             final short[] q = (short[]) value;
@@ -525,9 +539,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeByte(0);
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (short shortValue : q) {
-                    extraOut.writeByte(shortValue);
+                    extraBuffer.writeByte(shortValue);
                 }
             }
         } else if (value instanceof String) { // ASCII
@@ -542,11 +556,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeByte(0); // padding
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (char charValue : q) {
-                    extraOut.writeByte(charValue); // values
+                    extraBuffer.writeByte(charValue); // values
                 }
-                extraOut.writeByte(0); // concluding NULL byte
+                extraBuffer.writeByte(0); // concluding NULL byte
             }
         } else if (value instanceof int[]) { // SHORT
             final int[] q = (int[]) value;
@@ -560,9 +574,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeShort(0); // padding
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (int intValue : q) {
-                    extraOut.writeShort(intValue); // values
+                    extraBuffer.writeShort(intValue); // values
                 }
             }
         } else if (value instanceof long[]) { // LONG
@@ -603,9 +617,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     writeIntOrLongValue(out, 0);
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (long longValue : q) {
-                    writeIntOrLongValue(extraOut, longValue);
+                    writeIntOrLongValue(extraBuffer, longValue);
                 }
             }
         } else if (value instanceof TiffRational[]) { // RATIONAL
@@ -616,10 +630,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 out.writeInt((int) q[0].getNumerator());
                 out.writeInt((int) q[0].getDenominator());
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (TiffRational tiffRational : q) {
-                    extraOut.writeInt((int) tiffRational.getNumerator());
-                    extraOut.writeInt((int) tiffRational.getDenominator());
+                    extraBuffer.writeInt((int) tiffRational.getNumerator());
+                    extraBuffer.writeInt((int) tiffRational.getDenominator());
                 }
             }
         } else if (value instanceof float[]) { // FLOAT
@@ -635,18 +649,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeInt(0); // padding
                 }
             } else {
-                writeOffset(out, offset + extraOut.length());
+                writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
                 for (float floatValue : q) {
-                    extraOut.writeFloat(floatValue); // values
+                    extraBuffer.writeFloat(floatValue); // values
                 }
             }
         } else if (value instanceof double[]) { // DOUBLE
             final double[] q = (double[]) value;
             out.writeShort(IFDType.DOUBLE.getCode()); // type
             writeIntOrLongValue(out, q.length);
-            writeOffset(out, offset + extraOut.length());
+            writeOffset(out, startPositionOfBufferInResultFile + extraBuffer.offset());
             for (final double doubleValue : q) {
-                extraOut.writeDouble(doubleValue); // values
+                extraBuffer.writeDouble(doubleValue); // values
             }
         } else {
             throw new FormatException("Unknown IFD value type (" + value.getClass()

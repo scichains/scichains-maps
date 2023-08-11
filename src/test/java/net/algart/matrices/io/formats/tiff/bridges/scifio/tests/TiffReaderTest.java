@@ -71,7 +71,7 @@ public class TiffReaderTest {
             System.out.println("Usage:");
             System.out.println("    " + TiffReaderTest.class.getName() + " [-cache [-tiny]] " +
                     "some_tiff_file result.png ifdIndex " +
-                    "[x y width height [number-of-tests] [number-of-complete-repeats]]");
+                    "[x y width height [number_of_tests] [number_of_complete_repeats]]");
             return;
         }
         final Path tiffFile = Paths.get(args[startArgIndex++]);

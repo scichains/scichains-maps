@@ -108,7 +108,7 @@ public class TiffWriterTest {
             System.out.println("    " + TiffWriterTest.class.getName() +
                     " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
                     "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
-                    "[x y width height [numberOfTests]]");
+                    "[x y width height [number_of_tests]]");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex++]);
@@ -137,6 +137,7 @@ public class TiffWriterTest {
             h = IMAGE_HEIGHT - y;
         }
         final int numberOfTests = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 1;
+        final int firstIfdIndex = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 0;
         final int numberOfChannels = color ? 3 : 1;
         if (planarSeparated) {
             // - we must not interleave data at all
@@ -164,7 +165,8 @@ public class TiffWriterTest {
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
-                for (int ifdIndex = 0; ifdIndex < numberOfImages; ifdIndex++) {
+                for (int k = 0; k < numberOfImages; k++) {
+                    final int ifdIndex = firstIfdIndex + k;
                     Object samplesArray = makeSamples(ifdIndex, numberOfChannels, pixelType, w, h);
                     DetailedIFD ifd = new DetailedIFD();
                     if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
@@ -200,13 +202,13 @@ public class TiffWriterTest {
                     }
                     TiffMap map = writer.prepareImage(ifd, false);
 
-                    if (ifdIndex == 0) {
+                    if (k == 0) {
                         writer.startWriting();
                         // - begin writing after checking possible format problem
                     }
                     writer.writeImageFromArray(map, samplesArray,
                             ifdIndex, x, y, w, h,
-                            ifdIndex == numberOfImages - 1);
+                            k == numberOfImages - 1);
                 }
             }
         }
