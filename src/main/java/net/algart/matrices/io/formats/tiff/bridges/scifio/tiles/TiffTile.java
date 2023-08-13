@@ -22,7 +22,10 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
+
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
 import java.util.*;
 

@@ -31,6 +31,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import org.scijava.Context;
 
 import java.io.IOException;

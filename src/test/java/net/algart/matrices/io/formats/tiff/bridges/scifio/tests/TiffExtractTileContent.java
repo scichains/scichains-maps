@@ -27,6 +27,9 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.Context;
 
 import java.io.IOException;

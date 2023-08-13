@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.util.FormatTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import org.scijava.io.handle.BytesHandle;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;

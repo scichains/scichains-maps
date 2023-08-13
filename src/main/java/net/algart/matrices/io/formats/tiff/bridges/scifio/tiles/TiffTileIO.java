@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tiff.bridges.scifio;
+package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
 import org.scijava.io.handle.DataHandle;
 

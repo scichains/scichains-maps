@@ -25,6 +25,8 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.location.Location;
