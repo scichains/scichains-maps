@@ -50,7 +50,7 @@ public class TiffExtractTileContent {
         final int row = Integer.parseInt(args[startArgIndex++]);
         final int separatedPlaneIndex = startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 0;
 
-        TiffInfo.showTiffInfo(tiffFile);
+        TiffInfo.showTiffInfo(tiffFile, false);
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {

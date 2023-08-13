@@ -144,6 +144,11 @@ public class TiffWriterTest {
             interleaveOutside = false;
         }
 
+        System.out.printf("%d images %s, %d total test%n",
+                numberOfImages,
+                randomAccess ? "from " + firstIfdIndex : "sequentially",
+                numberOfTests);
+
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
             final boolean deleteExistingFile = !randomAccess && !append;
@@ -152,7 +157,7 @@ public class TiffWriterTest {
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
                 if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
-                    writer.setAutoInterleave(false);
+                    writer.setAutoInterleaveSource(false);
                 }
                 if (randomAccess) {
                     writer.setWritingSequentially(false);
@@ -209,8 +214,7 @@ public class TiffWriterTest {
                         // - begin writing after checking possible format problem
                     }
                     writer.writeImageFromArray(map, samplesArray,
-                            ifdIndex, x, y, w, h,
-                            k == numberOfImages - 1);
+                            ifdIndex, x, y, w, h, false);
                 }
             }
         }

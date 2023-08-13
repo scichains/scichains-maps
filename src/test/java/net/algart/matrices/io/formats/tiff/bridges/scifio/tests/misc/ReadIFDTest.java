@@ -51,26 +51,26 @@ public class ReadIFDTest {
             long offset = reader.readIFDOffset(ifdIndex);
             long t2 = System.nanoTime();
             System.out.printf("Offset #%d: %d (%.6f mcs)%n", ifdIndex, offset, (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastOffset());
+            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             long[] offsets = reader.readIFDOffsets();
             t2 = System.nanoTime();
             System.out.printf("Offsets: %s (%.6f mcs)%n", Arrays.toString(offsets), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastOffset());
+            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             List<DetailedIFD> ifds = reader.allIFDs();
             t2 = System.nanoTime();
             System.out.printf("Number of IFDs: %d (%.6f mcs)%n", ifds.size(), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastOffset());
+            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             DetailedIFD firstIFD = reader.firstIFD();
             t2 = System.nanoTime();
 //        IFD firstIFD = new TiffParser(new SCIFIO().getContext(), new FileLocation(file.toFile())).getFirstIFD();
             System.out.printf("First IFD: %s (%.6f mcs)%n", firstIFD.toString(false), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastOffset());
+            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             offset = reader.readIFDOffset(ifdIndex);
@@ -78,7 +78,7 @@ public class ReadIFDTest {
             t2 = System.nanoTime();
             System.out.printf("IFD #%d: %s (%.6f mcs)%n",
                     ifdIndex, ifd == null ? null : ifd.toString(false), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastOffset());
+            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
         }
 
         reader.close();

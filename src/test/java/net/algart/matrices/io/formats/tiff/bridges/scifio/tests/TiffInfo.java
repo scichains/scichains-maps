@@ -37,37 +37,46 @@ import java.util.Arrays;
 
 public class TiffInfo {
     public static void main(String[] args) throws IOException, FormatException {
-        if (args.length < 1) {
+        int startArgIndex = 0;
+        boolean strict = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-strict")) {
+            strict = true;
+            startArgIndex++;
+        }
+        if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + TiffInfo.class.getName() + " some_tiff_file.tif [firstIFDIndex lastIFDIndex]");
             return;
         }
-        final String fileName = args[0];
-        final int firstIFDIndex = args.length > 1 ? Integer.parseInt(args[1]) : 0;
-        final int lastIFDIndex = args.length > 2 ? Integer.parseInt(args[2]) : Integer.MAX_VALUE;
+        final String fileName = args[startArgIndex];
+        final int firstIFDIndex = args.length > startArgIndex + 1 ? Integer.parseInt(args[startArgIndex + 1]) : 0;
+        final int lastIFDIndex = args.length > startArgIndex + 2 ?
+                Integer.parseInt(args[startArgIndex + 2]) :
+                Integer.MAX_VALUE;
         if (fileName.equals(".")) {
             final File[] files = new File(".").listFiles(TiffInfo::isPossiblyTIFF);
             assert files != null;
             Arrays.sort(files);
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {
-                showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex);
+                showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex, strict);
             }
         } else {
-            showTiffInfo(Paths.get(fileName), firstIFDIndex, lastIFDIndex);
+            showTiffInfo(Paths.get(fileName), firstIFDIndex, lastIFDIndex, strict);
         }
     }
 
-    public static void showTiffInfo(Path tiffFile) throws IOException {
-        showTiffInfo(tiffFile, 0, Integer.MAX_VALUE);
+    public static void showTiffInfo(Path tiffFile, boolean strict) throws IOException {
+        showTiffInfo(tiffFile, 0, Integer.MAX_VALUE, strict);
     }
 
-    public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex) throws IOException {
+    public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex, boolean strict)
+            throws IOException {
         try (TiffReader reader = new TiffReader(tiffFile, false)) {
             if (!reader.isValid()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);
             } else {
-                reader.setRequireValidTiff(true);
+                reader.setRequireValidTiff(strict);
                 var ifdList = reader.allIFDs();
                 final int ifdCount = ifdList.size();
                 System.out.printf("%nFile %s: %d IFDs, %s, %s-endian%n",

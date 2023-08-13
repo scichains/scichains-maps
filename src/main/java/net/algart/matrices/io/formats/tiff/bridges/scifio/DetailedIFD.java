@@ -31,6 +31,7 @@ import io.scif.util.FormatTools;
 
 import java.lang.reflect.Array;
 import java.util.*;
+import java.util.function.Supplier;
 
 //!! Better analog of IFD (can be merged with the main IFD)
 public class DetailedIFD extends IFD {
@@ -109,36 +110,6 @@ public class DetailedIFD extends IFD {
         return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
-    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
-                () -> "Invalid requested area: ", () -> "");
-    }
-
-    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
-                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
-                () -> "Invalid requested area: ", () -> "");
-    }
-
-    /**
-     * Checks that the sizes of this IFD (<tt>ImageWidth</tt> and <tt>ImageLength</tt>) are positive integers
-     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
-     *
-     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
-     */
-    public void checkSizesArePositive() throws FormatException {
-        long dimX = getImageWidth();
-        long dimY = getImageLength();
-        if (dimX <= 0 || dimY <= 0) {
-            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
-            // - important for some classes, processing IFD images, that cannot work with zero-size areas
-            // (for example, due to usage of AlgART IRectangularArea)
-        }
-        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
-    }
-
     public boolean hasFileOffsetOfReading() {
         return fileOffsetOfReading >= 0;
     }
@@ -178,6 +149,12 @@ public class DetailedIFD extends IFD {
         if (fileOffsetForWriting < 0) {
             throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetForWriting);
         }
+        if ((fileOffsetForWriting & 0x1) != 0) {
+            throw new IllegalArgumentException("Odd IFD offset in the file " + fileOffsetForWriting +
+                    " is prohibited for writing valid TIFF");
+            // - But we allow such offsets for reading!
+            // Such minor inconsistency in the file is not a reason to decline ability to read it.
+        }
         this.fileOffsetForWriting = fileOffsetForWriting;
         return this;
     }
@@ -196,6 +173,9 @@ public class DetailedIFD extends IFD {
     }
 
     public long getNextIFDOffset() {
+        if (nextIFDOffset < 0) {
+            throw new IllegalStateException("Next IFD offset is not set");
+        }
         return nextIFDOffset;
     }
 
@@ -207,7 +187,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD setLastIFDOffset() {
+    public DetailedIFD setLastIFD() {
         return setNextIFDOffset(0);
     }
 
@@ -249,6 +229,47 @@ public class DetailedIFD extends IFD {
     public DetailedIFD freezeForWriting() {
         this.frozenForWriting = true;
         return this;
+    }
+
+    public <M extends Map<Integer, Object>> M removePseudoTags(Supplier<M> mapFactory) {
+        Objects.requireNonNull(mapFactory, "Null mapFactory");
+        final M result = mapFactory.get();
+        for (Map.Entry<Integer, Object> entry : entrySet()) {
+            if (!DetailedIFD.isPseudoTag(entry.getKey())) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    public int sizeOfRegion(long sizeX, long sizeY) throws FormatException {
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
+                "sizeX", "sizeY", "samples per pixel", "bytes per sample",
+                () -> "Invalid requested area: ", () -> "");
+    }
+
+    /**
+     * Checks that the sizes of this IFD (<tt>ImageWidth</tt> and <tt>ImageLength</tt>) are positive integers
+     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
+     *
+     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
+     */
+    public void checkSizesArePositive() throws FormatException {
+        long dimX = getImageWidth();
+        long dimY = getImageLength();
+        if (dimX <= 0 || dimY <= 0) {
+            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
+            // - important for some classes, processing IFD images, that cannot work with zero-size areas
+            // (for example, due to usage of AlgART IRectangularArea)
+        }
+        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
+        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
     // This method is overridden to check that result is positive and to avoid exception for illegal compression.

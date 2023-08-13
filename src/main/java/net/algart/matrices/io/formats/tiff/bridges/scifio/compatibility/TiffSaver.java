@@ -63,7 +63,8 @@ public class TiffSaver extends TiffWriter {
         this.dataHandleService = ctx.getService(DataHandleService.class);
         // Disable new features of TiffWriter for compatibility:
         this.setWritingSequentially(false);
-        this.setAutoInterleave(false);
+        this.setAutoMarkLastImageOnClose(false);
+        this.setAutoInterleaveSource(false);
         this.setExtendedCodec(false);
     }
 
@@ -122,7 +123,17 @@ public class TiffSaver extends TiffWriter {
         }
     }
 
-
+    /**
+     * Use instead {@link #rewriteIFD(DetailedIFD, boolean)} together with
+     * {@link DetailedIFD#setNextIFDOffset(long)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
+     */
+    @Deprecated
+    public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
+        DetailedIFD extended = DetailedIFD.extend(ifd);
+        extended.setFileOffsetForWriting(getStream().offset());
+        extended.setNextIFDOffset(nextOffset);
+        rewriteIFD(extended, false, false);
+    }
 
     /**
      * Please use code like inside {@link #startWriting()}.

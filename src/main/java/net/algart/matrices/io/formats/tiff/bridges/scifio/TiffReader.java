@@ -147,7 +147,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     CodecOptions codecOptions = CodecOptions.getDefaultOptions();
 
-    private volatile long positionOfLastOffset = -1;
+    private volatile long positionOfLastIFDOffset = -1;
 
     private long timeReading = 0;
     private long timeCustomizingDecoding = 0;
@@ -412,7 +412,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Returns position in the file of the last offset, loaded by {@link #readIFDOffsets()},
+     * Returns position in the file of the last IFD offset, loaded by {@link #readIFDOffsets()},
      * {@link #readIFDOffset(int)} or {@link #readFirstIFDOffset()} methods.
      * Usually it is just a position of the offset of the last IFD, because
      * popular {@link #allIFDs()} method calls {@link #readIFDOffsets()} inside.
@@ -421,8 +421,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
      *
      * @return file position of the last IFD offset.
      */
-    public long positionOfLastOffset() {
-        return positionOfLastOffset;
+    public long positionOfLastIFDOffset() {
+        return positionOfLastIFDOffset;
     }
 
     public DetailedIFD ifd(int ifdIndex) throws IOException {
@@ -484,9 +484,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             long[] subOffsets = null;
             try {
                 // Deprecated solution: "fillInIFD" technique is no longer used
-//                if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
-//                    fillInIFD(ifd);
-//                }
+                // if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
+                //     fillInIFD(ifd);
+                // }
                 subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
             } catch (final FormatException ignored) {
             }
@@ -564,7 +564,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Gets offset to the first IFD, or -1 if stream is not TIFF.
-     * Updates {@link #positionOfLastOffset()} to the position of first offset (4, for Bit-TIFF 8).
+     * Updates {@link #positionOfLastIFDOffset()} to the position of first offset (4, for Bit-TIFF 8).
      */
     public long readFirstIFDOffset() throws IOException {
         if (!isValid()) {
@@ -576,7 +576,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Returns the file offset of IFD with given index or <tt>-1</tt> if the index is too high.
-     * Updates {@link #positionOfLastOffset()} to position of this offset.
+     * Updates {@link #positionOfLastIFDOffset()} to position of this offset.
      *
      * @param ifdIndex index of IFD (0, 1, ...).
      * @return offset of this IFD in the file.
@@ -699,11 +699,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             final Object value = readIFDValue(entry);
             // Deprecated solution: "fillInIFD" technique is no longer used
-//            if (valueOffset != in.offset() && !cachingIFDs) {
-//                value = entry;
-//            } else {
-//                value = readIFDValue(entry);
-//            }
+            // if (valueOffset != in.offset() && !cachingIFDs) {
+            //     value = entry;
+            // } else {
+            //     value = readIFDValue(entry);
+            // }
             long tEntry3 = debugTime();
             timeArrays += tEntry3 - tEntry2;
 //            System.err.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
@@ -1910,33 +1910,54 @@ public class TiffReader extends AbstractContextual implements Closeable {
             boolean updatePositionOfLastOffset,
             boolean requireValidTiff,
             boolean bigTiff) throws IOException {
-        long fp = in.offset();
+        final long fileLength = in.length();
+        final long filePosition = in.offset();
         long offset;
+        long signedOffset;
         if (bigTiff || use64BitOffsets) {
-            offset = in.readLong();
+            offset = signedOffset = in.readLong();
         } else {
-            offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
-
-            // Only adjust the offset if we know that the file is too large for 32-bit
-            // offsets to be accurate; otherwise, we're making the incorrect assumption
+            // Below is a deprecated solution
+            // (this "trick" cannot help if a SINGLE image is very large (>2^32): for example,
+            // previous = 8 (1st IFD) and the next is 0x120000000; but it is the mostly typical
+            // problematic situation: for example, very large 1st IFD in SVS file).
+            //
+            // offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
+            // Only adjust the offset if we know that the file is too large for
+            // 32-bit
+            // offsets to be accurate; otherwise, we're making the incorrect
+            // assumption
             // that IFDs are stored sequentially.
-            if (offset < previous && offset != 0 && in.length() > Integer.MAX_VALUE) {
-                offset += 0x100000000L;
-            }
+            // if (offset < previous && offset != 0 && in.length() > Integer.MAX_VALUE) {
+            //      offset += 0x100000000L;
+            // }
+            // return offset;
+
+            signedOffset = in.readInt();
+            offset = signedOffset & 0xffffffffL;
+            // - in usual TIFF format, offset if 32-bit UNSIGNED value
         }
         if (requireValidTiff) {
-            if (offset < 0) {
-                throw new IOException(
-                        "Invalid TIFF" + prettyInName() + ": negative offset " + offset + " at file position " + fp);
+            if (signedOffset == TiffWriter.TEMPORARY_IFD_NEXT_OFFSET_MARKER &&
+                    (offset == signedOffset || offset >= fileLength)) {
+                // - for 32-bit TIFF, we must add condition "offset >= fileLength"
+                throw new IOException("Invalid TIFF" + prettyInName() + ": offset at file position " +
+                        filePosition + " is " + TiffWriter.TEMPORARY_IFD_NEXT_OFFSET_MARKER +
+                        ", maybe the file is corrupted as the result of abnormal termination of writing file");
             }
-            if (offset >= in.length()) {
-                throw new IOException(
-                        "Invalid TIFF" + prettyInName() + ": offset " + offset + " at file position " + fp +
-                                " is outside the file");
+            if (offset < 0) {
+                // - possibly in Big-TIFF only
+                throw new IOException("Invalid TIFF" + prettyInName() +
+                        ": negative 64-bit offset " + offset + " at file position " + filePosition +
+                        ", probably the file is corrupted");
+            }
+            if (offset >= fileLength) {
+                throw new IOException("Invalid TIFF" + prettyInName() + ": offset " + offset +
+                        " at file position " + filePosition + " is outside the file, probably the is corrupted");
             }
         }
         if (updatePositionOfLastOffset) {
-            this.positionOfLastOffset = fp;
+            this.positionOfLastIFDOffset = filePosition;
         }
         return offset;
     }
