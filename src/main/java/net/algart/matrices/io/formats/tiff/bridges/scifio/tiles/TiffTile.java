@@ -115,6 +115,17 @@ public final class TiffTile {
         return setSizes(this.sizeX, sizeY);
     }
 
+    /**
+     * Reduces sizes of this tile so that it will completely lie inside map dimensions.
+     *
+     * <p>This operation can be useful for <i>stripped</i> TIFF image, especially while writing.
+     * But you should not call this for <i>tiled</i> image (when {@link TiffMap#isTiled()} returns <tt>true</tt>).
+     * For tiled image, TIFF file usually contains full-size encoded tiles even on image boundary;
+     * they should be cropped after decoding by external means.
+     *
+     * @return a reference to this object.
+     * @throws IllegalStateException if this tile is completely outside map dimensions.
+     */
     public TiffTile cropToMap() {
         final int dimX = map.dimX();
         final int dimY = map.dimY();
