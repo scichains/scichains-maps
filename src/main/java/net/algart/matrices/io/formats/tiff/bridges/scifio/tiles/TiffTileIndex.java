@@ -157,7 +157,7 @@ public final class TiffTileIndex {
 
     public void checkInBounds() {
         if (!isInBounds()) {
-            throw new IllegalStateException("Tile index is out of maximal tilemap sizes " +
+            throw new IllegalStateException("Tile index is out of current TIFF map grid sizes " +
                     map.gridTileCountX() + "x" + map.gridTileCountY() + ": " + this);
         }
     }
@@ -166,7 +166,7 @@ public final class TiffTileIndex {
     public String toString() {
         return "(" + xIndex + ", " + yIndex + ")" +
                 (map.isPlanarSeparated() ? ", channel " + channelPlane : "") +
-                " [" + (toX - fromX) + "x" + (toY - fromY) + " at coordinates (" + fromX + ", " + fromY + ")" +
+                " [coordinates (" + fromX + ", " + fromY + ")" +
                 " in IFD @" + Integer.toHexString(ifdIdentity) + "]";
     }
 

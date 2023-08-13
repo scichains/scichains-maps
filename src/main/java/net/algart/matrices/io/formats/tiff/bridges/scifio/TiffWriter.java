@@ -756,36 +756,33 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // Probably we write not full image!
         assert tileCountXInRegion <= sizeX;
         assert tileCountYInRegion <= sizeY;
-        final int numberOfActualTiles = tileCountXInRegion * tileCountYInRegion;
 
         final boolean autoInterleave = this.autoInterleaveSource;
         // - true means that the data are already interleaved by an external code
-        final boolean needToCorrectLastRow = !map.ifd().hasTileInformation();
-        // - If tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT correct the height
-        // of the last row, as in a case of splitting to strips; else GIMP and other libtiff-based programs
-        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
         for (int p = 0, tileIndex = 0; p < numberOfSeparatedPlanes; p++) {
             // - in a rare case PlanarConfiguration=2 (RRR...GGG...BBB...),
             // this order provides increasing tile offsets while simple usage of this class
             // (this is not required, but provides more efficient per-plane reading)
             for (int yIndex = 0; yIndex < tileCountYInRegion; yIndex++) {
                 final int yOffset = yIndex * tileSizeY;
-                final int partSizeY = Math.min(sizeY - yOffset, tileSizeY);
                 assert (long) fromY + (long) yOffset < dimY : "region must  be checked before calling splitTiles";
                 final int y = fromY + yOffset;
-                final int validTileSizeY = !needToCorrectLastRow ? tileSizeY : Math.min(tileSizeY, dimY - y);
-                // - last strip should have exact height, in other case TIFF may be read with a warning
-                final int validTileChannelSize = tileSizeX * validTileSizeY * bytesPerSample;
-                final int validTileSize = validTileChannelSize * map.tileSamplesPerPixel();
                 for (int xIndex = 0; xIndex < tileCountXInRegion; xIndex++, tileIndex++) {
                     assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
                     final int xOffset = xIndex * tileSizeX;
                     assert (long) fromX + (long) xOffset < dimX : "region must be checked before calling splitTiles";
                     final int x = fromX + xOffset;
-                    final int partSizeX = Math.min(sizeX - xOffset, tileSizeX);
                     final TiffTile tile = map.getOrNewMultiplane(p, x / tileSizeX, y / tileSizeY);
-                    tile.setSizeY(validTileSizeY);
-                    final byte[] data = tile.getDecodedOrNew(validTileSize);
+                    if (!map.isTiled()) {
+                        // - In stripped image, we should correct the height of the last row.
+                        // It is important for writing: without this correction, GIMP and other libtiff-based programs
+                        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
+                        // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
+                        tile.cropToMap();
+                    }
+                    final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
+                    final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
+                    final byte[] data = tile.getDecodedOrNew();
                     // - if the tile already exists, we will accurately update its content
                     if (!planarSeparated && !autoInterleave) {
                         // - Source data are already interleaved (like RGBRGB...): maybe, external code prefers
@@ -807,11 +804,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         // we must prepare a single tile, but with SEPARATED data (they will be interleaved later);
                         //      planarSeparated=true (rare): for 3 channels (RGB) we must prepare 3 separate tiles;
                         // in this case samplesPerPixel=1.
+                        final int channelSize = tile.getSizeInPixels() * bytesPerSample;
                         final int separatedPlaneSize = sizeX * sizeY * bytesPerSample;
                         final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
                         final int partSizeXInBytes = partSizeX * bytesPerSample;
                         int tileChannelOffset = 0;
-                        for (int s = 0; s < samplesPerPixel; s++, tileChannelOffset += validTileChannelSize) {
+                        for (int s = 0; s < samplesPerPixel; s++, tileChannelOffset += channelSize) {
                             final int channelOffset = (p + s) * separatedPlaneSize;
                             for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                                 final int i = yInTile + yOffset;

@@ -39,9 +39,11 @@ public final class TiffTile {
     private final int samplesPerPixel;
     private final int bytesPerSample;
     private final int bytesPerPixel;
-    private final TiffTileIndex tileIndex;
+    private final TiffTileIndex index;
     private int sizeX;
     private int sizeY;
+    private int sizeInPixels;
+    private int sizeInBytes;
     private boolean interleaved = false;
     private boolean encoded = false;
     private byte[] data = null;
@@ -49,15 +51,23 @@ public final class TiffTile {
     private int storedDataLength = 0;
     private int storedNumberOfPixels = 0;
 
-    public TiffTile(TiffTileIndex tileIndex) {
-        this.tileIndex = Objects.requireNonNull(tileIndex, "Null tile index");
-        this.map = tileIndex.map();
+    /**
+     * Creates new tile with given index.
+     *
+     * <p>Note: created tile <b>may</b> lie outside its map, it is not prohibited.
+     * This condition is checked not here, but in {@link TiffMap#put(TiffTile)} and other {@link TiffMap} methods.
+     *
+     * @param index tile index.
+     */
+    public TiffTile(TiffTileIndex index) {
+        this.index = Objects.requireNonNull(index, "Null tile index");
+        this.map = index.map();
         this.samplesPerPixel = map.tileSamplesPerPixel();
         this.bytesPerSample = map.bytesPerSample();
         this.bytesPerPixel = samplesPerPixel * bytesPerSample;
         assert bytesPerPixel <= TiffMap.MAX_TOTAL_BYTES_PER_PIXEL :
                 samplesPerPixel + "*" + bytesPerPixel + " were not checked in TiffMap!";
-        assert tileIndex.ifd() == map.ifd() : "tileIndex retrieved ifd from its tile map!";
+        assert index.ifd() == map.ifd() : "index retrieved ifd from its tile map!";
         setSizes(map.tileSizeX(), map.tileSizeY());
     }
 
@@ -69,8 +79,8 @@ public final class TiffTile {
         return map.ifd();
     }
 
-    public TiffTileIndex tileIndex() {
-        return tileIndex;
+    public TiffTileIndex index() {
+        return index;
     }
 
     public boolean isPlanarSeparated() {
@@ -105,6 +115,16 @@ public final class TiffTile {
         return setSizes(this.sizeX, sizeY);
     }
 
+    public TiffTile cropToMap() {
+        final int dimX = map.dimX();
+        final int dimY = map.dimY();
+        if (index.fromX() >= dimX || index.fromY() >= dimY) {
+            throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
+                " and cannot be cropped: " + this);
+        }
+        return setSizes(Math.min(sizeX, dimX - index.fromX()), Math.min(sizeY, dimY - index.fromY()));
+    }
+
     /**
      * Sets the sizes of this tile.
      *
@@ -123,12 +143,28 @@ public final class TiffTile {
             throw new IllegalArgumentException("Negative tile y-size: " + sizeY);
         }
         if ((long) sizeX * (long) sizeY > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large tile " + sizeX + "x" + sizeY +
+            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
                     " >= 2^31 pixels is not supported");
+        }
+        final int sizeInPixels = sizeX * sizeY;
+        if ((long) sizeInPixels * (long) bytesPerPixel > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
+                    ", " + samplesPerPixel + " channels per " + bytesPerSample +
+                    " bytes >= 2^31 bytes is not supported");
         }
         this.sizeX = sizeX;
         this.sizeY = sizeY;
+        this.sizeInPixels = sizeInPixels;
+        this.sizeInBytes = sizeInPixels * bytesPerPixel;
         return this;
+    }
+
+    public int getSizeInPixels() {
+        return sizeInPixels;
+    }
+
+    public int getSizeInBytes() {
+        return sizeInBytes;
     }
 
     public boolean isInterleaved() {
@@ -178,6 +214,10 @@ public final class TiffTile {
 
     public TiffTile setEncoded(byte[] data) {
         return setData(data, true);
+    }
+
+    public byte[] getDecodedOrNew() {
+        return getDecodedOrNew(sizeInBytes);
     }
 
     public byte[] getDecodedOrNew(int dataLength) {
@@ -388,15 +428,15 @@ public final class TiffTile {
     @Override
     public String toString() {
         return "TIFF " +
-                (encoded ? "encoded" : "decoded") +
+                (encoded ? "encoded" : "non-encoded") +
                 (interleaved ? " interleaved" : "") +
-                " tile, index " + tileIndex +
+                " tile" +
                 (isEmpty() ?
                         ", empty" :
                         ", actual sizes " + sizeX + "x" + sizeY + " (" +
                                 storedNumberOfPixels + " pixels, " + storedDataLength + " bytes)") +
-                (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "") +
-                ", stored in map: " + map;
+                ", index " + index +
+                (hasStoredDataFileOffset() ? " at file offset " + storedDataFileOffset : "");
     }
 
     @Override
@@ -413,14 +453,14 @@ public final class TiffTile {
                 samplesPerPixel == tiffTile.samplesPerPixel && bytesPerSample == tiffTile.bytesPerSample &&
                 storedDataFileOffset == tiffTile.storedDataFileOffset &&
                 storedDataLength == tiffTile.storedDataLength &&
-                Objects.equals(tileIndex, tiffTile.tileIndex) &&
+                Objects.equals(index, tiffTile.index) &&
                 Arrays.equals(data, tiffTile.data);
         // Note: doesn't check "map" to avoid infinite recursion!
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(tileIndex, sizeX, sizeY,
+        int result = Objects.hash(index, sizeX, sizeY,
                 interleaved, encoded, storedDataFileOffset, storedDataLength);
         result = 31 * result + Arrays.hashCode(data);
         return result;

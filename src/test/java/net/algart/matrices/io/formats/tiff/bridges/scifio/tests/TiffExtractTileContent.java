@@ -44,6 +44,7 @@ public class TiffExtractTileContent {
             System.out.println("Usage:");
             System.out.println("    " + TiffExtractTileContent.class.getName() +
                     " some_tiff_file result.jpg/png/dat ifdIndex tileCol tileRow [separatedPlaneIndex]");
+            System.out.println("Note: you should choose file extension, corresponding to IFD compression format.");
             return;
         }
         final Path tiffFile = Paths.get(args[startArgIndex++]);
@@ -65,8 +66,10 @@ public class TiffExtractTileContent {
             final TiffTileIndex tileIndex = map.multiplaneIndex(separatedPlaneIndex, col, row);
             TiffTile tile = reader.readEncodedTile(tileIndex);
             reader.correctEncodedJpegTile(tile);
+            System.out.printf("Loaded tile:%n    %s%n", tile);
+            System.out.printf("    Compression format: %s%n", ifd.getCompression().getCodecName());
             byte[] bytes = tile.getData();
-            System.out.printf("Saving tile %s in %s...%n", tileIndex, resultFile);
+            System.out.printf("Tile saved in %s%n", resultFile);
             Files.write(resultFile, bytes);
             try {
                 tile = reader.readTile(tileIndex);

@@ -990,6 +990,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t1 = debugTime();
         final DetailedIFD ifd = tileIndex.ifd();
         final int index = tileIndex.linearIndex();
+        // - also checks that tile index is not out of image bounds
         final int countIndex = assumeEqualStrips ? 0 : index;
         // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
         // filled in getIFDValue(TiffIFDEntry)
@@ -1008,7 +1009,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
         */
 
         final TiffTile result = new TiffTile(tileIndex);
-        // - no reasons to put it into the map: this class do not provide access to temporary created map
+        // - No reasons to put it into the map: this class do not provide access to temporary created map.
+
+        // if (!tileIndex.map().isTiled()) {
+        //     result.cropToMap();
+        // }
+        // Note: the code above is a bad idea! Unlike TiffWriter code, here we should not try
+        // to crop this tile here to dimensions of image in a case non-tiled map.
+        // It can lead to error, if the last encoded strip has actually full strip sizes,
+        // i.e. larger than necessary; this situation is quite possible.
         if (byteCount == 0 || offset < 0 || offset >= in.length()) {
             // - We support a special case of empty result
             return result;
@@ -1098,7 +1107,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 if ((long) jpegTable.length + (long) data.length - 4 >= Integer.MAX_VALUE) {
                     // - very improbable
                     throw new FormatException(
-                            "Too large tile/strip at " + tile.tileIndex() + ": JPEG table length " +
+                            "Too large tile/strip at " + tile.index() + ": JPEG table length " +
                                     (jpegTable.length - 2) + " + number of bytes " +
                                     (data.length - 2) + " > 2^31-1");
 
@@ -1368,9 +1377,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
-        final int samplesLength = tile.map().tileSizeInBytes();
         CodecOptions codecOptions = new CodecOptions(this.codecOptions);
         codecOptions.littleEndian = ifd.isLittleEndian();
+        final int samplesLength = tile.getSizeInBytes();
+        // - Note: it may be LESS than a usual number of samples in the tile/strip.
+        // Current readEncodedTile() always returns full-size tile without cropping
+        // (see comments inside that method), but the user CAN crop last tile/strip in an external code.
+        // Old SCIFIO code did not detect this situation, in particular, did not distinguish between
+        // last and usual strips in stripped image, and its behaviour could be described by the following assignment:
+        //      final int samplesLength = tile.map().tileSizeInBytes();
+        // For many codecs (like DEFLATE or JPEG) this is not important, but at least
+        // LZWCodec creates result array on the base of codecOptions.maxBytes.
+        // If it will be invalid (too large) value, returned decoded data will be too large,
+        // and this class will throw an exception "data may be lost" in further
+        // tile.completeNumberOfPixels() call.
         codecOptions.maxBytes = Math.max(samplesLength, tile.getStoredDataLength());
         final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
         // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
@@ -1410,8 +1430,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // though TIFF supports maximal sizes 2^32 x 2^32
         // (IFD.getImageWidth/getImageLength do not allow so large results)
 
-        final int tileSizeX = map.tileSizeX();
-        final int tileSizeY = map.tileSizeY();
+        final int mapTileSizeX = map.tileSizeX();
+        final int mapTileSizeY = map.tileSizeY();
         final int bytesPerSample = map.bytesPerSample();
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
         final int samplesPerPixel = map.tileSamplesPerPixel();
@@ -1420,15 +1440,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimY());
         // - crop by image sizes (if !readingBoundaryTilesOutsideImage) to avoid
         // reading unpredictable content of the boundary tiles outside the image
-        final int minXIndex = fromX / tileSizeX;
-        final int minYIndex = fromY / tileSizeY;
+        final int minXIndex = fromX / mapTileSizeX;
+        final int minYIndex = fromY / mapTileSizeY;
         if (minXIndex >= map.gridTileCountX() || minYIndex >= map.gridTileCountY() || toX < fromX || toY < fromY) {
             return;
         }
-        final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / tileSizeX);
-        final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / tileSizeY);
+        final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / mapTileSizeX);
+        final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
         assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
-        final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
+        final int tileRowSizeInBytes = mapTileSizeX * bytesPerSample;
         final int outputRowSizeInBytes = sizeX * bytesPerSample;
 
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
@@ -1445,13 +1465,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     }
                     byte[] data = tile.getDecoded();
 
-                    final int tileStartX = Math.max(xIndex * tileSizeX, fromX);
-                    final int tileStartY = Math.max(yIndex * tileSizeY, fromY);
-                    final int xInTile = tileStartX % tileSizeX;
-                    final int yInTile = tileStartY % tileSizeY;
+                    final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
+                    final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
+                    final int xInTile = tileStartX % mapTileSizeX;
+                    final int yInTile = tileStartY % mapTileSizeY;
                     final int xDiff = tileStartX - fromX;
                     final int yDiff = tileStartY - fromY;
 
+                    final int tileSizeX = tile.getSizeX();
+                    final int tileSizeY = tile.getSizeY();
                     final int partSizeX = Math.min(toX - tileStartX, tileSizeX - xInTile);
                     assert partSizeX > 0 : "partSizeX=" + partSizeX;
                     final int partSizeY = Math.min(toY - tileStartY, tileSizeY - yInTile);
@@ -1459,12 +1481,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int s = 0; s < samplesPerPixel; s++) {
-                        int srcOffset = (((s * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
-                        int destOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
+                        int tileOffset = (((s * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
+                        int samplesOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
                         for (int tileRow = 0; tileRow < partSizeY; tileRow++) {
-                            System.arraycopy(data, srcOffset, resultSamples, destOffset, partSizeXInBytes);
-                            srcOffset += tileRowSizeInBytes;
-                            destOffset += outputRowSizeInBytes;
+                            System.arraycopy(data, tileOffset, resultSamples, samplesOffset, partSizeXInBytes);
+                            tileOffset += tileRowSizeInBytes;
+                            samplesOffset += outputRowSizeInBytes;
                         }
                     }
                 }

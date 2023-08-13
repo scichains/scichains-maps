@@ -160,10 +160,6 @@ public final class TiffMap {
         return resizable;
     }
 
-    public boolean isReadyForWriting() {
-        return ifd.isReadyForWriting();
-    }
-
     public boolean isPlanarSeparated() {
         return planarSeparated;
     }
@@ -198,6 +194,10 @@ public final class TiffMap {
 
     public Class<?> elementType() {
         return elementType;
+    }
+
+    public boolean isTiled() {
+        return tiled;
     }
 
     public int tileSizeX() {
@@ -346,7 +346,7 @@ public final class TiffMap {
 
     public void put(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
-        final TiffTileIndex tileIndex = tile.tileIndex();
+        final TiffTileIndex tileIndex = tile.index();
         checkTileIndex(tileIndex);
         if (resizable) {
             expandGrid(tileIndex.xIndex() + 1, tileIndex.yIndex() + 1);
@@ -379,6 +379,7 @@ public final class TiffMap {
         tileMap.clear();
         if (clearDimensions) {
             setDimensions(0, 0);
+            // - exception if !resizable
             gridTileCountX = 0;
             gridTileCountY = 0;
             numberOfGridTiles = 0;
