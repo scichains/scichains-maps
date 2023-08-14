@@ -518,7 +518,6 @@ public class TiffParser extends TiffReader {
         }
         catch (final EnumException e) {
 //            log.error("Error reading IFD type at: " + in.offset());
-            //TODO!!??
             throw e;
         }
 

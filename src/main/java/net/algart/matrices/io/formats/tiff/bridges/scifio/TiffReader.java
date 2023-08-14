@@ -1976,7 +1976,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         try {
             entryType = IFDType.get(in.readUnsignedShort());
         } catch (EnumException e) {
-            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
+            //TODO!!??
+            throw e;
         }
 
         // Parse the entry's "ValueCount"
