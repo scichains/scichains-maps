@@ -669,7 +669,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             TiffIFDEntry entry;
             try {
-                entry = readTiffIFDEntry();
+                entry = readIFDEntry();
             } catch (EnumException e) {
                 continue;
                 //!! - In the previous SCIFIO code, here is "break" operator, but why?
@@ -938,35 +938,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // fillInIFD(firstIFD);
         //
         return firstIFD.getComment();
-    }
-
-    public TiffIFDEntry readTiffIFDEntry() throws IOException {
-        final int entryTag = in.readUnsignedShort();
-
-        // Parse the entry's "Type"
-        IFDType entryType;
-        try {
-            entryType = IFDType.get(in.readUnsignedShort());
-        } catch (EnumException e) {
-            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
-        }
-
-        // Parse the entry's "ValueCount"
-        final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
-        if (valueCount < 0) {
-            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
-        }
-
-        final long valueLength = (long) valueCount * (long) entryType.getBytesPerElement();
-        final int threshold = bigTiff ? 8 : 4;
-        final long valueOffset = valueLength > threshold ?
-                readNextOffset(0, false) :
-                in.offset();
-
-        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
-        LOG.log(System.Logger.Level.TRACE, () -> String.format(
-                "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
-        return result;
     }
 
     /**
@@ -1995,6 +1966,35 @@ public class TiffReader extends AbstractContextual implements Closeable {
         byte[] bytes = new byte[(int) length];
         in.readFully(bytes);
         return bytes;
+    }
+
+    private TiffIFDEntry readIFDEntry() throws IOException {
+        final int entryTag = in.readUnsignedShort();
+
+        // Parse the entry's "Type"
+        IFDType entryType;
+        try {
+            entryType = IFDType.get(in.readUnsignedShort());
+        } catch (EnumException e) {
+            throw new IOException("Error reading TIFF IFD type at position " + in.offset() + ": " + e.getMessage(), e);
+        }
+
+        // Parse the entry's "ValueCount"
+        final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
+        if (valueCount < 0) {
+            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
+        }
+
+        final long valueLength = (long) valueCount * (long) entryType.getBytesPerElement();
+        final int threshold = bigTiff ? 8 : 4;
+        final long valueOffset = valueLength > threshold ?
+                readNextOffset(0, false) :
+                in.offset();
+
+        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
+        LOG.log(System.Logger.Level.TRACE, () -> String.format(
+                "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
+        return result;
     }
 
     private static int toUnsignedByte(double v) {

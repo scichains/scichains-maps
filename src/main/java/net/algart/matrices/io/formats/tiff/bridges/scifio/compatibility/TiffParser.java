@@ -26,6 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility;
 
 import io.scif.FormatException;
 import io.scif.codec.CodecOptions;
+import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -44,7 +45,7 @@ import java.util.Objects;
 /**
  * Legacy version of {@link TiffReader} with some deprecated method.
  * Should be replaced with {@link TiffReader}.
-  */
+ */
 
 public class TiffParser extends TiffReader {
     private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
@@ -54,7 +55,9 @@ public class TiffParser extends TiffReader {
                 context.getService(DataHandleService.class).create(loc));
     }
 
-    /** Constructs a new TIFF parser from the given input source. */
+    /**
+     * Constructs a new TIFF parser from the given input source.
+     */
     @Deprecated
     public TiffParser(final Context context, final DataHandle<Location> in) {
         super(Objects.requireNonNull(context, "Null context"), in, null);
@@ -157,8 +160,7 @@ public class TiffParser extends TiffReader {
         // bigTiff = magic == TiffConstants.BIG_TIFF_MAGIC_NUMBER;
         // - already set by the constructor
         if (magic != TiffConstants.MAGIC_NUMBER &&
-                magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER)
-        {
+                magic != TiffConstants.BIG_TIFF_MAGIC_NUMBER) {
             return null;
         }
 
@@ -208,21 +210,20 @@ public class TiffParser extends TiffReader {
     }
 
 
-
     @Deprecated
     public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
         return super.readIFDValue(entry);
     }
 
 
-        /**
-         * Retrieve a given entry from the first IFD in the stream.
-         *
-         * @param tag the tag of the entry to be retrieved.
-         * @return an object representing the entry's fields.
-         * @throws IOException              when there is an error accessing the stream.
-         * @throws IllegalArgumentException when the tag number is unknown.
-         */
+    /**
+     * Retrieve a given entry from the first IFD in the stream.
+     *
+     * @param tag the tag of the entry to be retrieved.
+     * @return an object representing the entry's fields.
+     * @throws IOException              when there is an error accessing the stream.
+     * @throws IllegalArgumentException when the tag number is unknown.
+     */
     // TODO : Try to remove this method. It is only being used by
     // loci.formats.in.MetamorphReader.
     @Deprecated
@@ -504,11 +505,63 @@ public class TiffParser extends TiffReader {
         return adjustFillOrder(ifd, buf);
     }
 
+    // Equivalent method in TiffReader became private: no reasons to declare it public
+    @Deprecated
+    public TiffIFDEntry readTiffIFDEntry() throws IOException {
+        DataHandle<Location> in = getStream();
+        final int entryTag = in.readUnsignedShort();
+
+        // Parse the entry's "Type"
+        IFDType entryType;
+        try {
+            entryType = IFDType.get(in.readUnsignedShort());
+        }
+        catch (final EnumException e) {
+//            log.error("Error reading IFD type at: " + in.offset());
+            //TODO!!??
+            throw e;
+        }
+
+        // Parse the entry's "ValueCount"
+        final int valueCount = isBigTiff() ? (int) in.readLong() : in.readInt();
+        if (valueCount < 0) {
+            throw new RuntimeException("Count of '" + valueCount + "' unexpected.");
+        }
+
+        final int nValueBytes = valueCount * entryType.getBytesPerElement();
+        final int threshhold = isBigTiff() ? 8 : 4;
+        final long offset = nValueBytes > threshhold ? getNextOffset(0) : in
+                .offset();
+
+        return new TiffIFDEntry(entryTag, entryType, valueCount, offset);
+    }
+
+
     @Deprecated
     private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)
             throws FormatException {
         TiffTools.invertFillOrderIfRequested(ifd, buf);
         return buf;
+    }
+
+    // This trick is deprecated
+    @Deprecated
+    private long getNextOffset(final long previous) throws IOException {
+        DataHandle<Location> in = getStream();
+        if (isBigTiff() || isUse64BitOffsets()) {
+            return in.readLong();
+        }
+        long offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
+
+        // Only adjust the offset if we know that the file is too large for
+        // 32-bit
+        // offsets to be accurate; otherwise, we're making the incorrect
+        // assumption
+        // that IFDs are stored sequentially.
+        if (offset < previous && offset != 0 && in.length() > Integer.MAX_VALUE) {
+            offset += 0x100000000L;
+        }
+        return offset;
     }
 
     /* Deprecated code:
