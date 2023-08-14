@@ -121,19 +121,27 @@ public final class TiffTile {
      * <p>This operation can be useful for <i>stripped</i> TIFF image, especially while writing.
      * But you should not call this for <i>tiled</i> image (when {@link TiffMap#isTiled()} returns <tt>true</tt>).
      * For tiled image, TIFF file usually contains full-size encoded tiles even on image boundary;
-     * they should be cropped after decoding by external means.
+     * they should be cropped after decoding by external means. You can disable attempt to reduce
+     * tile in tiled image by passing <tt>nonTiledOnly=true</tt>.
      *
+     * @param nonTiledOnly if <tt>true</tt>, this function will not do anything when the map
+     *                     is {@link TiffMap#isTiled() tiled}. While using for reading/writing TIFF files,
+     *                     this argument usually should be <tt>true</tt>.
      * @return a reference to this object.
      * @throws IllegalStateException if this tile is completely outside map dimensions.
      */
-    public TiffTile cropToMap() {
+    public TiffTile cropToMap(boolean nonTiledOnly) {
         final int dimX = map.dimX();
         final int dimY = map.dimY();
         if (index.fromX() >= dimX || index.fromY() >= dimY) {
             throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
                 " and cannot be cropped: " + this);
         }
-        return setSizes(Math.min(sizeX, dimX - index.fromX()), Math.min(sizeY, dimY - index.fromY()));
+        if (nonTiledOnly && map.isTiled()) {
+            return this;
+        } else {
+            return setSizes(Math.min(sizeX, dimX - index.fromX()), Math.min(sizeY, dimY - index.fromY()));
+        }
     }
 
     /**
@@ -357,12 +365,8 @@ public final class TiffTile {
         return this;
     }
 
-    public TiffTile completeNumberOfPixels() {
-        return changeNumberOfPixels(sizeX * sizeY);
-    }
-
-    public TiffTile changeNumberOfPixels(int newNumberOfPixels) {
-        return changeNumberOfPixels(newNumberOfPixels, false);
+    public TiffTile adjustNumberOfPixels(boolean allowDecreasing) {
+        return changeNumberOfPixels(sizeX * sizeY, allowDecreasing);
     }
 
     public TiffTile changeNumberOfPixels(int newNumberOfPixels, boolean allowDecreasing) {

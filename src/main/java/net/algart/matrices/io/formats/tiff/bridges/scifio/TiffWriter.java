@@ -773,13 +773,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     assert (long) fromX + (long) xOffset < dimX : "region must be checked before calling splitTiles";
                     final int x = fromX + xOffset;
                     final TiffTile tile = map.getOrNewMultiplane(p, x / tileSizeX, y / tileSizeY);
-                    if (!map.isTiled()) {
-                        // - In stripped image, we should correct the height of the last row.
-                        // It is important for writing: without this correction, GIMP and other libtiff-based programs
-                        // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
-                        // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
-                        tile.cropToMap();
-                    }
+                    tile.cropToMap(true);
+                    // - In stripped image, we should correct the height of the last row.
+                    // It is important for writing: without this correction, GIMP and other libtiff-based programs
+                    // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
+                    // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
                     final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
                     final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
                     final byte[] data = tile.getDecodedOrNew();

@@ -124,7 +124,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
     private boolean extendedCodec = true;
-    private boolean readingBoundaryTilesOutsideImage = false;
+    private boolean cropTilesToImageBoundaries = true;
     private boolean use64BitOffsets = false;
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
@@ -327,12 +327,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isReadingBoundaryTilesOutsideImage() {
-        return readingBoundaryTilesOutsideImage;
+    public boolean isCropTilesToImageBoundaries() {
+        return cropTilesToImageBoundaries;
     }
 
-    public TiffReader setReadingBoundaryTilesOutsideImage(boolean readingBoundaryTilesOutsideImage) {
-        this.readingBoundaryTilesOutsideImage = readingBoundaryTilesOutsideImage;
+    public TiffReader setCropTilesToImageBoundaries(boolean cropTilesToImageBoundaries) {
+        this.cropTilesToImageBoundaries = cropTilesToImageBoundaries;
         return this;
     }
 
@@ -987,12 +987,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final TiffTile result = new TiffTile(tileIndex);
         // - No reasons to put it into the map: this class do not provide access to temporary created map.
 
-        // if (!tileIndex.map().isTiled()) {
-        //     result.cropToMap();
-        // }
-        // Note: the code above is a bad idea! Unlike TiffWriter code, here we should not try
-        // to crop this tile here to dimensions of image in a case non-tiled map.
-        // It can lead to error, if the last encoded strip has actually full strip sizes,
+        if (cropTilesToImageBoundaries) {
+            result.cropToMap(true);
+        }
+        // If cropping is disabled, we should not avoid reading extra content of the last strip.
+        // Note the last encoded strip can have actually full strip sizes,
         // i.e. larger than necessary; this situation is quite possible.
         if (byteCount == 0 || offset < 0 || offset >= in.length()) {
             // - We support a special case of empty result
@@ -1412,10 +1411,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
         final int samplesPerPixel = map.tileSamplesPerPixel();
 
-        final int toX = Math.min(fromX + sizeX, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimX());
-        final int toY = Math.min(fromY + sizeY, readingBoundaryTilesOutsideImage ? Integer.MAX_VALUE : map.dimY());
-        // - crop by image sizes (if !readingBoundaryTilesOutsideImage) to avoid
-        // reading unpredictable content of the boundary tiles outside the image
+        final int toX = Math.min(fromX + sizeX, cropTilesToImageBoundaries ? map.dimX() : Integer.MAX_VALUE);
+        final int toY = Math.min(fromY + sizeY, cropTilesToImageBoundaries ? map.dimY() : Integer.MAX_VALUE);
+        // - crop by image sizes to avoid reading unpredictable content of the boundary tiles outside the image
         final int minXIndex = fromX / mapTileSizeX;
         final int minYIndex = fromY / mapTileSizeY;
         if (minXIndex >= map.gridTileCountX() || minYIndex >= map.gridTileCountY() || toX < fromX || toY < fromY) {
@@ -1598,7 +1596,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     // Made from unpackBytes method of old TiffParser
     // Processing Y_CB_CR is extracted to decodeYCbCr() method.
-    private static void unpackBytes(TiffTile tile) throws FormatException {
+    private void unpackBytes(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
@@ -1630,9 +1628,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 tile.getStoredDataLength() <= resultSamplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK) {
-            tile.completeNumberOfPixels();
+            tile.adjustNumberOfPixels(cropTilesToImageBoundaries);
             // - Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
-            // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter than a full tile.
+            // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter or even larger
+            // than a full tile.
+            // If cropping boundary tiles is disabled, larger data should be considered as a format error,
+            // because tile sizes are the FULL sizes of tile in the grid;
+            // if cropping is enabled, actual height of the last strip is reduced (see readEncodedTile method),
+            // so larger data is possible (it is a minor format inconsistency).
             // Also note: it is better to rearrange pixels before separating (if necessary),
             // because rearranging interleaved pixels is little more simple.
             tile.separateSamplesIfNecessary();

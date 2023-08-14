@@ -128,7 +128,6 @@ public class TiffReadWriteTest {
                     }
                     FileLocation location = new FileLocation(sourceFile.toFile());
                     parser = new TiffParser(context, location);
-                    parser.setReadingBoundaryTilesOutsideImage(true);
                     originalParser = new io.scif.formats.tiff.TiffParser(context, location);
 
                     Files.deleteIfExists(targetExperimentalFile);
@@ -226,7 +225,7 @@ public class TiffReadWriteTest {
                             // - not remove! Removing means default value!
                         }
                         writerIFD.putImageDimensions(w, h);
-                        writeSeveralTilesOrStrips(sequentialTiffSaver, bytes,
+                        writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
                                 writerIFD, readerIFD.getPixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH,  last);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
@@ -298,8 +297,8 @@ public class TiffReadWriteTest {
             sum += Math.abs((buf1[k] & 0xFF) - (bytes[k] & 0xFF));
         }
         if (count > 0) {
-            System.err.println(message + ": different behaviour! " + count +
-                    " bytes differ since " + first + ", summary difference " + sum);
+            System.err.printf("%n%s: different behaviour! %d bytes differ since %d, summary difference %d%n",
+                    message, count, first, sum);
         }
     }
 

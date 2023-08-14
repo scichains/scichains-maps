@@ -63,6 +63,7 @@ public class TiffParser extends TiffReader {
         super(Objects.requireNonNull(context, "Null context"), in, null);
         // Disable new features of TiffReader for compatibility:
         this.setAutoUnpackUnusualPrecisions(false);
+        this.setCropTilesToImageBoundaries(false);
         this.setExtendedCodec(false);
     }
 
