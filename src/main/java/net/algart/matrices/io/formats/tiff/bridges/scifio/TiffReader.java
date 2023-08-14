@@ -417,7 +417,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Returns position in the file of the last IFD offset, loaded by {@link #readIFDOffsets()},
-     * {@link #readIFDOffset(int)} or {@link #readFirstIFDOffset()} methods.
+     * {@link #readSingleIFDOffset(int)} or {@link #readFirstIFDOffset()} methods.
      * Usually it is just a position of the offset of the last IFD, because
      * popular {@link #allIFDs()} method calls {@link #readIFDOffsets()} inside.
      *
@@ -454,7 +454,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return this.firstIFD;
         }
         final long offset = readFirstIFDOffset();
-        firstIFD = readIFD(offset);
+        firstIFD = readIFDStartingFrom(offset);
         if (cachingIFDs) {
             this.firstIFD = firstIFD;
         }
@@ -478,7 +478,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifds = new ArrayList<>();
 
         for (final long offset : offsets) {
-            final DetailedIFD ifd = readIFD(offset);
+            final DetailedIFD ifd = readIFDStartingFrom(offset);
             if (ifd == null) {
                 continue;
             }
@@ -496,7 +496,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
-                    final DetailedIFD sub = readIFD(subOffset, IFD.SUB_IFD, false);
+                    final DetailedIFD sub = readIFDStartingFrom(subOffset, IFD.SUB_IFD, false);
                     if (sub != null) {
                         ifds.add(sub);
                     }
@@ -557,7 +557,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         for (final DetailedIFD ifd : ifds) {
             final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
             if (offset != 0) {
-                final DetailedIFD exifIFD = readIFD(offset, IFD.EXIF, false);
+                final DetailedIFD exifIFD = readIFDStartingFrom(offset, IFD.EXIF, false);
                 if (exifIFD != null) {
                     exif.add(exifIFD);
                 }
@@ -585,7 +585,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * @param ifdIndex index of IFD (0, 1, ...).
      * @return offset of this IFD in the file.
      */
-    public long readIFDOffset(int ifdIndex) throws IOException {
+    public long readSingleIFDOffset(int ifdIndex) throws IOException {
         if (ifdIndex < 0) {
             throw new IllegalArgumentException("Negative ifdIndex = " + ifdIndex);
         }
@@ -625,15 +625,25 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return offsets.stream().mapToLong(aLong -> aLong).toArray();
     }
 
+    public DetailedIFD readSingleIFD(int ifdIndex) throws IOException, NoSuchElementException {
+        long startOffset = readSingleIFDOffset(ifdIndex);
+        if (startOffset < 0) {
+            throw new NoSuchElementException("No IFD #" + ifdIndex + " in TIFF" + prettyInName()
+                    + ": too large index");
+        }
+        return readIFDStartingFrom(startOffset);
+    }
+
     /**
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFD(long startOffset) throws IOException {
-        return readIFD(startOffset, null, true);
+    public DetailedIFD readIFDStartingFrom(long startOffset) throws IOException {
+        return readIFDStartingFrom(startOffset, null, true);
     }
 
-    public DetailedIFD readIFD(final long startOffset, Integer subIFDType, boolean readNextOffset) throws IOException {
+    public DetailedIFD readIFDStartingFrom(final long startOffset, Integer subIFDType, boolean readNextOffset)
+            throws IOException {
         if (startOffset < 0) {
             throw new IllegalArgumentException("Negative file offset = " + startOffset);
         }
@@ -847,11 +857,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 long[] longs = new long[1];
                 longs[0] = in.readLong();
                 return longs;
-            } else if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_OFFSETS ||
-                    entry.getTag() == IFD.TILE_OFFSETS)) {
-                final OnDemandLongArray offsets = new OnDemandLongArray(in);
-                offsets.setSize(count);
-                return offsets;
             } else {
                 if (OPTIMIZE_READING_IFD_ARRAYS) {
                     final byte[] bytes = readIFDBytes(8 * (long) count);
@@ -965,8 +970,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int countIndex = assumeEqualStrips ? 0 : index;
         // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
         // filled in getIFDValue(TiffIFDEntry)
-        final long offset = ifd.cachedStripOffset(index);
-        final int byteCount = ifd.cachedStripByteCount(countIndex);
+        final long offset = ifd.cachedTileOrStripOffset(index);
+        final int byteCount = ifd.cachedTileOrStripByteCount(countIndex);
         /*
         // Some strange old code, seems to be useless
         final int rowsPerStrip = ifd.cachedStripSizeY();
@@ -1296,7 +1301,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private Exception startReading(AtomicBoolean bigTiffReference) {
         try {
             if (!in.exists()) {
-                return new FileNotFoundException("Input TIFF data" + prettyInName() + " does not exist");
+                return new FileNotFoundException("Input TIFF file" + prettyInName() + " does not exist");
             }
             testHeader(bigTiffReference);
             return null;

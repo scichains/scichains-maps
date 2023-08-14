@@ -24,20 +24,20 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
+import io.scif.FormatException;
+import net.algart.arrays.JArrays;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
 
-public class ReadIFDTest {
-    public static void main(String[] args) throws IOException {
+public class IFDStripOffsetsTest {
+    public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + ReadIFDTest.class.getName() + " tiff_file.tiff ifdIndex");
+            System.out.println("    " + IFDStripOffsetsTest.class.getName() + " tiff_file.tiff ifdIndex");
             return;
         }
 
@@ -45,40 +45,38 @@ public class ReadIFDTest {
         final int ifdIndex = Integer.parseInt(args[1]);
 
         TiffReader reader = new TiffReader(null, file, false);
+//        reader.setAssumeEqualStrips(true);
+        long t1 = System.nanoTime();
+        DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
+        long t2 = System.nanoTime();
+        System.out.printf("IFD #%d: %s (%.6f ms)%n", ifdIndex, ifd.toString(false), (t2 - t1) * 1e-3);
         for (int test = 1; test <= 10; test++) {
             System.out.printf("%nTest %d:%n", test);
-            long t1 = System.nanoTime();
-            long offset = reader.readSingleIFDOffset(ifdIndex);
-            long t2 = System.nanoTime();
-            System.out.printf("Offset #%d: %d (%.6f mcs)%n", ifdIndex, offset, (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
-            long[] offsets = reader.readIFDOffsets();
+            long[] offsets = ifd.getTileOrStripOffsets();
             t2 = System.nanoTime();
-            System.out.printf("Offsets: %s (%.6f mcs)%n", Arrays.toString(offsets), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
+            System.out.printf("Tile/strip offsets, %d values: %s (%.3f mcs)%n",
+                    offsets.length, JArrays.toString(offsets,", ", 100), (t2 - t1) * 1e-3);
 
             t1 = System.nanoTime();
-            List<DetailedIFD> ifds = reader.allIFDs();
+            long[] counts = ifd.getTileOrStripByteCounts();
             t2 = System.nanoTime();
-            System.out.printf("Number of IFDs: %d (%.6f mcs)%n", ifds.size(), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
+            System.out.printf("Tile/strip byte-counts, %d values: %s (%.3f mcs)%n",
+                    counts.length, JArrays.toString(counts,", ", 100), (t2 - t1) * 1e-3);
 
             t1 = System.nanoTime();
-            DetailedIFD firstIFD = reader.firstIFD();
+            offsets = ifd.cachedTileOrStripOffsets();
             t2 = System.nanoTime();
-//        IFD firstIFD = new TiffParser(new SCIFIO().getContext(), new FileLocation(file.toFile())).getFirstIFD();
-            System.out.printf("First IFD: %s (%.6f mcs)%n", firstIFD.toString(false), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
+            System.out.printf("Tile/strip offsets with caching, %d values: %s (%.3f mcs)%n",
+                    offsets.length, JArrays.toString(offsets,", ", 100), (t2 - t1) * 1e-3);
 
             t1 = System.nanoTime();
-            DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
+            counts = ifd.cachedTileOrStripByteCounts();
             t2 = System.nanoTime();
-            System.out.printf("IFD #%d: %s (%.6f mcs)%n", ifdIndex, ifd.toString(false), (t2 - t1) * 1e-3);
-            System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
+            System.out.printf("Tile/strip byte-counts with caching, %d values: %s (%.3f mcs)%n",
+                    counts.length, JArrays.toString(counts,", ", 100), (t2 - t1) * 1e-6);
         }
-
         reader.close();
     }
 }

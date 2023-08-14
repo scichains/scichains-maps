@@ -189,7 +189,7 @@ public class TiffParser extends TiffReader {
         if (offset < 0 || offset >= getStream().length()) {
             return null;
         }
-        return super.readIFD(offset);
+        return super.readIFDStartingFrom(offset);
     }
 
     @Deprecated

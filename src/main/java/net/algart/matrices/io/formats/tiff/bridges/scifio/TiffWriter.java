@@ -1326,12 +1326,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             try (final TiffReader reader = new TiffReader(null, in, false)) {
                 // - note: we MUST NOT require valid TIFF here, because this file is only
                 // in a process of creating and the last offset is probably incorrect
-                final long offset = reader.readIFDOffset(ifdIndex);
-                if (offset >= 0) {
-                    out.seek(offset);
-                    LOG.log(System.Logger.Level.TRACE, () ->
-                            "Reading IFD from " + offset + " for non-sequential writing");
-                    ifd = reader.readIFD(offset);
+                try {
+                    final DetailedIFD existingIFD = reader.readSingleIFD(ifdIndex);
+                    out.seek(existingIFD.getFileOffsetOfReading());
+                    LOG.log(System.Logger.Level.DEBUG, () ->
+                            "Reading IFD from non-sequential writing: " + existingIFD.toString(false));
+                    ifd = existingIFD;
+                } catch (NoSuchElementException ignored) {
                 }
             }
         }
@@ -1349,7 +1350,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS)) {
             final long[] ifdByteCounts = isTiled ?
                     ifd.getIFDLongArray(IFD.TILE_BYTE_COUNTS) :
-                    ifd.getStripByteCounts();
+                    ifd.getTileOrStripByteCounts();
             for (final long stripByteCount : ifdByteCounts) {
                 byteCounts.add(stripByteCount);
             }
@@ -1364,7 +1365,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(IFD.TILE_OFFSETS)) {
             final long[] ifdOffsets = isTiled ?
                     ifd.getIFDLongArray(IFD.TILE_OFFSETS) :
-                    ifd.getStripOffsets();
+                    ifd.getTileOrStripOffsets();
             for (final long ifdOffset : ifdOffsets) {
                 offsets.add(ifdOffset);
             }

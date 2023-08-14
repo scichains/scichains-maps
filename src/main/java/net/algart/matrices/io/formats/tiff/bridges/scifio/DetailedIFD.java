@@ -76,9 +76,8 @@ public class DetailedIFD extends IFD {
     private Integer subIFDType = null;
     private volatile boolean frozenForWriting = false;
 
-    private volatile long[] cachedStripByteCounts = null;
-    private volatile long[] cachedStripOffsets = null;
-    private volatile Integer cachedStripRows = null;
+    private volatile long[] cachedTileOrStripByteCounts = null;
+    private volatile long[] cachedTileOrStripOffsets = null;
 
     public DetailedIFD(IFD ifd) {
         super(ifd, null);
@@ -312,8 +311,7 @@ public class DetailedIFD extends IFD {
 
     // This method is overridden to remove extra support of absence of StripByteCounts
     // and to remove extra doubling result for LZW (may lead to a bug)
-    @Override
-    public long[] getStripByteCounts() throws FormatException {
+    public long[] getTileOrStripByteCounts() throws FormatException {
         final boolean tiled = isTiled();
         final int tag = tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS;
         long[] counts = getIFDLongArray(tag);
@@ -343,16 +341,16 @@ public class DetailedIFD extends IFD {
         return counts;
     }
 
-    public long[] cachedStripByteCounts() throws FormatException {
-        long[] result = this.cachedStripByteCounts;
+    public long[] cachedTileOrStripByteCounts() throws FormatException {
+        long[] result = this.cachedTileOrStripByteCounts;
         if (result == null) {
-            this.cachedStripByteCounts = result = getStripByteCounts();
+            this.cachedTileOrStripByteCounts = result = getTileOrStripByteCounts();
         }
         return result;
     }
 
-    public int cachedStripByteCount(int index) throws FormatException {
-        long[] byteCounts = cachedStripByteCounts();
+    public int cachedTileOrStripByteCount(int index) throws FormatException {
+        long[] byteCounts = cachedTileOrStripByteCounts();
         if (index < 0) {
             throw new IllegalArgumentException("Negative index = " + index);
         }
@@ -374,22 +372,21 @@ public class DetailedIFD extends IFD {
         return (int) result;
     }
 
-    @Override
-    public long[] getStripOffsets() throws FormatException {
+    public long[] getTileOrStripOffsets() throws FormatException {
         // Maybe will be re-written in future
         return super.getStripOffsets();
     }
 
-    public long[] cachedStripOffsets() throws FormatException {
-        long[] result = this.cachedStripOffsets;
+    public long[] cachedTileOrStripOffsets() throws FormatException {
+        long[] result = this.cachedTileOrStripOffsets;
         if (result == null) {
-            this.cachedStripOffsets = result = getStripOffsets();
+            this.cachedTileOrStripOffsets = result = getTileOrStripOffsets();
         }
         return result;
     }
 
-    public long cachedStripOffset(int index) throws FormatException {
-        long[] offsets = cachedStripOffsets();
+    public long cachedTileOrStripOffset(int index) throws FormatException {
+        long[] offsets = cachedTileOrStripOffsets();
         if (index < 0) {
             throw new IllegalArgumentException("Negative index = " + index);
         }
@@ -403,14 +400,6 @@ public class DetailedIFD extends IFD {
         if (result < 0) {
             throw new FormatException(
                     "Negative value " + result + " in " + (isTiled() ? "TileOffsets" : "StripOffsets") + " array");
-        }
-        return result;
-    }
-
-    public int cachedStripRows() throws FormatException {
-        Integer result = this.cachedStripRows;
-        if (result == null) {
-            this.cachedStripRows = result = getStripRows();
         }
         return result;
     }
