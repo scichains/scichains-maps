@@ -50,6 +50,11 @@ import java.util.Objects;
 public class TiffParser extends TiffReader {
     private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
 
+    /** Whether or not 64-bit offsets are used for non-BigTIFF files. */
+    private boolean fakeBigTiff = false;
+    // - Probably support of this feature was implemented incorrectly.
+    // See https://github.com/scifio/scifio/issues/514
+
     public TiffParser(final Context context, final Location loc) {
         this(Objects.requireNonNull(context, "Null context"),
                 context.getService(DataHandleService.class).create(loc));
@@ -81,9 +86,8 @@ public class TiffParser extends TiffReader {
      * Sets whether or not 64-bit offsets are used for non-BigTIFF files.
      */
     @Deprecated
-    public void setUse64BitOffsets(final boolean use64BitOffsets) {
-        // Does nothing: probably support of this feature was implemented incorrectly.
-        // See https://github.com/scifio/scifio/issues/514
+    public void setUse64BitOffsets(final boolean use64Bit) {
+        fakeBigTiff = use64Bit;
     }
 
     /**
@@ -549,7 +553,8 @@ public class TiffParser extends TiffReader {
     @Deprecated
     private long getNextOffset(final long previous) throws IOException {
         DataHandle<Location> in = getStream();
-        if (isBigTiff() || isUse64BitOffsets()) {
+        if (isBigTiff() || fakeBigTiff) {
+            // ?? getFirstOffset did not check fakeBigTiff, so it cannot work! - Daniel Alievsky
             return in.readLong();
         }
         long offset = (previous & ~0xffffffffL) | (in.readInt() & 0xffffffffL);
