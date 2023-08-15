@@ -245,17 +245,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return assumeEqualStrips;
     }
 
-    @Deprecated
-    protected void setUse64BitOffsets(final boolean use64BitOffsets) {
-        this.use64BitOffsets = use64BitOffsets;
-    }
-
-    @Deprecated
-    protected boolean isUse64BitOffsets() {
-        return use64BitOffsets;
-    }
-
-
     public byte getFiller() {
         return filler;
     }
@@ -1919,7 +1908,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final long filePosition = in.offset();
         long offset;
         long signedOffset;
-        if (bigTiff || use64BitOffsets) {
+        if (bigTiff) {
             offset = signedOffset = in.readLong();
         } else {
             // Below is a deprecated solution

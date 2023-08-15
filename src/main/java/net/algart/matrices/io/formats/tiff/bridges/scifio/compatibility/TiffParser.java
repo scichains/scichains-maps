@@ -82,7 +82,8 @@ public class TiffParser extends TiffReader {
      */
     @Deprecated
     public void setUse64BitOffsets(final boolean use64BitOffsets) {
-        super.setUse64BitOffsets(use64BitOffsets);
+        // Does nothing: probably support of this feature was implemented incorrectly.
+        // See https://github.com/scifio/scifio/issues/514
     }
 
     /**
@@ -138,7 +139,7 @@ public class TiffParser extends TiffReader {
     }
 
     /**
-     * >Deprecated. Use {@link #isValid()} and {@link #isBigTiff()} instead.
+     * Deprecated. Use {@link #isValid()} and {@link #isBigTiff()} instead.
      */
     @Deprecated
     public Boolean checkHeader() throws IOException {
