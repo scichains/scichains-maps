@@ -91,8 +91,8 @@ public final class TiffMap {
     public TiffMap(DetailedIFD ifd, boolean resizable) {
         this.ifd = Objects.requireNonNull(ifd, "Null IFD");
         this.resizable = resizable;
+        final boolean hasImageDimensions = ifd.hasImageDimensions();
         try {
-            final boolean hasImageDimensions = ifd.hasImageDimensions();
             if (!hasImageDimensions && !resizable) {
                 throw new IllegalArgumentException("TIFF image sizes (ImageWidth and ImageLength tags) " +
                         "are not specified; it is not allowed for non-resizable tile map");
@@ -224,28 +224,48 @@ public final class TiffMap {
         return dimY;
     }
 
+    public long totalSizeInPixels() {
+        return (long) dimX * (long) dimY;
+    }
+
+    public long totalSizeInBytes() {
+        return Math.multiplyExact(totalSizeInPixels(), (long) totalBytesPerPixel);
+        // - but overflow here should be impossible due to the check in setDimensions
+    }
     public void setDimensions(int dimX, int dimY) {
         setDimensions(dimX, dimY, true);
     }
 
+    public void checkDimensions() {
+        final int tileCountX = (int) ((long) dimX + (long) tileSizeX - 1) / tileSizeX;
+        final int tileCountY = (int) ((long) dimY + (long) tileSizeY - 1) / tileSizeY;
+        assert tileCountX <= this.gridTileCountX && tileCountY <= this.gridTileCountY :
+                "Grid dimensions were not correctly grown according map dimensions";
+        if (tileCountX != this.gridTileCountX || tileCountY != this.gridTileCountY) {
+            assert resizable : "Map dimensions mismatch to grid dimensions: impossible for non-resizable map";
+            throw new IllegalStateException("Map dimensions " + dimX + "x" + dimY +
+                    " are too small for current tile grid: " + this);
+        }
+    }
+
     /**
-     * Replaces total image sizes to maximums from their current values and <tt>newMinimalSizeX/Y</tt>.
+     * Replaces total image sizes to maximums from their current values and <tt>newMinimalDimX/Y</tt>.
      *
      * <p>Note: if both new x/y-sizes are not greater than existing ones, this method does nothing
      * and can be called even if not {@link #isResizable()}.
      *
-     * @param newMinimalSizeX new minimal value for {@link #dimX() sizeX}.
-     * @param newMinimalSizeY new minimal value for {@link #dimY() sizeY}.
+     * @param newMinimalDimX new minimal value for {@link #dimX() sizeX}.
+     * @param newMinimalDimY new minimal value for {@link #dimY() sizeY}.
      */
-    public void expandSizes(int newMinimalSizeX, int newMinimalSizeY) {
-        if (newMinimalSizeX < 0) {
-            throw new IllegalArgumentException("Negative new minimal x-size: " + newMinimalSizeX);
+    public void expandDimensions(int newMinimalDimX, int newMinimalDimY) {
+        if (newMinimalDimX < 0) {
+            throw new IllegalArgumentException("Negative new minimal x-size: " + newMinimalDimX);
         }
-        if (newMinimalSizeY < 0) {
-            throw new IllegalArgumentException("Negative new minimal y-size: " + newMinimalSizeY);
+        if (newMinimalDimY < 0) {
+            throw new IllegalArgumentException("Negative new minimal y-size: " + newMinimalDimY);
         }
-        if (newMinimalSizeX > dimX || newMinimalSizeY > dimY) {
-            setDimensions(Math.max(dimX, newMinimalSizeX), Math.max(dimY, newMinimalSizeY));
+        if (newMinimalDimX > dimX || newMinimalDimY > dimY) {
+            setDimensions(Math.max(dimX, newMinimalDimX), Math.max(dimY, newMinimalDimY));
         }
     }
 
@@ -255,6 +275,10 @@ public final class TiffMap {
 
     public int gridTileCountY() {
         return gridTileCountY;
+    }
+
+    public int numberOfGridTiles() {
+        return numberOfGridTiles;
     }
 
     /**
@@ -273,10 +297,6 @@ public final class TiffMap {
      */
     public void expandGrid(int newMinimalTileCountX, int newMinimalTileCountY) {
         expandGrid(newMinimalTileCountX, newMinimalTileCountY, true);
-    }
-
-    public int getNumberOfGridTiles() {
-        return numberOfGridTiles;
     }
 
     public int linearIndex(int separatedPlaneIndex, int xIndex, int yIndex) {
@@ -304,7 +324,7 @@ public final class TiffMap {
         return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
-    public void checkTileIndex(TiffTileIndex tileIndex) {
+    public void checkTileIndexIFD(TiffTileIndex tileIndex) {
         Objects.requireNonNull(tileIndex, "Null tile index");
         if (tileIndex.ifd() != this.ifd) {
             // - Checking references, not content!
@@ -340,14 +360,14 @@ public final class TiffMap {
     }
 
     public TiffTile get(TiffTileIndex tileIndex) {
-        checkTileIndex(tileIndex);
+        checkTileIndexIFD(tileIndex);
         return tileMap.get(tileIndex);
     }
 
     public void put(TiffTile tile) {
         Objects.requireNonNull(tile, "Null tile");
         final TiffTileIndex tileIndex = tile.index();
-        checkTileIndex(tileIndex);
+        checkTileIndexIFD(tileIndex);
         if (resizable) {
             expandGrid(tileIndex.xIndex() + 1, tileIndex.yIndex() + 1);
         } else {
@@ -431,6 +451,12 @@ public final class TiffMap {
         }
         if (dimY < 0) {
             throw new IllegalArgumentException("Negative y-dimension: " + dimY);
+        }
+        if ((long) dimX * (long) dimY > Long.MAX_VALUE / totalBytesPerPixel) {
+            // - Very improbable! But we would like to be sure that 63-bit arithmetic
+            // is enough to calculate total size of the map in BYTES.
+            throw new IllegalArgumentException("Too large image sizes " + dimX + "x" + dimY +
+                    ": total number of bytes is greater than 2^63-1 (!)");
         }
         final int tileCountX = (int) ((long) dimX + (long) tileSizeX - 1) / tileSizeX;
         final int tileCountY = (int) ((long) dimY + (long) tileSizeY - 1) / tileSizeY;

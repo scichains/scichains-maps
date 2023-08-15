@@ -143,7 +143,7 @@ public class TiffReadWriteTest {
                 final List<DetailedIFD> ifds = reader.allIFDs();
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final boolean last = ifdIndex == ifds.size() - 1;
+                    final boolean last = ifdIndex == lastIFDIndex;
                     final DetailedIFD readerIFD = ifds.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
                     final int w = (int) Math.min(readerIFD.getImageWidth(), MAX_IMAGE_DIM);
@@ -161,7 +161,7 @@ public class TiffReadWriteTest {
                         // - not remove! Removing means default value!
                     }
                     writerIFD.putImageDimensions(w, h);
-                    writer.writeImage(writerIFD, bytes, null, bandCount,
+                    writer.writeImage(writerIFD, bytes, bandCount,
                             readerIFD.getPixelType(), START_X, START_Y, w, h, last);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", writerIFD);

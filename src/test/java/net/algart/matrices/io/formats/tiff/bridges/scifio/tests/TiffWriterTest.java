@@ -155,16 +155,16 @@ public class TiffWriterTest {
             final boolean deleteExistingFile = !randomAccess && !append;
             try (Context context = noContext ? null : scifio.getContext();
                  TiffWriter writer = new TiffWriter(context, targetFile, deleteExistingFile)) {
+//                writer.setAutoMarkLastImageOnClose(false);
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
                 if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
                     writer.setAutoInterleaveSource(false);
                 }
-                if (randomAccess) {
-                    writer.setWritingSequentially(false);
-                }
-                // - the simple check below works better!
-                //TODO!! not yet: we don't use offset in DetailedIFD class
+//                if (randomAccess) {
+//                    writer.setWritingSequentially(false);
+//                }
+                // - deprecated solution; the simple check below works better!
                 writer.setAppendToExisting(append);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
@@ -173,12 +173,7 @@ public class TiffWriterTest {
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;
-                    Object samplesArray = makeSamples(ifdIndex, numberOfChannels, pixelType, w, h);
                     DetailedIFD ifd = new DetailedIFD();
-                    if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
-                        samplesArray = TiffTools.toInterleavedSamples(
-                                (byte[]) samplesArray, numberOfChannels, 1, w * h);
-                    }
                     ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
@@ -198,24 +193,31 @@ public class TiffWriterTest {
                         // - unusual mode: no special putXxx method
                     }
                     ifd.putPixelInformation(numberOfChannels, pixelType);
-                    if (randomAccess) {
-                        // - ignoring previous IFD
-                        // Note: flush of writer.getStream() is not performed, because
-                        // DataHandle has not any analogs of flush() method.
-//                        try (TiffReader reader = new TiffReader(null, targetFile, false)) {
-//                            long offset = reader.readIFDOffset(ifdIndex);
-//                            ifd = reader.readIFDAtOffset(offset);
-//                        }
-                        //TODO!!
+                    if (randomAccess && k == 0) {
+                        // - Ignoring previous IFD. It has no sense for k > 0:
+                        // after writing first IFD (at firstIfdIndex), new number of IFD
+                        // will become firstIfdIndex+1, i.e. there is no more IFDs.
+                        // Note: you CANNOT change properties (like color or grayscale) of image #firstIfdIndex,
+                        // but following images will be written with new properties.
+                        // Note: it seems that we need to "flush" current writer.getStream(),
+                        // but DataHandle has not any analogs of flush() method.
+                        try (TiffReader reader = new TiffReader(null, targetFile, false)) {
+                            ifd = reader.readSingleIFD(ifdIndex);
+                            ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
+                        }
                     }
-                    TiffMap map = writer.prepareImage(ifd, false);
+                    TiffMap map = writer.startNewImage(ifd, false);
 
                     if (k == 0) {
                         writer.startWriting();
                         // - begin writing after checking possible format problem
                     }
-                    writer.writeImageFromArray(map, samplesArray,
-                            ifdIndex, x, y, w, h, false);
+                    Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.pixelType(), w, h);
+                    if (interleaveOutside && map.bytesPerSample() == 1) {
+                        samplesArray = TiffTools.toInterleavedSamples(
+                                (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
+                    }
+                    writer.writeImageFromArray(map, samplesArray, x, y, w, h, k == numberOfImages - 1);
                 }
             }
         }

@@ -25,10 +25,10 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.IFDList;
-import io.scif.formats.tiff.TiffConstants;
-import io.scif.formats.tiff.TiffIFDEntry;
+import io.scif.SCIFIO;
+import io.scif.codec.CodecOptions;
+import io.scif.formats.tiff.TiffParser;
+import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
@@ -39,8 +39,14 @@ import org.scijava.io.handle.DataHandles;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
+import org.scijava.log.LogService;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -50,6 +56,9 @@ import java.util.Objects;
 public class TiffSaver extends TiffWriter {
     private final DataHandleService dataHandleService;
 
+    private boolean sequentialWrite = false;
+    private SCIFIO scifio;
+    private LogService log;
 
     @Deprecated
     public TiffSaver(final Context ctx, final String filename) throws IOException {
@@ -60,6 +69,8 @@ public class TiffSaver extends TiffWriter {
     public TiffSaver(final Context ctx, final Location loc) {
         super(Objects.requireNonNull(ctx, "Null context"),
                 ctx.getService(DataHandleService.class).create(loc));
+        scifio = new SCIFIO(ctx);
+        log = scifio.log();
         this.dataHandleService = ctx.getService(DataHandleService.class);
         // Disable new features of TiffWriter for compatibility:
         this.setWritingSequentially(false);
@@ -80,6 +91,15 @@ public class TiffSaver extends TiffWriter {
         this(new Context(), (Location) out);
         // Note: it the old SCIFIO TiffSaver class, "bytes" parameter was stored in a field,
         // but logic of the algorithm did not allow to use it - it was an obvious bug.
+    }
+
+    /**
+     * Sets whether or not we know that the planes will be written sequentially.
+     * If we are writing planes sequentially and set this flag, then performance
+     * is slightly improved.
+     */
+    public void setWritingSequentially(final boolean sequential) {
+        sequentialWrite = sequential;
     }
 
     /**
@@ -317,15 +337,299 @@ public class TiffSaver extends TiffWriter {
                            final int pixelType, final int x, final int y, final int w, final int h,
                            final boolean last, Integer nChannels, final boolean copyDirectly)
             throws FormatException, IOException {
-        //Note: modern version of writeSamples doesn't need optimization via copyDirectly
-        if (nChannels == null) {
-            final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
-            nChannels = buf.length / (w * h * bytesPerSample);
-            // - like in original writeImage; but overflow will be checked more thoroughly inside writeSamples
+        {
+            log.debug("Attempting to write image.");
+            // b/c method is public should check parameters again
+            if (buf == null) {
+                throw new FormatException("Image data cannot be null");
+            }
+
+            if (ifd == null) {
+                throw new FormatException("IFD cannot be null");
+            }
+
+            // These operations are synchronized
+            TiffCompression compression;
+            int tileWidth, tileHeight, nStrips;
+            boolean interleaved;
+            ByteArrayOutputStream[] stripBuf;
+            synchronized (this) {
+                final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+                final int blockSize = w * h * bytesPerPixel;
+                if (nChannels == null) {
+                    nChannels = buf.length / (w * h * bytesPerPixel);
+                }
+                interleaved = ifd.getPlanarConfiguration() == 1;
+
+                makeValidIFD(ifd, pixelType, nChannels);
+
+                // create pixel output buffers
+
+                compression = ifd.getCompression();
+                tileWidth = (int) ifd.getTileWidth();
+                tileHeight = (int) ifd.getTileLength();
+                final int tilesPerRow = (int) ifd.getTilesPerRow();
+                final int rowsPerStrip = (int) ifd.getRowsPerStrip()[0];
+                int stripSize = rowsPerStrip * tileWidth * bytesPerPixel;
+                nStrips = ((w + tileWidth - 1) / tileWidth) * ((h + tileHeight - 1) /
+                        tileHeight);
+
+                if (interleaved) stripSize *= nChannels;
+                else nStrips *= nChannels;
+
+                stripBuf = new ByteArrayOutputStream[nStrips];
+                final DataOutputStream[] stripOut = new DataOutputStream[nStrips];
+                for (int strip = 0; strip < nStrips; strip++) {
+                    stripBuf[strip] = new ByteArrayOutputStream(stripSize);
+                    stripOut[strip] = new DataOutputStream(stripBuf[strip]);
+                }
+                final int[] bps = ifd.getBitsPerSample();
+                int off;
+
+                // write pixel strips to output buffers
+                final int effectiveStrips = !interleaved ? nStrips / nChannels : nStrips;
+                if (effectiveStrips == 1 && copyDirectly) {
+                    stripOut[0].write(buf);
+                }
+                else {
+                    for (int strip = 0; strip < effectiveStrips; strip++) {
+                        final int xOffset = (strip % tilesPerRow) * tileWidth;
+                        final int yOffset = (strip / tilesPerRow) * tileHeight;
+                        for (int row = 0; row < tileHeight; row++) {
+                            for (int col = 0; col < tileWidth; col++) {
+                                final int ndx = ((row + yOffset) * w + col + xOffset) *
+                                        bytesPerPixel;
+                                for (int c = 0; c < nChannels; c++) {
+                                    for (int n = 0; n < bps[c] / 8; n++) {
+                                        if (interleaved) {
+                                            off = ndx * nChannels + c * bytesPerPixel + n;
+                                            if (row >= h || col >= w) {
+                                                stripOut[strip].writeByte(0);
+                                            }
+                                            else {
+                                                stripOut[strip].writeByte(buf[off]);
+                                            }
+                                        }
+                                        else {
+                                            off = c * blockSize + ndx + n;
+                                            if (row >= h || col >= w) {
+                                                stripOut[strip].writeByte(0);
+                                            }
+                                            else {
+                                                stripOut[c * (nStrips / nChannels) + strip].writeByte(
+                                                        buf[off]);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Compress strips according to given differencing and compression
+            // schemes,
+            // this operation is NOT synchronized and is the ONLY portion of the
+            // TiffWriter.saveBytes() --> TiffSaver.writeImage() stack that is NOT
+            // synchronized.
+            final byte[][] strips = new byte[nStrips][];
+            for (int strip = 0; strip < nStrips; strip++) {
+                strips[strip] = stripBuf[strip].toByteArray();
+                scifio.tiff().difference(strips[strip], ifd);
+                final CodecOptions codecOptions = compression.getCompressionCodecOptions(
+                        ifd, getCodecOptions());
+                codecOptions.height = tileHeight;
+                codecOptions.width = tileWidth;
+                codecOptions.channels = interleaved ? nChannels : 1;
+
+                strips[strip] = compression.compress(scifio.codec(), strips[strip],
+                        codecOptions);
+                if (log.isDebug()) {
+                    log.debug(String.format("Compressed strip %d/%d length %d", strip + 1,
+                            nStrips, strips[strip].length));
+                }
+            }
+
+            // This operation is synchronized
+            synchronized (this) {
+                writeImageIFD(ifd, planeIndex, strips, nChannels, last, x, y);
+            }
         }
-        writeImage(DetailedIFD.extend(ifd), buf,
-                (int) planeIndex, nChannels, pixelType, x, y, w, h, last);
     }
+
+    private void writeImageIFD(IFD ifd, final long planeIndex,
+                               final byte[][] strips, final int nChannels, final boolean last, final int x,
+                               final int y) throws FormatException, IOException
+    {
+        DataHandle<Location> out = getStream();
+        log.debug("Attempting to write image IFD.");
+        final int tilesPerRow = (int) ifd.getTilesPerRow();
+        final int tilesPerColumn = (int) ifd.getTilesPerColumn();
+        final boolean interleaved = ifd.getPlanarConfiguration() == 1;
+        final boolean isTiled = ifd.isTiled();
+
+        if (!sequentialWrite) {
+            DataHandle<Location> in = dataHandleService.create(out.get());
+            try {
+                final io.scif.formats.tiff.TiffParser parser = new TiffParser(getContext(), in);
+                final long[] ifdOffsets = parser.getIFDOffsets();
+                log.debug("IFD offsets: " + Arrays.toString(ifdOffsets));
+                if (planeIndex < ifdOffsets.length) {
+                    out.seek(ifdOffsets[(int) planeIndex]);
+                    log.debug("Reading IFD from " + ifdOffsets[(int) planeIndex] +
+                            " in non-sequential write.");
+                    ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
+                }
+            }
+            finally {
+                in.close();
+            }
+        }
+
+        // record strip byte counts and offsets
+
+        final List<Long> byteCounts = new ArrayList<>();
+        final List<Long> offsets = new ArrayList<>();
+        long totalTiles = tilesPerRow * tilesPerColumn;
+
+        if (!interleaved) {
+            totalTiles *= nChannels;
+        }
+
+        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(
+                IFD.TILE_BYTE_COUNTS))
+        {
+            final long[] ifdByteCounts = isTiled ? ifd.getIFDLongArray(
+                    IFD.TILE_BYTE_COUNTS) : ifd.getStripByteCounts();
+            for (final long stripByteCount : ifdByteCounts) {
+                byteCounts.add(stripByteCount);
+            }
+        }
+        else {
+            while (byteCounts.size() < totalTiles) {
+                byteCounts.add(0L);
+            }
+        }
+        final int tileOrStripOffsetX = x / (int) ifd.getTileWidth();
+        final int tileOrStripOffsetY = y / (int) ifd.getTileLength();
+        final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
+                tileOrStripOffsetX;
+        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(
+                IFD.TILE_OFFSETS))
+        {
+            final long[] ifdOffsets = isTiled ? ifd.getIFDLongArray(IFD.TILE_OFFSETS)
+                    : ifd.getStripOffsets();
+            for (final long ifdOffset : ifdOffsets) {
+                offsets.add(ifdOffset);
+            }
+        }
+        else {
+            while (offsets.size() < totalTiles) {
+                offsets.add(0L);
+            }
+        }
+
+        if (isTiled) {
+            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
+        }
+        else {
+            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
+        }
+
+        final long fp = out.offset();
+        writeIFD(ifd, 0);
+
+        for (int i = 0; i < strips.length; i++) {
+            out.seek(out.length());
+            final int thisOffset = firstOffset + i;
+            offsets.set(thisOffset, out.offset());
+            byteCounts.set(thisOffset, (long) strips[i].length);
+            if (log.isDebug()) {
+                log.debug(String.format("Writing tile/strip %d/%d size: %d offset: %d",
+                        thisOffset + 1, totalTiles, byteCounts.get(thisOffset), offsets.get(
+                                thisOffset)));
+            }
+            out.write(strips[i]);
+        }
+        if (isTiled) {
+            ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
+        }
+        else {
+            ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
+            ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
+        }
+        final long endFP = out.offset();
+        if (log.isDebug()) {
+            log.debug("Offset before IFD write: " + out.offset() + " Seeking to: " +
+                    fp);
+        }
+        out.seek(fp);
+
+        if (log.isDebug()) {
+            log.debug("Writing tile/strip offsets: " + Arrays.toString(
+                    toPrimitiveArray(offsets)));
+            log.debug("Writing tile/strip byte counts: " + Arrays.toString(
+                    toPrimitiveArray(byteCounts)));
+        }
+        writeIFD(ifd, last ? 0 : endFP);
+        if (log.isDebug()) {
+            log.debug("Offset after IFD write: " + out.offset());
+        }
+    }
+
+    private void makeValidIFD(final IFD ifd, final int pixelType,
+                              final int nChannels)
+    {
+        final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
+        final int bps = 8 * bytesPerPixel;
+        final int[] bpsArray = new int[nChannels];
+        Arrays.fill(bpsArray, bps);
+        ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+
+        if (FormatTools.isFloatingPoint(pixelType)) {
+            ifd.putIFDValue(IFD.SAMPLE_FORMAT, 3);
+        }
+        if (ifd.getIFDValue(IFD.COMPRESSION) == null) {
+            ifd.putIFDValue(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+        }
+
+        final boolean indexed = nChannels == 1 && ifd.getIFDValue(
+                IFD.COLOR_MAP) != null;
+        final PhotoInterp pi = indexed ? PhotoInterp.RGB_PALETTE : nChannels == 1
+                ? PhotoInterp.BLACK_IS_ZERO : PhotoInterp.RGB;
+        ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, pi.getCode());
+
+        ifd.putIFDValue(IFD.SAMPLES_PER_PIXEL, nChannels);
+
+        if (ifd.get(IFD.X_RESOLUTION) == null) {
+            ifd.putIFDValue(IFD.X_RESOLUTION, new TiffRational(1, 1));
+        }
+        if (ifd.get(IFD.Y_RESOLUTION) == null) {
+            ifd.putIFDValue(IFD.Y_RESOLUTION, new TiffRational(1, 1));
+        }
+        if (ifd.get(IFD.SOFTWARE) == null) {
+            ifd.putIFDValue(IFD.SOFTWARE, "SCIFIO");
+        }
+        if (ifd.get(IFD.ROWS_PER_STRIP) == null) {
+            ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[] { 1 });
+        }
+        if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
+            ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");
+        }
+    }
+
+    private static long[] toPrimitiveArray(final List<Long> l) {
+        final long[] toReturn = new long[l.size()];
+        for (int i = 0; i < l.size(); i++) {
+            toReturn[i] = l.get(i);
+        }
+        return toReturn;
+    }
+
 
     @Deprecated
     private void writeIntValue(final DataHandle<Location> handle,

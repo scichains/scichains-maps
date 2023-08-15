@@ -668,6 +668,12 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
+    public DetailedIFD removeImageDimensions() {
+        remove(IFD.IMAGE_WIDTH);
+        remove(IFD.IMAGE_LENGTH);
+        return this;
+    }
+
     public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
         return putPixelInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
     }
@@ -865,8 +871,11 @@ public class DetailedIFD extends IFD {
                             "strips, " + tilesPerColumn) +
                     (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
-        super.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
-        super.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
+        super.put(tiled ? IFD.TILE_OFFSETS : IFD.STRIP_OFFSETS, offsets);
+        super.put(tiled ? IFD.TILE_BYTE_COUNTS : IFD.STRIP_BYTE_COUNTS, byteCounts);
+        // Just in case, let's also remove extra tags:
+        super.remove(tiled ? IFD.STRIP_OFFSETS : IFD.TILE_OFFSETS);
+        super.remove(tiled ? IFD.STRIP_BYTE_COUNTS : IFD.TILE_BYTE_COUNTS);
     }
 
     @Override
@@ -902,19 +911,31 @@ public class DetailedIFD extends IFD {
     public String toString(boolean detailed) {
         final StringBuilder sb = new StringBuilder("IFD");
         sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
+        long imageWidth = 0;
+        long imageLength = 0;
+        int tileSizeX = 1;
+        int tileSizeY = 1;
         try {
-            final long imageWidth = getImageWidth();
-            final long imageLength = getImageLength();
-            final int tileSizeX = getTileSizeX();
-            final int tileSizeY = getTileSizeY();
+            sb.append(" ").append(TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName());
+            if (hasImageDimensions()) {
+                imageWidth = getImageWidth();
+                imageLength = getImageLength();
+                tileSizeX = getTileSizeX();
+                tileSizeY = getTileSizeY();
+                sb.append("[%dx%d], ".formatted(
+                        imageWidth, imageLength));
+            } else {
+                sb.append("[?x?], ");
+            }
+        } catch (Exception e) {
+            sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("]");
+        }
+        try{
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
-            final int pixelType = getPixelType();
-            sb.append(" %s[%dx%d], %s, precision %s%s, ".formatted(
-                    TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName(),
-                    imageWidth, imageLength,
+            sb.append("%s, precision %s%s, ".formatted(
                     isLittleEndian() ? "little-endian" : "big-endian",
-                    FormatTools.getPixelTypeString(pixelType),
+                    FormatTools.getPixelTypeString(getPixelType()),
                     isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -936,7 +957,7 @@ public class DetailedIFD extends IFD {
                         tileSizeY));
             }
         } catch (Exception e) {
-            sb.append(" [cannot detect sizes information: ").append(e.getMessage()).append("]");
+            sb.append(" [cannot detect additional information: ").append(e.getMessage()).append("]");
         }
         try {
             sb.append(isChunked() ? ", chunked" : ", planar");
