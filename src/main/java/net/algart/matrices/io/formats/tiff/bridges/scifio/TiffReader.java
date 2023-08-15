@@ -1588,6 +1588,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private void unpackBytes(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
+        final TiffMap map = tile.map();
 
         if (KnownTiffCompression.isNonJpegYCbCr(ifd)) {
             throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
@@ -1617,14 +1618,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 tile.getStoredDataLength() <= resultSamplesLength &&
                 photoInterpretation != PhotoInterp.WHITE_IS_ZERO &&
                 photoInterpretation != PhotoInterp.CMYK) {
+            if (tile.getStoredDataLength() > map.tileSizeInBytes()) {
+                // - this check is better than IllegalArgumentException in the further adjustNumberOfPixels
+                throw new FormatException("Too large decoded TIFF data: " + tile.getStoredDataLength() +
+                        " bytes, its is greater than one " +
+                        (map.isTiled() ? "tile" : "strip") + " (" + map.tileSizeInBytes() + " bytes); "
+                        + "probably TIFF file is corrupted or format is not properly supported");
+            }
             tile.adjustNumberOfPixels(cropTilesToImageBoundaries);
             // - Note: bytes.length is unpredictable, because it is the result of decompression by a codec;
             // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter or even larger
             // than a full tile.
             // If cropping boundary tiles is disabled, larger data should be considered as a format error,
-            // because tile sizes are the FULL sizes of tile in the grid;
-            // if cropping is enabled, actual height of the last strip is reduced (see readEncodedTile method),
-            // so larger data is possible (it is a minor format inconsistency).
+            // because tile sizes are the FULL sizes of tile in the grid (it is checked above independently).
+            // If cropping is enabled, actual height of the last strip is reduced (see readEncodedTile method),
+            // so larger data is possible (it is a minor format separately).
             // Also note: it is better to rearrange pixels before separating (if necessary),
             // because rearranging interleaved pixels is little more simple.
             tile.separateSamplesIfNecessary();

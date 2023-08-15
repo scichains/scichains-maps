@@ -225,6 +225,8 @@ public class TiffReadWriteTest {
                             // - not remove! Removing means default value!
                         }
                         writerIFD.putImageDimensions(w, h);
+                        // Note: as a result, last strip in this file will be too large!
+                        // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
                                 writerIFD, readerIFD.getPixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH,  last);
