@@ -237,20 +237,12 @@ public final class TiffTile {
     }
 
     public byte[] getDecodedOrNew(Consumer<TiffTile> initializer) {
-        return getDecodedOrNew(sizeInBytes, initializer);
-    }
-
-    public byte[] getDecodedOrNew(int dataLength, Consumer<TiffTile> initializer) {
-        if (dataLength < 0) {
-            throw new IllegalArgumentException("Negative length of data array: " + dataLength);
-        }
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are encoded and " +
                     "cannot be updated in decoded form: " + this);
         }
         if (isEmpty()) {
-            byte[] data = new byte[dataLength];
-            setDecoded(data);
+            setDecoded(new byte[sizeInBytes]);
             if (initializer != null) {
                 initializer.accept(this);
             }
