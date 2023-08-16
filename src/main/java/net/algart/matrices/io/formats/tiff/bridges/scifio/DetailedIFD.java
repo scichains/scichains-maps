@@ -146,10 +146,10 @@ public class DetailedIFD extends IFD {
 
     public DetailedIFD setFileOffsetForWriting(long fileOffsetForWriting) {
         if (fileOffsetForWriting < 0) {
-            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetForWriting);
+            throw new IllegalArgumentException("Negative IFD file offset: " + fileOffsetForWriting);
         }
         if ((fileOffsetForWriting & 0x1) != 0) {
-            throw new IllegalArgumentException("Odd IFD offset in the file " + fileOffsetForWriting +
+            throw new IllegalArgumentException("Odd IFD file offset " + fileOffsetForWriting +
                     " is prohibited for writing valid TIFF");
             // - But we allow such offsets for reading!
             // Such minor inconsistency in the file is not a reason to decline ability to read it.
@@ -178,16 +178,20 @@ public class DetailedIFD extends IFD {
         return nextIFDOffset;
     }
 
-    public DetailedIFD setNextIFDOffset(long nextIFDOffset) {
+    public DetailedIFD setNextIFDOffset(long nextIFDOffset, boolean strictTIFFRequirement) {
         if (nextIFDOffset < 0) {
             throw new IllegalArgumentException("Negative next IFD offset: " + nextIFDOffset);
+        }
+        if (strictTIFFRequirement && (nextIFDOffset & 0x1) != 0) {
+            throw new IllegalArgumentException("Odd IFD next offset " + fileOffsetForWriting +
+                    " is prohibited for valid TIFF");
         }
         this.nextIFDOffset = nextIFDOffset;
         return this;
     }
 
     public DetailedIFD setLastIFD() {
-        return setNextIFDOffset(0);
+        return setNextIFDOffset(0, true);
     }
 
     public DetailedIFD removeNextIFDOffset() {

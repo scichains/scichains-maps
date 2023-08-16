@@ -55,6 +55,13 @@ public class TiffTileIO {
         tile.setEncoded(data);
     }
 
+    public static void writeToEnd(TiffTile tile, DataHandle<?> out, boolean freeAfterWriting) throws IOException {
+        Objects.requireNonNull(tile, "Null tile");
+        Objects.requireNonNull(out, "Null output stream");
+        tile.setStoredDataFileOffset(out.length());
+        write(tile, out, freeAfterWriting);
+    }
+
     public static void write(TiffTile tile, DataHandle<?> out, boolean freeAfterWriting) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");

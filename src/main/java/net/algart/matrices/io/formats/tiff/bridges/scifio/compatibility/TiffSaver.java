@@ -145,14 +145,22 @@ public class TiffSaver extends TiffWriter {
 
     /**
      * Use instead {@link #rewriteIFD(DetailedIFD, boolean)} together with
-     * {@link DetailedIFD#setNextIFDOffset(long)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
+     * {@link DetailedIFD#setNextIFDOffset(long, boolean)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
      */
     @Deprecated
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
         DetailedIFD extended = DetailedIFD.extend(ifd);
         extended.setFileOffsetForWriting(getStream().offset());
-        extended.setNextIFDOffset(nextOffset);
-        rewriteIFD(extended, false, false);
+        extended.setNextIFDOffset(nextOffset, false);
+        rewriteIFD(extended, false);
+    }
+
+    @Deprecated
+    public void writeIFDValue(
+            final DataHandle<Location> extraOut,
+            final long offset, final int tag, Object value)
+            throws FormatException, IOException {
+        super.writeIFDValueStartingFromCurrentPosition(extraOut, offset, tag, value);
     }
 
     /**
@@ -390,8 +398,7 @@ public class TiffSaver extends TiffWriter {
                 final int effectiveStrips = !interleaved ? nStrips / nChannels : nStrips;
                 if (effectiveStrips == 1 && copyDirectly) {
                     stripOut[0].write(buf);
-                }
-                else {
+                } else {
                     for (int strip = 0; strip < effectiveStrips; strip++) {
                         final int xOffset = (strip % tilesPerRow) * tileWidth;
                         final int yOffset = (strip / tilesPerRow) * tileHeight;
@@ -405,17 +412,14 @@ public class TiffSaver extends TiffWriter {
                                             off = ndx * nChannels + c * bytesPerPixel + n;
                                             if (row >= h || col >= w) {
                                                 stripOut[strip].writeByte(0);
-                                            }
-                                            else {
+                                            } else {
                                                 stripOut[strip].writeByte(buf[off]);
                                             }
-                                        }
-                                        else {
+                                        } else {
                                             off = c * blockSize + ndx + n;
                                             if (row >= h || col >= w) {
                                                 stripOut[strip].writeByte(0);
-                                            }
-                                            else {
+                                            } else {
                                                 stripOut[c * (nStrips / nChannels) + strip].writeByte(
                                                         buf[off]);
                                             }
@@ -460,8 +464,7 @@ public class TiffSaver extends TiffWriter {
 
     private void writeImageIFD(IFD ifd, final long planeIndex,
                                final byte[][] strips, final int nChannels, final boolean last, final int x,
-                               final int y) throws FormatException, IOException
-    {
+                               final int y) throws FormatException, IOException {
         DataHandle<Location> out = getStream();
         log.debug("Attempting to write image IFD.");
         final int tilesPerRow = (int) ifd.getTilesPerRow();
@@ -481,8 +484,7 @@ public class TiffSaver extends TiffWriter {
                             " in non-sequential write.");
                     ifd = parser.getIFD(ifdOffsets[(int) planeIndex]);
                 }
-            }
-            finally {
+            } finally {
                 in.close();
             }
         }
@@ -498,15 +500,13 @@ public class TiffSaver extends TiffWriter {
         }
 
         if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(
-                IFD.TILE_BYTE_COUNTS))
-        {
+                IFD.TILE_BYTE_COUNTS)) {
             final long[] ifdByteCounts = isTiled ? ifd.getIFDLongArray(
                     IFD.TILE_BYTE_COUNTS) : ifd.getStripByteCounts();
             for (final long stripByteCount : ifdByteCounts) {
                 byteCounts.add(stripByteCount);
             }
-        }
-        else {
+        } else {
             while (byteCounts.size() < totalTiles) {
                 byteCounts.add(0L);
             }
@@ -516,15 +516,13 @@ public class TiffSaver extends TiffWriter {
         final int firstOffset = (tileOrStripOffsetY * tilesPerRow) +
                 tileOrStripOffsetX;
         if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(
-                IFD.TILE_OFFSETS))
-        {
+                IFD.TILE_OFFSETS)) {
             final long[] ifdOffsets = isTiled ? ifd.getIFDLongArray(IFD.TILE_OFFSETS)
                     : ifd.getStripOffsets();
             for (final long ifdOffset : ifdOffsets) {
                 offsets.add(ifdOffset);
             }
-        }
-        else {
+        } else {
             while (offsets.size() < totalTiles) {
                 offsets.add(0L);
             }
@@ -533,8 +531,7 @@ public class TiffSaver extends TiffWriter {
         if (isTiled) {
             ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
             ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
-        }
-        else {
+        } else {
             ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
             ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
         }
@@ -557,8 +554,7 @@ public class TiffSaver extends TiffWriter {
         if (isTiled) {
             ifd.putIFDValue(IFD.TILE_BYTE_COUNTS, toPrimitiveArray(byteCounts));
             ifd.putIFDValue(IFD.TILE_OFFSETS, toPrimitiveArray(offsets));
-        }
-        else {
+        } else {
             ifd.putIFDValue(IFD.STRIP_BYTE_COUNTS, toPrimitiveArray(byteCounts));
             ifd.putIFDValue(IFD.STRIP_OFFSETS, toPrimitiveArray(offsets));
         }
@@ -582,8 +578,7 @@ public class TiffSaver extends TiffWriter {
     }
 
     private void makeValidIFD(final IFD ifd, final int pixelType,
-                              final int nChannels)
-    {
+                              final int nChannels) {
         final int bytesPerPixel = FormatTools.getBytesPerPixel(pixelType);
         final int bps = 8 * bytesPerPixel;
         final int[] bpsArray = new int[nChannels];
@@ -615,7 +610,7 @@ public class TiffSaver extends TiffWriter {
             ifd.putIFDValue(IFD.SOFTWARE, "SCIFIO");
         }
         if (ifd.get(IFD.ROWS_PER_STRIP) == null) {
-            ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[] { 1 });
+            ifd.putIFDValue(IFD.ROWS_PER_STRIP, new long[]{1});
         }
         if (ifd.get(IFD.IMAGE_DESCRIPTION) == null) {
             ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, "");

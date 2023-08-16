@@ -700,7 +700,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 break;
             }
 
-            final Object value = readIFDValue(entry);
+            final Object value = readIFDValueStartingFromCurrentPosition(entry);
             // Deprecated solution: "fillInIFD" technique is no longer used
             // if (valueOffset != in.offset() && !cachingIFDs) {
             //     value = entry;
@@ -722,10 +722,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         if (readNextOffset) {
             final long nextOffset = readNextOffset(startOffset, false);
-            ifd.setNextIFDOffset(nextOffset);
+            ifd.setNextIFDOffset(nextOffset, false);
             in.seek(positionOfNextOffset);
-            // - for maximal compatibility with old code (which did not read next IFD offset)
-            // and with behaviour when readNextOffset is not requested
+            // - this "in.seek" provides maximal compatibility with old code (which did not read next IFD offset)
+            // and also with behaviour of this method, when readNextOffset is not requested
         }
 
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
@@ -742,7 +742,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Retrieve the value corresponding to the given TiffIFDEntry.
      * Sometimes used to postpone actual reading data until actual necessity.
      */
-    public Object readIFDValue(final TiffIFDEntry entry) throws IOException {
+    public Object readIFDValueStartingFromCurrentPosition(final TiffIFDEntry entry) throws IOException {
         final IFDType type = entry.getType();
         final int count = entry.getValueCount();
         final long offset = entry.getValueOffset();
@@ -754,10 +754,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return null;
         }
 
-        if (offset != in.offset()) {
-            in.seek(offset);
-        }
-
+        in.seek(offset);
         if (type == IFDType.BYTE) {
             // 8-bit unsigned integer
             if (count == 1) {

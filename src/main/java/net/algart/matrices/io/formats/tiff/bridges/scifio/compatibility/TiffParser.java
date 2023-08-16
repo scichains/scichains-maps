@@ -218,7 +218,7 @@ public class TiffParser extends TiffReader {
 
     @Deprecated
     public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
-        return super.readIFDValue(entry);
+        return super.readIFDValueStartingFromCurrentPosition(entry);
     }
 
 
