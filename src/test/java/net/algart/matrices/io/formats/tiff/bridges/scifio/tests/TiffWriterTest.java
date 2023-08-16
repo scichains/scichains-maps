@@ -30,7 +30,10 @@ import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import org.scijava.Context;
 
@@ -170,6 +173,11 @@ public class TiffWriterTest {
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
+                writer.setFiller((byte) 0xFF);
+//                writer.setTileInitializer(tile -> {
+//                    byte[] data = tile.getDecoded();
+//                    IntStream.range(0, data.length).forEach(k -> data[k] = (byte) k);
+//                });
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;

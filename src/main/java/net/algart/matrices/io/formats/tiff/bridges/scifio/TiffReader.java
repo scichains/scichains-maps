@@ -119,7 +119,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private static final System.Logger LOG = System.getLogger(TiffReader.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
 
-    private byte filler = 0;
     private boolean requireValidTiff;
     private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
@@ -128,6 +127,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
     private boolean cachingIFDs = true;
+    private byte filler = 0;
 
     private final Exception openingException;
     private final DataHandle<Location> in;
@@ -235,32 +235,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     @Deprecated
-    protected void setAssumeEqualStrips(final boolean assumeEqualStrips) {
-        this.assumeEqualStrips = assumeEqualStrips;
-    }
-
-    @Deprecated
     protected boolean isAssumeEqualStrips() {
         return assumeEqualStrips;
     }
 
-    public byte getFiller() {
-        return filler;
-    }
-
-    /**
-     * Sets the filler byte for tiles, lying completely outside the image.
-     * Value 0 means black color, 0xFF usually means white color.
-     *
-     * <p><b>Warning!</b> If you want to work with non-8-bit TIFF, especially float precision, you should
-     * preserve default 0 value, in other case results could be very strange.
-     *
-     * @param filler new filler.
-     * @return a reference to this object.
-     */
-    public TiffReader setFiller(byte filler) {
-        this.filler = filler;
-        return this;
+    @Deprecated
+    protected void setAssumeEqualStrips(final boolean assumeEqualStrips) {
+        this.assumeEqualStrips = assumeEqualStrips;
     }
 
     public boolean isRequireValidTiff() {
@@ -325,17 +306,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Sets the codec options to be used when decompressing pixel data.
-     *
-     * @param codecOptions Codec options to use.
-     * @return a reference to this object.
-     */
-    public TiffReader setCodecOptions(final CodecOptions codecOptions) {
-        this.codecOptions = codecOptions;
-        return this;
-    }
-
-    /**
      * Retrieves the current set of codec options being used to decompress pixel
      * data.
      *
@@ -346,6 +316,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
+     * Sets the codec options to be used when decompressing pixel data.
+     *
+     * @param codecOptions Codec options to use.
+     * @return a reference to this object.
+     */
+    public TiffReader setCodecOptions(final CodecOptions codecOptions) {
+        this.codecOptions = codecOptions;
+        return this;
+    }
+
+    public boolean isYCbCrCorrection() {
+        return yCbCrCorrection;
+    }
+
+    /**
      * Sets whether or not YCbCr color correction is allowed.
      */
     public TiffReader setYCbCrCorrection(final boolean yCbCrCorrection) {
@@ -353,8 +338,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isYCbCrCorrection() {
-        return yCbCrCorrection;
+    public boolean isCachingIFDs() {
+        return cachingIFDs;
     }
 
     /**
@@ -373,8 +358,23 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isCachingIFDs() {
-        return cachingIFDs;
+    public byte getFiller() {
+        return filler;
+    }
+
+    /**
+     * Sets the filler byte for tiles, lying completely outside the image.
+     * Value 0 means black color, 0xFF usually means white color.
+     *
+     * <p><b>Warning!</b> If you want to work with non-8-bit TIFF, especially float precision, you should
+     * preserve default 0 value, in other case results could be very strange.
+     *
+     * @param filler new filler.
+     * @return a reference to this object.
+     */
+    public TiffReader setFiller(byte filler) {
+        this.filler = filler;
+        return this;
     }
 
     /**

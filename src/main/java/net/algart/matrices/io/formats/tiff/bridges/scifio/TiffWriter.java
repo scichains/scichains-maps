@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Writes TIFF data to an output location.
@@ -114,6 +115,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private boolean jpegInPhotometricRGB = false;
     private double jpegQuality = 1.0;
     private PhotoInterp predefinedPhotoInterpretation = null;
+    private byte filler = 0;
+    private Consumer<TiffTile> tileInitializer = tiffTile -> Arrays.fill(tiffTile.getDecoded(), filler);
 
     private final DataHandle<Location> out;
     private final Location location;
@@ -364,6 +367,24 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return this;
     }
 
+    public byte getFiller() {
+        return filler;
+    }
+
+    public TiffWriter setFiller(byte filler) {
+        this.filler = filler;
+        return this;
+    }
+
+    public Consumer<TiffTile> getTileInitializer() {
+        return tileInitializer;
+    }
+
+    public TiffWriter setTileInitializer(Consumer<TiffTile> tileInitializer) {
+        this.tileInitializer = Objects.requireNonNull(tileInitializer, "Null tileInitializer");
+        return this;
+    }
+
     /**
      * Returns position in the file of the last IFD offset, written by methods of this object.
      * It is updated by {@link #rewriteIFD(DetailedIFD, boolean)}.
@@ -443,8 +464,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>If <tt>linkToNextIFDAfterFileEnd</tt> argument is <tt>true</tt>, this method
      * uses the file position &mdash; after saving all IFD data, including "extra" data like texts or arrays &mdash;
      * as the next IFD offset, instead of {@link DetailedIFD#getNextIFDOffset()} value.
-     * In this case, this next offset is stored in IFD (by {@link DetailedIFD#setNextIFDOffset(long)} method) and
-     * in the field of this object, which is retrieved by {@link #positionOfLastIFDOffset()} method.
+     * In this case, this next offset is stored in IFD (by {@link DetailedIFD#setNextIFDOffset(long, boolean)}
+     * method) and in the field of this object, which is retrieved by {@link #positionOfLastIFDOffset()} method.
      *
      * <p>Note: this method changes position in the output stream.
      *
@@ -762,7 +783,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
                     final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
                     final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
-                    final byte[] data = tile.getDecodedOrNew();
+                    final byte[] data = tile.getDecodedOrNew(tileInitializer);
                     // - if the tile already exists, we will accurately update its content
                     if (!planarSeparated && !autoInterleave) {
                         // - Source data are already interleaved (like RGBRGB...): maybe, external code prefers

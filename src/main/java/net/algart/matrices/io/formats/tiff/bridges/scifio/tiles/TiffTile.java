@@ -28,6 +28,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * TIFF tile: container for samples (encoded or decoded) with given {@link TiffTileIndex index}.
@@ -135,7 +136,7 @@ public final class TiffTile {
         final int dimY = map.dimY();
         if (index.fromX() >= dimX || index.fromY() >= dimY) {
             throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
-                " and cannot be cropped: " + this);
+                    " and cannot be cropped: " + this);
         }
         if (nonTiledOnly && map.isTiled()) {
             return this;
@@ -235,11 +236,11 @@ public final class TiffTile {
         return setData(data, true);
     }
 
-    public byte[] getDecodedOrNew() {
-        return getDecodedOrNew(sizeInBytes);
+    public byte[] getDecodedOrNew(Consumer<TiffTile> initializer) {
+        return getDecodedOrNew(sizeInBytes, initializer);
     }
 
-    public byte[] getDecodedOrNew(int dataLength) {
+    public byte[] getDecodedOrNew(int dataLength, Consumer<TiffTile> initializer) {
         if (dataLength < 0) {
             throw new IllegalArgumentException("Negative length of data array: " + dataLength);
         }
@@ -250,10 +251,11 @@ public final class TiffTile {
         if (isEmpty()) {
             byte[] data = new byte[dataLength];
             setDecoded(data);
-            return data;
-        } else {
-            return getDecoded();
+            if (initializer != null) {
+                initializer.accept(this);
+            }
         }
+        return getDecoded();
     }
 
     public byte[] getDecoded() {
@@ -385,7 +387,7 @@ public final class TiffTile {
         }
         if ((long) newNumberOfPixels * (long) bytesPerPixel > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Too large requested number of pixels in tile: " + newNumberOfPixels +
-                     " pixels * " + samplesPerPixel + " samples/pixel * " + bytesPerSample + " bytes/sample >= 2^31");
+                    " pixels * " + samplesPerPixel + " samples/pixel * " + bytesPerSample + " bytes/sample >= 2^31");
         }
         if (newNumberOfPixels < numberOfPixels && !allowDecreasing) {
             throw new IllegalArgumentException("The new number of pixels " + newNumberOfPixels +
