@@ -926,7 +926,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (resizable) {
             ifd.updateImageDimensions(map.dimX(), map.dimY());
         }
-        final long[] offsets = tiles.stream().mapToLong(TiffTile::getStoredDataFileOffset).toArray();
+        final long[] offsets = tiles.stream().mapToLong(TiffTile::getStoredDataFileOffsetOrZero).toArray();
         final long[] byteCounts = tiles.stream().mapToLong(TiffTile::getStoredDataLength).toArray();
         ifd.updateDataPositioning(offsets, byteCounts);
         if (!ifd.hasFileOffsetForWriting()) {
@@ -1311,7 +1311,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     final DetailedIFD existingIFD = reader.readSingleIFD(ifdIndex);
                     out.seek(existingIFD.getFileOffsetOfReading());
                     LOG.log(System.Logger.Level.DEBUG, () -> "Reading IFD #" + ifdIndex +
-                            " for non-sequential writing: " + existingIFD.toString(false));
+                            " for non-sequential writing: " + existingIFD);
                     ifd = existingIFD;
                 } catch (NoSuchElementException ignored) {
                     LOG.log(System.Logger.Level.DEBUG, () -> "IFD #" + ifdIndex +

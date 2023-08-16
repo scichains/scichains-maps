@@ -294,6 +294,10 @@ public final class TiffTile {
         return storedDataFileOffset >= 0;
     }
 
+    public long getStoredDataFileOffsetOrZero() {
+        return storedDataFileOffset < 0 ? 0 : storedDataFileOffset;
+    }
+
     public long getStoredDataFileOffset() {
         checkStoredFilePosition();
         return storedDataFileOffset;

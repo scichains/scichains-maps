@@ -54,7 +54,7 @@ public class TiffExtractTileContent {
         final int row = Integer.parseInt(args[startArgIndex++]);
         final int separatedPlaneIndex = startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 0;
 
-        TiffInfo.showTiffInfo(tiffFile, false);
+        new TiffInfo().showTiffInfo(tiffFile);
 
         final SCIFIO scifio = new SCIFIO();
         try (final Context context = scifio.getContext()) {
@@ -67,15 +67,17 @@ public class TiffExtractTileContent {
             TiffTile tile = reader.readEncodedTile(tileIndex);
             reader.correctEncodedJpegTile(tile);
             System.out.printf("Loaded tile:%n    %s%n", tile);
-            System.out.printf("    Compression format: %s%n", ifd.getCompression().getCodecName());
-            byte[] bytes = tile.getData();
-            System.out.printf("Tile saved in %s%n", resultFile);
-            Files.write(resultFile, bytes);
-            try {
-                tile = reader.readTile(tileIndex);
-                System.out.printf("Decoding the same (for verification): %s%n", tile);
-            } catch (FormatException | IOException e) {
-                System.err.printf("Cannot decode tile: %s%n", e);
+            if (!tile.isEmpty()) {
+                System.out.printf("    Compression format: %s%n", ifd.getCompression().getCodecName());
+                byte[] bytes = tile.getData();
+                System.out.printf("Tile saved in %s%n", resultFile);
+                Files.write(resultFile, bytes);
+                try {
+                    tile = reader.readTile(tileIndex);
+                    System.out.printf("Decoding the same (for verification): %s%n", tile);
+                } catch (FormatException | IOException e) {
+                    System.err.printf("Cannot decode tile: %s%n", e);
+                }
             }
         }
         System.out.println("Done");

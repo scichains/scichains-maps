@@ -125,7 +125,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean autoUnpackUnusualPrecisions = true;
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
-    private boolean use64BitOffsets = false;
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
     private boolean cachingIFDs = true;
@@ -1034,6 +1033,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     public void correctEncodedJpegTile(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
+        if (tile.isEmpty()) {
+            // - unlike full decoding, here it is better not to throw exception for empty tile
+            return;
+        }
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
         if (KnownTiffCompression.isJpeg(compression)) {

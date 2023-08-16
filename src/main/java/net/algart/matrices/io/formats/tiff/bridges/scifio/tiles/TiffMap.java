@@ -410,7 +410,7 @@ public final class TiffMap {
     @Override
     public String toString() {
         return "set of " + tileMap.size() + " TIFF tiles (grid " + gridTileCountX + "x" + gridTileCountY +
-                ") at the image " + ifd.toString(false);
+                ") at the image " + ifd;
     }
 
     @Override

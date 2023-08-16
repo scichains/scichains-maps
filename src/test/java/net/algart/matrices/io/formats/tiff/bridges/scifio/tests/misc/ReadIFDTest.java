@@ -69,13 +69,13 @@ public class ReadIFDTest {
             DetailedIFD firstIFD = reader.firstIFD();
             t2 = System.nanoTime();
 //        IFD firstIFD = new TiffParser(new SCIFIO().getContext(), new FileLocation(file.toFile())).getFirstIFD();
-            System.out.printf("First IFD: %s (%.6f mcs)%n", firstIFD.toString(false), (t2 - t1) * 1e-3);
+            System.out.printf("First IFD: %s (%.6f mcs)%n", firstIFD, (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
             t2 = System.nanoTime();
-            System.out.printf("IFD #%d: %s (%.6f mcs)%n", ifdIndex, ifd.toString(false), (t2 - t1) * 1e-3);
+            System.out.printf("IFD #%d: %s (%.6f mcs)%n", ifdIndex, ifd, (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
         }
 

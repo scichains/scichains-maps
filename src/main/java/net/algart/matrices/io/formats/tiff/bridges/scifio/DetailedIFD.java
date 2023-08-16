@@ -35,6 +35,18 @@ import java.util.function.Supplier;
 
 //!! Better analog of IFD (can be merged with the main IFD)
 public class DetailedIFD extends IFD {
+    public enum StringFormat {
+        BRIEF(true),
+        NORMAL(true),
+        DETAILED(false);
+        //TODO!! JSON
+        private final boolean compactArrays;
+
+        StringFormat(boolean compactArrays) {
+            this.compactArrays = compactArrays;
+        }
+    }
+
     public static final int ICC_PROFILE = 34675;
     public static final int MATTEING = 32995;
     public static final int DATA_TYPE = 32996;
@@ -909,10 +921,11 @@ public class DetailedIFD extends IFD {
 
     @Override
     public String toString() {
-        return toString(true);
+        return toString(StringFormat.BRIEF);
     }
 
-    public String toString(boolean detailed) {
+    public String toString(StringFormat format) {
+        Objects.requireNonNull(format, "Null format");
         final StringBuilder sb = new StringBuilder("IFD");
         sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
         long imageWidth = 0;
@@ -977,7 +990,7 @@ public class DetailedIFD extends IFD {
         if (hasNextIFDOffset()) {
             sb.append(isLastIFD() ? ", LAST" : ", next IFD at @%d=0x%X".formatted(nextIFDOffset, nextIFDOffset));
         }
-        if (!detailed) {
+        if (format == StringFormat.BRIEF) {
             return sb.toString();
         }
         final Map<Integer, TiffIFDEntry> entries = this.entries;
@@ -1025,7 +1038,7 @@ public class DetailedIFD extends IFD {
                 sb.append(v.getClass().getComponentType().getSimpleName());
                 sb.append("[").append(Array.getLength(v)).append("]");
                 sb.append(" {");
-                appendIFDArray(sb, v);
+                appendIFDArray(sb, v, format.compactArrays);
                 sb.append("}");
             } else {
                 sb.append(v);
@@ -1114,17 +1127,17 @@ public class DetailedIFD extends IFD {
         }
     }
 
-    private static void appendIFDArray(StringBuilder sb, Object v) {
+    private static void appendIFDArray(StringBuilder sb, Object v, boolean compact) {
         final int len = Array.getLength(v);
         if (v instanceof byte[] bytes) {
-            appendIFDBytesArray(sb, bytes);
+            appendIFDBytesArray(sb, bytes, compact);
             return;
         }
         final int left = v instanceof short[] || v instanceof char[] ? 25 : 10;
         final int right = v instanceof short[] || v instanceof char[] ? 10 : 5;
         final int mask = v instanceof short[] ? 0xFFFF : 0;
         for (int k = 0; k < len; k++) {
-            if (k == left && len >= left + 5 + right) {
+            if (compact && k == left && len >= left + 5 + right) {
                 sb.append(", ...");
                 k = len - right - 1;
                 continue;
@@ -1140,10 +1153,10 @@ public class DetailedIFD extends IFD {
         }
     }
 
-    private static void appendIFDBytesArray(StringBuilder sb, byte[] v) {
+    private static void appendIFDBytesArray(StringBuilder sb, byte[] v, boolean compact) {
         final int len = v.length;
         for (int k = 0; k < len; k++) {
-            if (k == 20 && len >= 35) {
+            if (compact && k == 20 && len >= 35) {
                 sb.append(", ...");
                 k = len - 11;
                 continue;

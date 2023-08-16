@@ -128,7 +128,7 @@ public class TiffReaderTest {
                 for (int test = 1; test <= numberOfTests; test++) {
                     if (test == 1 && repeat == 1) {
                         System.out.printf("Reading data %dx%dx%d from %s%n",
-                                w, h, bandCount, TiffInfo.ifdInfo(ifd, ifdIndex, ifds.size()));
+                                w, h, bandCount, new TiffInfo().ifdInfo(ifd, ifdIndex, ifds.size()));
                     }
                     t1 = System.nanoTime();
                     array = reader.readImageIntoArray(ifd, x, y, w, h);

@@ -36,16 +36,25 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 
 public class TiffInfo {
+    boolean strict = false;
+    boolean detailed = false;
+
+
     public static void main(String[] args) throws IOException, FormatException {
+        TiffInfo info = new TiffInfo();
         int startArgIndex = 0;
-        boolean strict = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-strict")) {
-            strict = true;
+            info.strict = true;
+            startArgIndex++;
+        }
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-detailed")) {
+            info.detailed = true;
             startArgIndex++;
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffInfo.class.getName() + " some_tiff_file.tif [firstIFDIndex lastIFDIndex]");
+            System.out.println("    " + TiffInfo.class.getName() + " [-strict] [-detailed] " +
+                    "some_tiff_file.tif [firstIFDIndex lastIFDIndex]");
             return;
         }
         final String fileName = args[startArgIndex];
@@ -59,18 +68,18 @@ public class TiffInfo {
             Arrays.sort(files);
             System.out.printf("Testing %d files%n", files.length);
             for (File f : files) {
-                showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex, strict);
+                info.showTiffInfo(f.toPath(), firstIFDIndex, lastIFDIndex);
             }
         } else {
-            showTiffInfo(Paths.get(fileName), firstIFDIndex, lastIFDIndex, strict);
+            info.showTiffInfo(Paths.get(fileName), firstIFDIndex, lastIFDIndex);
         }
     }
 
-    public static void showTiffInfo(Path tiffFile, boolean strict) throws IOException {
-        showTiffInfo(tiffFile, 0, Integer.MAX_VALUE, strict);
+    public void showTiffInfo(Path tiffFile) throws IOException {
+        showTiffInfo(tiffFile, 0, Integer.MAX_VALUE);
     }
 
-    public static void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex, boolean strict)
+    public void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex)
             throws IOException {
         try (TiffReader reader = new TiffReader(tiffFile, false)) {
             if (!reader.isValid()) {
@@ -101,9 +110,11 @@ public class TiffInfo {
         }
     }
 
-    public static String ifdInfo(DetailedIFD ifd, int ifdIndex, int ifdCount) {
-        final Long offset = ifd != null && ifd.hasFileOffsetOfReading() ? ifd.getFileOffsetOfReading() : null;
-        return "IFD #%d/%d: %s%n".formatted(ifdIndex, ifdCount, ifd);
+    public String ifdInfo(DetailedIFD ifd, int ifdIndex, int ifdCount) {
+        return "IFD #%d/%d: %s%n".formatted(
+                ifdIndex,
+                ifdCount,
+                ifd.toString(detailed ? DetailedIFD.StringFormat.DETAILED : DetailedIFD.StringFormat.NORMAL));
     }
 
     public static String extension(String fileName, String defaultExtension) {

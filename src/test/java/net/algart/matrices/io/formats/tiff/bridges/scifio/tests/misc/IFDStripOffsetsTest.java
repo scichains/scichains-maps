@@ -49,7 +49,10 @@ public class IFDStripOffsetsTest {
         long t1 = System.nanoTime();
         DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
         long t2 = System.nanoTime();
-        System.out.printf("IFD #%d: %s (%.6f ms)%n", ifdIndex, ifd.toString(false), (t2 - t1) * 1e-3);
+        System.out.printf("IFD #%d: %s (%.6f ms)%n",
+                ifdIndex,
+                ifd.toString(DetailedIFD.StringFormat.NORMAL),
+                (t2 - t1) * 1e-3);
         for (int test = 1; test <= 10; test++) {
             System.out.printf("%nTest %d:%n", test);
 
