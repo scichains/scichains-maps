@@ -859,6 +859,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    public TiffMap startNewImage(final DetailedIFD ifd, int numberOfChannels, int pixelType, boolean resizable)
+            throws FormatException {
+        Objects.requireNonNull(ifd, "Null IFD");
+        ifd.putPixelInformation(numberOfChannels, pixelType);
+        return startNewImage(ifd, resizable);
+    }
+
     public TiffMap startNewImage(final DetailedIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
@@ -936,25 +943,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void writeImage(
-            final DetailedIFD ifd, final byte[] samples,
-            final int numberOfChannels, final int pixelType, final boolean last) throws FormatException, IOException {
+            final DetailedIFD ifd, final byte[] samples) throws FormatException, IOException {
         Objects.requireNonNull(ifd, "Null IFD");
-        final int sizeX = ifd.getImageDimX();
-        final int sizeY = ifd.getImageDimY();
-        writeImage(ifd, samples, numberOfChannels, pixelType, 0, 0, sizeX, sizeY, last);
+        writeImage(ifd, samples, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
     }
 
     public void writeImage(
             final DetailedIFD ifd,
             byte[] samples,
-            final int numberOfChannels,
-            final int pixelType,
-            final int fromX, final int fromY, final int sizeX, final int sizeY,
-            final boolean lastIFD)
+            final int fromX, final int fromY, final int sizeX, final int sizeY)
             throws FormatException, IOException {
-        ifd.putPixelInformation(numberOfChannels, pixelType);
         TiffMap map = startNewImage(ifd, false);
-        writeImage(map, samples, fromX, fromY, sizeX, sizeY, lastIFD);
+        writeImage(map, samples, fromX, fromY, sizeX, sizeY, false);
     }
 
     public void writeImage(

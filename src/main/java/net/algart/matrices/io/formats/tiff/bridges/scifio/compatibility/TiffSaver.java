@@ -310,7 +310,10 @@ public class TiffSaver extends TiffWriter {
         overwriteIFDValue(in, 0, IFD.IMAGE_DESCRIPTION, value);
     }
 
-    @Deprecated
+
+    /**
+     *
+     */
     public void writeImage(final byte[][] buf, final IFDList ifds,
                            final int pixelType) throws FormatException, IOException {
         if (ifds == null) {
@@ -326,14 +329,35 @@ public class TiffSaver extends TiffWriter {
         }
     }
 
-    @Deprecated
-    public void writeImage(
-            final byte[] samples, final IFD ifd, final int planeIndex,
-            final int pixelType, final boolean last) throws FormatException, IOException {
-        writeImage(DetailedIFD.extend(ifd), samples, pixelType, planeIndex, last);
+    /**
+     *
+     */
+    public void writeImage(final byte[] buf, final IFD ifd, final int no,
+                           final int pixelType, final boolean last) throws FormatException, IOException {
+        if (ifd == null) {
+            throw new FormatException("IFD cannot be null");
+        }
+        final int w = (int) ifd.getImageWidth();
+        final int h = (int) ifd.getImageLength();
+        writeImage(buf, ifd, no, pixelType, 0, 0, w, h, last);
     }
 
-    @Deprecated
+    /**
+     * Writes to any rectangle from the passed block.
+     *
+     * @param buf        The block that is to be written.
+     * @param ifd        The Image File Directories. Mustn't be {@code null}.
+     * @param planeIndex The image index within the current file, starting from 0.
+     * @param pixelType  The type of pixels.
+     * @param x          The X-coordinate of the top-left corner.
+     * @param y          The Y-coordinate of the top-left corner.
+     * @param w          The width of the rectangle.
+     * @param h          The height of the rectangle.
+     * @param last       Pass {@code true} if it is the last image, {@code false}
+     *                   otherwise.
+     * @throws FormatException
+     * @throws IOException
+     */
     public void writeImage(final byte[] buf, final IFD ifd, final long planeIndex,
                            final int pixelType, final int x, final int y, final int w, final int h,
                            final boolean last) throws FormatException, IOException {
