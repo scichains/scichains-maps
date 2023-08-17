@@ -960,6 +960,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    public void completeWritingImage(final TiffMap map) throws IOException, FormatException {
+        completeWritingImage(map, false);
+    }
+
     public void completeWritingImage(final TiffMap map, final boolean lastImage) throws IOException, FormatException {
         Objects.requireNonNull(map, "Null TIFF map");
         final boolean resizable = map.isResizable();
@@ -1141,6 +1145,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         for (TiffTile tile : tiles) {
             if (!tile.isEmpty()) {
                 writeEncodedTile(tile, true);
+            }
+            if (tile.hasStoredDataFileOffset()) {
                 offsets[k] = tile.getStoredDataFileOffset();
                 byteCounts[k] = tile.getStoredDataLength();
             } else if (!missingTilesAllowed) {

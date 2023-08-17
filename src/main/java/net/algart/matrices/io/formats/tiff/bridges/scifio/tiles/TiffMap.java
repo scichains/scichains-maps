@@ -328,6 +328,16 @@ public final class TiffMap {
         return new TiffTileIndex(this, separatedPlaneIndex, x, y);
     }
 
+    public TiffTileIndex copyIndex(TiffTileIndex other) {
+        Objects.requireNonNull(other, "Null other index");
+        return new TiffTileIndex(this, other.channelPlane(), other.xIndex(), other.yIndex());
+    }
+
+    public TiffTileIndex copyIndex(TiffTile other) {
+        Objects.requireNonNull(other, "Null other tile");
+        return copyIndex(other.index());
+    }
+
     public void checkTileIndexIFD(TiffTileIndex tileIndex) {
         Objects.requireNonNull(tileIndex, "Null tile index");
         if (tileIndex.ifd() != this.ifd) {
@@ -384,12 +394,7 @@ public final class TiffMap {
         tileMap.put(tileIndex, tile);
     }
 
-    public void putAll(Collection<TiffTile> tiles) {
-        Objects.requireNonNull(tiles, "Null tiles");
-        tiles.forEach(this::put);
-    }
-
-    public void completeImageGrid() {
+    public TiffMap completeImageGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < gridTileCountY; y++) {
                 for (int x = 0; x < gridTileCountX; x++) {
@@ -397,6 +402,7 @@ public final class TiffMap {
                 }
             }
         }
+        return this;
     }
 
     public void cropAll(boolean nonTiledOnly) {
