@@ -1314,6 +1314,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
+        if (!ifd.hasImageDimensions()) {
+            ifd = new DetailedIFD(ifd);
+            // - do not change original IFD
+            ifd.putImageDimensions(157, 157);
+            // - some "fake" dimensions: necessary for normal work of getCompressionCodecOptions;
+            // this will work even if the original IFD is frozen for writing
+        }
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)

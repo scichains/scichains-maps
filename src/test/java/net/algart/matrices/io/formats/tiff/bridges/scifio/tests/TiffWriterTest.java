@@ -52,6 +52,11 @@ public class TiffWriterTest {
             noContext = true;
             startArgIndex++;
         }
+        boolean resizable = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-resizable")) {
+            resizable = true;
+            startArgIndex++;
+        }
         boolean interleaveOutside = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-interleaveOutside")) {
             interleaveOutside = true;
@@ -115,7 +120,8 @@ public class TiffWriterTest {
         if (args.length < startArgIndex + 2) {
             System.out.println("Usage:");
             System.out.println("    " + TiffWriterTest.class.getName() +
-                    " [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] [-tiled] [-planarSeparated] " +
+                    " [-resizable] [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] " +
+                    "[-tiled] [-planarSeparated] " +
                     "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
                     "[x y width height [number_of_tests]]");
             return;
@@ -220,7 +226,7 @@ public class TiffWriterTest {
                             ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
                         }
                     }
-                    TiffMap map = writer.startNewImage(ifd, false);
+                    TiffMap map = writer.startNewImage(ifd, resizable);
 
                     if (k == 0) {
                         writer.startWriting();
