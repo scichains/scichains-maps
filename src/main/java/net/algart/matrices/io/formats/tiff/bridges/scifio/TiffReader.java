@@ -127,7 +127,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
     private boolean cachingIFDs = true;
-    private byte filler = 0;
+    private byte byteFiller = 0;
 
     private final Exception openingException;
     private final DataHandle<Location> in;
@@ -358,8 +358,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public byte getFiller() {
-        return filler;
+    public byte getByteFiller() {
+        return byteFiller;
     }
 
     /**
@@ -369,11 +369,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <p><b>Warning!</b> If you want to work with non-8-bit TIFF, especially float precision, you should
      * preserve default 0 value, in other case results could be very strange.
      *
-     * @param filler new filler.
+     * @param byteFiller new filler.
      * @return a reference to this object.
      */
-    public TiffReader setFiller(byte filler) {
-        this.filler = filler;
+    public TiffReader setByteFiller(byte byteFiller) {
+        this.byteFiller = byteFiller;
         return this;
     }
 
@@ -442,7 +442,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return this.firstIFD;
         }
         final long offset = readFirstIFDOffset();
-        firstIFD = readIFDStartingFrom(offset);
+        firstIFD = readIFDAt(offset);
         if (cachingIFDs) {
             this.firstIFD = firstIFD;
         }
@@ -466,7 +466,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         ifds = new ArrayList<>();
 
         for (final long offset : offsets) {
-            final DetailedIFD ifd = readIFDStartingFrom(offset);
+            final DetailedIFD ifd = readIFDAt(offset);
             if (ifd == null) {
                 continue;
             }
@@ -484,7 +484,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
-                    final DetailedIFD sub = readIFDStartingFrom(subOffset, IFD.SUB_IFD, false);
+                    final DetailedIFD sub = readIFDAt(subOffset, IFD.SUB_IFD, false);
                     if (sub != null) {
                         ifds.add(sub);
                     }
@@ -545,7 +545,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         for (final DetailedIFD ifd : ifds) {
             final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
             if (offset != 0) {
-                final DetailedIFD exifIFD = readIFDStartingFrom(offset, IFD.EXIF, false);
+                final DetailedIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
                 if (exifIFD != null) {
                     exif.add(exifIFD);
                 }
@@ -619,18 +619,18 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new NoSuchElementException("No IFD #" + ifdIndex + " in TIFF" + prettyInName()
                     + ": too large index");
         }
-        return readIFDStartingFrom(startOffset);
+        return readIFDAt(startOffset);
     }
 
     /**
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFDStartingFrom(long startOffset) throws IOException {
-        return readIFDStartingFrom(startOffset, null, true);
+    public DetailedIFD readIFDAt(long startOffset) throws IOException {
+        return readIFDAt(startOffset, null, true);
     }
 
-    public DetailedIFD readIFDStartingFrom(final long startOffset, Integer subIFDType, boolean readNextOffset)
+    public DetailedIFD readIFDAt(final long startOffset, Integer subIFDType, boolean readNextOffset)
             throws IOException {
         if (startOffset < 0) {
             throw new IllegalArgumentException("Negative file offset = " + startOffset);
@@ -699,7 +699,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 break;
             }
 
-            final Object value = readIFDValueStartingFromCurrentPosition(entry);
+            final Object value = readIFDValueAtCurrentPosition(entry);
             // Deprecated solution: "fillInIFD" technique is no longer used
             // if (valueOffset != in.offset() && !cachingIFDs) {
             //     value = entry;
@@ -741,7 +741,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Retrieve the value corresponding to the given TiffIFDEntry.
      * Sometimes used to postpone actual reading data until actual necessity.
      */
-    public Object readIFDValueStartingFromCurrentPosition(final TiffIFDEntry entry) throws IOException {
+    public Object readIFDValueAtCurrentPosition(final TiffIFDEntry entry) throws IOException {
         final IFDType type = entry.getType();
         final int count = entry.getValueCount();
         final long offset = entry.getValueOffset();
@@ -1168,7 +1168,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         // - note: we allow this area to be outside the image
-        final TiffMap map = new TiffMap(ifd, false);
+        final TiffMap map = new TiffMap(ifd);
         final int numberOfChannels = map.numberOfChannels();
         final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
         // - also checks that sizeX/sizeY are allowed and that
@@ -1180,9 +1180,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return samples;
         }
 
-        if (filler != 0) {
+        if (byteFiller != 0) {
             // - samples array is already zero-filled by Java
-            Arrays.fill(samples, 0, size, filler);
+            Arrays.fill(samples, 0, size, byteFiller);
         }
         // - important for a case when the requested area is outside the image;
         // old SCIFIO code did not check this and could return undefined results

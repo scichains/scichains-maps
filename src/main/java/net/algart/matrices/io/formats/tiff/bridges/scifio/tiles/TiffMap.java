@@ -77,6 +77,10 @@ public final class TiffMap {
     private volatile int gridTileCountY = 0;
     private volatile int numberOfGridTiles = 0;
 
+    public TiffMap(DetailedIFD ifd) {
+        this(ifd, false);
+    }
+
     /**
      * Creates new tile map.
      *

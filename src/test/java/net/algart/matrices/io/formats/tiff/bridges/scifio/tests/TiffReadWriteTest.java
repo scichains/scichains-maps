@@ -112,7 +112,7 @@ public class TiffReadWriteTest {
             System.out.printf("Test #%d%n", test);
             try (Context context = noContext ? null : scifio.getContext()) {
                 TiffReader reader = new TiffReader(context, sourceFile);
-                reader.setFiller((byte) 0xC0);
+                reader.setByteFiller((byte) 0xC0);
                 TiffWriter writer = new TiffWriter(context, targetFile);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);

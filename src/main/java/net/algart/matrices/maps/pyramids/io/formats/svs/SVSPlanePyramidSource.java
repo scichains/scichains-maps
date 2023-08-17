@@ -925,7 +925,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         private synchronized void init() throws IOException, FormatException {
             if (tiffReader == null) {
                 long t1 = System.nanoTime();
-                tiffReader = new CachingTiffReader(sciContext, svsFile).setFiller(TIFF_FILLER);
+                tiffReader = new CachingTiffReader(sciContext, svsFile).setByteFiller(TIFF_FILLER);
                 tiffReader.setInterleaveResults(true);
                 // - should be removed in future versions, returning unpacked planes
                 ifds = tiffReader.allIFDs();

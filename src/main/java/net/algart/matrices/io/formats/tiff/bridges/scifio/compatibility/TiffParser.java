@@ -195,7 +195,7 @@ public class TiffParser extends TiffReader {
         if (offset < 0 || offset >= getStream().length()) {
             return null;
         }
-        return super.readIFDStartingFrom(offset);
+        return super.readIFDAt(offset);
     }
 
     @Deprecated
@@ -218,7 +218,7 @@ public class TiffParser extends TiffReader {
 
     @Deprecated
     public Object getIFDValue(final TiffIFDEntry entry) throws IOException {
-        return super.readIFDValueStartingFromCurrentPosition(entry);
+        return super.readIFDValueAtCurrentPosition(entry);
     }
 
 
@@ -265,7 +265,7 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public byte[] getTile(final IFD ifd, byte[] buf, int row, final int col)
             throws FormatException, IOException {
-        TiffMap map = new TiffMap(DetailedIFD.extend(ifd), false);
+        TiffMap map = new TiffMap(DetailedIFD.extend(ifd));
         int planeIndex = 0;
         if (map.isPlanarSeparated()) {
             planeIndex = row / map.gridTileCountY();

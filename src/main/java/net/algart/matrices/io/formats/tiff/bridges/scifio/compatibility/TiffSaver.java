@@ -160,7 +160,7 @@ public class TiffSaver extends TiffWriter {
             final DataHandle<Location> extraOut,
             final long offset, final int tag, Object value)
             throws FormatException, IOException {
-        super.writeIFDValueStartingFromCurrentPosition(extraOut, offset, tag, value);
+        super.writeIFDValueAtCurrentPosition(extraOut, offset, tag, value);
     }
 
     /**

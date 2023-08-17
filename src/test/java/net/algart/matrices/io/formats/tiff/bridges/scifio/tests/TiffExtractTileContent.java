@@ -62,7 +62,7 @@ public class TiffExtractTileContent {
             System.out.printf("Opening %s by %s...%n", tiffFile, reader);
             final DetailedIFD ifd = reader.ifd(ifdIndex);
             System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
-            final TiffMap map = new TiffMap(ifd, false);
+            final TiffMap map = new TiffMap(ifd);
             final TiffTileIndex tileIndex = map.multiplaneIndex(separatedPlaneIndex, col, row);
             TiffTile tile = reader.readEncodedTile(tileIndex);
             reader.correctEncodedJpegTile(tile);

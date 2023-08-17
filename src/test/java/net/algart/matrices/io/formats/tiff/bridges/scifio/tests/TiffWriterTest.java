@@ -173,7 +173,7 @@ public class TiffWriterTest {
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
-                writer.setFiller((byte) 0xFF);
+                writer.setByteFiller((byte) 0xFF);
 //                writer.setTileInitializer(tile -> {
 //                    byte[] data = tile.getDecoded();
 //                    IntStream.range(0, data.length).forEach(k -> data[k] = (byte) k);

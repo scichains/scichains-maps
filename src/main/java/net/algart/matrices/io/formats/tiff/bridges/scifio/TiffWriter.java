@@ -115,8 +115,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private boolean jpegInPhotometricRGB = false;
     private double jpegQuality = 1.0;
     private PhotoInterp predefinedPhotoInterpretation = null;
-    private byte filler = 0;
-    private Consumer<TiffTile> tileInitializer = tiffTile -> Arrays.fill(tiffTile.getDecoded(), filler);
+    private byte byteFiller = 0;
+    private Consumer<TiffTile> tileInitializer = this::fillEmptyTile;
 
     private final DataHandle<Location> out;
     private final Location location;
@@ -367,12 +367,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public byte getFiller() {
-        return filler;
+    public byte getByteFiller() {
+        return byteFiller;
     }
 
-    public TiffWriter setFiller(byte filler) {
-        this.filler = filler;
+    public TiffWriter setByteFiller(byte byteFiller) {
+        this.byteFiller = byteFiller;
         return this;
     }
 
@@ -483,15 +483,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long offset = ifd.getFileOffsetForWriting();
         assert (offset & 0x1) == 0 : "DetailedIFD.setFileOffsetForWriting() has not check offset parity: " + offset;
 
-        writeIFDStartingFrom(ifd, offset, linkToNextIFDAfterFileEnd);
+        writeIFDAt(ifd, offset, linkToNextIFDAfterFileEnd);
     }
 
     public void writeIFDToEnd(DetailedIFD ifd, boolean linkToNextIFDAfterFileEnd) throws IOException {
-        writeIFDStartingFrom(ifd, out.length(), linkToNextIFDAfterFileEnd);
+        writeIFDAt(ifd, out.length(), linkToNextIFDAfterFileEnd);
     }
 
-    public void writeIFDStartingFrom(DetailedIFD ifd, long startOffset, boolean linkToNextIFDAfterFileEnd)
-            throws IOException {
+    public void writeIFDAt(DetailedIFD ifd, long startOffset, boolean linkToNextIFDAfterFileEnd) throws IOException {
         checkTooShortFile();
         ifd.setFileOffsetForWriting(startOffset);
         // - checks that startOffset is even and >= 0
@@ -526,7 +525,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param tag                      IFD tag to write.
      * @param value                    IFD value to write.
      */
-    public void writeIFDValueStartingFromCurrentPosition(
+    public void writeIFDValueAtCurrentPosition(
             final DataHandle<Location> extraBuffer,
             final long bufferOffsetInResultFile,
             final int tag,
@@ -1058,6 +1057,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeImage(map, samples, fromX, fromY, sizeX, sizeY, last);
     }
 
+    public void fillEmptyTile(TiffTile tiffTile) {
+        if (byteFiller != 0) {
+            // - Java-arrays are automatically filled by zero
+            Arrays.fill(tiffTile.getDecoded(), byteFiller);
+        }
+    }
+
     @Override
     public void close() throws IOException {
         if (autoMarkLastImageOnClose) {
@@ -1125,7 +1131,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long positionOfNextOffset;
         try (final DataHandle<Location> extraHandle = TiffTools.getBytesHandle(bytesLocation)) {
             for (final Map.Entry<Integer, Object> e : ifd.entrySet()) {
-                writeIFDValueStartingFromCurrentPosition(extraHandle, afterMain, e.getKey(), e.getValue());
+                writeIFDValueAtCurrentPosition(extraHandle, afterMain, e.getKey(), e.getValue());
             }
 
             positionOfNextOffset = out.offset();
