@@ -83,7 +83,7 @@ public class TiffCopyTest {
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readIFD);
 
                     DetailedIFD writeIFD = new DetailedIFD(readIFD);
-                    final TiffMap readMap = new TiffMap(readIFD).completeImageGrid();
+                    final TiffMap readMap = new TiffMap(readIFD);
                     final TiffMap writeMap = writer.startNewImage(writeIFD, false);
                     writer.writeForward(writeMap);
                     int k = 0, n = writeMap.size();
