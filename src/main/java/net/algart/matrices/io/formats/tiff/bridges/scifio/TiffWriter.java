@@ -1318,8 +1318,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             ifd = new DetailedIFD(ifd);
             // - do not change original IFD
             ifd.putImageDimensions(157, 157);
-            // - some "fake" dimensions: necessary for normal work of getCompressionCodecOptions;
+            // - Some "fake" dimensions: necessary for normal work of getCompressionCodecOptions;
             // this will work even if the original IFD is frozen for writing
+            // See https://github.com/scifio/scifio/issues/516
         }
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
         if (customCodec instanceof ExtendedJPEGCodec) {
