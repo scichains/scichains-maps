@@ -231,7 +231,7 @@ public class TiffWriterTest {
                         samplesArray = TiffTools.toInterleavedSamples(
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
-                    writer.writeImageFromArray(map, samplesArray, x, y, w, h, k == numberOfImages - 1);
+                    writer.writeImageFromArray(map, samplesArray, x, y, w, h);
                 }
             }
         }

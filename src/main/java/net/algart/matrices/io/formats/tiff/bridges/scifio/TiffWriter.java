@@ -437,9 +437,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     littleEndian = reader.isLittleEndian();
                     readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
                 }
-                //noinspection resource
-                setBigTiff(bigTiff).setLittleEndian(littleEndian);
-                writeOffset(out.length(), readerPositionOfLastOffset);
+                this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
+                writeOffsetAt(out.length(), readerPositionOfLastOffset, true);
                 out.seek(out.length());
                 // - we are ready to write after the end of the file
             } else {
@@ -465,9 +464,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     out.writeShort(0);
 
                     // write the offset to the first IFD for BigTIFF files
-                    out.writeLong(16);
+                    positionOfLastIFDOffset = out.offset();
+                    writeOffset(16);
                 } else {
-                    out.writeInt(8);
+                    positionOfLastIFDOffset = out.offset();
+                    writeOffset(8);
                 }
             }
             // - we are ready to write after the header
@@ -476,9 +477,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void rewriteLastImageMarker() throws IOException {
         if (positionOfLastIFDOffset < 0) {
-            throw new IllegalStateException("There are no new images (IFD) written to this TIFF file");
+            // - Nothing to do! Writing is not started yet.
+            return;
         }
-        writeOffset(0, positionOfLastIFDOffset);
+        checkVirginFile();
+        rewriteLastOffset(0);
     }
 
     public void rewriteIFD(final DetailedIFD ifd) throws IOException {
@@ -500,7 +503,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param linkToNextIFDAfterFileEnd whether the next IFD offset should be calculated automatically as the file
      *                                  end position and considered as a new
      *                                  {@link #positionOfLastIFDOffset() "position of last IFD offset"}.
-     * @throws IOException     in a case of any I/O errors.
+     * @throws IOException in a case of any I/O errors.
      */
     public void rewriteIFD(final DetailedIFD ifd, boolean linkToNextIFDAfterFileEnd) throws IOException {
         Objects.requireNonNull(ifd, "Null IFD");
@@ -518,7 +521,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void writeIFDAt(DetailedIFD ifd, long startOffset, boolean linkToNextIFDAfterFileEnd) throws IOException {
-        checkTooShortFile();
+        checkVirginFile();
         ifd.setFileOffsetForWriting(startOffset);
         // - checks that startOffset is even and >= 0
 
@@ -744,7 +747,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void writeEncodedTile(TiffTile tile, boolean freeAfterWriting) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
-        checkTooShortFile();
+        checkVirginFile();
         if (tile.isEmpty()) {
             return;
         }
@@ -983,6 +986,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (!ifd.hasFileOffsetForWriting()) {
             ifd.setFileOffsetForWriting(out.length());
         }
+        rewriteLastOffset(ifd.getFileOffsetForWriting());
+
         if (lastImage) {
             ifd.setLastIFD();
         }
@@ -1005,6 +1010,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromX, final int fromY, final int sizeX, final int sizeY)
             throws FormatException, IOException {
         TiffMap map = startNewImage(ifd, false);
+        writeImage(map, samples, fromX, fromY, sizeX, sizeY);
+    }
+
+    public void writeImage(
+            final TiffMap map,
+            byte[] samples,
+            final int fromX, final int fromY, final int sizeX, final int sizeY)
+            throws FormatException, IOException {
         writeImage(map, samples, fromX, fromY, sizeX, sizeY, false);
     }
 
@@ -1056,8 +1069,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     public void writeImageFromArray(
             final TiffMap map,
             Object samplesArray,
-            final int fromX, final int fromY, final int sizeX, final int sizeY,
-            final boolean last)
+            final int fromX, final int fromY, final int sizeX, final int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
@@ -1085,7 +1097,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             String.format(Locale.US, " %.3f MB/s",
                                     samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
-        writeImage(map, samples, fromX, fromY, sizeX, sizeY, last);
+        writeImage(map, samples, fromX, fromY, sizeX, sizeY);
     }
 
     public void fillEmptyTile(TiffTile tiffTile) {
@@ -1156,14 +1168,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeEncoding = 0;
     }
 
-    private void checkTooShortFile() throws IOException {
+    private void checkVirginFile() throws IOException {
+        if (positionOfLastIFDOffset < 0) {
+            throw new IllegalStateException("Writing to this TIFF file is not started yet");
+        }
         final boolean exists = out.exists();
         if (!exists || out.length() < (bigTiff ? 16 : 8)) {
+            // - very improbable, but can occur as a result of direct operations with output stream
             throw new IllegalStateException(
                     (exists ?
                             "Existing TIFF file is too short (" + out.length() + " bytes)" :
                             "TIFF file does not exists yet") +
-                            ": probably file header was not written by startWriting() method");
+                            ": probably file header was not written correctly by startWriting() method");
         }
     }
 
@@ -1212,13 +1228,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (linkToNextIFDAfterFileEnd) {
             final long offsetAfterEnd = out.length();
             ifd.setNextIFDOffset(offsetAfterEnd, true);
-            writeOffset(offsetAfterEnd, positionOfNextOffset);
+            writeOffsetAt(offsetAfterEnd, positionOfNextOffset, true);
         } else {
-            writeOffset(
+            writeOffsetAt(
                     ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : TEMPORARY_IFD_NEXT_OFFSET_MARKER,
-                    positionOfNextOffset);
+                    positionOfNextOffset, true);
         }
-        this.positionOfLastIFDOffset = positionOfNextOffset;
     }
 
     /**
@@ -1260,7 +1275,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    private void writeOffset(final long offset) throws IOException {
+    private void writeOffset(long offset) throws IOException {
         if (bigTiff) {
             out.writeLong(offset);
         } else {
@@ -1271,11 +1286,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    private void writeOffset(final long offset, long positionToWrite) throws IOException {
+    private void rewriteLastOffset(long offset) throws IOException {
+        writeOffsetAt(offset, positionOfLastIFDOffset, true);
+        // - last argument is not important: positionOfLastIFDOffset will not change in any case
+    }
+
+    private void writeOffsetAt(long offset, long positionToWrite, boolean updatePositionOfLastOffset)
+            throws IOException {
         final long savedPosition = out.offset();
         try {
             out.seek(positionToWrite);
             writeOffset(offset);
+            if (updatePositionOfLastOffset) {
+                positionOfLastIFDOffset = positionToWrite;
+            }
         } finally {
             out.seek(savedPosition);
         }
@@ -1360,6 +1384,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     //TODO!! remove following method
     private boolean writingSequentially = true;
+
     /**
      * Performs the actual work of dealing with IFD data and writing it to the
      * TIFF for a given image or sub-image.
