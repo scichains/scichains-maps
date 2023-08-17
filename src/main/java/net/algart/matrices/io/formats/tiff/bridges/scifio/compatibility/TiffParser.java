@@ -35,10 +35,12 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
+import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
 import org.scijava.util.IntRect;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -55,6 +57,13 @@ public class TiffParser extends TiffReader {
     // - Probably support of this feature was implemented incorrectly.
     // See https://github.com/scifio/scifio/issues/514
 
+    // This constructor is new for TiffParser: it is added for more convenience and
+    // compatibility with TiffReader constructor
+    public TiffParser(Context context, Path file) throws IOException {
+        this(context, new FileLocation(file.toFile()));
+    }
+
+
     public TiffParser(final Context context, final Location loc) {
         this(Objects.requireNonNull(context, "Null context"),
                 context.getService(DataHandleService.class).create(loc));
@@ -70,6 +79,8 @@ public class TiffParser extends TiffReader {
         this.setAutoUnpackUnusualPrecisions(false);
         this.setCropTilesToImageBoundaries(false);
         this.setExtendedCodec(false);
+        this.setMissingTilesAllowed(true);
+        // - This is an interesting undocumented feature: old TiffParser really supported missing tiles!
     }
 
     /**

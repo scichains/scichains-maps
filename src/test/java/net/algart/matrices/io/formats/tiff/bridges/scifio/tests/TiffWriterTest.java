@@ -72,6 +72,11 @@ public class TiffWriterTest {
             bigTiff = true;
             startArgIndex++;
         }
+        boolean allowMissing = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-allowMissing")) {
+            allowMissing = true;
+            startArgIndex++;
+        }
         boolean color = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-color")) {
             color = true;
@@ -173,11 +178,12 @@ public class TiffWriterTest {
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
-                writer.setByteFiller((byte) 0xFF);
+                writer.setByteFiller((byte) 0xE0);
 //                writer.setTileInitializer(tile -> {
 //                    byte[] data = tile.getDecoded();
 //                    IntStream.range(0, data.length).forEach(k -> data[k] = (byte) k);
 //                });
+                writer.setMissingTilesAllowed(allowMissing);
                 System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;

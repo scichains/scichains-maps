@@ -399,6 +399,12 @@ public final class TiffMap {
         }
     }
 
+    public void cropAll(boolean nonTiledOnly) {
+        for (TiffTile tile : tileMap.values()) {
+            tile.cropToMap(nonTiledOnly);
+        }
+    }
+
     public void clear(boolean clearDimensions) {
         tileMap.clear();
         if (clearDimensions) {

@@ -179,6 +179,16 @@ public final class TiffTile {
         return this;
     }
 
+    public TiffTile setEqualSizes(TiffTile other) {
+        Objects.requireNonNull(other,"Null other tile");
+        return setSizes(other.sizeX, other.sizeY);
+    }
+
+    public boolean equalSizes(TiffTile other) {
+        return other != null && sizeX == other.sizeX && sizeY == other.sizeY;
+        // - note: there is no sense to check samplesPerPixel, it is not a "size", but property of pixel format
+    }
+
     public int getSizeInPixels() {
         return sizeInPixels;
     }
@@ -236,18 +246,14 @@ public final class TiffTile {
         return setData(data, true);
     }
 
-    public byte[] getDecodedOrNew(Consumer<TiffTile> initializer) {
-        if (isEncoded()) {
-            throw new IllegalStateException("TIFF tile data are encoded and " +
-                    "cannot be updated in decoded form: " + this);
-        }
+    public TiffTile fillEmpty(Consumer<TiffTile> initializer) {
         if (isEmpty()) {
             setDecoded(new byte[sizeInBytes]);
             if (initializer != null) {
                 initializer.accept(this);
             }
         }
-        return getDecoded();
+        return this;
     }
 
     public byte[] getDecoded() {
@@ -286,10 +292,6 @@ public final class TiffTile {
 
     public boolean hasStoredDataFileOffset() {
         return storedDataFileOffset >= 0;
-    }
-
-    public long getStoredDataFileOffsetOrZero() {
-        return storedDataFileOffset < 0 ? 0 : storedDataFileOffset;
     }
 
     public long getStoredDataFileOffset() {
@@ -445,7 +447,7 @@ public final class TiffTile {
                 (interleaved ? " interleaved" : "") +
                 " tile" +
                 (isEmpty() ?
-                        ", empty" :
+                        ", empty " + sizeX + "x" + sizeY :
                         ", actual sizes " + sizeX + "x" + sizeY + " (" +
                                 storedNumberOfPixels + " pixels, " + storedDataLength + " bytes)") +
                 ", index " + index +

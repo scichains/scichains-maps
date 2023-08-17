@@ -115,6 +115,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private boolean jpegInPhotometricRGB = false;
     private double jpegQuality = 1.0;
     private PhotoInterp predefinedPhotoInterpretation = null;
+    private boolean missingTilesAllowed = false;
     private byte byteFiller = 0;
     private Consumer<TiffTile> tileInitializer = this::fillEmptyTile;
 
@@ -364,6 +365,32 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public TiffWriter setPredefinedPhotoInterpretation(PhotoInterp predefinedPhotoInterpretation) {
         this.predefinedPhotoInterpretation = predefinedPhotoInterpretation;
+        return this;
+    }
+
+    public boolean isMissingTilesAllowed() {
+        return missingTilesAllowed;
+    }
+
+    /**
+     * Sets the special mode, when TIFF file is allowed to contain "missing" tiles or strips,
+     * for which the offset (<tt>TileOffsets</tt> or <tt>StripOffsets</tt> tag) and/or
+     * byte count (<tt>TileByteCounts</tt> or <tt>StripByteCounts</tt> tag) contains zero value.
+     * In this mode, this writer will use zero offset and byte count, if
+     * the written tile is actually empty &mdash; no pixels were written in it via
+     * {@link #updateTiles(TiffMap, byte[], int, int, int, int)} or other methods.
+     * In other case, this writer will create a normal tile, filled by
+     * the {@link #setByteFiller(byte) default filler}.
+     *
+     * <p>Default value is <tt>false</tt>. Note that <tt>true</tt> value violates requirement of
+     * the standard TIFF format (but may be used by some non-standard software, which needs to
+     * detect areas, not containing any actual data).
+     *
+     * @param missingTilesAllowed whether "missing" tiles/strips are allowed.
+     * @return a reference to this object.
+     */
+    public TiffWriter setMissingTilesAllowed(boolean missingTilesAllowed) {
+        this.missingTilesAllowed = missingTilesAllowed;
         return this;
     }
 
@@ -715,17 +742,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeEncodedTile(tile, true);
     }
 
-    public boolean writeEncodedTile(TiffTile tile, boolean freeAfterWriting) throws IOException {
+    public void writeEncodedTile(TiffTile tile, boolean freeAfterWriting) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         checkTooShortFile();
         if (tile.isEmpty()) {
-            return false;
+            return;
         }
         long t1 = debugTime();
         TiffTileIO.writeToEnd(tile, out, freeAfterWriting);
         long t2 = debugTime();
         timeWriting += t2 - t1;
-        return true;
     }
 
     public void updateTiles(
@@ -780,9 +806,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // It is important for writing: without this correction, GIMP and other libtiff-based programs
                     // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
                     // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
+                    tile.fillEmpty(tileInitializer);
                     final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
                     final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
-                    final byte[] data = tile.getDecodedOrNew(tileInitializer);
+                    final byte[] data = tile.getDecoded();
                     // - if the tile already exists, we will accurately update its content
                     if (!planarSeparated && !autoInterleave) {
                         // - Source data are already interleaved (like RGBRGB...): maybe, external code prefers
@@ -897,9 +924,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             ifd.removeImageDimensions();
         } else {
             map.completeImageGrid();
+            map.cropAll(true);
+            // - necessary for tiles, that were not filled by any pixels (empty tiles)
             final long[] offsets = new long[map.numberOfGridTiles()];
             final long[] byteCounts = new long[map.numberOfGridTiles()];
-            // - zero-filled by Java:
+            // - zero-filled by Java
             ifd.updateDataPositioning(offsets, byteCounts);
         }
         ifd.freezeForWriting();
@@ -928,26 +957,28 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void completeWritingImage(final TiffMap map, final boolean lastImage) throws IOException {
+    public void completeWritingImage(final TiffMap map, final boolean lastImage) throws IOException, FormatException {
         Objects.requireNonNull(map, "Null TIFF map");
         final boolean resizable = map.isResizable();
         map.checkDimensions();
         if (resizable) {
             map.completeImageGrid();
+            map.cropAll(true);
         }
 
-        Collection<TiffTile> tiles = map.all();
-        for (TiffTile tile : tiles) {
-            writeEncodedTile(tile, true);
-        }
+        encode(map);
+        // - encode tiles, which are not encoded yet
+
+        final long[] offsets = new long[map.numberOfGridTiles()];
+        final long[] byteCounts = new long[map.numberOfGridTiles()];
+        // - zero-filled by Java
+        writeTiles(map, offsets, byteCounts);
         appendUntilEvenPosition(out);
 
         final DetailedIFD ifd = map.ifd();
         if (resizable) {
             ifd.updateImageDimensions(map.dimX(), map.dimY());
         }
-        final long[] offsets = tiles.stream().mapToLong(TiffTile::getStoredDataFileOffsetOrZero).toArray();
-        final long[] byteCounts = tiles.stream().mapToLong(TiffTile::getStoredDataLength).toArray();
         ifd.updateDataPositioning(offsets, byteCounts);
         if (!ifd.hasFileOffsetForWriting()) {
             ifd.setFileOffsetForWriting(out.length());
@@ -1085,6 +1116,37 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // scifio.tiff().difference(tile.getDecodedData(), ifd);
         // - this solution requires using SCIFIO context class; it is better to avoid this
         TiffTools.differenceIfRequested(tile);
+    }
+
+    private void writeTiles(TiffMap map, long[] offsets, long[] byteCounts) throws IOException, FormatException {
+        Collection<TiffTile> tiles = map.all();
+        if (tiles.size() != offsets.length) {
+            throw new AssertionError("Invalid map: number of tiles " + tiles.size() +
+                    " does not match number of grid cells " + map.numberOfGridTiles());
+        }
+        TiffTile empty = null;
+        int k = 0;
+        for (TiffTile tile : tiles) {
+            if (!tile.isEmpty()) {
+                writeEncodedTile(tile, true);
+                offsets[k] = tile.getStoredDataFileOffset();
+                byteCounts[k] = tile.getStoredDataLength();
+            } else if (!missingTilesAllowed) {
+                if (!tile.equalSizes(empty)) {
+                    // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
+                    // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
+                    empty = new TiffTile(tile.index()).setEqualSizes(tile);
+                    empty.fillEmpty(tileInitializer);
+                    encode(empty);
+                    writeEncodedTile(empty, false);
+                    // - note: unlike usual tiles, the empty tile is written once,
+                    // but its offset/byte-count are used many times!
+                }
+                offsets[k] = empty.getStoredDataFileOffset();
+                byteCounts[k] = empty.getStoredDataLength();
+            } // else offsets[k]/byteCounts[k] stay to be zero
+            k++;
+        }
     }
 
     private void clearTime() {

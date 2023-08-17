@@ -127,6 +127,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean assumeEqualStrips = false;
     private boolean yCbCrCorrection = true;
     private boolean cachingIFDs = true;
+    private boolean missingTilesAllowed = false;
     private byte byteFiller = 0;
 
     private final Exception openingException;
@@ -355,6 +356,28 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     public TiffReader setCachingIFDs(final boolean cachingIFDs) {
         this.cachingIFDs = cachingIFDs;
+        return this;
+    }
+
+    public boolean isMissingTilesAllowed() {
+        return missingTilesAllowed;
+    }
+
+    /**
+     * Sets the special mode, when TIFF file is allowed to contain "missing" tiles or strips,
+     * for which the offset (<tt>TileOffsets</tt> or <tt>StripOffsets</tt> tag) and/or
+     * byte count (<tt>TileByteCounts</tt> or <tt>StripByteCounts</tt> tag) contains zero value.
+     * In this mode, such tiles/strips will be successfully read as empty rectangles, filled by
+     * the {@link #setByteFiller(byte) default filler}.
+     *
+     * <p>Default value is <tt>false</tt>. In this case, such tiles/strips are not allowed,
+     * as the standard TIFF format requires.
+     *
+     * @param missingTilesAllowed whether "missing" tiles/strips are allowed.
+     * @return a reference to this object.
+     */
+    public TiffReader setMissingTilesAllowed(boolean missingTilesAllowed) {
+        this.missingTilesAllowed = missingTilesAllowed;
         return this;
     }
 
@@ -956,6 +979,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
         // filled in getIFDValue(TiffIFDEntry)
         final long offset = ifd.cachedTileOrStripOffset(index);
+        assert offset >= 0 : "offset " + offset + " was not checked in DetailedIFD";
+        if (offset >= in.length()) {
+            throw new FormatException("Offset of TIFF tile/strip " + offset + " is out of file length (tile " +
+                    tileIndex + ")");
+            // - note: old SCIFIO code allowed such offsets and returned zero-filled tile
+        }
         final int byteCount = ifd.cachedTileOrStripByteCount(countIndex);
         /*
         // Some strange old code, seems to be useless
@@ -978,9 +1007,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // If cropping is disabled, we should not avoid reading extra content of the last strip.
         // Note the last encoded strip can have actually full strip sizes,
         // i.e. larger than necessary; this situation is quite possible.
-        if (byteCount == 0 || offset < 0 || offset >= in.length()) {
-            // - We support a special case of empty result
-            return result;
+        if (byteCount == 0 || offset == 0) {
+            if (missingTilesAllowed) {
+                return result;
+            } else {
+                throw new FormatException("Zero tile/strip " + (byteCount == 0 ? "byte-count" : "offset")
+                        + " is not allowed in a valid TIFF file (tile " + tileIndex + ")");
+            }
         }
 
         TiffTileIO.read(result, in, offset, byteCount);
