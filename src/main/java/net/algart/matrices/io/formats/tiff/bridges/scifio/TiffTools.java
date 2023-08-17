@@ -100,14 +100,14 @@ public class TiffTools {
         };
     }
 
-    public static int arrayToPixelType(Object javaArray, boolean signed) {
+    public static int arrayToPixelType(Object javaArray, boolean signedIntegers) {
         Objects.requireNonNull(javaArray, "Null Java array");
         Class<?> elementType = javaArray.getClass().getComponentType();
         if (elementType == null) {
             throw new IllegalArgumentException("The specified javaArray is not actual an array: " +
                     "it is " + javaArray.getClass());
         }
-        return elementTypeToPixelType(elementType, signed);
+        return elementTypeToPixelType(elementType, signedIntegers);
     }
 
     public static int elementTypeToPixelType(Class<?> elementType, boolean signedIntegers) {

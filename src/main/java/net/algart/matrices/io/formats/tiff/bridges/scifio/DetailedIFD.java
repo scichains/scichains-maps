@@ -287,6 +287,51 @@ public class DetailedIFD extends IFD {
         assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
+    public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
+        Objects.requireNonNull(requiredClass, "Null requiredClass");
+        Object value = get(tag);
+        if (!requiredClass.isInstance(value)) {
+            // - in particular, if value == null
+            return Optional.empty();
+        }
+        return Optional.of(requiredClass.cast(value));
+    }
+
+    public <R> Optional<R> getValue(final int tag, final Class<? extends R> requiredClass) throws FormatException {
+        Objects.requireNonNull(requiredClass, "Null requiredClass");
+        Object value = get(tag);
+        if (value == null) {
+            return Optional.empty();
+        }
+        if (!requiredClass.isInstance(value)) {
+            throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
+                    " has wrong type " + value.getClass().getSimpleName() +
+                    " instead of expected " + requiredClass.getSimpleName());
+        }
+        return Optional.of(requiredClass.cast(value));
+    }
+
+    public <R> R reqValue(final int tag, final Class<? extends R> requiredClass) throws FormatException {
+        return getValue(tag, requiredClass).orElseThrow(() -> new FormatException(
+                "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
+    }
+
+    public boolean optBoolean(int tag, boolean defaultValue) {
+        return optValue(tag, Boolean.class).orElse(defaultValue);
+    }
+
+    // This method is overridden with change of behaviour: it never throws exception and returns false instead.
+    @Override
+    public boolean isBigTiff() {
+        return optBoolean(BIG_TIFF, false);
+    }
+
+    // This method is overridden with change of behaviour: it never throws exception and returns false instead.
+    @Override
+    public boolean isLittleEndian() {
+        return optBoolean(LITTLE_ENDIAN, false);
+    }
+
     // This method is overridden to check that result is positive and to avoid exception for illegal compression.
     @Override
     public int getSamplesPerPixel() throws FormatException {
@@ -690,6 +735,10 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
+    public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType) {
+        return putPixelInformation(numberOfChannels, elementType, false);
+    }
+
     public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
         return putPixelInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
     }
@@ -883,7 +932,7 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Incorrect offsets array (" +
                     offsets.length + " values) or byte-counts array (" + byteCounts.length +
                     " values) not equal to " + totalCount + " - actual number of " +
-                    (tiled ? "tiles, " + tilesPerRow + " x " + tilesPerColumn:
+                    (tiled ? "tiles, " + tilesPerRow + " x " + tilesPerColumn :
                             "strips, " + tilesPerColumn) +
                     (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
@@ -947,7 +996,7 @@ public class DetailedIFD extends IFD {
         } catch (Exception e) {
             sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("]");
         }
-        try{
+        try {
             final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
             final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
             sb.append("%s, precision %s%s, ".formatted(
