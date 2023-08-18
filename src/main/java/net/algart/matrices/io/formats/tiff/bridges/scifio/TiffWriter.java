@@ -94,9 +94,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * #L%
      */
 
-    static final int TEMPORARY_IFD_NEXT_OFFSET_MARKER = -1;
-    // - usually lies outside any correct file; in Big-TIFF it will be saved as 2^64-1
-
     private static final boolean AVOID_LONG8_FOR_ACTUAL_32_BITS = true;
     // - If was necessary for some old programs (like Aperio Image Viewer), which
     // did not understand LONG8 values for some popular tags like image sizes.
@@ -108,7 +105,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private boolean appendToExisting = false;
     private boolean bigTiff = false;
-    private boolean autoMarkLastImageOnClose = true;
     private boolean autoInterleaveSource = true;
     private CodecOptions codecOptions;
     private boolean extendedCodec = true;
@@ -212,31 +208,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isAutoMarkLastImageOnClose() {
-        return autoMarkLastImageOnClose;
-    }
-
-    /**
-     * Sets the mode, when the last image, written to the end of file by this object,
-     * is automatically marked as last TIFF image while closing.
-     * To do this, {@link #close()} method automatically corrects the last offset,
-     * saved into the file at the {@link #positionOfLastIFDOffset()} &mdash;
-     * namely, writes <tt>0</tt> into this position (standard value for the last TIFF image).
-     * It allows fo avoid direct usage of <tt>lastImage</tt> argument of <tt>writeImage</tt> methods.
-     *
-     * <p>Note: this behaviour is correct only while "sequential" usage, when you write images
-     * to the file from the first to the last one. If you write images in a random order (not a good idea),
-     * you should disable this flag and directly mark the last image by <tt>lastImage</tt> argument of
-     * <tt>writeImage</tt> methods.
-     *
-     * @param autoMarkLastImageOnClose whether do you want to rewrite next offset of the last image to zero value
-     *                                 automatically while closing. Default value is <tt>true</tt>.
-     * @return a reference to this object.
-     */
-    public TiffWriter setAutoMarkLastImageOnClose(boolean autoMarkLastImageOnClose) {
-        this.autoMarkLastImageOnClose = autoMarkLastImageOnClose;
-        return this;
-    }
 
     public boolean isAutoInterleaveSource() {
         return autoInterleaveSource;
@@ -414,7 +385,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     /**
      * Returns position in the file of the last IFD offset, written by methods of this object.
-     * It is updated by {@link #rewriteIFD(DetailedIFD, boolean)}.
+     * It is updated by {@link #rewriteIFD(DetailedIFD)}.
      *
      * <p>Immediately after creating new object this position is <tt>-1</tt>.
      *
@@ -475,19 +446,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void rewriteLastImageMarker() throws IOException {
-        if (positionOfLastIFDOffset < 0) {
-            // - Nothing to do! Writing is not started yet.
-            return;
-        }
-        checkVirginFile();
-        rewriteLastOffset(0);
-    }
-
-    public void rewriteIFD(final DetailedIFD ifd) throws IOException {
-        rewriteIFD(ifd, false);
-    }
-
     /**
      * Writes IFD at the position, specified by {@link DetailedIFD#setFileOffsetForWriting(long)}.
      *
@@ -500,12 +458,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>Note: this method changes position in the output stream.
      *
      * @param ifd                       IFD to write in the output stream.
-     * @param linkToNextIFDAfterFileEnd whether the next IFD offset should be calculated automatically as the file
-     *                                  end position and considered as a new
-     *                                  {@link #positionOfLastIFDOffset() "position of last IFD offset"}.
      * @throws IOException in a case of any I/O errors.
      */
-    public void rewriteIFD(final DetailedIFD ifd, boolean linkToNextIFDAfterFileEnd) throws IOException {
+    public void rewriteIFD(final DetailedIFD ifd) throws IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (!ifd.hasFileOffsetForWriting()) {
             throw new IllegalArgumentException("Offset for writing IFD is not specified");
@@ -513,14 +468,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long offset = ifd.getFileOffsetForWriting();
         assert (offset & 0x1) == 0 : "DetailedIFD.setFileOffsetForWriting() has not check offset parity: " + offset;
 
-        writeIFDAt(ifd, offset, linkToNextIFDAfterFileEnd);
+        writeIFDAt(ifd, offset);
     }
 
-    public void writeIFDToEnd(DetailedIFD ifd, boolean linkToNextIFDAfterFileEnd) throws IOException {
-        writeIFDAt(ifd, out.length(), linkToNextIFDAfterFileEnd);
-    }
-
-    public void writeIFDAt(DetailedIFD ifd, long startOffset, boolean linkToNextIFDAfterFileEnd) throws IOException {
+    public void writeIFDAt(DetailedIFD ifd, long startOffset) throws IOException {
         checkVirginFile();
         ifd.setFileOffsetForWriting(startOffset);
         // - checks that startOffset is even and >= 0
@@ -532,7 +483,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeIFDNumberOfEntries(numberOfEntries);
 
         final long positionOfNextOffset = writeIFDEntries(sortedIFD, startOffset, mainIFDLength);
-        writeIFDNextOffset(ifd, positionOfNextOffset, linkToNextIFDAfterFileEnd);
+        writeIFDNextOffset(ifd, positionOfNextOffset);
     }
 
 
@@ -540,7 +491,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * Writes the given IFD value to the {@link #getStream() main output stream}, excepting "extra" data,
      * which are written into the specified <tt>extraBuffer</tt>. After calling this method, you
      * should copy full content of <tt>extraBuffer</tt> into the main stream at the position,
-     * specified by the 2nd argument; {@link #rewriteIFD(DetailedIFD, boolean)} method does it automatically.
+     * specified by the 2nd argument; {@link #rewriteIFD(DetailedIFD)} method does it automatically.
      *
      * <p>Here "extra" data means all data, for which IFD contains their offsets instead of data itself,
      * like arrays or text strings. The "main" data is 12-byte IFD record (20-byte for Big-TIFF),
@@ -956,7 +907,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         final DetailedIFD ifd = map.ifd();
         if (!ifd.hasFileOffsetForWriting()) {
-            writeIFDToEnd(ifd, false);
+            final long newNextIFDOffset = out.length();
+            rewritePreviousLastOffset(newNextIFDOffset);
+            writeIFDAt(ifd, newNextIFDOffset);
         }
     }
 
@@ -988,14 +941,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         ifd.updateDataPositioning(offsets, byteCounts);
         if (!ifd.hasFileOffsetForWriting()) {
-            ifd.setFileOffsetForWriting(out.length());
+            // - usually it means that we did not call writeForward
+            final long newNextIFDOffset = out.length();
+            rewritePreviousLastOffset(newNextIFDOffset);
+            ifd.setFileOffsetForWriting(newNextIFDOffset);
         }
-        rewriteLastOffset(ifd.getFileOffsetForWriting());
-
-        if (lastImage) {
-            ifd.setLastIFD();
-        }
-        rewriteIFD(ifd, !lastImage);
+        rewriteIFD(ifd);
 
         out.seek(out.length());
         // - this seeking to file end is not necessary, but this is much better than
@@ -1113,9 +1064,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (autoMarkLastImageOnClose) {
-            rewriteLastImageMarker();
-        }
         out.close();
     }
 
@@ -1219,7 +1167,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
 
             positionOfNextOffset = out.offset();
-            writeOffset(TEMPORARY_IFD_NEXT_OFFSET_MARKER);
+            writeOffset(DetailedIFD.LAST_IFD_OFFSET);
             // - not too important: will be rewritten in writeIFDNextOffset
             final int extraLength = (int) extraHandle.offset();
             extraHandle.seek(0L);
@@ -1229,17 +1177,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return positionOfNextOffset;
     }
 
-    private void writeIFDNextOffset(DetailedIFD ifd, long positionOfNextOffset, boolean linkToNextIFDAfterFileEnd)
+    private void writeIFDNextOffset(DetailedIFD ifd, long positionOfNextOffset)
             throws IOException {
-        if (linkToNextIFDAfterFileEnd) {
-            final long offsetAfterEnd = out.length();
-            ifd.setNextIFDOffset(offsetAfterEnd, true);
-            writeOffsetAt(offsetAfterEnd, positionOfNextOffset, true);
-        } else {
-            writeOffsetAt(
-                    ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : TEMPORARY_IFD_NEXT_OFFSET_MARKER,
-                    positionOfNextOffset, true);
-        }
+        writeOffsetAt(
+                ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : DetailedIFD.LAST_IFD_OFFSET,
+                positionOfNextOffset, true);
     }
 
     /**
@@ -1292,8 +1234,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    private void rewriteLastOffset(long offset) throws IOException {
-        writeOffsetAt(offset, positionOfLastIFDOffset, true);
+    private void rewritePreviousLastOffset(long nextIFDOffset) throws IOException {
+        writeOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
         // - last argument is not important: positionOfLastIFDOffset will not change in any case
     }
 
@@ -1393,131 +1335,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - will be used, for example, in getCompressionCodecOptions
         ifd.putIFDValue(IFD.BIG_TIFF, bigTiff);
         // - not used, but helps to provide good DetailedIFD.toString
-    }
-
-
-    //TODO!! remove following method
-    private boolean writingSequentially = true;
-
-    /**
-     * Performs the actual work of dealing with IFD data and writing it to the
-     * TIFF for a given image or sub-image.
-     *
-     * @param ifd      The Image File Directories. Mustn't be {@code null}.
-     * @param ifdIndex The image index within the current file, starting from 0.
-     * @param tiles    The strips/tiles to write to the file.
-     * @param fromX    The initial X offset of the strips/tiles to write.
-     * @param fromY    The initial Y offset of the strips/tiles to write.
-     * @param lastIFD  Pass {@code true} if it is the last image, {@code false}
-     *                 otherwise.
-     * @throws FormatException
-     * @throws IOException
-     */
-    private void writeSamplesAndIFD(
-            DetailedIFD ifd, final Integer ifdIndex,
-            final List<TiffTile> tiles,
-            final int fromX, final int fromY,
-            final boolean lastIFD)
-            throws FormatException, IOException {
-        //TODO!! remove
-        final int tilesPerRow = (int) ifd.getTilesPerRow();
-        final int tilesPerColumn = (int) ifd.getTilesPerColumn();
-        final boolean interleaved = ifd.getPlanarConfiguration() == 1;
-        final boolean isTiled = ifd.isTiled();
-        assert out != null : "must be checked in the constructor";
-
-        if (!writingSequentially) {
-            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
-            if (ifdIndex == null || ifdIndex < 0) {
-                throw new IllegalArgumentException("Null or negative ifdIndex = " + ifdIndex +
-                        " is not allowed when writing mode is not sequential");
-            }
-            try (final TiffReader reader = new TiffReader(null, in, false)) {
-                // - note: we MUST NOT require valid TIFF here, because this file is only
-                // in a process of creating and the last offset is probably incorrect
-                try {
-                    final DetailedIFD existingIFD = reader.readSingleIFD(ifdIndex);
-                    out.seek(existingIFD.getFileOffsetOfReading());
-                    LOG.log(System.Logger.Level.DEBUG, () -> "Reading IFD #" + ifdIndex +
-                            " for non-sequential writing: " + existingIFD);
-                    ifd = existingIFD;
-                } catch (NoSuchElementException ignored) {
-                    LOG.log(System.Logger.Level.DEBUG, () -> "IFD #" + ifdIndex +
-                            " for non-sequential writing is not found and skipped");
-                }
-            }
-        }
-
-        // record strip byte counts and offsets
-
-        final List<Long> byteCounts = new ArrayList<>();
-        final List<Long> offsets = new ArrayList<>();
-        long totalTiles = (long) tilesPerRow * (long) tilesPerColumn;
-
-        if (!interleaved) {
-            totalTiles *= ifd.getSamplesPerPixel();
-        }
-
-        if (ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS)) {
-            final long[] ifdByteCounts = isTiled ?
-                    ifd.getIFDLongArray(IFD.TILE_BYTE_COUNTS) :
-                    ifd.getTileOrStripByteCounts();
-            for (final long stripByteCount : ifdByteCounts) {
-                byteCounts.add(stripByteCount);
-            }
-        } else {
-            while (byteCounts.size() < totalTiles) {
-                byteCounts.add(0L);
-            }
-        }
-        if (ifd.containsKey(IFD.STRIP_OFFSETS) || ifd.containsKey(IFD.TILE_OFFSETS)) {
-            final long[] ifdOffsets = isTiled ?
-                    ifd.getIFDLongArray(IFD.TILE_OFFSETS) :
-                    ifd.getTileOrStripOffsets();
-            for (final long ifdOffset : ifdOffsets) {
-                offsets.add(ifdOffset);
-            }
-        } else {
-            while (offsets.size() < totalTiles) {
-                offsets.add(0L);
-            }
-        }
-
-        ifd.updateDataPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-
-        final long fp = out.offset();
-        ifd.setFileOffsetForWriting(fp);
-        rewriteIFD(ifd);
-
-        for (TiffTile tile : tiles) {
-            writeEncodedTile(tile, true);
-        }
-
-        final int tileXIndex = fromX / (int) ifd.getTileWidth();
-        final int tileYIndex = fromY / (int) ifd.getTileLength();
-        final int firstTileIndex = (tileYIndex * tilesPerRow) + tileXIndex;
-        for (int i = 0; i < tiles.size(); i++) {
-            final TiffTile tile = tiles.get(i);
-            final int thisOffset = firstTileIndex + i;
-            offsets.set(thisOffset, tile.getStoredDataFileOffset());
-            byteCounts.set(thisOffset, (long) tile.getStoredDataLength());
-        }
-        ifd.updateDataPositioning(toPrimitiveArray(offsets), toPrimitiveArray(byteCounts));
-        long endFP = out.offset();
-        if ((endFP & 0x1) != 0) {
-            out.writeByte(0);
-            endFP = out.offset();
-            // - Well-formed IFD requires even offsets
-        }
-        if (LOGGABLE_TRACE) {
-            LOG.log(System.Logger.Level.TRACE, "Offset before IFD write: " + endFP + "; seeking to: " + fp);
-        }
-
-        ifd.setLastIFD();
-        // - if !lastIFD, will be overwritten by the next call
-        rewriteIFD(ifd, !lastIFD);
-        // - rewriting IFD with already filled offsets (not too quick, but quick enough);
-        // file pointer is restored automatically by this method
     }
 
     private static long debugTime() {

@@ -1948,9 +1948,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final long fileLength = in.length();
         final long filePosition = in.offset();
         long offset;
-        long signedOffset;
         if (bigTiff) {
-            offset = signedOffset = in.readLong();
+            offset = in.readLong();
         } else {
             // Below is a deprecated solution
             // (this "trick" cannot help if a SINGLE image is very large (>2^32): for example,
@@ -1968,18 +1967,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
             // }
             // return offset;
 
-            signedOffset = in.readInt();
-            offset = signedOffset & 0xffffffffL;
+            offset = (long) in.readInt() & 0xffffffffL;
             // - in usual TIFF format, offset if 32-bit UNSIGNED value
         }
         if (requireValidTiff) {
-            if (signedOffset == TiffWriter.TEMPORARY_IFD_NEXT_OFFSET_MARKER &&
-                    (offset == signedOffset || offset >= fileLength)) {
-                // - for 32-bit TIFF, we must add condition "offset >= fileLength"
-                throw new IOException("Invalid TIFF" + prettyInName() + ": offset at file position " +
-                        filePosition + " is " + TiffWriter.TEMPORARY_IFD_NEXT_OFFSET_MARKER +
-                        ", maybe the file is corrupted as the result of abnormal termination of writing file");
-            }
             if (offset < 0) {
                 // - possibly in Big-TIFF only
                 throw new IOException("Invalid TIFF" + prettyInName() +

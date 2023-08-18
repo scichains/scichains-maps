@@ -223,6 +223,7 @@ public class TiffWriterTest {
                         // but DataHandle has not any analogs of flush() method.
                         try (TiffReader reader = new TiffReader(null, targetFile, false)) {
                             ifd = reader.readSingleIFD(ifdIndex);
+                            ifd.removeNextIFDOffset();
                             ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
                         }
                     }

@@ -74,7 +74,6 @@ public class TiffSaver extends TiffWriter {
         this.dataHandleService = ctx.getService(DataHandleService.class);
         // Disable new features of TiffWriter for compatibility:
         this.setWritingSequentially(false);
-        this.setAutoMarkLastImageOnClose(false);
         this.setAutoInterleaveSource(false);
         this.setExtendedCodec(false);
     }
@@ -144,7 +143,7 @@ public class TiffSaver extends TiffWriter {
     }
 
     /**
-     * Use instead {@link #rewriteIFD(DetailedIFD, boolean)} together with
+     * Use instead {@link #rewriteIFD(DetailedIFD)} together with
      * {@link DetailedIFD#setNextIFDOffset(long, boolean)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
      */
     @Deprecated
@@ -152,7 +151,7 @@ public class TiffSaver extends TiffWriter {
         DetailedIFD extended = DetailedIFD.extend(ifd);
         extended.setFileOffsetForWriting(getStream().offset());
         extended.setNextIFDOffset(nextOffset, false);
-        rewriteIFD(extended, false);
+        rewriteIFD(extended);
     }
 
     @Deprecated

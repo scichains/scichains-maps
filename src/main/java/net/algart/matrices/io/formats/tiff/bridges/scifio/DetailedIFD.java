@@ -35,6 +35,9 @@ import java.util.function.Supplier;
 
 //!! Better analog of IFD (can be merged with the main IFD)
 public class DetailedIFD extends IFD {
+
+    public static final int LAST_IFD_OFFSET = 0;
+
     public enum StringFormat {
         BRIEF(true),
         NORMAL(true),
@@ -180,7 +183,7 @@ public class DetailedIFD extends IFD {
     }
 
     public boolean isLastIFD() {
-        return nextIFDOffset == 0;
+        return nextIFDOffset == LAST_IFD_OFFSET;
     }
 
     public long getNextIFDOffset() {
@@ -203,7 +206,7 @@ public class DetailedIFD extends IFD {
     }
 
     public DetailedIFD setLastIFD() {
-        return setNextIFDOffset(0, true);
+        return setNextIFDOffset(LAST_IFD_OFFSET, true);
     }
 
     public DetailedIFD removeNextIFDOffset() {
