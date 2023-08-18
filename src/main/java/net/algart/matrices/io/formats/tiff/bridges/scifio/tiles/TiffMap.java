@@ -389,14 +389,25 @@ public final class TiffMap {
         tileMap.put(tileIndex, tile);
     }
 
-    public TiffMap completeImageGrid() {
+    public void putAll(Collection<TiffTile> tiles) {
+        Objects.requireNonNull(tiles, "Null tiles");
+        tiles.forEach(this::put);
+    }
+
+    public TiffMap rearrangeImageGrid() {
+        final Map<TiffTileIndex, TiffTile> newMap = new LinkedHashMap<>();
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < gridTileCountY; y++) {
                 for (int x = 0; x < gridTileCountX; x++) {
-                    getOrNewMultiplane(p, x, y);
+                    TiffTileIndex index = multiplaneIndex(p, x, y);
+                    TiffTile tile = getOrNew(index);
+                    newMap.put(index, tile);
                 }
             }
         }
+        tileMap.clear();
+        tileMap.putAll(newMap);
+        // - necessary to resort tiles in a valid order for writing into IFD
         return this;
     }
 

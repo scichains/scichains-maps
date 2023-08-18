@@ -885,7 +885,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (resizable) {
             ifd.removeImageDimensions();
         } else {
-            map.completeImageGrid();
+            map.rearrangeImageGrid();
             map.cropAll(true);
             // - necessary for tiles, that were not filled by any pixels (empty tiles)
             final long[] offsets = new long[map.numberOfGridTiles()];
@@ -930,7 +930,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final boolean resizable = map.isResizable();
         map.checkDimensions();
         if (resizable) {
-            map.completeImageGrid();
+            map.rearrangeImageGrid();
             map.cropAll(true);
         }
 
