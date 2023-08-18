@@ -31,6 +31,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.Context;
 
 import java.io.IOException;
@@ -88,7 +89,9 @@ public class TiffCopyTest {
                     writer.writeForward(writeMap);
                     int k = 0, n = writeMap.size();
                     for (TiffTile targetTile : writeMap.all()) {
-                        TiffTile sourceTile = reader.readTile(readMap.copyIndex(targetTile));
+                        TiffTileIndex sourceTileIndex = readMap.copyIndex(targetTile.index());
+                        // - note: targetTile.index() refers to writeIFD, where we still have no data
+                        TiffTile sourceTile = reader.readTile(sourceTileIndex);
                         targetTile.setDecoded(sourceTile.getDecoded());
                         writeMap.put(targetTile);
                         writer.writeTile(targetTile);

@@ -333,11 +333,6 @@ public final class TiffMap {
         return new TiffTileIndex(this, other.channelPlane(), other.xIndex(), other.yIndex());
     }
 
-    public TiffTileIndex copyIndex(TiffTile other) {
-        Objects.requireNonNull(other, "Null other tile");
-        return copyIndex(other.index());
-    }
-
     public void checkTileIndexIFD(TiffTileIndex tileIndex) {
         Objects.requireNonNull(tileIndex, "Null tile index");
         if (tileIndex.ifd() != this.ifd) {
