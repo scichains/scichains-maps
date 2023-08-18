@@ -732,18 +732,28 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         TiffTools.checkRequestedAreaInArray(sourceSamples, sizeX, sizeY, map.totalBytesPerPixel());
         map.expandDimensions(fromX + sizeX, fromY + sizeY);
 
+        final int mapTileSizeX = map.tileSizeX();
+        final int mapTileSizeY = map.tileSizeY();
         final int bytesPerSample = map.bytesPerSample();
         final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
         final int samplesPerPixel = map.tileSamplesPerPixel();
         final int bytesPerPixel = map.tileBytesPerPixel();
 
-        // - checks that tile sizes are non-negative and <2^31,
-        // and checks that we can multiply them by bytesPerSample and ifd.getSamplesPerPixel() without overflow
-        final int tileSizeX = map.tileSizeX();
-        final int tileSizeY = map.tileSizeY();
-        final int tileCountXInRegion = (sizeX + tileSizeX - 1) / tileSizeX;
-        final int tileCountYInRegion = (sizeY + tileSizeY - 1) / tileSizeY;
-        // Probably we write not full image!
+        final int toX = fromX + sizeX;
+        final int toY = fromY + sizeY;
+        final int minXIndex = fromX / mapTileSizeX;
+        final int minYIndex = fromY / mapTileSizeY;
+        if (minXIndex >= map.gridTileCountX() || minYIndex >= map.gridTileCountY()) {
+            throw new AssertionError("Map was not expanded/checked properly: too large " +
+                    minXIndex + ", " + minYIndex + ", map: " + map);
+        }
+        final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / mapTileSizeX);
+        final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
+        assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
+        //TODO!! use these indexes
+
+        final int tileCountXInRegion = (sizeX + mapTileSizeX - 1) / mapTileSizeX;
+        final int tileCountYInRegion = (sizeY + mapTileSizeY - 1) / mapTileSizeY;
         assert tileCountXInRegion <= sizeX;
         assert tileCountYInRegion <= sizeY;
 
@@ -754,15 +764,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // this order provides increasing tile offsets while simple usage of this class
             // (this is not required, but provides more efficient per-plane reading)
             for (int yIndex = 0; yIndex < tileCountYInRegion; yIndex++) {
-                final int yOffset = yIndex * tileSizeY;
+                final int yOffset = yIndex * mapTileSizeY;
                 assert (long) fromY + (long) yOffset < dimY : "region must  be checked before calling splitTiles";
                 final int y = fromY + yOffset;
                 for (int xIndex = 0; xIndex < tileCountXInRegion; xIndex++, tileIndex++) {
-                    assert tileSizeX > 0 && tileSizeY > 0 : "loop should not be executed for zero-size tiles";
-                    final int xOffset = xIndex * tileSizeX;
+                    final int xOffset = xIndex * mapTileSizeX;
                     assert (long) fromX + (long) xOffset < dimX : "region must be checked before calling splitTiles";
                     final int x = fromX + xOffset;
-                    final TiffTile tile = map.getOrNewMultiplane(p, x / tileSizeX, y / tileSizeY);
+                    final TiffTile tile = map.getOrNewMultiplane(p, x / mapTileSizeX, y / mapTileSizeY);
                     tile.cropToMap(true);
                     // - In stripped image, we should correct the height of the last row.
                     // It is important for writing: without this correction, GIMP and other libtiff-based programs
@@ -777,7 +786,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     if (!planarSeparated && !autoInterleave) {
                         // - Source data are already interleaved (like RGBRGB...): maybe, external code prefers
                         // to use interleaved form, for example, OpenCV library.
-                        final int tileRowSizeInBytes = tileSizeX * bytesPerPixel;
+                        final int tileRowSizeInBytes = mapTileSizeX * bytesPerPixel;
                         final int partSizeXInBytes = partSizeX * bytesPerPixel;
                         for (int yInTile = 0; yInTile < partSizeY; yInTile++) {
                             final int i = yInTile + yOffset;
@@ -796,7 +805,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         // in this case samplesPerPixel=1.
                         final int channelSize = tile.getSizeInPixels() * bytesPerSample;
                         final int separatedPlaneSize = sizeX * sizeY * bytesPerSample;
-                        final int tileRowSizeInBytes = tileSizeX * bytesPerSample;
+                        final int tileRowSizeInBytes = mapTileSizeX * bytesPerSample;
                         final int partSizeXInBytes = partSizeX * bytesPerSample;
                         int tileChannelOffset = 0;
                         for (int s = 0; s < samplesPerPixel; s++, tileChannelOffset += channelSize) {
