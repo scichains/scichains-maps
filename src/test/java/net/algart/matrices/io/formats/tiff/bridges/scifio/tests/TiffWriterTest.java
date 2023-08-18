@@ -35,6 +35,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import org.scijava.Context;
 
 import java.io.IOException;
@@ -239,6 +240,10 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImageFromArray(map, samplesArray, x, y, w, h);
+                    if (map.hasUnset()) {
+                        int n = (int) map.all().stream().filter(TiffTile::hasUnset).count();
+                        System.out.printf("  Image #%d: %d tiles are not completely filled%n", k, n);
+                    }
                 }
             }
         }

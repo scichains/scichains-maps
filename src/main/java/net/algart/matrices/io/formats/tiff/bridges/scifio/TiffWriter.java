@@ -769,6 +769,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
                     // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
                     tile.fillEmpty(tileInitializer);
+                    //TODO!! reduceUnset
                     final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
                     final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
                     final byte[] data = tile.getDecoded();

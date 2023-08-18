@@ -24,6 +24,7 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
+import net.algart.math.IRectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
@@ -51,6 +52,9 @@ public final class TiffTile {
     private long storedDataFileOffset = -1;
     private int storedDataLength = 0;
     private int storedNumberOfPixels = 0;
+    private Queue<IRectangularArea> unsetArea = null;
+    // - null value marks that all is empty;
+    // it helps to defer actual subtracting until the moment when we know correct tile sizes
 
     /**
      * Creates new tile with given index.
@@ -117,6 +121,60 @@ public final class TiffTile {
     }
 
     /**
+     * Sets the sizes of this tile.
+     *
+     * <p>These are purely informational properties, not affecting processing the stored data
+     * and supported for additional convenience of usage this object.
+     *
+     * @param sizeX the tile width; must be positive.
+     * @param sizeY the tile height; must be positive.
+     * @return a reference to this object.
+     */
+    public TiffTile setSizes(int sizeX, int sizeY) {
+        if (sizeX <= 0) {
+            throw new IllegalArgumentException("Zero or negative tile x-size: " + sizeX);
+        }
+        if (sizeY <= 0) {
+            throw new IllegalArgumentException("Zero or negative tile y-size: " + sizeY);
+        }
+        // - zero sizes are disabled to provide correct IRectangularArea processing
+        if ((long) sizeX * (long) sizeY > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
+                    " >= 2^31 pixels is not supported");
+        }
+        final int sizeInPixels = sizeX * sizeY;
+        if ((long) sizeInPixels * (long) bytesPerPixel > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
+                    ", " + samplesPerPixel + " channels per " + bytesPerSample +
+                    " bytes >= 2^31 bytes is not supported");
+        }
+        this.sizeX = sizeX;
+        this.sizeY = sizeY;
+        this.sizeInPixels = sizeInPixels;
+        this.sizeInBytes = sizeInPixels * bytesPerPixel;
+        return this;
+    }
+
+    public IRectangularArea rectangle() {
+        return rectangleInTile(0, 0, sizeX, sizeY);
+    }
+
+    public IRectangularArea rectangleInTile(int fromXInTile, int fromYInTile, int sizeXInTile, int sizeYInTile) {
+        if (sizeXInTile <= 0) {
+            throw new IllegalArgumentException("Zero or negative sizeXInTile = " + sizeXInTile);
+        }
+        if (sizeYInTile <= 0) {
+            throw new IllegalArgumentException("Zero or negative sizeYInTile = " + sizeYInTile);
+        }
+        final long minX = (long) index.fromX() + (long) fromXInTile;
+        final long minY = (long) index.fromY() + (long) fromYInTile;
+        final long maxX = minX + (long) sizeXInTile - 1;
+        final long maxY = minY + (long) sizeYInTile - 1;
+        return IRectangularArea.valueOf(minX, minY, maxX, maxY);
+    }
+
+
+    /**
      * Reduces sizes of this tile so that it will completely lie inside map dimensions.
      *
      * <p>This operation can be useful for <i>stripped</i> TIFF image, especially while writing.
@@ -145,40 +203,6 @@ public final class TiffTile {
         }
     }
 
-    /**
-     * Sets the sizes of this tile.
-     *
-     * <p>These are purely informational properties, not affecting processing the stored data
-     * and supported for additional convenience of usage this object.
-     *
-     * @param sizeX the tile width.
-     * @param sizeY the tile height.
-     * @return a reference to this object.
-     */
-    public TiffTile setSizes(int sizeX, int sizeY) {
-        if (sizeX < 0) {
-            throw new IllegalArgumentException("Negative tile x-size: " + sizeX);
-        }
-        if (sizeY < 0) {
-            throw new IllegalArgumentException("Negative tile y-size: " + sizeY);
-        }
-        if ((long) sizeX * (long) sizeY > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
-                    " >= 2^31 pixels is not supported");
-        }
-        final int sizeInPixels = sizeX * sizeY;
-        if ((long) sizeInPixels * (long) bytesPerPixel > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Very large TIFF tile " + sizeX + "x" + sizeY +
-                    ", " + samplesPerPixel + " channels per " + bytesPerSample +
-                    " bytes >= 2^31 bytes is not supported");
-        }
-        this.sizeX = sizeX;
-        this.sizeY = sizeY;
-        this.sizeInPixels = sizeInPixels;
-        this.sizeInBytes = sizeInPixels * bytesPerPixel;
-        return this;
-    }
-
     public TiffTile setEqualSizes(TiffTile other) {
         Objects.requireNonNull(other,"Null other tile");
         return setSizes(other.sizeX, other.sizeY);
@@ -195,6 +219,33 @@ public final class TiffTile {
 
     public int getSizeInBytes() {
         return sizeInBytes;
+    }
+
+    public Collection<IRectangularArea> getUnsetArea() {
+        return unsetArea == null ? List.of(rectangle()) : Collections.unmodifiableCollection(unsetArea);
+    }
+
+    public TiffTile unsetAll() {
+        unsetArea = null;
+        return this;
+    }
+
+    public TiffTile reduceUnset(IRectangularArea newlyFilledArea) {
+        Objects.requireNonNull(newlyFilledArea, "Null newlyFilledArea");
+        initializeEmptyArea();
+        IRectangularArea.subtractCollection(unsetArea, newlyFilledArea);
+        return this;
+    }
+
+    public TiffTile reduceUnsetInTile(int fromXInTile, int fromYInTile, int sizeXInTile, int sizeYInTile) {
+        if (sizeXInTile > 0 && sizeYInTile > 0) {
+            reduceUnset(rectangleInTile(fromXInTile, fromYInTile, sizeXInTile, sizeYInTile));
+        }
+        return this;
+    }
+
+    public boolean hasUnset() {
+        return unsetArea == null || !unsetArea.isEmpty();
     }
 
     public boolean isInterleaved() {
@@ -500,6 +551,13 @@ public final class TiffTile {
             // - data file offset has no sense for decoded data
         }
         return this;
+    }
+
+    private void initializeEmptyArea() {
+        if (unsetArea == null) {
+            unsetArea = new LinkedList<>();
+            unsetArea.add(rectangle());
+        }
     }
 
     private void checkEmpty() {

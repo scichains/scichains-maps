@@ -412,9 +412,15 @@ public final class TiffMap {
     }
 
     public void cropAll(boolean nonTiledOnly) {
-        for (TiffTile tile : tileMap.values()) {
-            tile.cropToMap(nonTiledOnly);
-        }
+        tileMap.values().forEach(tile -> tile.cropToMap(nonTiledOnly));
+    }
+
+    public void unsetAll() {
+        tileMap.values().forEach(TiffTile::unsetAll);
+    }
+
+    public boolean hasUnset() {
+        return tileMap.values().stream().anyMatch(TiffTile::hasUnset);
     }
 
     public void clear(boolean clearDimensions) {
