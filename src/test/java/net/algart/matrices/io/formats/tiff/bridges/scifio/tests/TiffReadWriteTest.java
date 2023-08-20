@@ -144,7 +144,6 @@ public class TiffReadWriteTest {
                 final List<DetailedIFD> ifds = reader.allIFDs();
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final boolean last = ifdIndex == lastIFDIndex;
                     final DetailedIFD readerIFD = ifds.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
                     final int w = (int) Math.min(readerIFD.getImageWidth(), MAX_IMAGE_DIM);
@@ -163,7 +162,7 @@ public class TiffReadWriteTest {
                     }
                     writerIFD.putImageDimensions(w, h);
                     final TiffMap map = writer.startNewImage(writerIFD, false);
-                    writer.writeImage(map, bytes, START_X, START_Y, w, h, last);
+                    writer.writeImage(map, bytes, START_X, START_Y, w, h);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", writerIFD);
                     System.out.printf(Locale.US,
@@ -230,7 +229,7 @@ public class TiffReadWriteTest {
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
                                 writerIFD, readerIFD.getPixelType(), bandCount,
-                                START_X, START_Y, paddedW, paddedH,  last);
+                                START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                     }
                 }

@@ -244,6 +244,16 @@ public class DetailedIFD extends IFD {
         return frozenForWriting;
     }
 
+    /**
+     * Disables most possible changes in this map before starting writing process,
+     * excepting the only ones, which are absolutely necessary for making final IFD inside the file.
+     * Such "necessary" changes are performed by special "updateXxx" method.
+     *
+     * <p>This flag helps to avoid bugs, connected with changing IFD properties (such as compression, tile sizes etc.)
+     * when we already started to write image into the file, for example, have written some its tiles.
+     *
+     * @return a reference to this object.
+     */
     public DetailedIFD freezeForWriting() {
         this.frozenForWriting = true;
         return this;

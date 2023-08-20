@@ -104,6 +104,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
     private boolean appendToExisting = false;
+    private boolean writingForwardAllowed = true;
     private boolean bigTiff = false;
     private boolean autoInterleaveSource = true;
     private CodecOptions codecOptions;
@@ -190,6 +191,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public TiffWriter setAppendToExisting(boolean appendToExisting) {
         this.appendToExisting = appendToExisting;
+        return this;
+    }
+
+
+    public boolean isWritingForwardAllowed() {
+        return writingForwardAllowed;
+    }
+
+    public TiffWriter setWritingForwardAllowed(boolean writingForwardAllowed) {
+        this.writingForwardAllowed = writingForwardAllowed;
         return this;
     }
 
@@ -490,6 +501,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void rewritePreviousLastIFDOffset(long nextIFDOffset) throws IOException {
+        if (positionOfLastIFDOffset < 0)  {
+            throw new IllegalStateException("Writing to this TIFF file is not started yet");
+        }
         writeOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
         // - last argument is not important: positionOfLastIFDOffset will not change in any case
     }
@@ -878,32 +892,29 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public TiffMap startNewImage(final DetailedIFD ifd, int numberOfChannels, int pixelType, boolean resizable)
+    public TiffMap startNewImage(
+            DetailedIFD ifd,
+            int numberOfChannels,
+            Class<?> elementType,
+            boolean signedIntegers,
+            boolean resizable)
             throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        ifd.putPixelInformation(numberOfChannels, pixelType);
+        ifd.putPixelInformation(numberOfChannels, elementType, signedIntegers);
         return startNewImage(ifd, resizable);
     }
 
-    public TiffMap startNewImage(final DetailedIFD ifd, boolean resizable) throws FormatException {
+    public TiffMap startNewImage(DetailedIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
         ifd.removeNextIFDOffset();
-        // - informs prepareWritingImage method that this IFD was not written yet and should be written
         ifd.removeDataPositioning();
         final TiffMap map = new TiffMap(ifd, resizable);
         if (resizable) {
             ifd.removeImageDimensions();
-        } else {
-            map.rearrangeImageGrid();
-            map.cropAll(true);
-            // - necessary for tiles, that were not filled by any pixels (empty tiles)
-            final long[] offsets = new long[map.numberOfGridTiles()];
-            final long[] byteCounts = new long[map.numberOfGridTiles()];
-            // - zero-filled by Java
-            ifd.updateDataPositioning(offsets, byteCounts);
         }
         ifd.freezeForWriting();
+        // - actually not necessary, but helps to avoid possible bugs
         return map;
     }
 
@@ -913,16 +924,25 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * so it will be placed before actually written data: it helps
      * to improve performance of future reading this file.
      *
-     * <p>Note: this method does nothing if the image is {@link TiffMap#isResizable() resizable}.
-     * In this case, we don't know, how much number of bytes we must reserve in the file for storing IFD.
+     * <p>Note: this method does nothing if the image is {@link TiffMap#isResizable() resizable}
+     * or if this action is disabled by {@link #setWritingForwardAllowed(boolean) setWritingForwardAllowed(false)}
+     * call.
+     * In this case, IFD will be written at the final stage ({@link #completeImage(TiffMap)} method).
      *
      * @param map map, describing the image.
      */
-    public void writeForward(final TiffMap map) throws IOException {
+    public void writeForward(TiffMap map) throws IOException {
         Objects.requireNonNull(map, "Null TIFF map");
-        if (map.isResizable()) {
+        if (!writingForwardAllowed || map.isResizable()) {
             return;
         }
+        map.rearrangeImageGrid();
+        map.cropAll(true);
+        // - necessary for tiles, that will not be filled by any pixels (empty tiles)
+        final long[] offsets = new long[map.numberOfGridTiles()];
+        final long[] byteCounts = new long[map.numberOfGridTiles()];
+        // - zero-filled by Java
+        map.ifd().updateDataPositioning(offsets, byteCounts);
         final DetailedIFD ifd = map.ifd();
         if (!ifd.hasFileOffsetForWriting()) {
             final long newNextIFDOffset = out.length();
@@ -931,11 +951,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void completeWritingImage(final TiffMap map) throws IOException, FormatException {
-        completeWritingImage(map, false);
-    }
-
-    public void completeWritingImage(final TiffMap map, final boolean lastImage) throws IOException, FormatException {
+    public void completeImage(final TiffMap map) throws IOException, FormatException {
         Objects.requireNonNull(map, "Null TIFF map");
         final boolean resizable = map.isResizable();
         map.checkDimensions();
@@ -947,17 +963,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         encode(map);
         // - encode tiles, which are not encoded yet
 
-        final long[] offsets = new long[map.numberOfGridTiles()];
-        final long[] byteCounts = new long[map.numberOfGridTiles()];
-        // - zero-filled by Java
-        writeTiles(map, offsets, byteCounts);
-        appendUntilEvenPosition(out);
-
         final DetailedIFD ifd = map.ifd();
         if (resizable) {
             ifd.updateImageDimensions(map.dimX(), map.dimY());
         }
-        ifd.updateDataPositioning(offsets, byteCounts);
+
+        completeWritingMap(map);
+        appendUntilEvenPosition(out);
+
         if (!ifd.hasFileOffsetForWriting()) {
             // - usually it means that we did not call writeForward
             final long newNextIFDOffset = out.length();
@@ -969,6 +982,43 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         out.seek(out.length());
         // - this seeking to file end is not necessary, but this is much better than
         // to keep file offset in the middle of the last image
+    }
+
+    public void completeWritingMap(TiffMap map) throws IOException, FormatException {
+        final long[] offsets = new long[map.numberOfGridTiles()];
+        final long[] byteCounts = new long[map.numberOfGridTiles()];
+        // - zero-filled by Java
+        Collection<TiffTile> tiles = map.all();
+        if (tiles.size() != offsets.length) {
+            throw new AssertionError("Invalid map: number of tiles " + tiles.size() +
+                    " does not match number of grid cells " + map.numberOfGridTiles());
+        }
+        TiffTile empty = null;
+        int k = 0;
+        for (TiffTile tile : tiles) {
+            if (!tile.isEmpty()) {
+                writeEncodedTile(tile, true);
+            }
+            if (tile.hasStoredDataFileOffset()) {
+                offsets[k] = tile.getStoredDataFileOffset();
+                byteCounts[k] = tile.getStoredDataLength();
+            } else if (!missingTilesAllowed) {
+                if (!tile.equalSizes(empty)) {
+                    // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
+                    // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
+                    empty = new TiffTile(tile.index()).setEqualSizes(tile);
+                    empty.fillEmpty(tileInitializer);
+                    encode(empty);
+                    writeEncodedTile(empty, false);
+                    // - note: unlike usual tiles, the empty tile is written once,
+                    // but its offset/byte-count are used many times!
+                }
+                offsets[k] = empty.getStoredDataFileOffset();
+                byteCounts[k] = empty.getStoredDataLength();
+            } // else offsets[k]/byteCounts[k] stay to be zero
+            k++;
+        }
+        map.ifd().updateDataPositioning(offsets, byteCounts);
     }
 
     public void writeImage(
@@ -991,15 +1041,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             byte[] samples,
             final int fromX, final int fromY, final int sizeX, final int sizeY)
             throws FormatException, IOException {
-        writeImage(map, samples, fromX, fromY, sizeX, sizeY, false);
-    }
-
-    public void writeImage(
-            final TiffMap map,
-            byte[] samples,
-            final int fromX, final int fromY, final int sizeX, final int sizeY,
-            final boolean lastImage)
-            throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samples, "Null samples");
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, map.dimX(), map.dimY());
@@ -1017,7 +1058,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         encode(map);
         long t4 = debugTime();
 
-        completeWritingImage(map, lastImage);
+        completeImage(map);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
             long sizeOf = map.totalSizeInBytes();
@@ -1100,39 +1141,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         TiffTools.differenceIfRequested(tile);
     }
 
-    private void writeTiles(TiffMap map, long[] offsets, long[] byteCounts) throws IOException, FormatException {
-        Collection<TiffTile> tiles = map.all();
-        if (tiles.size() != offsets.length) {
-            throw new AssertionError("Invalid map: number of tiles " + tiles.size() +
-                    " does not match number of grid cells " + map.numberOfGridTiles());
-        }
-        TiffTile empty = null;
-        int k = 0;
-        for (TiffTile tile : tiles) {
-            if (!tile.isEmpty()) {
-                writeEncodedTile(tile, true);
-            }
-            if (tile.hasStoredDataFileOffset()) {
-                offsets[k] = tile.getStoredDataFileOffset();
-                byteCounts[k] = tile.getStoredDataLength();
-            } else if (!missingTilesAllowed) {
-                if (!tile.equalSizes(empty)) {
-                    // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
-                    // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
-                    empty = new TiffTile(tile.index()).setEqualSizes(tile);
-                    empty.fillEmpty(tileInitializer);
-                    encode(empty);
-                    writeEncodedTile(empty, false);
-                    // - note: unlike usual tiles, the empty tile is written once,
-                    // but its offset/byte-count are used many times!
-                }
-                offsets[k] = empty.getStoredDataFileOffset();
-                byteCounts[k] = empty.getStoredDataLength();
-            } // else offsets[k]/byteCounts[k] stay to be zero
-            k++;
-        }
-    }
-
     private void clearTime() {
         timeWriting = 0;
         timeCustomizingEncoding = 0;
@@ -1201,21 +1209,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : DetailedIFD.LAST_IFD_OFFSET,
                 positionOfNextOffset,
                 updatePositionOfLastIFDOffset);
-    }
-
-    /**
-     * Coverts a list to a primitive array.
-     *
-     * @param l The list of {@code Long} to convert.
-     * @return A primitive array of type {@code long[]} with the values from
-     * </code>l</code>.
-     */
-    private static long[] toPrimitiveArray(final List<Long> l) {
-        final long[] toReturn = new long[l.size()];
-        for (int i = 0; i < l.size(); i++) {
-            toReturn[i] = l.get(i);
-        }
-        return toReturn;
     }
 
     private void writeIntOrLongValue(final DataHandle<Location> handle, final int value) throws IOException {

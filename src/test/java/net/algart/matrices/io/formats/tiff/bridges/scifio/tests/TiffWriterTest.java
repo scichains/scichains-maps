@@ -181,6 +181,7 @@ public class TiffWriterTest {
 //                }
                 // - deprecated solution; the simple check below works better!
                 writer.setAppendToExisting(append);
+//                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);

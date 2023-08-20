@@ -236,6 +236,7 @@ public final class TiffMap {
         return Math.multiplyExact(totalSizeInPixels(), (long) totalBytesPerPixel);
         // - but overflow here should be impossible due to the check in setDimensions
     }
+
     public void setDimensions(int dimX, int dimY) {
         setDimensions(dimX, dimY, true);
     }
