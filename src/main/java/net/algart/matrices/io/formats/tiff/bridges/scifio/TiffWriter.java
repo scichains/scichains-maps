@@ -103,7 +103,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
     private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
-    private boolean appendToExisting = false;
     private boolean writingForwardAllowed = true;
     private boolean bigTiff = false;
     private boolean autoInterleaveSource = true;
@@ -175,25 +174,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         out.setLittleEndian(littleEndian);
         return this;
     }
-
-
-    public boolean isAppendToExisting() {
-        return appendToExisting;
-    }
-
-    /**
-     * Sets appending mode: the specified file must be an existing TIFF file, and this saver
-     * will append IFD images to the end of this file.
-     * Default value is <tt>false</tt>.
-     *
-     * @param appendToExisting whether we want to append IFD to an existing TIFF file.
-     * @return a reference to this object.
-     */
-    public TiffWriter setAppendToExisting(boolean appendToExisting) {
-        this.appendToExisting = appendToExisting;
-        return this;
-    }
-
 
     public boolean isWritingForwardAllowed() {
         return writingForwardAllowed;
@@ -406,53 +386,55 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return positionOfLastIFDOffset;
     }
 
-    public void startWriting() throws IOException {
+    public void startAppending() throws IOException {
         synchronized (this) {
-            if (appendToExisting) {
-                final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
-                final boolean bigTiff;
-                final boolean littleEndian;
-                final long readerPositionOfLastOffset;
-                try (final TiffReader reader = new TiffReader(null, in, true)) {
-                    reader.readIFDOffsets();
-                    bigTiff = reader.isBigTiff();
-                    littleEndian = reader.isLittleEndian();
-                    readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
-                }
-                this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
-                positionOfLastIFDOffset = readerPositionOfLastOffset;
-                out.seek(out.length());
-                // - ready to write after the end of the file
-                // (not necessary, but can help to avoid accidental bugs)
+            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
+            final boolean bigTiff;
+            final boolean littleEndian;
+            final long readerPositionOfLastOffset;
+            try (final TiffReader reader = new TiffReader(null, in, true)) {
+                reader.readIFDOffsets();
+                bigTiff = reader.isBigTiff();
+                littleEndian = reader.isLittleEndian();
+                readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
+            }
+            this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
+            positionOfLastIFDOffset = readerPositionOfLastOffset;
+            out.seek(out.length());
+            // - ready to write after the end of the file
+            // (not necessary, but can help to avoid accidental bugs)
+        }
+    }
+
+    public void startNewFile() throws IOException {
+        synchronized (this) {
+            out.seek(0);
+            if (isLittleEndian()) {
+                out.writeByte(TiffConstants.LITTLE);
+                out.writeByte(TiffConstants.LITTLE);
             } else {
-                out.seek(0);
-                if (isLittleEndian()) {
-                    out.writeByte(TiffConstants.LITTLE);
-                    out.writeByte(TiffConstants.LITTLE);
-                } else {
-                    out.writeByte(TiffConstants.BIG);
-                    out.writeByte(TiffConstants.BIG);
-                }
-                // write magic number
-                if (bigTiff) {
-                    out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
-                } else out.writeShort(TiffConstants.MAGIC_NUMBER);
+                out.writeByte(TiffConstants.BIG);
+                out.writeByte(TiffConstants.BIG);
+            }
+            // write magic number
+            if (bigTiff) {
+                out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
+            } else out.writeShort(TiffConstants.MAGIC_NUMBER);
 
-                // write the offset to the first IFD
+            // write the offset to the first IFD
 
-                // for vanilla TIFFs, 8 is the offset to the first IFD
-                // for BigTIFFs, 8 is the number of bytes in an offset
-                if (bigTiff) {
-                    out.writeShort(8);
-                    out.writeShort(0);
+            // for vanilla TIFFs, 8 is the offset to the first IFD
+            // for BigTIFFs, 8 is the number of bytes in an offset
+            if (bigTiff) {
+                out.writeShort(8);
+                out.writeShort(0);
 
-                    // write the offset to the first IFD for BigTIFF files
-                    positionOfLastIFDOffset = out.offset();
-                    writeOffset(16);
-                } else {
-                    positionOfLastIFDOffset = out.offset();
-                    writeOffset(8);
-                }
+                // write the offset to the first IFD for BigTIFF files
+                positionOfLastIFDOffset = out.offset();
+                writeOffset(16);
+            } else {
+                positionOfLastIFDOffset = out.offset();
+                writeOffset(8);
             }
             // - we are ready to write after the header
         }
@@ -469,7 +451,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * (Actually it will be a position after the IFD information, including all additional data
      * like arrays of offsets; but you should not use this fact.)
      *
-     * @param ifd                       IFD to write in the output stream.
+     * @param ifd                        IFD to write in the output stream.
      * @param updatePositionOfLastOffset whether this IFD will be the new last IFD in the file. If yes,
      *                                   this method will automatically update internal field, returned by
      *                                   {@link #positionOfLastIFDOffset()}, so that the next call of
@@ -504,7 +486,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void rewritePreviousLastIFDOffset(long nextIFDOffset) throws IOException {
-        if (positionOfLastIFDOffset < 0)  {
+        if (positionOfLastIFDOffset < 0) {
             throw new IllegalStateException("Writing to this TIFF file is not started yet");
         }
         writeOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
@@ -948,9 +930,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         map.ifd().updateDataPositioning(offsets, byteCounts);
         final DetailedIFD ifd = map.ifd();
         if (!ifd.hasFileOffsetForWriting()) {
-            final long newNextIFDOffset = out.length();
-            rewritePreviousLastIFDOffset(newNextIFDOffset);
-            writeIFDAt(ifd, newNextIFDOffset, true);
+            writeIFDAt(ifd, out.length(), false);
         }
     }
 
@@ -974,13 +954,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         completeWritingMap(map);
         appendUntilEvenPosition(out);
 
+        final long previousPositionOfLastIFDOffset = positionOfLastIFDOffset;
         if (!ifd.hasFileOffsetForWriting()) {
             // - usually it means that we did not call writeForward
-            final long newNextIFDOffset = out.length();
-            rewritePreviousLastIFDOffset(newNextIFDOffset);
-            ifd.setFileOffsetForWriting(newNextIFDOffset);
+            ifd.setFileOffsetForWriting(out.length());
         }
         rewriteIFD(ifd, true);
+        writeOffsetAt(ifd.getFileOffsetForWriting(), previousPositionOfLastIFDOffset, false);
 
         out.seek(out.length());
         // - This seeking to file end is not necessary, but can help to avoid accidental bugs

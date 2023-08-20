@@ -180,7 +180,6 @@ public class TiffWriterTest {
 //                    writer.setWritingSequentially(false);
 //                }
                 // - deprecated solution; the simple check below works better!
-                writer.setAppendToExisting(append);
 //                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
@@ -232,8 +231,12 @@ public class TiffWriterTest {
                     TiffMap map = writer.startNewImage(ifd, resizable);
 
                     if (k == 0) {
-                        writer.startWriting();
-                        // - begin writing after checking possible format problem
+                        if (append) {
+                            writer.startAppending();
+                        } else {
+                            writer.startNewFile();
+                        }
+                        // - do this before writing, not in the very beginning, after checking possible format problem
                     }
                     Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.pixelType(), w, h);
                     if (interleaveOutside && map.bytesPerSample() == 1) {

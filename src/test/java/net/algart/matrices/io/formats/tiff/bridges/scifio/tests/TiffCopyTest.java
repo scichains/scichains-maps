@@ -74,7 +74,7 @@ public class TiffCopyTest {
                 TiffWriter writer = new TiffWriter(context, targetFile);
                 writer.setBigTiff(reader.isBigTiff());
                 writer.setLittleEndian(reader.isLittleEndian());
-                writer.startWriting();
+                writer.startNewFile();
 
                 System.out.printf("Copying to %s...%n", targetFile);
                 final List<DetailedIFD> ifds = reader.allIFDs();
