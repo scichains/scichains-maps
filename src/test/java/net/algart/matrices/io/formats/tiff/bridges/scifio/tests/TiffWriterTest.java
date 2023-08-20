@@ -41,6 +41,7 @@ import org.scijava.Context;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 public class TiffWriterTest {
     private final static int IMAGE_WIDTH = 1011;
@@ -244,9 +245,12 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImageFromArray(map, samplesArray, x, y, w, h);
-                    if (map.hasUnset()) {
-                        int n = (int) map.all().stream().filter(TiffTile::hasUnset).count();
-                        System.out.printf("  Image #%d: %d tiles are not completely filled%n", k, n);
+                    if (map.hasUnset() && test == 1) {
+                        List<TiffTile> unset = map.all().stream().filter(TiffTile::hasUnset).toList();
+                        System.out.printf("  Image #%d: %d tiles are not completely filled%n", k, unset.size());
+                        for (TiffTile tile : unset) {
+                            System.out.printf("      %s (%d areas)%n", tile, tile.getUnsetArea().size());
+                        }
                     }
                 }
             }

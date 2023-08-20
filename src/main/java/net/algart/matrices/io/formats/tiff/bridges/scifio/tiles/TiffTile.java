@@ -155,8 +155,16 @@ public final class TiffTile {
         return this;
     }
 
-    public IRectangularArea rectangle() {
-        return rectangleInTile(0, 0, sizeX, sizeY);
+    public IRectangularArea croppedRectangle() {
+        final int dimX = map.dimX();
+        final int dimY = map.dimY();
+        if (index.fromX() >= dimX || index.fromY() >= dimY) {
+            throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
+                    ": cannot initialize its cropped rectangle: " + this);
+        }
+        final int croppedSizeX = Math.min(sizeX, dimX - index.fromX());
+        final int croppedSizeY = Math.min(sizeY, dimY - index.fromY());
+        return rectangleInTile(0, 0, croppedSizeX, croppedSizeY);
     }
 
     public IRectangularArea rectangleInTile(int fromXInTile, int fromYInTile, int sizeXInTile, int sizeYInTile) {
@@ -222,7 +230,7 @@ public final class TiffTile {
     }
 
     public Collection<IRectangularArea> getUnsetArea() {
-        return unsetArea == null ? List.of(rectangle()) : Collections.unmodifiableCollection(unsetArea);
+        return unsetArea == null ? List.of(croppedRectangle()) : Collections.unmodifiableCollection(unsetArea);
     }
 
     public TiffTile unsetAll() {
@@ -556,7 +564,7 @@ public final class TiffTile {
     private void initializeEmptyArea() {
         if (unsetArea == null) {
             unsetArea = new LinkedList<>();
-            unsetArea.add(rectangle());
+            unsetArea.add(croppedRectangle());
         }
     }
 

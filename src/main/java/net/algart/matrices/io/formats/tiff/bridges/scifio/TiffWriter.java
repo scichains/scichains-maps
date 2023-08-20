@@ -219,7 +219,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * RRR...GGG..BBB...  for {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE} or as interleaved RGBRGBRGB...
      * for {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED}.
      *
-     * <p>Note that this mode has no effect for 1-channel images.
+     * <p>Note that this flag is ignored if the result data in the file should not be interleaved,
+     * i.e. for 1-channel images and if {@link IFD#PLANAR_CONFIGURATION} is
+     * {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE}.
      *
      * @param autoInterleaveSource new auto-interleave mode. Default value is <tt>true</tt>.
      * @return a reference to this object.
@@ -750,13 +752,24 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
         assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
 
+        final int tileChunkedRowSizeInBytes = mapTileSizeX * bytesPerPixel;
+        final int samplesChunkedRowSizeInBytes = sizeX * bytesPerPixel;
+        final int tileOneChannelRowSizeInBytes = mapTileSizeX * bytesPerSample;
+        final int samplesOneChannelRowSizeInBytes = sizeX * bytesPerSample;
+
         final boolean autoInterleave = this.autoInterleaveSource;
-        /*
-        //TODO!! use these indexes
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
             for (int yIndex = minYIndex; yIndex <= maxYIndex; yIndex++) {
+                final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
+                final int fromYInTile = tileStartY % mapTileSizeY;
+                final int yDiff = tileStartY - fromY;
+
                 for (int xIndex = minXIndex; xIndex <= maxXIndex; xIndex++) {
+                    final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
+                    final int fromXInTile = tileStartX % mapTileSizeX;
+                    final int xDiff = tileStartX - fromX;
+
                     final TiffTile tile = map.getOrNewMultiplane(p, xIndex, yIndex);
                     tile.cropToMap(true);
                     // - In stripped image, we should correct the height of the last row.
@@ -766,67 +779,67 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     tile.fillEmpty(tileInitializer);
                     final byte[] data = tile.getDecoded();
 
-                    final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
-                    final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
-                    final int fromXInTile = tileStartX % mapTileSizeX;
-                    final int fromYInTile = tileStartY % mapTileSizeY;
-                    final int xDiff = tileStartX - fromX;
-                    final int yDiff = tileStartY - fromY;
-
                     final int tileSizeX = tile.getSizeX();
                     final int tileSizeY = tile.getSizeY();
-                    final int partSizeX = Math.min(toX - tileStartX, tileSizeX - fromXInTile);
-                    assert partSizeX > 0 : "partSizeX=" + partSizeX;
-                    final int partSizeY = Math.min(toY - tileStartY, tileSizeY - fromYInTile);
-                    assert partSizeY > 0 : "partSizeY=" + partSizeY;
+                    final int sizeXInTile = Math.min(toX - tileStartX, tileSizeX - fromXInTile);
+                    assert sizeXInTile > 0 : "sizeXInTile=" + sizeXInTile;
+                    final int sizeYInTile = Math.min(toY - tileStartY, tileSizeY - fromYInTile);
+                    assert sizeYInTile > 0 : "sizeYInTile=" + sizeYInTile;
+                    tile.reduceUnsetInTile(fromXInTile, fromYInTile, sizeXInTile, sizeYInTile);
 
+                    // Tile must be interleaved always (RGBRGB...).
+                    // A) planarSeparated=false, autoInterleave=false:
+                    //      source pixels should be RGBRGB..., tile also will be RGBRGB...
+                    // B) planarSeparated=false, autoInterleave=true:
+                    //      source pixels are RRR...GGG..BBB..., every tile will also be RRR...GGG..BBB...
+                    //      (will be interleaved later by tile.interleaveSamples() call)
+                    // C) planarSeparated=true, autoInterleave is ignored:
+                    //      source pixels are RRR...GGG..BBB..., we will have separate RRR tiles, GGG tiles, BBB tiles
+                    //      (actually each tile is monochrome).
                     if (!planarSeparated && !autoInterleave) {
-                        // - Source data are already interleaved (like RGBRGB...): maybe, external code prefers
-                        // to use interleaved form, for example, OpenCV library.
-                        final int tileRowSizeInBytes = mapTileSizeX * bytesPerPixel;
-                        final int samplesRowSizeInBytes = sizeX * bytesPerPixel;
-                        final int partSizeXInBytes = partSizeX * bytesPerPixel;
-                        int tileOffset = (fromYInTile * tileSizeX + fromXInTile) * bytesPerPixel;
+//                        System.out.printf("!!!Chunked: %d%n", samplesPerPixel);
+                        // - Case A: source data are already interleaved (like RGBRGB...): maybe, external code
+                        // prefers to use interleaved form, for example, OpenCV library.
+                        final int partSizeXInBytes = sizeXInTile * bytesPerPixel;
+                        int tOffset = (fromYInTile * tileSizeX + fromXInTile) * bytesPerPixel;
                         int samplesOffset = (yDiff * sizeX + xDiff) * bytesPerPixel;
-                        for (int i = 0; i < partSizeY; i++) {
-                            System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
-                            tileOffset += tileRowSizeInBytes;
-                            samplesOffset += samplesRowSizeInBytes;
+                        for (int i = 0; i < sizeYInTile; i++) {
+                            System.arraycopy(sourceSamples, samplesOffset, data, tOffset, partSizeXInBytes);
+                            tOffset += tileChunkedRowSizeInBytes;
+                            samplesOffset += samplesChunkedRowSizeInBytes;
                         }
                     } else {
+//                        System.out.printf("!!!Separate: %d%n", samplesPerPixel);
                         // - Source data are separated to channel planes: standard form, more convenient for image
                         // processing; this form is used for results of TiffReader by default (unless
                         // you specify another behaviour by setInterleaveResults method).
                         // Here are 2 possible cases:
-                        //      planarSeparated=false (most typical): results in the file should be interleaved;
+                        //      B) planarSeparated=false (most typical): results in the file should be interleaved;
                         // we must prepare a single tile, but with SEPARATED data (they will be interleaved later);
-                        //      planarSeparated=true (rare): for 3 channels (RGB) we must prepare 3 separate tiles;
+                        //      C) planarSeparated=true (rare): for 3 channels (RGB) we must prepare 3 separate tiles;
                         // in this case samplesPerPixel=1.
-                        final int tileRowSizeInBytes = mapTileSizeX * bytesPerSample;
-                        final int samplesRowSizeInBytes = sizeX * bytesPerSample;
-                        final int partSizeXInBytes = partSizeX * bytesPerSample;
+                        final int partSizeXInBytes = sizeXInTile * bytesPerSample;
                         for (int s = 0; s < samplesPerPixel; s++) {
-                            int tileOffset = (((s * tileSizeY)
-                                    + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
+                            int tOffset = (((s * tileSizeY) + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
                             int samplesOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
-                            for (int i = 0; i < partSizeY; i++) {
-                                System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
-                                tileOffset += tileRowSizeInBytes;
-                                samplesOffset += samplesRowSizeInBytes;
+                            for (int i = 0; i < sizeYInTile; i++) {
+                                System.arraycopy(sourceSamples, samplesOffset, data, tOffset, partSizeXInBytes);
+                                tOffset += tileOneChannelRowSizeInBytes;
+                                samplesOffset += samplesOneChannelRowSizeInBytes;
                             }
                         }
                     }
                 }
             }
         }
-*/
+
+        /* // The following code did properly work only starting from tile boundaries.
 
         final int tileCountXInRegion = (sizeX + mapTileSizeX - 1) / mapTileSizeX;
         final int tileCountYInRegion = (sizeY + mapTileSizeY - 1) / mapTileSizeY;
         assert tileCountXInRegion <= sizeX;
         assert tileCountYInRegion <= sizeY;
 
-        // - true means that the data are already interleaved by an external code
         for (int p = 0, tileIndex = 0; p < numberOfSeparatedPlanes; p++) {
             // - in a rare case PlanarConfiguration=2 (RRR...GGG...BBB...),
             // this order provides increasing tile offsets while simple usage of this class
@@ -846,7 +859,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
                     // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
                     tile.fillEmpty(tileInitializer);
-                    //TODO!! reduceUnset
                     final int partSizeY = Math.min(sizeY - yOffset, tile.getSizeY());
                     final int partSizeX = Math.min(sizeX - xOffset, tile.getSizeX());
                     final byte[] data = tile.getDecoded();
@@ -889,6 +901,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 }
             }
         }
+         */
     }
 
     public void encode(TiffTile tile) throws FormatException {

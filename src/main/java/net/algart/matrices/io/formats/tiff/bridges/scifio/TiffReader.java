@@ -1444,13 +1444,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / mapTileSizeX);
         final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
         assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
-        final int tileRowSizeInBytes = mapTileSizeX * bytesPerSample;
-        final int samplesRowSizeInBytes = sizeX * bytesPerSample;
+        final int tileOneChannelRowSizeInBytes = mapTileSizeX * bytesPerSample;
+        final int samplesOneChannelRowSizeInBytes = sizeX * bytesPerSample;
 
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
             for (int yIndex = minYIndex; yIndex <= maxYIndex; yIndex++) {
+                final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
+                final int fromYInTile = tileStartY % mapTileSizeY;
+                final int yDiff = tileStartY - fromY;
+
                 for (int xIndex = minXIndex; xIndex <= maxXIndex; xIndex++) {
+                    final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
+                    final int fromXInTile = tileStartX % mapTileSizeX;
+                    final int xDiff = tileStartX - fromX;
+
                     final TiffTile tile = readTile(map.multiplaneIndex(p, xIndex, yIndex));
                     if (tile.isEmpty()) {
                         continue;
@@ -1461,28 +1469,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     }
                     byte[] data = tile.getDecoded();
 
-                    final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
-                    final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
-                    final int fromXInTile = tileStartX % mapTileSizeX;
-                    final int fromYInTile = tileStartY % mapTileSizeY;
-                    final int xDiff = tileStartX - fromX;
-                    final int yDiff = tileStartY - fromY;
-
                     final int tileSizeX = tile.getSizeX();
                     final int tileSizeY = tile.getSizeY();
-                    final int partSizeX = Math.min(toX - tileStartX, tileSizeX - fromXInTile);
-                    assert partSizeX > 0 : "partSizeX=" + partSizeX;
-                    final int partSizeY = Math.min(toY - tileStartY, tileSizeY - fromYInTile);
-                    assert partSizeY > 0 : "partSizeY=" + partSizeY;
+                    final int sizeXInTile = Math.min(toX - tileStartX, tileSizeX - fromXInTile);
+                    assert sizeXInTile > 0 : "sizeXInTile=" + sizeXInTile;
+                    final int sizeYInTile = Math.min(toY - tileStartY, tileSizeY - fromYInTile);
+                    assert sizeYInTile > 0 : "sizeYInTile=" + sizeYInTile;
 
-                    final int partSizeXInBytes = partSizeX * bytesPerSample;
+                    final int partSizeXInBytes = sizeXInTile * bytesPerSample;
                     for (int s = 0; s < samplesPerPixel; s++) {
-                        int tileOffset = (((s * tileSizeY) + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
+                        int tOffset = (((s * tileSizeY) + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
                         int samplesOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
-                        for (int i = 0; i < partSizeY; i++) {
-                            System.arraycopy(data, tileOffset, resultSamples, samplesOffset, partSizeXInBytes);
-                            tileOffset += tileRowSizeInBytes;
-                            samplesOffset += samplesRowSizeInBytes;
+                        for (int i = 0; i < sizeYInTile; i++) {
+                            System.arraycopy(data, tOffset, resultSamples, samplesOffset, partSizeXInBytes);
+                            tOffset += tileOneChannelRowSizeInBytes;
+                            samplesOffset += samplesOneChannelRowSizeInBytes;
                         }
                     }
                 }
