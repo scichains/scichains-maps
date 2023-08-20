@@ -159,6 +159,7 @@ public class TiffWriterTest {
             // - we must not interleave data at all
             interleaveOutside = false;
         }
+        final boolean existingFile = append || randomAccess;
 
         System.out.printf("%d images %s, %d total test%n",
                 numberOfImages,
@@ -167,9 +168,8 @@ public class TiffWriterTest {
 
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
-            final boolean deleteExistingFile = !randomAccess && !append;
             try (Context context = noContext ? null : scifio.getContext();
-                 TiffWriter writer = new TiffWriter(context, targetFile, deleteExistingFile)) {
+                 TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
 //                writer.setAutoMarkLastImageOnClose(false);
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
@@ -231,8 +231,8 @@ public class TiffWriterTest {
                     TiffMap map = writer.startNewImage(ifd, resizable);
 
                     if (k == 0) {
-                        if (append) {
-                            writer.startAppending();
+                        if (existingFile) {
+                            writer.startExistingFile();
                         } else {
                             writer.startNewFile();
                         }

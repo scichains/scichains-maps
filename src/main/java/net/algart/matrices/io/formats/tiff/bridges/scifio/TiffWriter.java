@@ -386,7 +386,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return positionOfLastIFDOffset;
     }
 
-    public void startAppending() throws IOException {
+    public void startExistingFile() throws IOException {
         synchronized (this) {
             final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
             final boolean bigTiff;
@@ -1236,7 +1236,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         try {
             out.seek(positionToWrite);
             writeOffset(offset);
-            if (updatePositionOfLastIFDOffset) {
+            if (updatePositionOfLastIFDOffset && offset == DetailedIFD.LAST_IFD_OFFSET) {
                 positionOfLastIFDOffset = positionToWrite;
             }
         } finally {
