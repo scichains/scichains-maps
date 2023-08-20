@@ -420,9 +420,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
                 }
                 this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
-                writeOffsetAt(out.length(), readerPositionOfLastOffset, true);
+                positionOfLastIFDOffset = readerPositionOfLastOffset;
                 out.seek(out.length());
-                // - we are ready to write after the end of the file
+                // - ready to write after the end of the file
+                // (not necessary, but can help to avoid accidental bugs)
             } else {
                 out.seek(0);
                 if (isLittleEndian()) {
@@ -465,6 +466,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * this mark inside the file in the previously written IFD.
      *
      * <p>Note: this method changes position in the output stream.
+     * (Actually it will be a position after the IFD information, including all additional data
+     * like arrays of offsets; but you should not use this fact.)
      *
      * @param ifd                       IFD to write in the output stream.
      * @param updatePositionOfLastOffset whether this IFD will be the new last IFD in the file. If yes,
@@ -980,8 +983,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         rewriteIFD(ifd, true);
 
         out.seek(out.length());
-        // - this seeking to file end is not necessary, but this is much better than
-        // to keep file offset in the middle of the last image
+        // - This seeking to file end is not necessary, but can help to avoid accidental bugs
+        // (this is much better than keeping file offset in the middle of the last image
+        // between IFD and newly written TIFF tiles).
     }
 
     public void completeWritingMap(TiffMap map) throws IOException, FormatException {
