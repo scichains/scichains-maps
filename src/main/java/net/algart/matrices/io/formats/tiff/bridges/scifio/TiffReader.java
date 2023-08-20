@@ -1445,7 +1445,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
         assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
         final int tileRowSizeInBytes = mapTileSizeX * bytesPerSample;
-        final int outputRowSizeInBytes = sizeX * bytesPerSample;
+        final int samplesRowSizeInBytes = sizeX * bytesPerSample;
 
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             // - for a rare case PlanarConfiguration=2 (RRR...GGG...BBB...)
@@ -1463,26 +1463,26 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
                     final int tileStartX = Math.max(xIndex * mapTileSizeX, fromX);
                     final int tileStartY = Math.max(yIndex * mapTileSizeY, fromY);
-                    final int xInTile = tileStartX % mapTileSizeX;
-                    final int yInTile = tileStartY % mapTileSizeY;
+                    final int fromXInTile = tileStartX % mapTileSizeX;
+                    final int fromYInTile = tileStartY % mapTileSizeY;
                     final int xDiff = tileStartX - fromX;
                     final int yDiff = tileStartY - fromY;
 
                     final int tileSizeX = tile.getSizeX();
                     final int tileSizeY = tile.getSizeY();
-                    final int partSizeX = Math.min(toX - tileStartX, tileSizeX - xInTile);
+                    final int partSizeX = Math.min(toX - tileStartX, tileSizeX - fromXInTile);
                     assert partSizeX > 0 : "partSizeX=" + partSizeX;
-                    final int partSizeY = Math.min(toY - tileStartY, tileSizeY - yInTile);
+                    final int partSizeY = Math.min(toY - tileStartY, tileSizeY - fromYInTile);
                     assert partSizeY > 0 : "partSizeY=" + partSizeY;
 
                     final int partSizeXInBytes = partSizeX * bytesPerSample;
                     for (int s = 0; s < samplesPerPixel; s++) {
-                        int tileOffset = (((s * tileSizeY) + yInTile) * tileSizeX + xInTile) * bytesPerSample;
+                        int tileOffset = (((s * tileSizeY) + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
                         int samplesOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
-                        for (int tileRow = 0; tileRow < partSizeY; tileRow++) {
+                        for (int i = 0; i < partSizeY; i++) {
                             System.arraycopy(data, tileOffset, resultSamples, samplesOffset, partSizeXInBytes);
                             tileOffset += tileRowSizeInBytes;
-                            samplesOffset += outputRowSizeInBytes;
+                            samplesOffset += samplesRowSizeInBytes;
                         }
                     }
                 }
