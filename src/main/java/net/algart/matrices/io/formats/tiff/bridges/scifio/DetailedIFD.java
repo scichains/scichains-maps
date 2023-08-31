@@ -182,6 +182,11 @@ public class DetailedIFD extends IFD {
         return nextIFDOffset >= 0;
     }
 
+    /**
+     * Returns <tt>true</tt> if this IFD is marked as the last ({@link #getNextIFDOffset()} returns 0).
+     *
+     * @return whether this IFD is the last one in the TIFF file.
+     */
     public boolean isLastIFD() {
         return nextIFDOffset == LAST_IFD_OFFSET;
     }

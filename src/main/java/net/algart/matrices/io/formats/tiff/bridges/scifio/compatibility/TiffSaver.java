@@ -155,15 +155,149 @@ public class TiffSaver extends TiffWriter {
     }
 
     @Deprecated
-    public void writeIFDValue(
-            final DataHandle<Location> extraOut,
-            final long offset, final int tag, Object value)
-            throws FormatException, IOException {
-        super.writeIFDValueAtCurrentPosition(extraOut, offset, tag, value);
+    public void writeIFDValue(final DataHandle<Location> extraOut,
+                              final long offset, final int tag, Object value) throws FormatException,
+            IOException {
+        final DataHandle<Location> out = getStream();
+        final boolean bigTiff = isBigTiff();
+        extraOut.setLittleEndian(isLittleEndian());
+
+        // convert singleton objects into arrays, for simplicity
+        if (value instanceof Short) {
+            value = new short[]{((Short) value).shortValue()};
+        } else if (value instanceof Integer) {
+            value = new int[]{((Integer) value).intValue()};
+        } else if (value instanceof Long) {
+            value = new long[]{((Long) value).longValue()};
+        } else if (value instanceof TiffRational) {
+            value = new TiffRational[]{(TiffRational) value};
+        } else if (value instanceof Float) {
+            value = new float[]{((Float) value).floatValue()};
+        } else if (value instanceof Double) {
+            value = new double[]{((Double) value).doubleValue()};
+        }
+
+        final int dataLength = bigTiff ? 8 : 4;
+
+        // write directory entry to output buffers
+        out.writeShort(tag); // tag
+        if (value instanceof short[]) {
+            final short[] q = (short[]) value;
+            out.writeShort(IFDType.BYTE.getCode());
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength) {
+                for (int i = 0; i < q.length; i++)
+                    out.writeByte(q[i]);
+                for (int i = q.length; i < dataLength; i++)
+                    out.writeByte(0);
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++)
+                    extraOut.writeByte(q[i]);
+            }
+        } else if (value instanceof String) { // ASCII
+            final char[] q = ((String) value).toCharArray();
+            out.writeShort(IFDType.ASCII.getCode()); // type
+            writeIntValue(out, q.length + 1);
+            if (q.length < dataLength) {
+                for (int i = 0; i < q.length; i++)
+                    out.writeByte(q[i]); // value(s)
+                for (int i = q.length; i < dataLength; i++)
+                    out.writeByte(0); // padding
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++)
+                    extraOut.writeByte(q[i]); // values
+                extraOut.writeByte(0); // concluding NULL byte
+            }
+        } else if (value instanceof int[]) { // SHORT
+            final int[] q = (int[]) value;
+            out.writeShort(IFDType.SHORT.getCode()); // type
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength / 2) {
+                for (int i = 0; i < q.length; i++) {
+                    out.writeShort(q[i]); // value(s)
+                }
+                for (int i = q.length; i < dataLength / 2; i++) {
+                    out.writeShort(0); // padding
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++) {
+                    extraOut.writeShort(q[i]); // values
+                }
+            }
+        } else if (value instanceof long[]) { // LONG
+            final long[] q = (long[]) value;
+
+            final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG
+                    .getCode();
+            out.writeShort(type);
+            writeIntValue(out, q.length);
+
+            final int div = bigTiff ? 8 : 4;
+
+            if (q.length <= dataLength / div) {
+                for (int i = 0; i < q.length; i++) {
+                    writeIntValue(out, q[0]);
+                }
+                for (int i = q.length; i < dataLength / div; i++) {
+                    writeIntValue(out, 0);
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++) {
+                    writeIntValue(extraOut, q[i]);
+                }
+            }
+        } else if (value instanceof TiffRational[]) { // RATIONAL
+            final TiffRational[] q = (TiffRational[]) value;
+            out.writeShort(IFDType.RATIONAL.getCode()); // type
+            writeIntValue(out, q.length);
+            if (bigTiff && q.length == 1) {
+                out.writeInt((int) q[0].getNumerator());
+                out.writeInt((int) q[0].getDenominator());
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++) {
+                    extraOut.writeInt((int) q[i].getNumerator());
+                    extraOut.writeInt((int) q[i].getDenominator());
+                }
+            }
+        } else if (value instanceof float[]) { // FLOAT
+            final float[] q = (float[]) value;
+            out.writeShort(IFDType.FLOAT.getCode()); // type
+            writeIntValue(out, q.length);
+            if (q.length <= dataLength / 4) {
+                for (int i = 0; i < q.length; i++) {
+                    out.writeFloat(q[0]); // value
+                }
+                for (int i = q.length; i < dataLength / 4; i++) {
+                    out.writeInt(0); // padding
+                }
+            } else {
+                writeIntValue(out, offset + extraOut.length());
+                for (int i = 0; i < q.length; i++) {
+                    extraOut.writeFloat(q[i]); // values
+                }
+            }
+        } else if (value instanceof double[]) { // DOUBLE
+            final double[] q = (double[]) value;
+            out.writeShort(IFDType.DOUBLE.getCode()); // type
+            writeIntValue(out, q.length);
+            writeIntValue(out, offset + extraOut.length());
+            for (final double doubleVal : q) {
+                extraOut.writeDouble(doubleVal); // values
+            }
+        } else {
+            throw new FormatException("Unknown IFD value type (" + value.getClass()
+                    .getName() + "): " + value);
+        }
     }
 
+
     /**
-     * Please use code like inside {@link #startWriting()}.
+     * Please use code like inside {@link #startExistingFile()}.
      */
     @Deprecated
     public void overwriteLastIFDOffset(final DataHandle<Location> handle)
