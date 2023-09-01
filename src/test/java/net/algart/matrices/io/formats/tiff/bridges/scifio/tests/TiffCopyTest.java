@@ -88,7 +88,7 @@ public class TiffCopyTest {
                     final TiffMap writeMap = writer.startNewImage(writeIFD, false);
                     writer.writeForward(writeMap);
                     int k = 0, n = writeMap.size();
-                    for (TiffTile targetTile : writeMap.all()) {
+                    for (TiffTile targetTile : writeMap.tiles()) {
                         TiffTileIndex sourceTileIndex = readMap.copyIndex(targetTile.index());
                         // - note: targetTile.index() refers to writeIFD, where we still have no data
                         TiffTile sourceTile = reader.readTile(sourceTileIndex);

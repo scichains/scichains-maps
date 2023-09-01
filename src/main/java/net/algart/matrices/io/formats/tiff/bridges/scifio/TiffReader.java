@@ -106,6 +106,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     public static int MAX_NUMBER_OF_IFD_ENTRIES = 100_000_000;
 
+    private static final int MAX_NUMBER_OF_IFDS = 100_000_000;
+    // - Larger number of IFD very probably means a broken file
+
     private static final boolean OPTIMIZE_READING_IFD_ARRAYS = true;
     // - Note: this optimization allows to speed up reading large array of offsets.
     // If we use simple FileHandle for reading file (based on RandomAccessFile),
@@ -628,7 +631,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
                 in.seek(offset);
                 skipIFDEntries(fileLength);
-                offset = readNextOffset(offset, true);
+                final long newOffset = readNextOffset(offset, true);
+                if (newOffset == offset) {
+                    throw new IOException("TIFF file is broken (infinite loop of IFD offsets detected)");
+                }
+                offset = newOffset;
             }
             return -1;
         }
@@ -645,11 +652,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final List<Long> offsets = new ArrayList<>();
             long offset = readFirstIFDOffset();
 
+            int count = 0;
             while (offset > 0 && offset < fileLength) {
                 in.seek(offset);
                 offsets.add(offset);
                 skipIFDEntries(fileLength);
-                offset = readNextOffset(offset, true);
+                final long newOffset = readNextOffset(offset, true);
+                if (newOffset == offset) {
+                    throw new IOException("TIFF file is broken (infinite loop of IFD offsets detected " +
+                            "for offset " + offset + ")");
+                }
+                offset = newOffset;
+                if (++count > MAX_NUMBER_OF_IFDS) {
+                    throw new IOException("Too many number of IFD in TIFF file: more than " + MAX_NUMBER_OF_IFDS +
+                            "; probably file is broken");
+                }
             }
             if (requireValidTiff && offsets.isEmpty()) {
                 throw new AssertionError("No IFDs, but it was not checked in getFirstOffset");

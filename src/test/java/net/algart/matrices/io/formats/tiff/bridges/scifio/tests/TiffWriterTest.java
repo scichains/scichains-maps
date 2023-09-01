@@ -217,6 +217,7 @@ public class TiffWriterTest {
                         // - unusual mode: no special putXxx method
                     }
                     ifd.putPixelInformation(numberOfChannels, pixelType);
+                    TiffMap map;
                     if (randomAccess && k == 0) {
                         // - Ignoring previous IFD. It has no sense for k > 0:
                         // after writing first IFD (at firstIfdIndex), new number of IFD
@@ -230,8 +231,10 @@ public class TiffWriterTest {
                             ifd.removeNextIFDOffset();
                             ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
                         }
+                        map = startExistingImage(writer, ifd, resizable);
+                    } else {
+                        map = writer.startNewImage(ifd, resizable);
                     }
-                    TiffMap map = writer.startNewImage(ifd, resizable);
 
                     if (k == 0) {
                         if (existingFile) {
@@ -249,7 +252,7 @@ public class TiffWriterTest {
                     writer.writeImageFromArray(map, samplesArray, x, y, w, h);
                     if (test == 1) {
                         if (map.hasUnset()) {
-                            List<TiffTile> unset = map.all().stream().filter(TiffTile::hasUnset).toList();
+                            List<TiffTile> unset = map.tiles().stream().filter(TiffTile::hasUnset).toList();
                             List<TiffTile> partial = unset.stream().filter(TiffTile::hasStoredDataFileOffset).toList();
                             System.out.printf(
                                     "  Image #%d: %d tiles, %d are not completely filled, %d are partially filled%n",
@@ -267,6 +270,41 @@ public class TiffWriterTest {
             }
         }
         System.out.println("Done");
+    }
+
+    // Note: this method cannot be recommended as a part of standard API, because it leads
+    // to making unused space in the existing TIFF file.
+    // In any case, this method does not process fragments, not aligned by tile boundaries.
+    // Note: resizable argument is added for testing only; there is no practical sense to pass "true" here.
+    private static TiffMap startExistingImage(TiffWriter writer, DetailedIFD ifd, boolean resizable)
+            throws FormatException {
+        boolean tiled = ifd.hasTileInformation();
+        final long[] offsets = ifd.getTileOrStripOffsets();
+        final long[] byteCounts = ifd.getTileOrStripByteCounts();
+        TiffMap map = writer.startNewImage(ifd, resizable);
+        if (!tiled) {
+            return map;
+            // - this method does not support special processing stripped images
+        }
+        map.completeImageGrid();
+        if (offsets == null) {
+            throw new FormatException("No tile offsets");
+        }
+        if (byteCounts == null) {
+            throw new FormatException("No tile byte counts");
+        }
+        if (offsets.length < map.size() || byteCounts.length < map.size()) {
+            throw new FormatException("Strange length of tile offsets " + offsets.length +
+                    " or byte counts " + byteCounts.length);
+            // - should not occur: it is checked in DetailedIFD methods
+        }
+        int k = 0;
+        for (TiffTile tile : map.tiles()) {
+            tile.setStoredDataFileRange(offsets[k], (int) byteCounts[k]);
+            // - main operation of this method: we "tell" that all tiles already exist in the file
+            k++;
+        }
+        return map;
     }
 
     private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {

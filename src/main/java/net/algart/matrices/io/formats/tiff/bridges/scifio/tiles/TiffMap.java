@@ -348,10 +348,6 @@ public final class TiffMap {
         return tileMap.size();
     }
 
-    public Collection<TiffTile> all() {
-        return Collections.unmodifiableCollection(tileMap.values());
-    }
-
     public TiffTile getOrNew(int x, int y) {
         return getOrNew(index(x, y));
     }
