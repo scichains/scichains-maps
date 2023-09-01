@@ -155,16 +155,8 @@ public final class TiffTile {
         return this;
     }
 
-    public IRectangularArea croppedRectangle() {
-        final int dimX = map.dimX();
-        final int dimY = map.dimY();
-        if (index.fromX() >= dimX || index.fromY() >= dimY) {
-            throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
-                    ": cannot initialize its cropped rectangle: " + this);
-        }
-        final int croppedSizeX = Math.min(sizeX, dimX - index.fromX());
-        final int croppedSizeY = Math.min(sizeY, dimY - index.fromY());
-        return rectangleInTile(0, 0, croppedSizeX, croppedSizeY);
+    public IRectangularArea rectangle() {
+        return rectangleInTile(0, 0, sizeX, sizeY);
     }
 
     public IRectangularArea rectangleInTile(int fromXInTile, int fromYInTile, int sizeXInTile, int sizeYInTile) {
@@ -181,6 +173,9 @@ public final class TiffTile {
         return IRectangularArea.valueOf(minX, minY, maxX, maxY);
     }
 
+    public boolean isFullyInsideMap() {
+        return index.fromX() + sizeX <= map.dimX() && index.fromY() + sizeY <= map.dimY();
+    }
 
     /**
      * Reduces sizes of this tile so that it will completely lie inside map dimensions.
@@ -198,21 +193,16 @@ public final class TiffTile {
      * @throws IllegalStateException if this tile is completely outside map dimensions.
      */
     public TiffTile cropToMap(boolean nonTiledOnly) {
-        final int dimX = map.dimX();
-        final int dimY = map.dimY();
-        if (index.fromX() >= dimX || index.fromY() >= dimY) {
-            throw new IllegalStateException("Tile is fully outside the map dimensions " + dimX + "x" + dimY +
-                    " and cannot be cropped: " + this);
-        }
+        checkOutsideMap();
         if (nonTiledOnly && map.isTiled()) {
             return this;
         } else {
-            return setSizes(Math.min(sizeX, dimX - index.fromX()), Math.min(sizeY, dimY - index.fromY()));
+            return setSizes(Math.min(sizeX, map.dimX() - index.fromX()), Math.min(sizeY, map.dimY() - index.fromY()));
         }
     }
 
     public TiffTile setEqualSizes(TiffTile other) {
-        Objects.requireNonNull(other,"Null other tile");
+        Objects.requireNonNull(other, "Null other tile");
         return setSizes(other.sizeX, other.sizeY);
     }
 
@@ -230,7 +220,7 @@ public final class TiffTile {
     }
 
     public Collection<IRectangularArea> getUnsetArea() {
-        return unsetArea == null ? List.of(croppedRectangle()) : Collections.unmodifiableCollection(unsetArea);
+        return unsetArea == null ? List.of(rectangle()) : Collections.unmodifiableCollection(unsetArea);
     }
 
     public TiffTile unsetAll() {
@@ -238,7 +228,7 @@ public final class TiffTile {
         return this;
     }
 
-    public TiffTile reduceUnset(IRectangularArea newlyFilledArea) {
+    public TiffTile reduceUnset(IRectangularArea... newlyFilledArea) {
         Objects.requireNonNull(newlyFilledArea, "Null newlyFilledArea");
         initializeEmptyArea();
         IRectangularArea.subtractCollection(unsetArea, newlyFilledArea);
@@ -248,6 +238,19 @@ public final class TiffTile {
     public TiffTile reduceUnsetInTile(int fromXInTile, int fromYInTile, int sizeXInTile, int sizeYInTile) {
         if (sizeXInTile > 0 && sizeYInTile > 0) {
             reduceUnset(rectangleInTile(fromXInTile, fromYInTile, sizeXInTile, sizeYInTile));
+        }
+        return this;
+    }
+
+    public TiffTile cropUnsetToMap() {
+        checkOutsideMap();
+        if (!isFullyInsideMap()) {
+            // - little optimization
+            reduceUnset(
+                    IRectangularArea.valueOf(0, map.dimY(), Integer.MAX_VALUE, Integer.MAX_VALUE),
+                    IRectangularArea.valueOf(map.dimX(), 0, Integer.MAX_VALUE, Integer.MAX_VALUE));
+            // Integer.MAX_VALUE is enough: we work with 32-bit coordinates
+            // Note that Long.MAX_VALUE is not permitted here, maximal allowed value is Long.MAX_VALUE-1
         }
         return this;
     }
@@ -564,13 +567,20 @@ public final class TiffTile {
     private void initializeEmptyArea() {
         if (unsetArea == null) {
             unsetArea = new LinkedList<>();
-            unsetArea.add(croppedRectangle());
+            unsetArea.add(rectangle());
         }
     }
 
     private void checkEmpty() {
         if (data == null) {
             throw new IllegalStateException("TIFF tile is still not filled by any data: " + this);
+        }
+    }
+
+    private void checkOutsideMap() {
+        if (index.fromX() >= map.dimX() || index.fromY() >= map.dimY()) {
+            throw new IllegalStateException("Tile is fully outside the map dimensions " +
+                    map.dimX() + "x" + map.dimY() + ": " + this);
         }
     }
 

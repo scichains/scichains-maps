@@ -869,6 +869,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
 
         completeWritingMap(map);
+        map.cropAllUnset();
         appendFileUntilEvenLength();
         // - not absolutely necessary, but good idea
 

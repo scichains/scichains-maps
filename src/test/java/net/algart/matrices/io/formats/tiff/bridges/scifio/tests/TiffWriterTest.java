@@ -30,6 +30,7 @@ import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
+import net.algart.math.IRectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
@@ -41,6 +42,7 @@ import org.scijava.Context;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.List;
 
 public class TiffWriterTest {
@@ -245,13 +247,20 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImageFromArray(map, samplesArray, x, y, w, h);
-                    if (map.hasUnset() && test == 1) {
-                        List<TiffTile> unset = map.all().stream().filter(TiffTile::hasUnset).toList();
-                        List<TiffTile> partial = unset.stream().filter(TiffTile::hasStoredDataFileOffset).toList();
-                        System.out.printf("  Image #%d: %d tiles are not completely filled, %d are partially filled%n",
-                                k, unset.size(), partial.size());
-                        for (TiffTile tile : partial) {
-                            System.out.printf("      %s (%d areas)%n", tile, tile.getUnsetArea().size());
+                    if (test == 1) {
+                        if (map.hasUnset()) {
+                            List<TiffTile> unset = map.all().stream().filter(TiffTile::hasUnset).toList();
+                            List<TiffTile> partial = unset.stream().filter(TiffTile::hasStoredDataFileOffset).toList();
+                            System.out.printf(
+                                    "  Image #%d: %d tiles are not completely filled, %d are partially filled%n",
+                                    k, unset.size(), partial.size());
+                            for (TiffTile tile : partial) {
+                                Collection<IRectangularArea> unsetArea = tile.getUnsetArea();
+                                System.out.printf("      %s (%d area%s)%n", tile, unsetArea.size(),
+                                        unsetArea.size() == 1 ? ": " + unsetArea.iterator().next() : "s");
+                            }
+                        } else {
+                            System.out.println("All tiles are completely filled");
                         }
                     }
                 }

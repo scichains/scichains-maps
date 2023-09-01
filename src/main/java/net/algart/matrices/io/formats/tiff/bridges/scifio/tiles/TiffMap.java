@@ -416,12 +416,16 @@ public final class TiffMap {
         tileMap.values().forEach(tile -> tile.cropToMap(nonTiledOnly));
     }
 
+    public boolean hasUnset() {
+        return tileMap.values().stream().anyMatch(TiffTile::hasUnset);
+    }
+
     public void unsetAll() {
         tileMap.values().forEach(TiffTile::unsetAll);
     }
 
-    public boolean hasUnset() {
-        return tileMap.values().stream().anyMatch(TiffTile::hasUnset);
+    public void cropAllUnset() {
+        tileMap.values().forEach(TiffTile::cropUnsetToMap);
     }
 
     public void clear(boolean clearDimensions) {
