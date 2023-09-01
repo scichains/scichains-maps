@@ -36,6 +36,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCod
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIO;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -838,7 +839,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (!writingForwardAllowed || map.isResizable()) {
             return;
         }
-        map.rearrangeImageGrid();
+        map.completeImageGrid();
         map.cropAll(true);
         // - necessary for tiles, that will not be filled by any pixels (empty tiles)
         final long[] offsets = new long[map.numberOfGridTiles()];
@@ -856,7 +857,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final boolean resizable = map.isResizable();
         map.checkDimensions();
         if (resizable) {
-            map.rearrangeImageGrid();
             map.cropAll(true);
         }
 
@@ -887,38 +887,47 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void completeWritingMap(TiffMap map) throws IOException, FormatException {
+        Objects.requireNonNull(map, "Null TIFF map");
         final long[] offsets = new long[map.numberOfGridTiles()];
         final long[] byteCounts = new long[map.numberOfGridTiles()];
         // - zero-filled by Java
-        Collection<TiffTile> tiles = map.all();
-        if (tiles.size() != offsets.length) {
-            throw new AssertionError("Invalid map: number of tiles " + tiles.size() +
-                    " does not match number of grid cells " + map.numberOfGridTiles());
-        }
         TiffTile empty = null;
-        int k = 0;
-        for (TiffTile tile : tiles) {
-            if (!tile.isEmpty()) {
-                writeEncodedTile(tile, true);
-            }
-            if (tile.hasStoredDataFileOffset()) {
-                offsets[k] = tile.getStoredDataFileOffset();
-                byteCounts[k] = tile.getStoredDataLength();
-            } else if (!missingTilesAllowed) {
-                if (!tile.equalSizes(empty)) {
-                    // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
-                    // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
-                    empty = new TiffTile(tile.index()).setEqualSizes(tile);
-                    empty.fillEmpty(tileInitializer);
-                    encode(empty);
-                    writeEncodedTile(empty, false);
-                    // - note: unlike usual tiles, the empty tile is written once,
-                    // but its offset/byte-count are used many times!
+        final int numberOfSeparatedPlanes = map.numberOfSeparatedPlanes();
+        final int gridTileCountY = map.gridTileCountY();
+        final int gridTileCountX = map.gridTileCountX();
+        for (int p = 0, k = 0; p < numberOfSeparatedPlanes; p++) {
+            for (int yIndex = 0; yIndex < gridTileCountY; yIndex++) {
+                for (int xIndex = 0; xIndex < gridTileCountX; xIndex++, k++) {
+                    TiffTileIndex tileIndex = map.multiplaneIndex(p, xIndex, yIndex);
+                    TiffTile tile = map.get(tileIndex);
+                    if (tile == null) {
+                        tile = new TiffTile(tileIndex);
+                        // - without saving in the map; this lightweight operation help to simplify logic
+                    }
+                    tile.cropToMap(true);
+                    // - like in updateTiles
+                    if (!tile.isEmpty()) {
+                        writeEncodedTile(tile, true);
+                    }
+                    if (tile.hasStoredDataFileOffset()) {
+                        offsets[k] = tile.getStoredDataFileOffset();
+                        byteCounts[k] = tile.getStoredDataLength();
+                    } else if (!missingTilesAllowed) {
+                        if (!tile.equalSizes(empty)) {
+                            // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
+                            // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
+                            empty = new TiffTile(tileIndex).setEqualSizes(tile);
+                            empty.fillEmpty(tileInitializer);
+                            encode(empty);
+                            writeEncodedTile(empty, false);
+                            // - note: unlike usual tiles, the empty tile is written once,
+                            // but its offset/byte-count are used many times!
+                        }
+                        offsets[k] = empty.getStoredDataFileOffset();
+                        byteCounts[k] = empty.getStoredDataLength();
+                    } // else offsets[k]/byteCounts[k] stay to be zero
                 }
-                offsets[k] = empty.getStoredDataFileOffset();
-                byteCounts[k] = empty.getStoredDataLength();
-            } // else offsets[k]/byteCounts[k] stay to be zero
-            k++;
+            }
         }
         map.ifd().updateDataPositioning(offsets, byteCounts);
     }
