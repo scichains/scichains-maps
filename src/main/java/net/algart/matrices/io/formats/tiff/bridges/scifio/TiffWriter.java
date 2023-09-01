@@ -518,7 +518,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final long previousPositionOfLastIFDOffset = positionOfLastIFDOffset;
             writeIFDNextOffset(ifd, positionOfNextOffset, updateIFDLinkages);
             if (updateIFDLinkages) {
-                writeOffsetAt(startOffset, previousPositionOfLastIFDOffset, false);
+                writeIFDOffsetAt(startOffset, previousPositionOfLastIFDOffset, false);
             }
         }
     }
@@ -528,7 +528,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             if (positionOfLastIFDOffset < 0) {
                 throw new IllegalStateException("Writing to this TIFF file is not started yet");
             }
-            writeOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
+            writeIFDOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
             // - last argument is not important: positionOfLastIFDOffset will not change in any case
         }
     }
@@ -1323,7 +1323,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private void writeIFDNextOffset(DetailedIFD ifd, long positionOfNextOffset, boolean updatePositionOfLastIFDOffset)
             throws IOException {
-        writeOffsetAt(
+        writeIFDOffsetAt(
                 ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : DetailedIFD.LAST_IFD_OFFSET,
                 positionOfNextOffset,
                 updatePositionOfLastIFDOffset);
@@ -1364,7 +1364,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    private void writeOffsetAt(long offset, long positionToWrite, boolean updatePositionOfLastIFDOffset)
+    private void writeIFDOffsetAt(long offset, long positionToWrite, boolean updatePositionOfLastIFDOffset)
             throws IOException {
         synchronized (fileLock) {
             // - to be on the safe side (this synchronization is not necessary)

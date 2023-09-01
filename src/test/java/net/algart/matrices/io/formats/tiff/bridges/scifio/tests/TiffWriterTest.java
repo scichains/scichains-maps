@@ -76,6 +76,11 @@ public class TiffWriterTest {
             randomAccess = true;
             startArgIndex++;
         }
+        boolean preserveOldImage = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-preserveOldImage")) {
+            preserveOldImage = true;
+            startArgIndex++;
+        }
         boolean bigTiff = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
             bigTiff = true;
@@ -171,8 +176,8 @@ public class TiffWriterTest {
 
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
-            try (Context context = noContext ? null : scifio.getContext();
-                 TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
+            try (final Context context = noContext ? null : scifio.getContext();
+                 final TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
 //                writer.setAutoMarkLastImageOnClose(false);
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
@@ -194,7 +199,7 @@ public class TiffWriterTest {
 //                    IntStream.range(0, data.length).forEach(k -> data[k] = (byte) k);
 //                });
                 writer.setMissingTilesAllowed(allowMissing);
-                System.out.printf("%nTest #%d: creating %s...%n", test, targetFile);
+                System.out.printf("%nTest #%d/%d: creating %s...%n", test, numberOfTests, targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;
                     DetailedIFD ifd = new DetailedIFD();
@@ -231,7 +236,7 @@ public class TiffWriterTest {
                             ifd.removeNextIFDOffset();
                             ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
                         }
-                        map = startExistingImage(writer, ifd, resizable);
+                        map = startExistingImage(writer, ifd, preserveOldImage, resizable);
                     } else {
                         map = writer.startNewImage(ifd, resizable);
                     }
@@ -276,13 +281,17 @@ public class TiffWriterTest {
     // to making unused space in the existing TIFF file.
     // In any case, this method does not process fragments, not aligned by tile boundaries.
     // Note: resizable argument is added for testing only; there is no practical sense to pass "true" here.
-    private static TiffMap startExistingImage(TiffWriter writer, DetailedIFD ifd, boolean resizable)
+    private static TiffMap startExistingImage(
+            TiffWriter writer,
+            DetailedIFD ifd,
+            boolean preserveOldImage,
+            boolean resizable)
             throws FormatException {
         boolean tiled = ifd.hasTileInformation();
         final long[] offsets = ifd.getTileOrStripOffsets();
         final long[] byteCounts = ifd.getTileOrStripByteCounts();
         TiffMap map = writer.startNewImage(ifd, resizable);
-        if (!tiled) {
+        if (!tiled || !preserveOldImage) {
             return map;
             // - this method does not support special processing stripped images
         }
