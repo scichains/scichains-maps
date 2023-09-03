@@ -33,16 +33,17 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
-public class ReadIFDTest {
+public class IFDAndIFDOffsetsTest {
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + ReadIFDTest.class.getName() + " tiff_file.tiff ifdIndex");
+            System.out.println("    " + IFDAndIFDOffsetsTest.class.getName() + " tiff_file.tiff ifdIndex");
             return;
         }
 
         final Path file = Paths.get(args[0]);
         final int ifdIndex = Integer.parseInt(args[1]);
+        System.out.printf("Reading IFD #%d from %s...%n", ifdIndex, file);
 
         TiffReader reader = new TiffReader(null, file, false);
         for (int test = 1; test <= 10; test++) {
@@ -50,13 +51,13 @@ public class ReadIFDTest {
             long t1 = System.nanoTime();
             long offset = reader.readSingleIFDOffset(ifdIndex);
             long t2 = System.nanoTime();
-            System.out.printf("Offset #%d: %d (%.6f mcs)%n", ifdIndex, offset, (t2 - t1) * 1e-3);
+            System.out.printf("IFD offset #%d: %d (%.6f mcs)%n", ifdIndex, offset, (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
             long[] offsets = reader.readIFDOffsets();
             t2 = System.nanoTime();
-            System.out.printf("Offsets: %s (%.6f mcs)%n", Arrays.toString(offsets), (t2 - t1) * 1e-3);
+            System.out.printf("All IFD offsets: %s (%.6f mcs)%n", Arrays.toString(offsets), (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();

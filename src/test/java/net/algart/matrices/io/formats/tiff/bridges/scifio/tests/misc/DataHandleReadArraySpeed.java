@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 // See https://github.com/scijava/scijava-common/issues/467
-public class ReadArraySpeed {
+public class DataHandleReadArraySpeed {
     private static void testInts(DataHandle<Location> in, DataHandle<Location> inBuffer) throws IOException {
         final int elementSize = 4;
         final int size = (int) (Math.min(in.length(), 1_000_000) / elementSize);
@@ -88,7 +88,7 @@ public class ReadArraySpeed {
     public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    " + ReadArraySpeed.class.getName() + " any_file");
+            System.out.println("    " + DataHandleReadArraySpeed.class.getName() + " any_file");
             return;
         }
 

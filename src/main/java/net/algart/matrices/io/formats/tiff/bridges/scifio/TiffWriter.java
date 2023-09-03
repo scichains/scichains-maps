@@ -128,6 +128,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private final Object fileLock = new Object();
 
+    private final LinkedHashSet<Long> ifdOffsets = new LinkedHashSet<>();
     private volatile long positionOfLastIFDOffset = -1;
 
     private long timeWriting = 0;
@@ -405,17 +406,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void startExistingFile() throws IOException {
         synchronized (fileLock) {
+            ifdOffsets.clear();
             final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
             final boolean bigTiff;
             final boolean littleEndian;
             final long readerPositionOfLastOffset;
+            final long[] offsets;
             try (final TiffReader reader = new TiffReader(null, in, true)) {
-                reader.readIFDOffsets();
+                offsets = reader.readIFDOffsets();
                 bigTiff = reader.isBigTiff();
                 littleEndian = reader.isLittleEndian();
                 readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
             }
             this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
+            ifdOffsets.addAll(Arrays.stream(offsets).boxed().toList());
             positionOfLastIFDOffset = readerPositionOfLastOffset;
             seekToEnd();
             // - ready to write after the end of the file
@@ -425,6 +429,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void startNewFile() throws IOException {
         synchronized (fileLock) {
+            ifdOffsets.clear();
             out.seek(0);
             if (isLittleEndian()) {
                 out.writeByte(TiffConstants.LITTLE);
@@ -489,15 +494,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param updateIFDLinkages if <tt>true</tt>, this method will automatically update the offset,
      *                          stored in the file at {@link #positionOfLastIFDOffset()},
      *                          with start offset of this IFD, and after this will update internal field,
-     *                          returned by {@link #positionOfLastIFDOffset()}, if this IFS is really
-     *                          {@link DetailedIFD#isLastIFD() last}.
+     *                          returned by {@link #positionOfLastIFDOffset()};
+     *                          this is performed only if this IFD is really new (IFD with this start offset
+     *                          was not written in this file yet).
      * @throws IOException in a case of any I/O errors.
      */
-    public void writeIFDAt(
-            DetailedIFD ifd,
-            Long startOffset,
-            boolean updateIFDLinkages)
-            throws IOException {
+    public void writeIFDAt(DetailedIFD ifd, Long startOffset, boolean updateIFDLinkages) throws IOException {
         synchronized (fileLock) {
             checkVirginFile();
             if (startOffset == null) {
@@ -516,19 +518,32 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final long positionOfNextOffset = writeIFDEntries(sortedIFD, startOffset, mainIFDLength);
 
             final long previousPositionOfLastIFDOffset = positionOfLastIFDOffset;
-            writeIFDNextOffset(ifd, positionOfNextOffset, updateIFDLinkages);
-            if (updateIFDLinkages) {
+            // - save it, because it will be updated in writeIFDNextOffsetAt
+            writeIFDNextOffsetAt(ifd, positionOfNextOffset, updateIFDLinkages);
+            if (updateIFDLinkages && !ifdOffsets.contains(startOffset)) {
+                // - Only if it is really newly added IFD!
+                // If this offset is already contained in the list, attempt to link to it
+                // will probably lead to infinite loop of IFDs.
                 writeIFDOffsetAt(startOffset, previousPositionOfLastIFDOffset, false);
             }
         }
     }
 
-    public void rewritePreviousLastIFDOffset(long nextIFDOffset) throws IOException {
+    /**
+     * Rewrites the offset, stored in the file at the {@link #positionOfLastIFDOffset()},
+     * with the specified value.
+     * This method is useful if you want to organize the sequence of IFD inside the file manually,
+     * without automatic updating IFD linkage.
+     *
+     * @param nextLastIFDOffset new last IFD offset.
+     * @throws IOException in a case of any I/O errors.
+     */
+    public void rewritePreviousLastIFDOffset(long nextLastIFDOffset) throws IOException {
         synchronized (fileLock) {
             if (positionOfLastIFDOffset < 0) {
                 throw new IllegalStateException("Writing to this TIFF file is not started yet");
             }
-            writeIFDOffsetAt(nextIFDOffset, positionOfLastIFDOffset, true);
+            writeIFDOffsetAt(nextLastIFDOffset, positionOfLastIFDOffset, false);
             // - last argument is not important: positionOfLastIFDOffset will not change in any case
         }
     }
@@ -1321,11 +1336,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
 
-    private void writeIFDNextOffset(DetailedIFD ifd, long positionOfNextOffset, boolean updatePositionOfLastIFDOffset)
+    private void writeIFDNextOffsetAt(DetailedIFD ifd, long positionToWrite, boolean updatePositionOfLastIFDOffset)
             throws IOException {
         writeIFDOffsetAt(
                 ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : DetailedIFD.LAST_IFD_OFFSET,
-                positionOfNextOffset,
+                positionToWrite,
                 updatePositionOfLastIFDOffset);
     }
 

@@ -54,6 +54,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Reads TIFF format.
@@ -105,9 +106,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * it is mostly probable that it is corrupted file.
      */
     public static int MAX_NUMBER_OF_IFD_ENTRIES = 100_000_000;
-
-    private static final int MAX_NUMBER_OF_IFDS = 100_000_000;
-    // - Larger number of IFD very probably means a broken file
 
     private static final boolean OPTIMIZE_READING_IFD_ARRAYS = true;
     // - Note: this optimization allows to speed up reading large array of offsets.
@@ -633,7 +631,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 skipIFDEntries(fileLength);
                 final long newOffset = readNextOffset(offset, true);
                 if (newOffset == offset) {
-                    throw new IOException("TIFF file is broken (infinite loop of IFD offsets detected)");
+                    throw new IOException("TIFF file is broken - infinite loop of IFD offsets is detected " +
+                            "for offset " + offset);
                 }
                 offset = newOffset;
             }
@@ -643,35 +642,29 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Gets the offsets to every IFD in the file.
-     * Note: after calling this function, the file pointer in the input stream refers
-     * to the last IFD offset in the file.
      */
     public long[] readIFDOffsets() throws IOException {
         synchronized (fileLock) {
             final long fileLength = in.length();
-            final List<Long> offsets = new ArrayList<>();
+            final LinkedHashSet<Long> ifdOffsets = new LinkedHashSet<>();
             long offset = readFirstIFDOffset();
 
-            int count = 0;
             while (offset > 0 && offset < fileLength) {
                 in.seek(offset);
-                offsets.add(offset);
+                final boolean wasNotPresent = ifdOffsets.add(offset);
+                if (!wasNotPresent) {
+                    throw new IOException("TIFF file is broken - infinite loop of IFD offsets is detected " +
+                            "for offset " + offset + " (the stored ifdOffsets sequence is " +
+                            ifdOffsets.stream().map(Object::toString).collect(Collectors.joining(", ")) +
+                            ", " + offset + ", ...)");
+                }
                 skipIFDEntries(fileLength);
-                final long newOffset = readNextOffset(offset, true);
-                if (newOffset == offset) {
-                    throw new IOException("TIFF file is broken (infinite loop of IFD offsets detected " +
-                            "for offset " + offset + ")");
-                }
-                offset = newOffset;
-                if (++count > MAX_NUMBER_OF_IFDS) {
-                    throw new IOException("Too many number of IFD in TIFF file: more than " + MAX_NUMBER_OF_IFDS +
-                            "; probably file is broken");
-                }
+                offset = readNextOffset(offset, true);
             }
-            if (requireValidTiff && offsets.isEmpty()) {
+            if (requireValidTiff && ifdOffsets.isEmpty()) {
                 throw new AssertionError("No IFDs, but it was not checked in getFirstOffset");
             }
-            return offsets.stream().mapToLong(aLong -> aLong).toArray();
+            return ifdOffsets.stream().mapToLong(v -> v).toArray();
         }
     }
 
@@ -696,6 +689,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throws IOException {
         if (startOffset < 0) {
             throw new IllegalArgumentException("Negative file offset = " + startOffset);
+        }
+        if (startOffset < (bigTiff ? 16 : 8)) {
+            throw new IllegalArgumentException("Attempt to read IFD from too small start offset " + startOffset);
         }
         long t1 = debugTime();
         long timeEntries = 0;
