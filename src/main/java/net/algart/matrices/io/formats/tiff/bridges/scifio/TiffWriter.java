@@ -484,19 +484,27 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>Note: this IFD is automatically marked as last IFD in the file (next IFD offset is 0),
      * unless you explicitly specified other next offset via {@link DetailedIFD#setNextIFDOffset(long, boolean)}.
      * You also may call {@link #rewritePreviousLastIFDOffset(long)} to correct
-     * this mark inside the file in the previously written IFD, but usually there is no necessity to do this.
+     * this mark inside the file in the previously written IFD, but usually there is no necessity to do this.</p>
      *
-     * <p>Note: this method changes position in the output stream.
+     * <p>If <tt>updateIFDLinkages</tt> is <tt>true</tt>, this method also performs the following 2 actions.</p>
+     *
+     * <ol>
+     *     <li>It updates the offset, stored in the file at {@link #positionOfLastIFDOffset()}, with start offset of
+     *     this IFD (i.e. <tt>startOffset</tt> or position of the file end). This action is performed <b>only</b>
+     *     if this start offset is really new for this file, i.e. if it did not present in an existing file
+     *     while opening it by {@link #startExistingFile()} method and if some IFD was not already written
+     *     at this position by methods of this object.</li>
+     *     <li>It replaces the internal field, returned by {@link #positionOfLastIFDOffset()}, with
+     *     the position of the next IFD offset, written as a part of this IFD.
+     *     This action is performed <b>only</b> when this IFD is marked as the last one (see the previos note).</li>
+     * </ol>
+     *
+     * <p>Also note: this method changes position in the output stream.
      * (Actually it will be a position after the IFD information, including all additional data
-     * like arrays of offsets; but you should not use this fact.)
+     * like arrays of offsets; but you should not use this fact.)</p>
      *
      * @param ifd               IFD to write in the output stream.
-     * @param updateIFDLinkages if <tt>true</tt>, this method will automatically update the offset,
-     *                          stored in the file at {@link #positionOfLastIFDOffset()},
-     *                          with start offset of this IFD, and after this will update internal field,
-     *                          returned by {@link #positionOfLastIFDOffset()};
-     *                          this is performed only if this IFD is really new (IFD with this start offset
-     *                          was not written in this file yet).
+     * @param updateIFDLinkages see comments above.
      * @throws IOException in a case of any I/O errors.
      */
     public void writeIFDAt(DetailedIFD ifd, Long startOffset, boolean updateIFDLinkages) throws IOException {
