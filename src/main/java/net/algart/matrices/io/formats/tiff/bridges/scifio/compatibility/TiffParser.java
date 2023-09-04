@@ -203,6 +203,8 @@ public class TiffParser extends TiffReader {
         return super.firstIFD();
     }
 
+    // Note: this method works little more strictly, that the original version from SCIFIO code.
+    // In particular, it does not skip IFD with invalid data, but throws IOException.
     @Deprecated
     public DetailedIFD getIFD(long offset) throws IOException {
         DataHandle<Location> in = getStream();

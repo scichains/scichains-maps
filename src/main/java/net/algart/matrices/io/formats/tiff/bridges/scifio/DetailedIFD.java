@@ -39,14 +39,17 @@ public class DetailedIFD extends IFD {
     public static final int LAST_IFD_OFFSET = 0;
 
     public enum StringFormat {
-        BRIEF(true),
-        NORMAL(true),
-        DETAILED(false);
+        BRIEF(true, false),
+        NORMAL(true, false),
+        NORMAL_SORTED(true, true),
+        DETAILED(false, false);
         //TODO!! JSON
         private final boolean compactArrays;
+        private final boolean sorted;
 
-        StringFormat(boolean compactArrays) {
+        StringFormat(boolean compactArrays, boolean sorted) {
             this.compactArrays = compactArrays;
+            this.sorted = sorted;
         }
     }
 
@@ -269,6 +272,10 @@ public class DetailedIFD extends IFD {
             }
         }
         return result;
+    }
+
+    public int numberOfEntries() {
+        return (int) keySet().stream().filter(key -> !DetailedIFD.isPseudoTag(key)).count();
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
@@ -1056,9 +1063,10 @@ public class DetailedIFD extends IFD {
         if (format == StringFormat.BRIEF) {
             return sb.toString();
         }
+        sb.append("; ").append(numberOfEntries()).append(" entries:");
         final Map<Integer, TiffIFDEntry> entries = this.entries;
-        final Map<Integer, Object> sortedIFD = new TreeMap<>(this);
-        for (Map.Entry<Integer, Object> entry : sortedIFD.entrySet()) {
+        final Map<Integer, Object> ifd = format.sorted ? new TreeMap<>(this) : this;
+        for (Map.Entry<Integer, Object> entry : ifd.entrySet()) {
             final Integer tag = entry.getKey();
             final Object v = entry.getValue();
             if (tag == IFD.LITTLE_ENDIAN || tag == IFD.BIG_TIFF) {

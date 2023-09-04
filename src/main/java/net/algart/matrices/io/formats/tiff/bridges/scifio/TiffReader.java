@@ -506,12 +506,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             for (final long offset : offsets) {
                 final DetailedIFD ifd = readIFDAt(offset);
-                if (ifd == null) {
-                    continue;
-                }
-                if (ifd.containsKey(IFD.IMAGE_WIDTH)) {
-                    ifds.add(ifd);
-                }
+                assert ifd != null;
+                ifds.add(ifd);
                 long[] subOffsets = null;
                 try {
                     // Deprecated solution: "fillInIFD" technique is no longer used
@@ -711,9 +707,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             // read in directory entries for this IFD
             in.seek(startOffset);
-            final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-            if (numEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
-                throw new IOException("Too many number of IFD entries: " + numEntries +
+            final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
+            if (numberOfEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
+                throw new IOException("Too many number of IFD entries: " + numberOfEntries +
                         " > " + MAX_NUMBER_OF_IFD_ENTRIES);
                 // - theoretically BigTIFF allows to have more entries, but we prefer to make some restriction;
                 // in any case, billions if entries will probably lead to OutOfMemoryError or integer overflow
@@ -722,18 +718,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY : TiffConstants.BYTES_PER_ENTRY;
             final int baseOffset = bigTiff ? 8 : 2;
 
-            for (long i = 0; i < numEntries; i++) {
+            for (long i = 0; i < numberOfEntries; i++) {
                 long tEntry1 = debugTime();
                 in.seek(startOffset + baseOffset + bytesPerEntry * i);
 
-                TiffIFDEntry entry;
-                try {
-                    entry = readIFDEntry();
-                } catch (EnumException e) {
-                    continue;
-                    //!! - In the previous SCIFIO code, here is "break" operator, but why?
-                    // Maybe this is a type, added in future versions of TIFF format.
-                }
+                TiffIFDEntry entry = readIFDEntry();
                 int count = entry.getValueCount();
                 final int tag = entry.getTag();
                 final long valueOffset = entry.getValueOffset();
@@ -777,7 +766,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
             }
             ifd.setEntries(entries);
-            final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numEntries;
+            final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numberOfEntries;
             in.seek(positionOfNextOffset);
 
             if (readNextOffset) {
@@ -2046,14 +2035,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private TiffIFDEntry readIFDEntry() throws IOException {
         final int entryTag = in.readUnsignedShort();
+        final int entryTypeCode = in.readUnsignedShort();
 
         // Parse the entry's "Type"
-        IFDType entryType;
+        final IFDType entryType;
         try {
-            entryType = IFDType.get(in.readUnsignedShort());
+            entryType = IFDType.get(entryTypeCode);
         } catch (EnumException e) {
-            //TODO!!??
-            throw e;
+            throw new IOException("Invalid TIFF: unknown IFD entry type " + entryTypeCode);
         }
 
         // Parse the entry's "ValueCount"

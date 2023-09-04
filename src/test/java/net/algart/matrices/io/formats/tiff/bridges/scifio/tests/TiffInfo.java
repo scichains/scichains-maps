@@ -39,7 +39,6 @@ public class TiffInfo {
     boolean strict = false;
     boolean detailed = false;
 
-
     public static void main(String[] args) throws IOException, FormatException {
         TiffInfo info = new TiffInfo();
         int startArgIndex = 0;

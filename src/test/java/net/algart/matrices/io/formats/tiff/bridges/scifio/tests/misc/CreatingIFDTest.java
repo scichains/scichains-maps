@@ -29,7 +29,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 public class CreatingIFDTest {
     private static void showIFD(DetailedIFD ifd, String name) {
         System.out.printf("%s%nBrief:%n----%n%s%n----%nNormal:%n----%n%s%n----%n%n",
-                name, ifd, ifd.toString(DetailedIFD.StringFormat.NORMAL));
+                name, ifd, ifd.toString(DetailedIFD.StringFormat.NORMAL_SORTED));
     }
 
     public static void main(String[] args) {
