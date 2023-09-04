@@ -122,9 +122,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private Consumer<TiffTile> tileInitializer = this::fillEmptyTile;
 
     private final DataHandle<Location> out;
-    private final Location location;
     private final SCIFIO scifio;
-    private final DataHandleService dataHandleService;
 
     private final Object fileLock = new Object();
 
@@ -149,16 +147,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (context != null) {
             setContext(context);
             scifio = new SCIFIO(context);
-            dataHandleService = context.getService(DataHandleService.class);
         } else {
             scifio = null;
-            dataHandleService = null;
         }
         this.out = out;
-        this.location = out.get();
-        if (this.location == null) {
-            throw new UnsupportedOperationException("Illegal DataHandle, returning null location: " + out.getClass());
-        }
     }
 
 
@@ -407,18 +399,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     public void startExistingFile() throws IOException {
         synchronized (fileLock) {
             ifdOffsets.clear();
-            final DataHandle<Location> in = TiffTools.getDataHandle(dataHandleService, location);
-            final boolean bigTiff;
-            final boolean littleEndian;
-            final long readerPositionOfLastOffset;
-            final long[] offsets;
-            try (final TiffReader reader = new TiffReader(null, in, true)) {
-                offsets = reader.readIFDOffsets();
-                bigTiff = reader.isBigTiff();
-                littleEndian = reader.isLittleEndian();
-                readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
-            }
-            this.setBigTiff(bigTiff).setLittleEndian(littleEndian);
+            final TiffReader reader = new TiffReader(null, out, true);
+            // - note: we should NOT call reader.close() method
+            final long[] offsets = reader.readIFDOffsets();
+            final long readerPositionOfLastOffset = reader.positionOfLastIFDOffset();
+            this.setBigTiff(reader.isBigTiff()).setLittleEndian(reader.isLittleEndian());
             ifdOffsets.addAll(Arrays.stream(offsets).boxed().toList());
             positionOfLastIFDOffset = readerPositionOfLastOffset;
             seekToEnd();
