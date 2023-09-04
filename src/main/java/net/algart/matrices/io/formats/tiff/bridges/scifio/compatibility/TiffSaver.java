@@ -144,13 +144,13 @@ public class TiffSaver extends TiffWriter {
 
     /**
      * Use instead {@link #rewriteIFD(DetailedIFD, boolean)} together with
-     * {@link DetailedIFD#setNextIFDOffset(long, boolean)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
+     * {@link DetailedIFD#setNextIFDOffset(long)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
      */
     @Deprecated
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
         DetailedIFD extended = DetailedIFD.extend(ifd);
         extended.setFileOffsetForWriting(getStream().offset());
-        extended.setNextIFDOffset(nextOffset, false);
+        extended.setNextIFDOffset(nextOffset);
         rewriteIFD(extended, true);
     }
 

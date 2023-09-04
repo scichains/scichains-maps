@@ -782,7 +782,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             if (readNextOffset) {
                 final long nextOffset = readNextOffset(startOffset, false);
-                ifd.setNextIFDOffset(nextOffset, false);
+                ifd.setNextIFDOffset(nextOffset);
                 in.seek(positionOfNextOffset);
                 // - this "in.seek" provides maximal compatibility with old code (which did not read next IFD offset)
                 // and also with behaviour of this method, when readNextOffset is not requested
@@ -816,7 +816,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     /**
      * Reads and decodes the tile at the specified position.
-     * Note: the loaded tils is always {@link TiffTile#isSeparated() separated}.
+     * Note: the loaded tile is always {@link TiffTile#isSeparated() separated}.
      *
      * @param tileIndex position of the file
      * @return loaded tile.

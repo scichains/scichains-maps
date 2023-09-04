@@ -40,7 +40,6 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
 import org.scijava.AbstractContextual;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
-import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.handle.DataHandles;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
@@ -467,7 +466,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * (aligned to nearest even length) if it is <tt>null</tt>.
      *
      * <p>Note: this IFD is automatically marked as last IFD in the file (next IFD offset is 0),
-     * unless you explicitly specified other next offset via {@link DetailedIFD#setNextIFDOffset(long, boolean)}.
+     * unless you explicitly specified other next offset via {@link #setNextIFDOffset(long)}.
      * You also may call {@link #rewritePreviousLastIFDOffset(long)} to correct
      * this mark inside the file in the previously written IFD, but usually there is no necessity to do this.</p>
      *

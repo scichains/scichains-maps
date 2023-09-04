@@ -42,6 +42,7 @@ import org.scijava.Context;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -76,9 +77,14 @@ public class TiffWriterTest {
             randomAccess = true;
             startArgIndex++;
         }
-        boolean preserveOldImage = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-preserveOldImage")) {
-            preserveOldImage = true;
+        boolean preserveOld = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-preserveOld")) {
+            preserveOld = true;
+            startArgIndex++;
+        }
+        boolean preserveOldAccurately = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-preserveOldAccurately")) {
+            preserveOldAccurately = preserveOld = true;
             startArgIndex++;
         }
         boolean bigTiff = false;
@@ -178,26 +184,18 @@ public class TiffWriterTest {
         for (int test = 1; test <= numberOfTests; test++) {
             try (final Context context = noContext ? null : scifio.getContext();
                  final TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
-//                writer.setAutoMarkLastImageOnClose(false);
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
                 if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
                     writer.setAutoInterleaveSource(false);
                 }
-//                if (randomAccess) {
-//                    writer.setWritingSequentially(false);
-//                }
-                // - deprecated solution; the simple check below works better!
 //                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
-                writer.setByteFiller((byte) 0xE0);
-//                writer.setTileInitializer(tile -> {
-//                    byte[] data = tile.getDecoded();
-//                    IntStream.range(0, data.length).forEach(k -> data[k] = (byte) k);
-//                });
+//                writer.setByteFiller((byte) 0xE0);
+                writer.setTileInitializer(TiffWriterTest::customFillEmptyTile);
                 writer.setMissingTilesAllowed(allowMissing);
                 System.out.printf("%nTest #%d/%d: creating %s...%n", test, numberOfTests, targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
@@ -223,7 +221,8 @@ public class TiffWriterTest {
                     }
                     ifd.putPixelInformation(numberOfChannels, pixelType);
                     TiffMap map;
-                    if (randomAccess && k == 0) {
+                    boolean overwriteExisting = randomAccess && k == 0;
+                    if (overwriteExisting) {
                         // - Ignoring previous IFD. It has no sense for k > 0:
                         // after writing first IFD (at firstIfdIndex), new number of IFD
                         // will become firstIfdIndex+1, i.e. there is no more IFDs.
@@ -233,10 +232,15 @@ public class TiffWriterTest {
                         // but DataHandle has not any analogs of flush() method.
                         try (TiffReader reader = new TiffReader(null, targetFile, false)) {
                             ifd = reader.readSingleIFD(ifdIndex);
-                            ifd.removeNextIFDOffset();
                             ifd.setFileOffsetForWriting(ifd.getFileOffsetOfReading());
                         }
-                        map = startExistingImage(writer, ifd, preserveOldImage, resizable);
+                    }
+                    if (overwriteExisting && preserveOld) {
+                        boolean breakOldChain = numberOfImages > 1;
+                        // - if we add more than 1 image, they break the existing chain
+                        // (not necessary, it is just a choice for this demo)
+                        map = startExistingImage(writer, ifd,
+                                breakOldChain, preserveOldAccurately, resizable, x, y, w, h);
                     } else {
                         map = writer.startNewImage(ifd, resizable);
                     }
@@ -284,36 +288,69 @@ public class TiffWriterTest {
     private static TiffMap startExistingImage(
             TiffWriter writer,
             DetailedIFD ifd,
-            boolean preserveOldImage,
-            boolean resizable)
-            throws FormatException {
-        boolean tiled = ifd.hasTileInformation();
-        final long[] offsets = ifd.getTileOrStripOffsets();
-        final long[] byteCounts = ifd.getTileOrStripByteCounts();
-        TiffMap map = writer.startNewImage(ifd, resizable);
-        if (!tiled || !preserveOldImage) {
-            return map;
-            // - this method does not support special processing stripped images
+            boolean breakOldChain,
+            boolean accurateMode,
+            boolean resizable,
+            final int fromX, final int fromY, final int sizeX, final int sizeY)
+            throws FormatException, IOException {
+        final DetailedIFD ifdToRead = new DetailedIFD(ifd);
+        final TiffMap map = writer.startNewImage(ifd, resizable);
+        if (!ifd.hasTileInformation()) {
+            throw new UnsupportedOperationException("This method does not support overwriting non-tiled images");
         }
-        map.completeImageGrid();
+        if (!breakOldChain) {
+            ifd.setNextIFDOffset(ifdToRead.getNextIFDOffset());
+            // - restoring old next IFD offsets (removed by startNewImage)
+        }
+        final long[] offsets = ifdToRead.getTileOrStripOffsets();
+        final long[] byteCounts = ifdToRead.getTileOrStripByteCounts();
         if (offsets == null) {
             throw new FormatException("No tile offsets");
         }
         if (byteCounts == null) {
             throw new FormatException("No tile byte counts");
         }
+        map.completeImageGrid();
         if (offsets.length < map.size() || byteCounts.length < map.size()) {
             throw new FormatException("Strange length of tile offsets " + offsets.length +
                     " or byte counts " + byteCounts.length);
             // - should not occur: it is checked in DetailedIFD methods
         }
+        final TiffReader reader = new TiffReader(null, writer.getStream());
+        final IRectangularArea areaToWrite = IRectangularArea.valueOf(
+                fromX, fromY, fromX + sizeX - 1, fromY + sizeY - 1);
+        final TiffMap mapToRead = new TiffMap(ifdToRead, false);
         int k = 0;
         for (TiffTile tile : map.tiles()) {
+            // - main operations of this method are here
             tile.setStoredDataFileRange(offsets[k], (int) byteCounts[k]);
-            // - main operation of this method: we "tell" that all tiles already exist in the file
+            // - "tell" that all tiles already exist in the file
+            tile.removeUnset();
+            if (accurateMode) {
+                if (tile.rectangle().intersects(areaToWrite) && !areaToWrite.contains(tile.rectangle())) {
+                    final TiffTile existing = reader.readTile(mapToRead.copyIndex(tile.index()));
+                    tile.setDecoded(existing.getDecoded());
+                }
+            }
             k++;
         }
         return map;
+    }
+
+    private static void customFillEmptyTile(TiffTile tiffTile) {
+        byte[] decoded = tiffTile.getDecoded();
+        Arrays.fill(decoded, tiffTile.bytesPerSample() == 1 ? (byte) 0xE0 : (byte) 0xFF);
+        tiffTile.setInterleaved(true);
+        final int pixel = tiffTile.bytesPerPixel();
+        final int sizeX = tiffTile.getSizeX() * pixel;
+        final int sizeY = tiffTile.getSizeY();
+        Arrays.fill(decoded, 0, sizeX, (byte) 0);
+        Arrays.fill(decoded, decoded.length - sizeX, decoded.length, (byte) 0);
+        for (int k = 0; k < sizeY; k++) {
+            Arrays.fill(decoded, k * sizeX, k * sizeX + pixel, (byte) 0);
+            Arrays.fill(decoded, (k + 1) * sizeX - pixel, (k + 1) * sizeX, (byte) 0);
+        }
+        tiffTile.separateSamples();
     }
 
     private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {

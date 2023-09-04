@@ -198,20 +198,16 @@ public class DetailedIFD extends IFD {
         return nextIFDOffset;
     }
 
-    public DetailedIFD setNextIFDOffset(long nextIFDOffset, boolean strictTIFFRequirement) {
+    public DetailedIFD setNextIFDOffset(long nextIFDOffset) {
         if (nextIFDOffset < 0) {
             throw new IllegalArgumentException("Negative next IFD offset: " + nextIFDOffset);
-        }
-        if (strictTIFFRequirement && (nextIFDOffset & 0x1) != 0) {
-            throw new IllegalArgumentException("Odd IFD next offset " + fileOffsetForWriting +
-                    " is prohibited for valid TIFF");
         }
         this.nextIFDOffset = nextIFDOffset;
         return this;
     }
 
     public DetailedIFD setLastIFD() {
-        return setNextIFDOffset(LAST_IFD_OFFSET, true);
+        return setNextIFDOffset(LAST_IFD_OFFSET);
     }
 
     public DetailedIFD removeNextIFDOffset() {

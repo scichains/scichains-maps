@@ -27,6 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -228,6 +229,11 @@ public final class TiffTile {
         return this;
     }
 
+    public TiffTile removeUnset() {
+        unsetArea = new LinkedList<>();
+        return this;
+    }
+
     public TiffTile reduceUnset(IRectangularArea... newlyFilledArea) {
         Objects.requireNonNull(newlyFilledArea, "Null newlyFilledArea");
         initializeEmptyArea();
@@ -269,10 +275,16 @@ public final class TiffTile {
 
     /**
      * Sets the flag, are the stored pixel samples are interleaved (like RGBRGB...) or not (RRR...GGG...BBB...).
-     * It doesn't matter in a case of monochrome images.
+     * It doesn't matter in a case of monochrome images and in a case of {@link #isEncoded() encoded} data.
+     *
+     * <p>By default, it is considered to be <b>not</b> interleaved, in other words, {@link #isSeparated()
+     * separated}. Methods, reading and decoding the tile from TIFF, always return separated tile.
+     * Methods, encoding the file for writing to TIFF, may work both with interleaved tiles,
+     * but it should be explicitly declared, like in
+     * {@link TiffWriter#setAutoInterleaveSource(boolean)} method (with <tt>false</tt> argument).</p>
      *
      * <p>This is purely informational property, not affecting processing the stored data
-     * and supported for additional convenience of usage this object.
+     * by methods of this object and supported for additional convenience of usage this class.</p>
      *
      * @param interleaved whether the data should be considered as interleaved.
      * @return a reference to this object.
