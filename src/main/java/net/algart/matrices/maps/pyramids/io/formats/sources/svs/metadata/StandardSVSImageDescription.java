@@ -22,12 +22,12 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.metadata;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata;
 
 import io.scif.FormatException;
 import net.algart.math.IRectangularArea;
 import net.algart.math.RectangularArea;
-import net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSource;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
 
 import java.util.*;
 

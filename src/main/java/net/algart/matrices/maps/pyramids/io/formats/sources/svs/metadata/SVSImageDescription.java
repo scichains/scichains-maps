@@ -22,14 +22,14 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.metadata;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata;
 
 import io.scif.FormatException;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import net.algart.json.Jsons;
-import net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSource;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
 
 import java.util.*;
 

@@ -22,33 +22,33 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.metadata;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+public class SVSAttribute {
+    private final String name;
+    private final String value;
 
-class EmptyImageDescription extends SVSImageDescription {
-    EmptyImageDescription(String imageDescriptionTagValue) {
+    public SVSAttribute(String name, String value) {
+        if (name == null) {
+            throw new NullPointerException("Null SVS attribute name");
+        }
+        if (value == null) {
+            throw new NullPointerException("Null SVS attribute value");
+        }
+        this.name = name;
+        this.value = value;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getValue() {
+        return value;
     }
 
     @Override
-    public String subFormatTitle() {
-        return null;
-    }
-
-    @Override
-    public Set<String> importantAttributeNames() {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public List<String> importantTextAttributes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public boolean isImportant() {
-        return false;
+    public String toString() {
+        return name + " = " + value;
     }
 }

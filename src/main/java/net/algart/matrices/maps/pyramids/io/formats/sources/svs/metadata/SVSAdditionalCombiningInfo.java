@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.metadata;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -31,9 +31,9 @@ import net.algart.json.Jsons;
 
 public final class SVSAdditionalCombiningInfo {
     private static final Double STANDARD_SLIDE_WIDTH = getDoubleProperty(
-        "net.algart.matrices.maps.pyramids.io.formats.svs.metadata.slideWidth");
+        "net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.slideWidth");
     private static final Double STANDARD_SLIDE_HEIGHT = getDoubleProperty(
-        "net.algart.matrices.maps.pyramids.io.formats.svs.metadata.slideHeight");
+        "net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.slideHeight");
     // - both constants are in microns (typical values for medicine are 75000x26000)
 
     private Double slideWidthInMicrons = null;

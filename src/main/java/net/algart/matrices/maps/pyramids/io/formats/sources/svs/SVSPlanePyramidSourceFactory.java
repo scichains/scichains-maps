@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
@@ -32,7 +32,7 @@ import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSourceFactory;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
-import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSAdditionalCombiningInfo;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
 import org.scijava.Context;
 
 import java.awt.*;

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.tests;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs.tests;
 
 import io.scif.FormatException;
 import net.algart.arrays.Matrices;
@@ -31,9 +31,9 @@ import net.algart.arrays.PArray;
 import net.algart.executors.api.data.SMat;
 import net.algart.json.Jsons;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
-import net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSource;
-import net.algart.matrices.maps.pyramids.io.formats.svs.SVSPlanePyramidSourceFactory;
-import net.algart.matrices.maps.pyramids.io.formats.svs.metadata.SVSImageDescription;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSourceFactory;
+import net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.SVSImageDescription;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 

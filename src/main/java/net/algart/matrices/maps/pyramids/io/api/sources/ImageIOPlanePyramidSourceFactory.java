@@ -22,33 +22,28 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs.metadata;
+package net.algart.matrices.maps.pyramids.io.api.sources;
 
-public class SVSAttribute {
-    private final String name;
-    private final String value;
+import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
+import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSourceFactory;
 
-    public SVSAttribute(String name, String value) {
-        if (name == null) {
-            throw new NullPointerException("Null SVS attribute name");
-        }
-        if (value == null) {
-            throw new NullPointerException("Null SVS attribute value");
-        }
-        this.name = name;
-        this.value = value;
-    }
+import java.io.File;
+import java.io.IOException;
 
-    public String getName() {
-        return name;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
+public class ImageIOPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
     @Override
-    public String toString() {
-        return name + " = " + value;
+    public PlanePyramidSource newPlanePyramidSource(
+        String pyramidPath,
+        String pyramidConfiguration,
+        String renderingConfiguration)
+        throws IOException
+    {
+        return new net.algart.matrices.maps.pyramids.io.api.sources.ImageIOPlanePyramidSource(
+            null,
+            // - no cache
+            new File(pyramidPath),
+            new ImageIOPlanePyramidSource.ImageIOReadingBehaviour()
+                .setAddAlphaWhenExist(true));
+        // This plane pyramid source does not support coarse data (which can be set in renderingConfiguration)
     }
 }

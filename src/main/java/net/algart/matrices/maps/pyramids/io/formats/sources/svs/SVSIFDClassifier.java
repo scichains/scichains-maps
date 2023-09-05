@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.maps.pyramids.io.formats.svs;
+package net.algart.matrices.maps.pyramids.io.formats.sources.svs;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;

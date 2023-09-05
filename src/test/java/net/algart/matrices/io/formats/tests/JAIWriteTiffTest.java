@@ -24,12 +24,11 @@
 
 package net.algart.matrices.io.formats.tests;
 
-
-import com.github.jaiimageio.impl.plugins.tiff.TIFFIFD;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFImageMetadata;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFJPEGCompressor;
-import com.github.jaiimageio.plugins.tiff.TIFFImageWriteParam;
+import io.scif.media.imageio.plugins.tiff.TIFFImageWriteParam;
+import io.scif.media.imageioimpl.plugins.tiff.TIFFIFD;
+import io.scif.media.imageioimpl.plugins.tiff.TIFFImageMetadata;
+import io.scif.media.imageioimpl.plugins.tiff.TIFFImageWriter;
+import io.scif.media.imageioimpl.plugins.tiff.TIFFJPEGCompressor;
 
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
