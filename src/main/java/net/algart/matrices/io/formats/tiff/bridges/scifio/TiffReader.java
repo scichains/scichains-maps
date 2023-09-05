@@ -451,7 +451,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return positionOfLastIFDOffset;
     }
 
-    public DetailedIFD ifd(int ifdIndex) throws IOException {
+    public DetailedIFD ifd(int ifdIndex) throws IOException, FormatException {
         List<DetailedIFD> ifdList = allIFDs();
         if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
             throw new IndexOutOfBoundsException(
@@ -467,7 +467,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <p>Note: if this TIFF file is not valid ({@link #isValid()} returns <tt>false</tt>), this method
      * returns <tt>null</tt> and does not throw an exception.
      */
-    public DetailedIFD firstIFD() throws IOException {
+    public DetailedIFD firstIFD() throws IOException, FormatException {
         if (!isValid()) {
             return null;
         }
@@ -489,7 +489,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <p>Note: if this TIFF file is not valid ({@link #isValid()} returns <tt>false</tt>), this method
      * returns an empty list and does not throw an exception. For valid TIFF, result cannot be empty.
      */
-    public List<DetailedIFD> allIFDs() throws IOException {
+    public List<DetailedIFD> allIFDs() throws IOException, FormatException {
         long t1 = debugTime();
         List<DetailedIFD> ifds;
         synchronized (fileLock) {
@@ -543,7 +543,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns thumbnail IFDs.
      */
-    public List<DetailedIFD> allThumbnailIFDs() throws IOException {
+    public List<DetailedIFD> allThumbnailIFDs() throws IOException, FormatException {
         final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> thumbnails = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
@@ -559,7 +559,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns non-thumbnail IFDs.
      */
-    public List<DetailedIFD> allNonThumbnailIFDs() throws IOException {
+    public List<DetailedIFD> allNonThumbnailIFDs() throws IOException, FormatException {
         final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> nonThumbs = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
@@ -664,7 +664,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
-    public DetailedIFD readSingleIFD(int ifdIndex) throws IOException, NoSuchElementException {
+    public DetailedIFD readSingleIFD(int ifdIndex) throws IOException, FormatException, NoSuchElementException {
         long startOffset = readSingleIFDOffset(ifdIndex);
         if (startOffset < 0) {
             throw new NoSuchElementException("No IFD #" + ifdIndex + " in TIFF" + prettyInName()
@@ -677,12 +677,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFDAt(long startOffset) throws IOException {
+    public DetailedIFD readIFDAt(long startOffset) throws IOException, FormatException {
         return readIFDAt(startOffset, null, true);
     }
 
     public DetailedIFD readIFDAt(final long startOffset, Integer subIFDType, boolean readNextOffset)
-            throws IOException {
+            throws IOException, FormatException {
         if (startOffset < 0) {
             throw new IllegalArgumentException("Negative file offset = " + startOffset);
         }
@@ -695,7 +695,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final DetailedIFD ifd;
         synchronized (fileLock) {
             if (startOffset >= in.length()) {
-                throw new IOException("File offset " + startOffset + " is outside the file");
+                throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
             ifd = new DetailedIFD().setFileOffsetOfReading(startOffset);
@@ -709,7 +709,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             in.seek(startOffset);
             final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
             if (numberOfEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
-                throw new IOException("Too many number of IFD entries: " + numberOfEntries +
+                throw new FormatException("Too many number of IFD entries: " + numberOfEntries +
                         " > " + MAX_NUMBER_OF_IFD_ENTRIES);
                 // - theoretically BigTIFF allows to have more entries, but we prefer to make some restriction;
                 // in any case, billions if entries will probably lead to OutOfMemoryError or integer overflow
@@ -723,42 +723,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 in.seek(startOffset + baseOffset + bytesPerEntry * i);
 
                 TiffIFDEntry entry = readIFDEntry();
-                int count = entry.getValueCount();
+                int valueCount = entry.getValueCount();
                 final int tag = entry.getTag();
                 final long valueOffset = entry.getValueOffset();
                 final int bpe = entry.getType().getBytesPerElement();
                 long tEntry2 = debugTime();
                 timeEntries += tEntry2 - tEntry1;
 
-                if (count < 0 || bpe <= 0) {
-                    // invalid data
-                    in.skipBytes(bytesPerEntry - 4 - (bigTiff ? 8 : 4));
-                    continue;
-                }
-
-                final long inputLen = in.length();
-                if ((long) count * (long) bpe + valueOffset > inputLen) {
-                    final int oldCount = count;
-                    count = (int) ((inputLen - valueOffset) / bpe);
-                    if (count < 0) {
-                        count = oldCount;
-                    }
-                    entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry.getValueOffset());
-                }
-                if (count > in.length()) {
-                    break;
-                }
+                assert valueCount >= 0 : "negative valueCount was not checked in readIFDEntry";
+                assert bpe > 0 : "non-positive bytes per element in IFDType";
 
                 final Object value = readIFDValueAtCurrentPosition(in, entry, assumeEqualStrips);
-                // Deprecated solution: "fillInIFD" technique is no longer used
-                // if (valueOffset != in.offset() && !cachingIFDs) {
-                //     value = entry;
-                // } else {
-                //     value = readIFDValue(entry);
-                // }
                 long tEntry3 = debugTime();
                 timeArrays += tEntry3 - tEntry2;
-//            System.err.printf("%d values from %d: %.6f ms%n", count, valueOffset, (tEntry3 - tEntry2) * 1e-6);
+//            System.err.printf("%d values from %d: %.6f ms%n", valueCount, valueOffset, (tEntry3 - tEntry2) * 1e-6);
 
                 if (value != null && !ifd.containsKey(tag)) {
                     entries.put(tag, entry);
@@ -791,7 +769,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Convenience method for obtaining a stream's first ImageDescription.
      */
-    public String getComment() throws IOException {
+    public String getComment() throws IOException, FormatException {
         final IFD firstIFD = firstIFD();
         if (firstIFD == null) {
             return null;
@@ -1858,10 +1836,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         LOG.log(System.Logger.Level.TRACE, () ->
                 "Reading entry " + entry.getTag() + " from " + offset + "; type=" + type + ", count=" + count);
 
-        if (offset >= in.length()) {
-            return null;
-        }
-
         in.seek(offset);
         if (type == IFDType.BYTE) {
             // 8-bit unsigned integer
@@ -2033,7 +2007,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return bytes;
     }
 
-    private TiffIFDEntry readIFDEntry() throws IOException {
+    private TiffIFDEntry readIFDEntry() throws IOException, FormatException {
         final int entryTag = in.readUnsignedShort();
         final int entryTypeCode = in.readUnsignedShort();
 
@@ -2042,21 +2016,29 @@ public class TiffReader extends AbstractContextual implements Closeable {
         try {
             entryType = IFDType.get(entryTypeCode);
         } catch (EnumException e) {
-            throw new IOException("Invalid TIFF: unknown IFD entry type " + entryTypeCode);
+            throw new FormatException("Invalid TIFF: unknown IFD entry type " + entryTypeCode);
         }
 
         // Parse the entry's "ValueCount"
         final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
         if (valueCount < 0) {
-            throw new IOException("Invalid TIFF: negative number of IFD values " + valueCount);
+            throw new FormatException("Invalid TIFF: negative number of IFD values " + valueCount);
         }
 
-        final long valueLength = (long) valueCount * (long) entryType.getBytesPerElement();
+        final int bytesPerElement = entryType.getBytesPerElement();
+        final long valueLength = (long) valueCount * (long) bytesPerElement;
         final int threshold = bigTiff ? 8 : 4;
         final long valueOffset = valueLength > threshold ?
                 readNextOffset(0, false) :
                 in.offset();
-
+        if (valueOffset < 0) {
+            throw new FormatException("Invalid TIFF: negative offset of IFD values " + valueOffset);
+        }
+        if (valueOffset > in.length() - valueLength) {
+            throw new FormatException("Invalid TIFF: offset of IFD values " + valueOffset +
+                    " + total lengths of values " + valueLength + " = " + valueCount + "*" + bytesPerElement +
+                    " is outside the file length " + in.length());
+        }
         final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
                 "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));

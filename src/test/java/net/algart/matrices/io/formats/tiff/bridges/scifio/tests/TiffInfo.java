@@ -74,12 +74,12 @@ public class TiffInfo {
         }
     }
 
-    public void showTiffInfo(Path tiffFile) throws IOException {
+    public void showTiffInfo(Path tiffFile) throws IOException, FormatException {
         showTiffInfo(tiffFile, 0, Integer.MAX_VALUE);
     }
 
     public void showTiffInfo(Path tiffFile, int firstIFDIndex, int lastIFDIndex)
-            throws IOException {
+            throws IOException, FormatException {
         try (TiffReader reader = new TiffReader(tiffFile, false)) {
             if (!reader.isValid()) {
                 System.out.printf("%nFile %s: not TIFF%n", tiffFile);

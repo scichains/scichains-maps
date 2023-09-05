@@ -42,6 +42,7 @@ import org.scijava.util.IntRect;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -59,6 +60,9 @@ public class TiffParser extends TiffReader {
     private boolean fakeBigTiff = false;
     // - Probably support of this feature was implemented incorrectly.
     // See https://github.com/scifio/scifio/issues/514
+
+    private IFDList ifdList;
+    private IFD firstIFD;
 
     // This constructor is new for TiffParser: it is added for more convenience and
     // compatibility with TiffReader constructor
@@ -114,33 +118,89 @@ public class TiffParser extends TiffReader {
     }
 
     @Deprecated
+    /** Use {@link #allIFDs()} instead. */
     public IFDList getIFDs() throws IOException {
-        return toIFDList(allIFDs());
+        if (ifdList != null) return ifdList;
+        final boolean doCaching = isCachingIFDs();
+
+        final long[] offsets = getIFDOffsets();
+        final IFDList ifds = new IFDList();
+
+        for (final long offset : offsets) {
+            final IFD ifd = getIFD(offset);
+            if (ifd == null) continue;
+            if (ifd.containsKey(IFD.IMAGE_WIDTH)) ifds.add(ifd);
+            long[] subOffsets = null;
+            try {
+                if (!doCaching && ifd.containsKey(IFD.SUB_IFD)) {
+                    fillInIFD(ifd);
+                }
+                subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
+            }
+            catch (final FormatException e) {}
+            if (subOffsets != null) {
+                for (final long subOffset : subOffsets) {
+                    final IFD sub = getIFD(subOffset);
+                    if (sub != null) {
+                        ifds.add(sub);
+                    }
+                }
+            }
+        }
+        if (doCaching) ifdList = ifds;
+
+        return ifds;
     }
 
-    /**
-     * Returns thumbnail IFDs.
-     */
+    /** Use {@link #allThumbnailIFDs()} ()} instead. */
     @Deprecated
     public IFDList getThumbnailIFDs() throws IOException {
-        return toIFDList(allThumbnailIFDs());
+        final IFDList ifds = getIFDs();
+        final IFDList thumbnails = new IFDList();
+        for (final IFD ifd : ifds) {
+            final Number subfile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
+            final int subfileType = subfile == null ? 0 : subfile.intValue();
+            if (subfileType == 1) {
+                thumbnails.add(ifd);
+            }
+        }
+        return thumbnails;
     }
 
-    /**
-     * Returns non-thumbnail IFDs.
-     */
+    /** Use {@link #allNonThumbnailIFDs()} ()} instead. */
     @Deprecated
     public IFDList getNonThumbnailIFDs() throws IOException {
-        return toIFDList(allNonThumbnailIFDs());
+        final IFDList ifds = getIFDs();
+        final IFDList nonThumbs = new IFDList();
+        for (final IFD ifd : ifds) {
+            final Number subfile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
+            final int subfileType = subfile == null ? 0 : subfile.intValue();
+            if (subfileType != 1 || ifds.size() <= 1) {
+                nonThumbs.add(ifd);
+            }
+        }
+        return nonThumbs;
     }
 
-    /**
-     * Returns EXIF IFDs.
-     */
+    /** Use {@link #allExifIFDs()} instead. */
     @Deprecated
     public IFDList getExifIFDs() throws FormatException, IOException {
-        return toIFDList(allExifIFDs());
+        final IFDList ifds = getIFDs();
+        final IFDList exif = new IFDList();
+        for (final IFD ifd : ifds) {
+            final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
+            if (offset != 0) {
+                final IFD exifIFD = getIFD(offset);
+                if (exifIFD != null) {
+                    exif.add(exifIFD);
+                }
+            }
+        }
+        return exif;
     }
+
+
+
 
     /**
      * Tests this stream to see if it represents a TIFF file.
@@ -198,38 +258,113 @@ public class TiffParser extends TiffReader {
         return super.readFirstIFDOffset();
     }
 
+    /** Use {@link #firstIFD()} instead. */
     @Deprecated
     public IFD getFirstIFD() throws IOException {
-        return super.firstIFD();
+        final boolean doCaching = isCachingIFDs();
+
+        if (firstIFD != null) return firstIFD;
+        final long offset = getFirstOffset();
+        final IFD ifd = getIFD(offset);
+        if (doCaching) firstIFD = ifd;
+        return ifd;
     }
 
-    // Note: this method works little more strictly, that the original version from SCIFIO code.
-    // In particular, it does not skip IFD with invalid data, but throws IOException.
+    /**
+     * Use {@link #readIFDAt(long)} instead.
+     */
     @Deprecated
-    public DetailedIFD getIFD(long offset) throws IOException {
-        DataHandle<Location> in = getStream();
-        if (offset < 0 || offset >= getStream().length()) {
-            return null;
+    public IFD getIFD(long offset) throws IOException {
+        final DataHandle<Location> in = getStream();
+        final boolean bigTiff = isBigTiff();
+        final boolean doCaching = isCachingIFDs();
+
+        if (offset < 0 || offset >= in.length()) return null;
+        final IFD ifd = new DetailedIFD();
+
+        // save little-endian flag to internal LITTLE_ENDIAN tag
+        ifd.put(IFD.LITTLE_ENDIAN, Boolean.valueOf(in
+                .isLittleEndian()));
+        ifd.put(IFD.BIG_TIFF, Boolean.valueOf(bigTiff));
+
+        // read in directory entries for this IFD
+//        log.trace("getIFDs: seeking IFD at " + offset);
+        in.seek(offset);
+        final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
+//        log.trace("getIFDs: " + numEntries + " directory entries to read");
+        if (numEntries == 0 || numEntries == 1) return ifd;
+
+        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
+                : TiffConstants.BYTES_PER_ENTRY;
+        final int baseOffset = bigTiff ? 8 : 2;
+
+        for (int i = 0; i < numEntries; i++) {
+            in.seek(offset + baseOffset + bytesPerEntry * i);
+
+            TiffIFDEntry entry = null;
+            try {
+                entry = readTiffIFDEntry();
+            }
+            catch (final EnumException e) {
+//                log.debug("", e);
+            }
+            if (entry == null) break;
+            int count = entry.getValueCount();
+            final int tag = entry.getTag();
+            final long pointer = entry.getValueOffset();
+            final int bpe = entry.getType().getBytesPerElement();
+
+            if (count < 0 || bpe <= 0) {
+                // invalid data
+                in.skipBytes(bytesPerEntry - 4 - (bigTiff ? 8 : 4));
+                continue;
+            }
+            Object value = null;
+
+            final long inputLen = in.length();
+            if (count * bpe + pointer > inputLen) {
+                final int oldCount = count;
+                count = (int) ((inputLen - pointer) / bpe);
+//                log.trace("getIFDs: truncated " + (oldCount - count) +
+//                        " array elements for tag " + tag);
+                if (count < 0) count = oldCount;
+                entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry
+                        .getValueOffset());
+            }
+            if (count < 0 || count > in.length()) break;
+
+            if (pointer != in.offset() && !doCaching) {
+                value = entry;
+            }
+            else value = getIFDValue(entry);
+
+            if (value != null && !ifd.containsKey(tag)) {
+                ifd.put(tag, value);
+            }
         }
-        return super.readIFDAt(offset);
+
+        in.seek(offset + baseOffset + bytesPerEntry * numEntries);
+
+        return ifd;
     }
 
+    /** Fill in IFD entries that are stored at an arbitrary offset. */
     @Deprecated
     public void fillInIFD(final IFD ifd) throws IOException {
-        // Unnecessary code: new TiffReader never stores TiffIFDEntry in IFD map
-//        final HashSet<TiffIFDEntry> entries = new HashSet<>();
-//        for (final Integer key : ifd.keySet()) {
-//            if (ifd.get(key) instanceof TiffIFDEntry) {
-//                entries.add((TiffIFDEntry) ifd.get(key));
-//            }
-//        }
-//
-//        for (final TiffIFDEntry entry : entries) {
-//            if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
-//                ifd.put(entry.getTag(), readIFDValue(entry));
-//            }
-//        }
+        final HashSet<TiffIFDEntry> entries = new HashSet<>();
+        for (final Object key : ifd.keySet()) {
+            if (ifd.get(key) instanceof TiffIFDEntry) {
+                entries.add((TiffIFDEntry) ifd.get(key));
+            }
+        }
+
+        for (final TiffIFDEntry entry : entries) {
+            if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
+                ifd.put(new Integer(entry.getTag()), getIFDValue(entry));
+            }
+        }
     }
+
 
     @Deprecated
     @SuppressWarnings("removal")

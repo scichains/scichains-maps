@@ -739,7 +739,7 @@ public class DetailedIFD extends IFD {
     public long getIFDLongValue(final int tag) throws FormatException {
         final Number number = (Number) getIFDValue(tag, Number.class);
         if (number == null) {
-            throw new FormatException("No tag " + tag + " in IFD");
+            throw new FormatException("No required tag " + ifdTagName(tag, true) + " in IFD");
         }
         return number.longValue();
     }
