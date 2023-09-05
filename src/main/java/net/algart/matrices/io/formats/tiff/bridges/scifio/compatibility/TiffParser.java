@@ -29,7 +29,9 @@ import io.scif.codec.CodecOptions;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.*;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
@@ -43,8 +45,8 @@ import org.scijava.util.IntRect;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
+import java.util.Vector;
 
 /**
  * Legacy version of {@link TiffReader} with some deprecated method.
@@ -248,14 +250,44 @@ public class TiffParser extends TiffReader {
     }
 
 
+    /** Use {@link #readIFDOffsets()} instead. */
     @Deprecated
     public long[] getIFDOffsets() throws IOException {
-        return super.readIFDOffsets();
+        final DataHandle<Location> in = getStream();
+        final boolean bigTiff = isBigTiff();
+
+        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
+                : TiffConstants.BYTES_PER_ENTRY;
+
+        final Vector<Long> offsets = new Vector<>();
+        long offset = getFirstOffset();
+        while (offset > 0 && offset < in.length()) {
+            in.seek(offset);
+            offsets.add(offset);
+            final int nEntries = bigTiff ? (int) in.readLong() : in
+                    .readUnsignedShort();
+            in.skipBytes(nEntries * bytesPerEntry);
+            offset = getNextOffset(offset);
+        }
+
+        final long[] f = new long[offsets.size()];
+        for (int i = 0; i < f.length; i++) {
+            f[i] = offsets.get(i).longValue();
+        }
+
+        return f;
     }
 
+    /** Use {@link #readFirstIFDOffset()} instead. */
     @Deprecated
     public long getFirstOffset() throws IOException {
-        return super.readFirstIFDOffset();
+        final DataHandle<Location> in = getStream();
+        final boolean bigTiff = isBigTiff();
+
+        final Boolean header = checkHeader();
+        if (header == null) return -1;
+        if (bigTiff) in.skipBytes(4);
+        return getNextOffset(0);
     }
 
     /** Use {@link #firstIFD()} instead. */
@@ -280,12 +312,14 @@ public class TiffParser extends TiffReader {
         final boolean doCaching = isCachingIFDs();
 
         if (offset < 0 || offset >= in.length()) return null;
-        final IFD ifd = new DetailedIFD();
+        //?? offset == -1 may be a signal about invalid file,
+        //?? but why we ignore too large offset??
+        final IFD ifd = new IFD(null);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
-        ifd.put(IFD.LITTLE_ENDIAN, Boolean.valueOf(in
-                .isLittleEndian()));
-        ifd.put(IFD.BIG_TIFF, Boolean.valueOf(bigTiff));
+        ifd.put(IFD.LITTLE_ENDIAN, in
+                .isLittleEndian());
+        ifd.put(IFD.BIG_TIFF, bigTiff);
 
         // read in directory entries for this IFD
 //        log.trace("getIFDs: seeking IFD at " + offset);
@@ -293,6 +327,7 @@ public class TiffParser extends TiffReader {
         final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
 //        log.trace("getIFDs: " + numEntries + " directory entries to read");
         if (numEntries == 0 || numEntries == 1) return ifd;
+        //?? Why numEntries == 1 should lead to EMPTY IFD?
 
         final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
                 : TiffConstants.BYTES_PER_ENTRY;
@@ -309,12 +344,16 @@ public class TiffParser extends TiffReader {
 //                log.debug("", e);
             }
             if (entry == null) break;
+            //?? What does mean this solution? If we found ONE unknown tag,
+            //?? we should ignore this and ALL FOLLOWING entries??
             int count = entry.getValueCount();
             final int tag = entry.getTag();
             final long pointer = entry.getValueOffset();
             final int bpe = entry.getType().getBytesPerElement();
 
             if (count < 0 || bpe <= 0) {
+                //?? How bpe may become <= 0?
+                //?? valueCount is also checked inside readTiffIFDEntry and also cannot be < 0!
                 // invalid data
                 in.skipBytes(bytesPerEntry - 4 - (bigTiff ? 8 : 4));
                 continue;
@@ -330,8 +369,14 @@ public class TiffParser extends TiffReader {
                 if (count < 0) count = oldCount;
                 entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry
                         .getValueOffset());
+                //?????? What does it mean? Some IFD array (maybe offsets or byte counts) is "truncated"
+                //?? by the file end, and what do we do - just ignore its last part??
+                //?? It is especially strange that if the file length < value offset, we just...
+                //?? restore previous count.
             }
             if (count < 0 || count > in.length()) break;
+            //?? count < 0 is impossible here!
+            //?? And comparing count with file length has no sense: count is a number of ENTRIES, not BYTES
 
             if (pointer != in.offset() && !doCaching) {
                 value = entry;
@@ -360,7 +405,7 @@ public class TiffParser extends TiffReader {
 
         for (final TiffIFDEntry entry : entries) {
             if (entry.getValueCount() < 10 * 1024 * 1024 || entry.getTag() < 32768) {
-                ifd.put(new Integer(entry.getTag()), getIFDValue(entry));
+                ifd.put(entry.getTag(), getIFDValue(entry));
             }
         }
     }
@@ -525,7 +570,7 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public TiffIFDEntry getFirstIFDEntry(final int tag) throws IOException {
         // Get the offset of the first IFD
-        final long offset = readFirstIFDOffset();
+        final long offset = getFirstOffset();
         if (offset < 0) {
             return null;
         }
@@ -859,78 +904,4 @@ public class TiffParser extends TiffReader {
         return offset;
     }
 
-    /* Deprecated code:
-    public IFD getIFD(final long offset) throws IOException {
-        if (offset < 0 || offset >= in.length()) return null;
-        final IFD ifd = new IFD(log);
-
-        // save little-endian flag to internal LITTLE_ENDIAN tag
-        ifd.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
-        ifd.put(IFD.BIG_TIFF, bigTiff);
-
-        // read in directory entries for this IFD
-        log.trace("getIFDs: seeking IFD at " + offset);
-        in.seek(offset);
-        final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-        log.trace("getIFDs: " + numEntries + " directory entries to read");
-        if (numEntries == 0 || numEntries == 1) return ifd;
-
-        final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY
-                : TiffConstants.BYTES_PER_ENTRY;
-        final int baseOffset = bigTiff ? 8 : 2;
-
-        for (int i = 0; i < numEntries; i++) {
-            in.seek(offset + baseOffset + bytesPerEntry * i);
-
-            TiffIFDEntry entry = null;
-            try {
-                entry = readTiffIFDEntry();
-            } catch (final EnumException e) {
-                log.debug("", e);
-            }
-            if (entry == null) break;
-            int count = entry.getValueCount();
-            final int tag = entry.getTag();
-            final long pointer = entry.getValueOffset();
-            final int bpe = entry.getType().getBytesPerElement();
-
-            if (count < 0 || bpe <= 0) {
-                // invalid data
-                in.skipBytes(bytesPerEntry - 4 - (bigTiff ? 8 : 4));
-                continue;
-            }
-            Object value = null;
-
-            final long inputLen = in.length();
-            if (count * (long) bpe + pointer > inputLen) {
-                final int oldCount = count;
-                count = (int) ((inputLen - pointer) / bpe);
-                log.trace("getIFDs: truncated " + (oldCount - count) +
-                        " array elements for tag " + tag);
-                if (count < 0) count = oldCount;
-                entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry
-                        .getValueOffset());
-            }
-            if (count < 0 || count > in.length()) break;
-
-            if (pointer != in.offset() && !doCaching) {
-                value = entry;
-            } else value = getIFDValue(entry);
-
-            if (value != null && !ifd.containsKey(tag)) {
-                ifd.put(tag, value);
-            }
-        }
-
-        in.seek(offset + baseOffset + bytesPerEntry * numEntries);
-
-        return ifd;
-    }
-    */
-
-    static IFDList toIFDList(List<? extends IFD> ifds) {
-        final IFDList result = new IFDList();
-        result.addAll(ifds);
-        return result;
-    }
 }

@@ -395,7 +395,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return positionOfLastIFDOffset;
     }
 
-    public void startExistingFile() throws IOException {
+    public void startExistingFile() throws IOException, FormatException {
         synchronized (fileLock) {
             ifdOffsets.clear();
             final TiffReader reader = new TiffReader(null, out, true);

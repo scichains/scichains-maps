@@ -57,11 +57,11 @@ public class CachingTiffReader extends TiffReader {
     private long currentCacheMemory = 0;
     private final Object tileCacheLock = new Object();
 
-    public CachingTiffReader (Context context, Path file) throws IOException {
+    public CachingTiffReader (Context context, Path file) throws IOException, FormatException {
         super(context, file, true);
     }
 
-    public CachingTiffReader(Context context, DataHandle<Location> in) throws IOException {
+    public CachingTiffReader(Context context, DataHandle<Location> in) throws IOException, FormatException {
         super(context, in, true);
     }
 
