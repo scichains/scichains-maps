@@ -211,6 +211,9 @@
 
                                         <copy todir="${extension.server.home}"
                                               file="${project.build.directory}/build/extension.json"/>
+
+                                        <copy todir="${extension.server.home}"
+                                              file="${project.build.directory}/build/.public"/>
                                     </target>
                                 </configuration>
                             </execution>
