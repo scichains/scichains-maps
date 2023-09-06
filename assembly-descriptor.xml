@@ -36,6 +36,11 @@
             <!-- appeared here with filtering by resource/includes section in the main pom.xml -->
             <outputDirectory>./</outputDirectory>
         </file>
+        <file>
+            <source>${project.basedir}/build/.public</source>
+            <!-- marker for building public distributive -->
+            <outputDirectory>./</outputDirectory>
+        </file>
     </files>
     <fileSets>
         <fileSet>
