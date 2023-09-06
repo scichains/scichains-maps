@@ -1065,10 +1065,12 @@ public class DetailedIFD extends IFD {
         }
         sb.append("; ").append(numberOfEntries()).append(" entries:");
         final Map<Integer, TiffIFDEntry> entries = this.entries;
-        final Map<Integer, Object> ifd = format.sorted ? new TreeMap<>(this) : this;
-        for (Map.Entry<Integer, Object> entry : ifd.entrySet()) {
-            final Integer tag = entry.getKey();
-            final Object v = entry.getValue();
+        final Collection<Integer> keySequence = format.sorted ?
+                new TreeSet<>(this.keySet()) : entries != null ?
+                entries.keySet() : this.keySet();
+        // - entries.keySet provides guaranteed order of keys
+        for (Integer tag : keySequence) {
+            final Object v = this.get(tag);
             if (tag == IFD.LITTLE_ENDIAN || tag == IFD.BIG_TIFF) {
                 // - not actual tags (but we still show REUSE: it should not occur in normal IFDs)
                 continue;
@@ -1096,6 +1098,16 @@ public class DetailedIFD extends IFD {
                                 case SAMPLE_FORMAT_VOID -> additional = "undefined";
                                 case SAMPLE_FORMAT_COMPLEX_INT -> additional = "complex integer";
                                 case SAMPLE_FORMAT_COMPLEX_IEEEFP -> additional = "complex float";
+                            }
+                        }
+                    }
+                    case IFD.FILL_ORDER -> additional = getFillOrder().getName() + " bits order";
+                    case IFD.PREDICTOR -> {
+                        if (v instanceof Number number) {
+                            switch (number.intValue()) {
+                                case PREDICTOR_NONE -> additional = "none";
+                                case PREDICTOR_HORIZONTAL -> additional = "horizontal subtraction";
+                                case PREDICTOR_FLOATING_POINT -> additional = "floating-point subtraction";
                             }
                         }
                     }

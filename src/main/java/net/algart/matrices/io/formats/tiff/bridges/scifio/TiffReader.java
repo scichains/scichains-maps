@@ -861,7 +861,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public void decode(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         long t1 = debugTime();
-        correctEncodedJpegTile(tile);
+        prepareEncodedTileForDecoding(tile);
 
         DetailedIFD ifd = tile.ifd();
         byte[] encodedData = tile.getEncoded();
@@ -899,12 +899,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         timeCompleteDecoding += t4 - t3;
     }
 
-    public void correctEncodedJpegTile(TiffTile tile) throws FormatException {
+    public void prepareEncodedTileForDecoding(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         if (tile.isEmpty()) {
             // - unlike full decoding, here it is better not to throw exception for empty tile
             return;
         }
+        TiffTools.invertFillOrderIfRequested(tile);
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
         if (KnownTiffCompression.isJpeg(compression)) {
@@ -960,7 +961,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public void completeDecoding(TiffTile tile) throws FormatException {
         // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
         // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.undifferenceIfRequested(tile);
+        TiffTools.addPredictionIfRequested(tile);
 
         if (USE_OLD_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
@@ -1014,8 +1015,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         tile.setDecodedData(samples);
         */
-
-        TiffTools.invertFillOrderIfRequested(tile);
     }
 
     public byte[] readImage(final DetailedIFD ifd) throws FormatException, IOException {
@@ -1072,7 +1071,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f initializing + %.3f read/decode " +
-                            "(%.3f read + %.3f customize + %.3f decode + %.3f complete) + " +
+                            "(%.3f read + %.3f customize/bit-order + %.3f decode + %.3f complete) + " +
                             "%.3f unusual + %.3f interleave, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, size / 1048576.0,

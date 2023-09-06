@@ -422,7 +422,7 @@ public class TiffTools {
 
     public static void invertFillOrderIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        invertFillOrderIfRequested(tile.ifd(), tile.getDecoded());
+        invertFillOrderIfRequested(tile.ifd(), tile.getData());
     }
 
     /**
@@ -443,10 +443,10 @@ public class TiffTools {
         }
     }
 
-    // Clone of the function from DefaultTiffService.
+    // Clone of the function DefaultTiffService.undifference
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
-    public static void differenceIfRequested(TiffTile tile) throws FormatException {
+    public static void subtractPredictionIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecoded();
@@ -487,10 +487,10 @@ public class TiffTools {
         }
     }
 
-    // Clone of the function from DefaultTiffService.
+    // Clone of the function DefaultTiffService.difference
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
-    public static void undifferenceIfRequested(TiffTile tile) throws FormatException {
+    public static void addPredictionIfRequested(TiffTile tile) throws FormatException {
         final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecoded();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);

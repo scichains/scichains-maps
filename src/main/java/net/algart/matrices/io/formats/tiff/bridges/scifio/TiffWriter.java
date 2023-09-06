@@ -502,7 +502,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // - checks that startOffset is even and >= 0
 
             out.seek(startOffset);
-            final TreeMap<Integer, Object> sortedIFD = ifd.removePseudoTags(TreeMap::new);
+            final Map<Integer, Object> sortedIFD = ifd.removePseudoTags(TreeMap::new);
             final int numberOfEntries = sortedIFD.size();
             final int mainIFDLength = mainIFDLength(numberOfEntries);
             writeIFDNumberOfEntries(numberOfEntries);
@@ -753,7 +753,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             return;
         }
         long t1 = debugTime();
-        prepareEncoding(tile);
+        prepareDecodedTileForEncoding(tile);
         long t2 = debugTime();
 
         tile.checkStoredNumberOfPixels();
@@ -786,6 +786,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
             tile.setEncoded(compression.compress(scifio.codec(), data, codecOptions));
         }
+        TiffTools.invertFillOrderIfRequested(tile);
         long t4 = debugTime();
 
         timePreparingDecoding += t2 - t1;
@@ -1046,9 +1047,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    protected void prepareEncoding(TiffTile tile) throws FormatException {
+    protected void prepareDecodedTileForEncoding(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        TiffTools.invertFillOrderIfRequested(tile);
         if (autoInterleaveSource) {
             tile.interleaveSamples();
         } else {
@@ -1058,7 +1058,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
         // scifio.tiff().difference(tile.getDecodedData(), ifd);
         // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.differenceIfRequested(tile);
+        TiffTools.subtractPredictionIfRequested(tile);
     }
 
     private void clearTime() {

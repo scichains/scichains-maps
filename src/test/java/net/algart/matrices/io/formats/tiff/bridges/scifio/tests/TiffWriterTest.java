@@ -122,9 +122,9 @@ public class TiffWriterTest {
             planarSeparated = true;
             startArgIndex++;
         }
-        boolean difference = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-difference")) {
-            difference = true;
+        boolean predict = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-predict")) {
+            predict = true;
             startArgIndex++;
         }
         boolean reverseBits = false;
@@ -211,9 +211,10 @@ public class TiffWriterTest {
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     ifd.putPlanarSeparated(planarSeparated);
-                    if (difference) {
+                    if (predict) {
                         ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
-                        // - unusual mode: no special putXxx method
+                        // - unusual mode: no special putXxx method;
+                        // should not be used for compressions besides LZW/DEFLATE
                     }
                     if (reverseBits) {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
