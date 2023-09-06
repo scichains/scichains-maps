@@ -98,6 +98,7 @@ public class TiffReaderTest {
 //                reader.setCachingIFDs(false);
                 reader.setMissingTilesAllowed(true);
                 reader.setByteFiller((byte) 0x80);
+//                reader.setCropTilesToImageBoundaries(false);
                 final long positionOfLastOffset = reader.positionOfLastIFDOffset();
                 assert positionOfLastOffset == -1 : "constructor should not set positionOfLastOffset";
                 final var ifds = reader.allIFDs();

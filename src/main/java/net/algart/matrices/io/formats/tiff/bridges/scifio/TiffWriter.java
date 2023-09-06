@@ -466,7 +466,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * (aligned to nearest even length) if it is <tt>null</tt>.
      *
      * <p>Note: this IFD is automatically marked as last IFD in the file (next IFD offset is 0),
-     * unless you explicitly specified other next offset via {@link #setNextIFDOffset(long)}.
+     * unless you explicitly specified other next offset via {@link DetailedIFD#setNextIFDOffset(long)}.
      * You also may call {@link #rewritePreviousLastIFDOffset(long)} to correct
      * this mark inside the file in the previously written IFD, but usually there is no necessity to do this.</p>
      *
