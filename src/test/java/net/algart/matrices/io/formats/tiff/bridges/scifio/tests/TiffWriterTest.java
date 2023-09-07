@@ -205,7 +205,7 @@ public class TiffWriterTest {
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
-                        ifd.putTileSizes(80, 64);
+                        ifd.putTileSizes(112, 64);
                     } else if (!singleStrip) {
                         ifd.putStripSize(100);
                     }
@@ -240,8 +240,13 @@ public class TiffWriterTest {
                         boolean breakOldChain = numberOfImages > 1;
                         // - if we add more than 1 image, they break the existing chain
                         // (not necessary, it is just a choice for this demo)
-                        map = startExistingImage(writer, ifd,
-                                breakOldChain, preserveOldAccurately, resizable, x, y, w, h);
+                        if (breakOldChain) {
+                            ifd.setLastIFD();
+                        }
+                        map = writer.startExistingImage(ifd);
+                        if (preserveOldAccurately) {
+                            preloadPartiallyOverwrittenTiles(writer, map, x, y, w, h);
+                        }
                     } else {
                         map = writer.startNewImage(ifd, resizable);
                     }
@@ -282,60 +287,20 @@ public class TiffWriterTest {
         System.out.println("Done");
     }
 
-    // Note: this method cannot be recommended as a part of standard API, because it leads
-    // to making unused space in the existing TIFF file.
-    // In any case, this method does not process fragments, not aligned by tile boundaries.
-    // Note: resizable argument is added for testing only; there is no practical sense to pass "true" here.
-    private static TiffMap startExistingImage(
+    private static void preloadPartiallyOverwrittenTiles(
             TiffWriter writer,
-            DetailedIFD ifd,
-            boolean breakOldChain,
-            boolean accurateMode,
-            boolean resizable,
-            final int fromX, final int fromY, final int sizeX, final int sizeY)
-            throws FormatException, IOException {
-        final DetailedIFD ifdToRead = new DetailedIFD(ifd);
-        final TiffMap map = writer.startNewImage(ifd, resizable);
-        if (!ifd.hasTileInformation()) {
-            throw new UnsupportedOperationException("This method does not support overwriting non-tiled images");
-        }
-        if (!breakOldChain) {
-            ifd.setNextIFDOffset(ifdToRead.getNextIFDOffset());
-            // - restoring old next IFD offsets (removed by startNewImage)
-        }
-        final long[] offsets = ifdToRead.getTileOrStripOffsets();
-        final long[] byteCounts = ifdToRead.getTileOrStripByteCounts();
-        if (offsets == null) {
-            throw new FormatException("No tile offsets");
-        }
-        if (byteCounts == null) {
-            throw new FormatException("No tile byte counts");
-        }
-        map.completeImageGrid();
-        if (offsets.length < map.size() || byteCounts.length < map.size()) {
-            throw new FormatException("Strange length of tile offsets " + offsets.length +
-                    " or byte counts " + byteCounts.length);
-            // - should not occur: it is checked in DetailedIFD methods
-        }
+            TiffMap map,
+            int fromX, int fromY, int sizeX, int sizeY)
+            throws IOException, FormatException {
         final TiffReader reader = new TiffReader(null, writer.getStream());
         final IRectangularArea areaToWrite = IRectangularArea.valueOf(
                 fromX, fromY, fromX + sizeX - 1, fromY + sizeY - 1);
-        final TiffMap mapToRead = new TiffMap(ifdToRead, false);
-        int k = 0;
         for (TiffTile tile : map.tiles()) {
-            // - main operations of this method are here
-            tile.setStoredDataFileRange(offsets[k], (int) byteCounts[k]);
-            // - "tell" that all tiles already exist in the file
-            tile.removeUnset();
-            if (accurateMode) {
-                if (tile.rectangle().intersects(areaToWrite) && !areaToWrite.contains(tile.rectangle())) {
-                    final TiffTile existing = reader.readTile(mapToRead.copyIndex(tile.index()));
-                    tile.setDecoded(existing.getDecoded());
-                }
+            if (tile.rectangle().intersects(areaToWrite) && !areaToWrite.contains(tile.rectangle())) {
+                final TiffTile existing = reader.readTile(tile.index());
+                tile.setDecoded(existing.getDecoded());
             }
-            k++;
         }
-        return map;
     }
 
     private static void customFillEmptyTile(TiffTile tiffTile) {

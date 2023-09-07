@@ -1899,18 +1899,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
         } else if (type == IFDType.LONG || type == IFDType.IFD) {
             // 32-bit (4-byte) unsigned integer
             if (count == 1) {
-                return (long) in.readInt();
+                return in.readInt() & 0xFFFFFFFFL;
             }
             if (OPTIMIZE_READING_IFD_ARRAYS) {
                 final byte[] bytes = readIFDBytes(in, 4 * (long) count);
                 final int[] ints = TiffTools.bytesToIntArray(bytes, in.isLittleEndian());
-                return Arrays.stream(ints).asLongStream().toArray();
+                return Arrays.stream(ints).mapToLong(anInt -> anInt & 0xFFFFFFFFL).toArray();
+                // note: IFDType.LONG is UNSIGNED long
             } else {
                 final long[] longs = new long[count];
                 for (int j = 0; j < count; j++) {
-                    if (in.offset() + 4 <= in.length()) {
-                        longs[j] = in.readInt();
-                    }
+                    longs[j] = in.readInt() & 0xFFFFFFFFL;
                 }
                 return longs;
             }
@@ -1960,8 +1959,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 return in.readShort();
             }
             final short[] sshorts = new short[count];
-            for (int j = 0; j < count; j++)
+            for (int j = 0; j < count; j++) {
                 sshorts[j] = in.readShort();
+            }
             return sshorts;
         } else if (type == IFDType.SLONG) {
             // A 32-bit (4-byte) signed (twos-complement) integer
@@ -1969,8 +1969,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 return in.readInt();
             }
             final int[] slongs = new int[count];
-            for (int j = 0; j < count; j++)
+            for (int j = 0; j < count; j++) {
                 slongs[j] = in.readInt();
+            }
             return slongs;
         } else if (type == IFDType.FLOAT) {
             // Single precision (4-byte) IEEE format
@@ -1978,8 +1979,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 return in.readFloat();
             }
             final float[] floats = new float[count];
-            for (int j = 0; j < count; j++)
+            for (int j = 0; j < count; j++) {
                 floats[j] = in.readFloat();
+            }
             return floats;
         } else if (type == IFDType.DOUBLE) {
             // Double precision (8-byte) IEEE format

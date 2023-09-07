@@ -815,17 +815,63 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return startNewImage(ifd, resizable);
     }
 
+    /**
+     * Starts writing new IFD image.
+     *
+     * @param ifd newly created and probably customized IFD.
+     * @param resizable if <tt>true</tt>, IFD dimensions may not be specified yet.
+     * @return map for writing further data.
+     */
     public TiffMap startNewImage(DetailedIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
+        final TiffMap map = new TiffMap(ifd, resizable);
         ifd.removeNextIFDOffset();
         ifd.removeDataPositioning();
-        final TiffMap map = new TiffMap(ifd, resizable);
         if (resizable) {
             ifd.removeImageDimensions();
         }
         ifd.freezeForWriting();
         // - actually not necessary, but helps to avoid possible bugs
+        return map;
+    }
+
+    /**
+     * Starts overwriting existing IFD image.
+     *
+     * <p>Usually you should avoid usage this method without necessity: though it allows modify some existing tiles,
+     * but all newly updated tiles will written at the file end, and the previously occupied space in the file
+     * will be lost. This method may be suitable if you need to perform little correction in 1-2 tiles of
+     * very large TIFF without full recompression of all its tiles.</p>
+     *
+     * @param ifd IFD of some existing image, probably loaded from the current TIFF file.
+     * @return map for writing further data.
+     */
+    public TiffMap startExistingImage(DetailedIFD ifd) throws FormatException {
+        Objects.requireNonNull(ifd, "Null IFD");
+        prepareValidIFD(ifd);
+        final TiffMap map = new TiffMap(ifd);
+        final long[] offsets = ifd.getTileOrStripOffsets();
+        final long[] byteCounts = ifd.getTileOrStripByteCounts();
+        assert offsets != null;
+        assert byteCounts != null;
+        map.completeImageGrid();
+        if (offsets.length < map.size() || byteCounts.length < map.size()) {
+            throw new ConcurrentModificationException("Strange length of tile offsets " + offsets.length +
+                    " or byte counts " + byteCounts.length);
+            // - should not occur: it is checked in getTileOrStripOffsets/getTileOrStripByteCounts methods
+            // (only possible way is modification from parallel thread)
+        }
+        ifd.freezeForWriting();
+        // - actually not necessary, but helps to avoid possible bugs
+        int k = 0;
+        for (TiffTile tile : map.tiles()) {
+            // - we can be sure that completeImageGrid in an empty map provides correct tiles order
+            tile.setStoredDataFileRange(offsets[k], (int) byteCounts[k]);
+            // - "tell" that all tiles already exist in the file
+            tile.removeUnset();
+            k++;
+        }
         return map;
     }
 

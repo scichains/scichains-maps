@@ -33,11 +33,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class IFDStripOffsetsTest {
+public class IFDTileOffsetsTest {
     public static void main(String[] args) throws IOException, FormatException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + IFDStripOffsetsTest.class.getName() + " tiff_file.tiff ifdIndex");
+            System.out.println("    " + IFDTileOffsetsTest.class.getName() + " tiff_file.tiff ifdIndex");
             return;
         }
 

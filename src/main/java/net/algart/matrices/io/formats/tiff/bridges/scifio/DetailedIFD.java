@@ -29,6 +29,7 @@ import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Supplier;
@@ -391,34 +392,23 @@ public class DetailedIFD extends IFD {
         return bitsPerSample;
     }
 
-    // This method is overridden to remove extra support of absence of StripByteCounts
+    // This method replaces old getStripByteCounts to remove extra support of absence of StripByteCounts
     // and to remove extra doubling result for LZW (may lead to a bug)
     public long[] getTileOrStripByteCounts() throws FormatException {
-        final boolean tiled = isTiled();
+        final boolean tiled = hasTileInformation();
         final int tag = tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS;
         long[] counts = getIFDLongArray(tag);
         if (tiled && counts == null) {
             counts = getIFDLongArray(STRIP_BYTE_COUNTS);
-            // - rare situation, when tile byte counts is actually stored in StripByteCounts
+            // - rare situation, when tile byte counts are actually stored in StripByteCounts
         }
         if (counts == null) {
             throw new FormatException("Invalid IFD: no required StripByteCounts/TileByteCounts tag");
         }
-        if (tiled) {
-            return counts;
-        }
-
-        final long rowsPerStrip = getRowsPerStrip()[0];
-        assert rowsPerStrip <= Integer.MAX_VALUE :
-                "getImageLength() inside getRowsPerStrip() did not check that result is 31-bit";
-        long numberOfStrips = (getImageLength() + rowsPerStrip - 1) / rowsPerStrip;
-        if (getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE) {
-            numberOfStrips *= getSamplesPerPixel();
-        }
-
-        if (counts.length < numberOfStrips) {
+        final long numberOfTiles = getTilesPerRow() * getTilesPerColumn();
+        if (counts.length < numberOfTiles) {
             throw new FormatException("StripByteCounts/TileByteCounts length (" + counts.length +
-                    ") does not match expected number of strips/tiles (" + numberOfStrips + ")");
+                    ") does not match expected number of strips/tiles (" + numberOfTiles + ")");
         }
         return counts;
     }
@@ -454,9 +444,45 @@ public class DetailedIFD extends IFD {
         return (int) result;
     }
 
+    // This method replaces old getStripOffsets()
     public long[] getTileOrStripOffsets() throws FormatException {
-        // Maybe will be re-written in future
-        return super.getStripOffsets();
+        final boolean tiled = hasTileInformation();
+        final int tag = tiled ? TILE_OFFSETS : STRIP_OFFSETS;
+        long[] offsets;
+        final OnDemandLongArray compressedOffsets = getOnDemandStripOffsets();
+        // - compatibility with old TiffParser feature
+        if (compressedOffsets != null) {
+            offsets = new long[(int) compressedOffsets.size()];
+            try {
+                for (int q = 0; q < offsets.length; q++) {
+                    offsets[q] = compressedOffsets.get(q);
+                }
+            }
+            catch (final IOException e) {
+                throw new FormatException("Failed to retrieve offset", e);
+            }
+        } else {
+            offsets = getIFDLongArray(tag);
+        }
+        if (tiled && offsets == null) {
+            // - rare situation, when tile offsets are actually stored in StripOffsets
+            offsets = getIFDLongArray(STRIP_OFFSETS);
+        }
+        if (offsets == null) {
+            throw new FormatException("Invalid IFD: no required StripOffsets/TileOffsets tag");
+        }
+        final long numberOfTiles = getTilesPerRow() * getTilesPerColumn();
+        if (offsets.length < numberOfTiles) {
+            throw new FormatException("StripByteCounts/TileByteCounts length (" + offsets.length +
+                    ") does not match expected number of strips/tiles (" + numberOfTiles + ")");
+        }
+        // Note: old getStripOffsets method also performed correction:
+        // if (offsets[i] < 0) {
+        //     offsets[i] += 0x100000000L;
+        // }
+        // But it is not necessary with new TiffReader: if reads correct 32-bit unsigned values.
+
+        return offsets;
     }
 
     public long[] cachedTileOrStripOffsets() throws FormatException {
