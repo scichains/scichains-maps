@@ -844,6 +844,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * will be lost. This method may be suitable if you need to perform little correction in 1-2 tiles of
      * very large TIFF without full recompression of all its tiles.</p>
      *
+     * <p>Note: this method does not remove information about tile/strip offsets and byte counts. So, you can
+     * read some tiles from this IFD via {@link TiffReader} class (it is important for tiles, that you neeed to
+     * partially fill, but partially load from the old file).</p>
+     *
      * @param ifd IFD of some existing image, probably loaded from the current TIFF file.
      * @return map for writing further data.
      */
@@ -851,8 +855,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd);
-        final long[] offsets = ifd.getTileOrStripOffsets();
-        final long[] byteCounts = ifd.getTileOrStripByteCounts();
+        final long[] offsets = ifd.cachedTileOrStripOffsets();
+        final long[] byteCounts = ifd.cachedTileOrStripByteCounts();
         assert offsets != null;
         assert byteCounts != null;
         map.completeImageGrid();
