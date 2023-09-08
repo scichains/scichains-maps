@@ -308,7 +308,7 @@ public final class TiffTile {
         return data;
     }
 
-    public byte[] getEncoded() {
+    public byte[] getEncodedData() {
         checkEmpty();
         if (!isEncoded()) {
             throw new IllegalStateException("TIFF tile is not encoded: " + this);
@@ -316,13 +316,13 @@ public final class TiffTile {
         return data;
     }
 
-    public TiffTile setEncoded(byte[] data) {
+    public TiffTile setEncodedData(byte[] data) {
         return setData(data, true);
     }
 
     public TiffTile fillEmpty(Consumer<TiffTile> initializer) {
         if (isEmpty()) {
-            setDecoded(new byte[sizeInBytes]);
+            setDecodedData(new byte[sizeInBytes]);
             if (initializer != null) {
                 initializer.accept(this);
             }
@@ -330,7 +330,7 @@ public final class TiffTile {
         return this;
     }
 
-    public byte[] getDecoded() {
+    public byte[] getDecodedData() {
         checkEmpty();
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are not decoded and cannot be retrieved: " + this);
@@ -338,7 +338,7 @@ public final class TiffTile {
         return data;
     }
 
-    public TiffTile setDecoded(byte[] data) {
+    public TiffTile setDecodedData(byte[] data) {
         return setData(data, false);
     }
 
@@ -447,7 +447,7 @@ public final class TiffTile {
         if (newNumberOfPixels < 0) {
             throw new IllegalArgumentException("Negative new number of pixels = " + newNumberOfPixels);
         }
-        final byte[] data = getDecoded();
+        final byte[] data = getDecodedData();
         // - performs all necessary state checks
         int numberOfPixels = storedNumberOfPixels;
         if (numberOfPixels == newNumberOfPixels) {
@@ -475,7 +475,7 @@ public final class TiffTile {
                 System.arraycopy(data, disp, newData, newDisp, sizeToCopy);
             }
         }
-        return setDecoded(newData);
+        return setDecodedData(newData);
     }
 
     public TiffTile interleaveSamplesIfNecessary() {
@@ -493,24 +493,24 @@ public final class TiffTile {
     }
 
     public TiffTile interleaveSamples() {
-        byte[] data = getDecoded();
+        byte[] data = getDecodedData();
         if (isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already interleaved: " + this);
         }
         data = TiffTools.toInterleavedSamples(data, samplesPerPixel(), bytesPerSample(), getStoredNumberOfPixels());
         setInterleaved(true);
-        setDecoded(data);
+        setDecodedData(data);
         return this;
     }
 
     public TiffTile separateSamples() {
-        byte[] data = getDecoded();
+        byte[] data = getDecodedData();
         if (!isInterleaved()) {
             throw new IllegalStateException("TIFF tile is already separated: " + this);
         }
         data = TiffTools.toSeparatedSamples(data, samplesPerPixel(), bytesPerSample(), getStoredNumberOfPixels());
         setInterleaved(false);
-        setDecoded(data);
+        setDecodedData(data);
         return this;
     }
 

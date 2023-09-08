@@ -298,13 +298,13 @@ public class TiffWriterTest {
         for (TiffTile tile : map.tiles()) {
             if (tile.rectangle().intersects(areaToWrite) && !areaToWrite.contains(tile.rectangle())) {
                 final TiffTile existing = reader.readTile(tile.index());
-                tile.setDecoded(existing.getDecoded());
+                tile.setDecodedData(existing.getDecodedData());
             }
         }
     }
 
     private static void customFillEmptyTile(TiffTile tiffTile) {
-        byte[] decoded = tiffTile.getDecoded();
+        byte[] decoded = tiffTile.getDecodedData();
         Arrays.fill(decoded, tiffTile.bytesPerSample() == 1 ? (byte) 0xE0 : (byte) 0xFF);
         tiffTile.setInterleaved(true);
         final int pixel = tiffTile.bytesPerPixel();

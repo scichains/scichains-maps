@@ -864,7 +864,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         prepareEncodedTileForDecoding(tile);
 
         DetailedIFD ifd = tile.ifd();
-        byte[] encodedData = tile.getEncoded();
+        byte[] encodedData = tile.getEncodedData();
         final TiffCompression compression = ifd.getCompression();
 
         final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
@@ -880,13 +880,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t2 = debugTime();
         if (codec != null) {
-            tile.setDecoded(codecDecompress(encodedData, codec, codecOptions));
+            tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
             if (scifio == null) {
                 throw new IllegalStateException(
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             }
-            tile.setDecoded(compression.decompress(scifio.codec(), encodedData, codecOptions));
+            tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
         }
         tile.setInterleaved(codecOptions.interleaved);
         long t3 = debugTime();
@@ -909,7 +909,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         DetailedIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
         if (KnownTiffCompression.isJpeg(compression)) {
-            final byte[] data = tile.getEncoded();
+            final byte[] data = tile.getEncodedData();
             final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
             // Structure of data:
             //      FF D8 (SOI, start of image)
@@ -953,7 +953,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 // - skipping both SOI and EOI (2 first and 2 last bytes) from jpegTable
                 System.arraycopy(data, 2, appended, jpegTable.length - 2, data.length - 2);
                 // - skipping SOI (2 first bytes) from main data
-                tile.setEncoded(appended);
+                tile.setEncodedData(appended);
             }
         }
     }
@@ -965,8 +965,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         if (USE_OLD_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
-            unpackBytesLegacy(samples, 0, tile.getDecoded(), tile.ifd());
-            tile.setDecoded(samples);
+            unpackBytesLegacy(samples, 0, tile.getDecodedData(), tile.ifd());
+            tile.setDecodedData(samples);
             tile.setInterleaved(false);
         } else {
             if (!decodeYCbCr(tile)) {
@@ -1307,7 +1307,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                         throw new AssertionError("Illegal behavior of readTile: it returned interleaved tile!");
                         // - theoretically possible in subclasses
                     }
-                    byte[] data = tile.getDecoded();
+                    byte[] data = tile.getDecodedData();
 
                     final int tileSizeX = tile.getSizeX();
                     final int tileSizeY = tile.getSizeY();
@@ -1355,7 +1355,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private static boolean decodeYCbCr(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
-        byte[] bytes = tile.getDecoded();
+        byte[] bytes = tile.getDecodedData();
 
         if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
             return false;
@@ -1449,7 +1449,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             }
         }
 
-        tile.setDecoded(unpacked);
+        tile.setDecodedData(unpacked);
         tile.setInterleaved(false);
         return true;
     }
@@ -1513,7 +1513,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
-        byte[] bytes = tile.getDecoded();
+        byte[] bytes = tile.getDecodedData();
         long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (!tile.isPlanarSeparated()) {
             sampleCount /= samplesPerPixel;
@@ -1575,7 +1575,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
             }
         }
-        tile.setDecoded(unpacked);
+        tile.setDecodedData(unpacked);
         tile.setInterleaved(false);
     }
 

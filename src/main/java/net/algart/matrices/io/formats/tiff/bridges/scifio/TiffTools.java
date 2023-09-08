@@ -449,7 +449,7 @@ public class TiffTools {
     public static void subtractPredictionIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         final DetailedIFD ifd = tile.ifd();
-        final byte[] data = tile.getDecoded();
+        final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();
@@ -492,7 +492,7 @@ public class TiffTools {
     // and to fix a bug: it was not work with tiles, only with strips.
     public static void addPredictionIfRequested(TiffTile tile) throws FormatException {
         final DetailedIFD ifd = tile.ifd();
-        final byte[] data = tile.getDecoded();
+        final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
         if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
             final int[] bitsPerSample = ifd.getBitsPerSample();

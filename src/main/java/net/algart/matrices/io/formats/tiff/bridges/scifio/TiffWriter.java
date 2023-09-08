@@ -618,7 +618,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // will report about an error (see libtiff, tif_jpeg.c, assigning segment_width/segment_height)
                     // However, if tiling is requested via TILE_WIDTH/TILE_LENGTH tags, we SHOULD NOT do this.
                     tile.fillEmpty(tileInitializer);
-                    final byte[] data = tile.getDecoded();
+                    final byte[] data = tile.getDecodedData();
 
                     final int tileSizeX = tile.getSizeX();
                     final int tileSizeY = tile.getSizeY();
@@ -776,15 +776,15 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         final CodecOptions codecOptions = buildWritingOptions(tile, codec);
         long t3 = debugTime();
-        byte[] data = tile.getDecoded();
+        byte[] data = tile.getDecodedData();
         if (codec != null) {
-            tile.setEncoded(codec.compress(data, codecOptions));
+            tile.setEncodedData(codec.compress(data, codecOptions));
         } else {
             if (scifio == null) {
                 throw new IllegalStateException(
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             }
-            tile.setEncoded(compression.compress(scifio.codec(), data, codecOptions));
+            tile.setEncodedData(compression.compress(scifio.codec(), data, codecOptions));
         }
         TiffTools.invertFillOrderIfRequested(tile);
         long t4 = debugTime();
@@ -1086,7 +1086,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     public void fillEmptyTile(TiffTile tiffTile) {
         if (byteFiller != 0) {
             // - Java-arrays are automatically filled by zero
-            Arrays.fill(tiffTile.getDecoded(), byteFiller);
+            Arrays.fill(tiffTile.getDecodedData(), byteFiller);
         }
     }
 

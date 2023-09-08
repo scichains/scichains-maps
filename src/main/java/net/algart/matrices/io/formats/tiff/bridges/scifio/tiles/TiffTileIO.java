@@ -52,7 +52,7 @@ public class TiffTileIO {
                     ": loaded " + result + " bytes instead of " + data.length +
                     " (" + in.get() + ")");
         }
-        tile.setEncoded(data);
+        tile.setEncodedData(data);
     }
 
     public static void writeToEnd(TiffTile tile, DataHandle<?> out, boolean freeAfterWriting) throws IOException {
@@ -66,7 +66,7 @@ public class TiffTileIO {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");
         final long filePosition = tile.getStoredDataFileOffset();
-        byte[] encodedData = tile.getEncoded();
+        byte[] encodedData = tile.getEncodedData();
         out.seek(filePosition);
         out.write(encodedData);
         if (freeAfterWriting) {
