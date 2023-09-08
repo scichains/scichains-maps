@@ -81,7 +81,7 @@ public class TiffCopyTest {
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final DetailedIFD readIFD = ifds.get(ifdIndex);
-                    System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readIFD);
+                    System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
 
                     DetailedIFD writeIFD = new DetailedIFD(readIFD);
                     final TiffMap readMap = new TiffMap(readIFD);

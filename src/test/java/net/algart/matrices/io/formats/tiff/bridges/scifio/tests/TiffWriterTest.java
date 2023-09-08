@@ -137,7 +137,7 @@ public class TiffWriterTest {
             System.out.println("    " + TiffWriterTest.class.getName() +
                     " [-resizable] [-append] [-bigTiff] [-color] [-jpegRGB] [-singleStrip] " +
                     "[-tiled] [-planarSeparated] " +
-                    "target.tif unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
+                    "target.tiff unit8|int8|uint16|int16|uint32|int32|float|double [number_of_images [compression]]" +
                     "[x y width height [number_of_tests]]");
             return;
         }
@@ -230,7 +230,7 @@ public class TiffWriterTest {
                             writer.startNewFile();
                         }
                     }
-                    TiffMap map;
+                    final TiffMap map;
                     boolean overwriteExisting = randomAccess && k == 0;
                     if (overwriteExisting) {
                         // - Ignoring previous IFD. It has no sense for k > 0:

@@ -55,10 +55,19 @@ public class TiffTileIO {
         tile.setEncodedData(data);
     }
 
-    public static void writeToEnd(TiffTile tile, DataHandle<?> out, boolean freeAfterWriting) throws IOException {
+    public static void writeToEnd(
+            TiffTile tile,
+            DataHandle<?> out,
+            boolean freeAfterWriting,
+            boolean strictlyRequire32Bit) throws IOException {
         Objects.requireNonNull(tile, "Null tile");
         Objects.requireNonNull(out, "Null output stream");
-        tile.setStoredDataFileOffset(out.length());
+        final long length = out.length();
+        if (strictlyRequire32Bit && length > 0xFFFFFFF0L - tile.getEncodedData().length) {
+            throw new IOException("Attempt to write TIFF tile outside maximal allowed 32-bit file length 2^32-16 = " +
+                    0xFFFFFFF0L + "; such large files should be written in Big-TIFF mode");
+        }
+        tile.setStoredDataFileOffset(length);
         write(tile, out, freeAfterWriting);
     }
 

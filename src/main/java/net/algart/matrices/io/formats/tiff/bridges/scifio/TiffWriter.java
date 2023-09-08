@@ -99,6 +99,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * #L%
      */
 
+    /**
+     * If the file grows to about this limit and {@link #setBigTiff(boolean) big-TIFF} mode is not set,
+     * attempt to write new IFD at the file end by methods of this class throw IO exception.
+     * While writing tiles, an exception will be thrown only while exceeding the limit <tt>2^32-1</tt>
+     * (~280 MB greater than this value {@value}).
+     */
+    public static final long MAXIMAL_ALLOWED_32BIT_IFD_OFFSET = 4_000_000_000L;
+
     private static final boolean AVOID_LONG8_FOR_ACTUAL_32_BITS = true;
     // - If was necessary for some old programs (like Aperio Image Viewer), which
     // did not understand LONG8 values for some popular tags like image sizes.
@@ -106,7 +114,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private static final System.Logger LOG = System.getLogger(TiffWriter.class.getName());
     private static final boolean LOGGABLE_DEBUG = LOG.isLoggable(System.Logger.Level.DEBUG);
-    private static final boolean LOGGABLE_TRACE = LOG.isLoggable(System.Logger.Level.TRACE);
 
     private boolean writingForwardAllowed = true;
     private boolean bigTiff = false;
@@ -502,6 +509,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 appendFileUntilEvenLength();
                 startOffset = out.length();
             }
+            if (!bigTiff && startOffset > MAXIMAL_ALLOWED_32BIT_IFD_OFFSET) {
+                throw new IOException("Attempt to write too large TIFF file without big-TIFF mode: " +
+                        "offset of new IFD will be " + startOffset + " > " + MAXIMAL_ALLOWED_32BIT_IFD_OFFSET);
+            }
             ifd.setFileOffsetForWriting(startOffset);
             // - checks that startOffset is even and >= 0
 
@@ -536,6 +547,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public void rewritePreviousLastIFDOffset(long nextLastIFDOffset) throws IOException {
         synchronized (fileLock) {
+            if (nextLastIFDOffset < 0) {
+                throw new IllegalArgumentException("Negative next last IFD offset " + nextLastIFDOffset);
+            }
             if (positionOfLastIFDOffset < 0) {
                 throw new IllegalStateException("Writing to this TIFF file is not started yet");
             }
@@ -558,7 +572,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t1 = debugTime();
         synchronized (fileLock) {
             checkVirginFile();
-            TiffTileIO.writeToEnd(tile, out, freeAfterWriting);
+            TiffTileIO.writeToEnd(tile, out, freeAfterWriting, !bigTiff);
         }
         long t2 = debugTime();
         timeWriting += t2 - t1;
@@ -810,6 +824,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     public TiffMap startNewImage(
             DetailedIFD ifd,
             int numberOfChannels,
+            Class<?> elementType)
+            throws FormatException {
+        return startNewImage(ifd, numberOfChannels, elementType, false, false);
+    }
+
+    public TiffMap startNewImage(
+            DetailedIFD ifd,
+            int numberOfChannels,
             Class<?> elementType,
             boolean signedIntegers,
             boolean resizable)
@@ -994,19 +1016,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         map.ifd().updateDataPositioning(offsets, byteCounts);
     }
 
-    public void writeImage(
-            final DetailedIFD ifd, final byte[] samples) throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
-        writeImage(ifd, samples, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
-    }
-
-    public void writeImage(
-            final DetailedIFD ifd,
-            byte[] samples,
-            final int fromX, final int fromY, final int sizeX, final int sizeY)
-            throws FormatException, IOException {
-        TiffMap map = startNewImage(ifd, false);
-        writeImage(map, samples, fromX, fromY, sizeX, sizeY);
+    public void writeImage(final TiffMap map, final byte[] samples) throws FormatException, IOException {
+        Objects.requireNonNull(map, "Null TIFF map");
+        writeImage(map, samples, 0, 0, map.dimX(), map.dimY());
     }
 
     public void writeImage(
@@ -1407,7 +1419,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (bigTiff) {
             handle.writeLong(value);
         } else {
-            if (value != (int) value) {
+            if (value < Integer.MIN_VALUE || value > 0xFFFFFFFFL) {
+                // - note: positive values in range 0x80000000..0xFFFFFFFF are mostly probably unsigned integers,
+                // not signed values with overflow
                 throw new IOException("Attempt to write 64-bit value as 32-bit: " + value);
             }
             handle.writeInt((int) value);
@@ -1415,13 +1429,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     private void writeOffset(long offset) throws IOException {
+        if (offset < 0) {
+            throw new AssertionError("Illegal usage of writeOffset: negative offset " + offset);
+        }
         if (bigTiff) {
             out.writeLong(offset);
         } else {
-            if (offset != (int) offset) {
-                throw new IOException("Attempt to write 64-bit offset as 32-bit: " + offset);
+            if (offset > 0xFFFFFFF0L) {
+                throw new IOException("Attempt to write too large 64-bit offset as unsigned 32-bit: " + offset
+                    + " > 2^32-16; such large files should be written in Big-TIFF mode");
             }
             out.writeInt((int) offset);
+            // - masking by 0xFFFFFFFF is not needed: cast to (int) works properly also for 32-bit unsigned values
         }
     }
 
