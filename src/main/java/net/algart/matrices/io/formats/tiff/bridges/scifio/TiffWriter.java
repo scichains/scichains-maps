@@ -134,7 +134,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private long timeEncoding = 0;
 
     public TiffWriter(Context context, Path file) throws IOException {
-        this(context, file, true);
+        this(context, file, false);
     }
 
     public TiffWriter(Context context, Path file, boolean deleteExistingFile) throws IOException {
@@ -443,6 +443,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 writeOffset(8);
             }
             // - we are ready to write after the header
+            out.setLength(out.offset());
+            // - truncate the file if it already existed:
+            // it is necessary, because all new information is always written
+            // to the file end (to avoid damaging existing content)
         }
     }
 

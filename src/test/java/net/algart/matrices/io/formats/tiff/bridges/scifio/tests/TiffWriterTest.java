@@ -197,7 +197,9 @@ public class TiffWriterTest {
 //                writer.setByteFiller((byte) 0xE0);
                 writer.setTileInitializer(TiffWriterTest::customFillEmptyTile);
                 writer.setMissingTilesAllowed(allowMissing);
-                System.out.printf("%nTest #%d/%d: creating %s...%n", test, numberOfTests, targetFile);
+                System.out.printf("%nTest #%d/%d: %s %s...%n",
+                        test, numberOfTests,
+                        existingFile ? "writing to" : "creating", targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;
                     DetailedIFD ifd = new DetailedIFD();
@@ -221,6 +223,13 @@ public class TiffWriterTest {
                         // - unusual mode: no special putXxx method
                     }
                     ifd.putPixelInformation(numberOfChannels, pixelType);
+                    if (k == 0) {
+                        if (existingFile) {
+                            writer.startExistingFile();
+                        } else {
+                            writer.startNewFile();
+                        }
+                    }
                     TiffMap map;
                     boolean overwriteExisting = randomAccess && k == 0;
                     if (overwriteExisting) {
@@ -251,14 +260,6 @@ public class TiffWriterTest {
                         map = writer.startNewImage(ifd, resizable);
                     }
 
-                    if (k == 0) {
-                        if (existingFile) {
-                            writer.startExistingFile();
-                        } else {
-                            writer.startNewFile();
-                        }
-                        // - do this before writing, not in the very beginning, after checking possible format problem
-                    }
                     Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.pixelType(), w, h);
                     if (interleaveOutside && map.bytesPerSample() == 1) {
                         samplesArray = TiffTools.toInterleavedSamples(

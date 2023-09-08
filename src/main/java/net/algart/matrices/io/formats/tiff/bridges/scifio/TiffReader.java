@@ -1180,7 +1180,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 // - sometimes we can meet 8-byte "TIFF-files" (or 16-byte "Big-TIFF"), containing only header
                 // and no actual data (for example, results of debugging writing algorithm)
                 throw new FormatException("Too short TIFF file" + prettyInName() + ": only " + length +
-                        " bytes (minimum " + MINIMAL_ALLOWED_TIFF_FILE_LENGTH + " bytes required)");
+                        " bytes (we require minimum " + MINIMAL_ALLOWED_TIFF_FILE_LENGTH + " bytes for valid TIFF)");
             }
             final int endianOne = in.read();
             final int endianTwo = in.read();
