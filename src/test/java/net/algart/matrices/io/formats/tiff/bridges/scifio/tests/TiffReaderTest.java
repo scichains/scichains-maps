@@ -119,10 +119,10 @@ public class TiffReaderTest {
                 }
                 final DetailedIFD ifd = ifds.get(ifdIndex);
                 if (w < 0) {
-                    w = (int) Math.min(ifd.getImageWidth(), MAX_IMAGE_DIM);
+                    w = Math.min(ifd.getImageDimX(), MAX_IMAGE_DIM);
                 }
                 if (h < 0) {
-                    h = (int) Math.min(ifd.getImageLength(), MAX_IMAGE_DIM);
+                    h = Math.min(ifd.getImageDimY(), MAX_IMAGE_DIM);
                 }
                 final int bandCount = ifd.getSamplesPerPixel();
 

@@ -24,20 +24,26 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
+import io.scif.FormatException;
+import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 
 public class CreatingIFDTest {
-    private static void showIFD(DetailedIFD ifd, String name) {
+    private static void showIFD(DetailedIFD ifd, String name) throws FormatException {
         System.out.printf("%s%nBrief:%n----%n%s%n----%nNormal:%n----%n%s%n----%n%n",
                 name, ifd, ifd.toString(DetailedIFD.StringFormat.NORMAL_SORTED));
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws FormatException {
         DetailedIFD ifd = new DetailedIFD();
         showIFD(ifd, "Empty");
 
-        ifd.putPixelInformation(3, byte.class);
+        ifd.putPixelInformation(1, byte.class);
         showIFD(ifd, "Pixel information");
+
+        ifd.putCompression(TiffCompression.OLD_JPEG);
+        // - 3 channels, not 1
+        showIFD(ifd, "Compression");
 
         ifd.putImageDimensions(3000, 3000);
         showIFD(ifd, "Dimensions");

@@ -1018,7 +1018,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     public byte[] readImage(final DetailedIFD ifd) throws FormatException, IOException {
-        return readImage(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
+        return readImage(new TiffMap(ifd));
+    }
+
+    public byte[] readImage(TiffMap map) throws FormatException, IOException {
+        return readImage(map, false);
+    }
+
+    public byte[] readImage(TiffMap map, boolean storeTilesInMap) throws FormatException, IOException {
+        return readImage(map, 0, 0, map.dimX(), map.dimY(), storeTilesInMap);
     }
 
     /**
@@ -1030,17 +1038,26 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     public byte[] readImage(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
+        return readImage(new TiffMap(ifd), fromX, fromY, sizeX, sizeY);
+    }
+
+    public byte[] readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
+            throws IOException, FormatException {
+        return readImage(map, fromX, fromY, sizeX, sizeY, false);
+    }
+
+    public byte[] readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
+            throws FormatException, IOException {
+            Objects.requireNonNull(map, "Null TIFF map");
         long t1 = debugTime();
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         // - note: we allow this area to be outside the image
-        final TiffMap map = new TiffMap(ifd);
         final int numberOfChannels = map.numberOfChannels();
+        final DetailedIFD ifd = map.ifd();
         final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
-        // - also checks that sizeX/sizeY are allowed and that
-        //      sizeX * sizeY * ifd.getSamplesPerPixel() * ifd.getBytesPerSampleBasedOnType()
-        // is calculated without overflow
+        // - note: it may differ from the size, calculated on the base of tile information (saved in the map),
+        // in a case when unpackUnusualPrecisions performs unpacking
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         byte[] samples = new byte[size];
         if (size == 0) {
@@ -1055,7 +1072,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // old SCIFIO code did not check this and could return undefined results
         long t2 = debugTime();
 
-        readTiles(map, samples, fromX, fromY, sizeX, sizeY);
+        readTiles(map, samples, fromX, fromY, sizeX, sizeY, storeTilesInMap);
 
         long t3 = debugTime();
         if (autoUnpackUnusualPrecisions) {
@@ -1258,7 +1275,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     // Note: this method does not store tile in the tile map.
-    private void readTiles(TiffMap map, byte[] resultSamples, int fromX, int fromY, int sizeX, int sizeY)
+    private void readTiles(
+            TiffMap map,
+            byte[] resultSamples,
+            int fromX,
+            int fromY,
+            int sizeX,
+            int sizeY,
+            boolean storeTilesInMap)
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null tile map");
         Objects.requireNonNull(resultSamples, "Null result samples");
@@ -1300,6 +1324,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     final int xDiff = tileStartX - fromX;
 
                     final TiffTile tile = readTile(map.multiplaneIndex(p, xIndex, yIndex));
+                    if (storeTilesInMap) {
+                        map.put(tile);
+                    }
                     if (tile.isEmpty()) {
                         continue;
                     }

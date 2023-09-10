@@ -146,7 +146,7 @@ public class TiffReadWriteTest {
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final DetailedIFD readerIFD = ifds.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
-                    final int w = (int) Math.min(readerIFD.getImageWidth(), MAX_IMAGE_DIM);
+                    final int w = (int) Math.min((long) readerIFD.getImageDimX(), MAX_IMAGE_DIM);
                     final int h = (int) Math.min(readerIFD.getImageLength(), MAX_IMAGE_DIM);
                     final int tileSizeX = readerIFD.getTileSizeX();
                     final int tileSizeY = readerIFD.getTileSizeY();

@@ -857,7 +857,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (resizable) {
             ifd.removeImageDimensions();
         }
-        ifd.freezeForWriting();
+        ifd.freeze();
         // - actually not necessary, but helps to avoid possible bugs
         return map;
     }
@@ -892,7 +892,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // - should not occur: it is checked in getTileOrStripOffsets/getTileOrStripByteCounts methods
             // (only possible way is modification from parallel thread)
         }
-        ifd.freezeForWriting();
+        ifd.freeze();
         // - actually not necessary, but helps to avoid possible bugs
         int k = 0;
         for (TiffTile tile : map.tiles()) {

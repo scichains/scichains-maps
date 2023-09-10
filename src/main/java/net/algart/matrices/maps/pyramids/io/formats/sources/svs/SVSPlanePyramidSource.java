@@ -139,8 +139,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 throw new FormatException("Zero or negative samples per pixel " + bandCount);
             }
             this.elementType = TiffTools.pixelTypeToElementType(ifd0.getPixelType());
-            final long imageDimX = ifd0.getImageWidth();
-            final long imageDimY = ifd0.getImageLength();
+            final long imageDimX = ifd0.getImageDimX();
+            final long imageDimY = ifd0.getImageDimY();
             this.imageDescriptions = new ArrayList<SVSImageDescription>();
             for (int k = 0; k < ifdCount; k++) {
                 final Object description = largeData.ifds.get(k).get(IFD.IMAGE_DESCRIPTION);
@@ -264,8 +264,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     continue;
                 }
                 ifd.checkSizesArePositive();
-                final long newPyramidLevelDimX = ifd.getImageWidth();
-                final long newPyramidLevelDimY = ifd.getImageLength();
+                final long newPyramidLevelDimX = ifd.getImageDimX();
+                final long newPyramidLevelDimY = ifd.getImageDimY();
                 if (actualCompression == 0) {
                     actualCompression = PlanePyramidTools.findCompression(
                             new long[]{bandCount, pyramidLevelDimX, pyramidLevelDimY},

@@ -93,7 +93,7 @@ public class DetailedIFD extends IFD {
     private Map<Integer, TiffIFDEntry> entries = null;
     //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
-    private volatile boolean frozenForWriting = false;
+    private volatile boolean frozen = false;
 
     private volatile long[] cachedTileOrStripByteCounts = null;
     private volatile long[] cachedTileOrStripOffsets = null;
@@ -105,9 +105,9 @@ public class DetailedIFD extends IFD {
             fileOffsetOfReading = detailedIFD.fileOffsetOfReading;
             fileOffsetForWriting = detailedIFD.fileOffsetForWriting;
             nextIFDOffset = detailedIFD.nextIFDOffset;
-            entries = detailedIFD.entries;
+            entries = detailedIFD.entries == null ? null : new LinkedHashMap<>(detailedIFD.entries);
             subIFDType = detailedIFD.subIFDType;
-            frozenForWriting = false;
+            frozen = false;
             // - Important: a copy is not frozen!
             // And it is the only way to clear this flag.
         }
@@ -246,21 +246,22 @@ public class DetailedIFD extends IFD {
     }
 
     public boolean isReadyForWriting() {
-        return frozenForWriting;
+        return frozen;
     }
 
     /**
-     * Disables most possible changes in this map before starting writing process,
+     * Disables most possible changes in this map,
      * excepting the only ones, which are absolutely necessary for making final IFD inside the file.
      * Such "necessary" changes are performed by special "updateXxx" method.
      *
-     * <p>This flag helps to avoid bugs, connected with changing IFD properties (such as compression, tile sizes etc.)
+     * <p>This method is usually called before writing process.
+     * This helps to avoid bugs, connected with changing IFD properties (such as compression, tile sizes etc.)
      * when we already started to write image into the file, for example, have written some its tiles.
      *
      * @return a reference to this object.
      */
-    public DetailedIFD freezeForWriting() {
-        this.frozenForWriting = true;
+    public DetailedIFD freeze() {
+        this.frozen = true;
         return this;
     }
 
@@ -298,15 +299,13 @@ public class DetailedIFD extends IFD {
      * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
      */
     public void checkSizesArePositive() throws FormatException {
-        long dimX = getImageWidth();
-        long dimY = getImageLength();
+        int dimX = getImageDimX();
+        int dimY = getImageDimY();
         if (dimX <= 0 || dimY <= 0) {
             throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
             // - important for some classes, processing IFD images, that cannot work with zero-size areas
             // (for example, due to usage of AlgART IRectangularArea)
         }
-        assert dimX <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        assert dimY <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
     }
 
     public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
@@ -342,6 +341,18 @@ public class DetailedIFD extends IFD {
         return optValue(tag, Boolean.class).orElse(defaultValue);
     }
 
+    public int optInt(int tag, int defaultValue) {
+        return optValue(tag, Number.class).orElse(defaultValue).intValue();
+    }
+
+    public long getIFDLongValue(final int tag) throws FormatException {
+        final Number number = (Number) getIFDValue(tag, Number.class);
+        if (number == null) {
+            throw new FormatException("No required tag " + ifdTagName(tag, true) + " in IFD");
+        }
+        return number.longValue();
+    }
+
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
     public boolean isBigTiff() {
@@ -354,12 +365,13 @@ public class DetailedIFD extends IFD {
         return optBoolean(LITTLE_ENDIAN, false);
     }
 
-    // This method is overridden to check that result is positive and to avoid exception for illegal compression.
+    // This method is overridden to check that result is positive and to avoid exception for illegal compression
     @Override
     public int getSamplesPerPixel() throws FormatException {
-        Object compressionValue = getIFDValue(IFD.COMPRESSION);
-        if (compressionValue != null && compressionValue.equals(TiffCompression.OLD_JPEG.getCode())) {
-            return 3; // always RGB
+        int compressionValue = optInt(IFD.COMPRESSION, 0);
+        if (compressionValue == TiffCompression.OLD_JPEG.getCode()) {
+            return 3;
+            // always 3 channels: RGB
         }
         final int samplesPerPixel = getIFDIntValue(SAMPLES_PER_PIXEL, 1);
         if (samplesPerPixel < 1) {
@@ -405,12 +417,21 @@ public class DetailedIFD extends IFD {
         if (counts == null) {
             throw new FormatException("Invalid IFD: no required StripByteCounts/TileByteCounts tag");
         }
-        final long numberOfTiles = getTilesPerRow() * getTilesPerColumn();
+        final long numberOfTiles = (long) getTileCountX() * (long) getTileCountY();
         if (counts.length < numberOfTiles) {
             throw new FormatException("StripByteCounts/TileByteCounts length (" + counts.length +
                     ") does not match expected number of strips/tiles (" + numberOfTiles + ")");
         }
         return counts;
+    }
+
+    /**
+     * Use {@link #getTileOrStripByteCounts()} instead.
+     */
+    @Deprecated
+    @Override
+    public long[] getStripByteCounts() throws FormatException {
+        return super.getStripByteCounts();
     }
 
     public long[] cachedTileOrStripByteCounts() throws FormatException {
@@ -427,7 +448,7 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Negative index = " + index);
         }
         if (index >= byteCounts.length) {
-            throw new FormatException((isTiled() ?
+            throw new FormatException((hasTileInformation() ?
                     "Tile index is too big for TileByteCounts" :
                     "Strip index is too big for StripByteCounts") +
                     "array: it contains only " + byteCounts.length + " elements");
@@ -436,7 +457,7 @@ public class DetailedIFD extends IFD {
         if (result < 0) {
             throw new FormatException(
                     "Negative value " + result + " in " +
-                            (isTiled() ? "TileByteCounts" : "StripByteCounts") + " array");
+                            (hasTileInformation() ? "TileByteCounts" : "StripByteCounts") + " array");
         }
         if (result > Integer.MAX_VALUE) {
             throw new FormatException("Too large tile/strip #" + index + ": " + result + " bytes > 2^31-1");
@@ -450,7 +471,7 @@ public class DetailedIFD extends IFD {
         final int tag = tiled ? TILE_OFFSETS : STRIP_OFFSETS;
         long[] offsets;
         final OnDemandLongArray compressedOffsets = getOnDemandStripOffsets();
-        // - compatibility with old TiffParser feature
+        // - compatibility with old TiffParser feature (can be removed in future versions)
         if (compressedOffsets != null) {
             offsets = new long[(int) compressedOffsets.size()];
             try {
@@ -471,7 +492,7 @@ public class DetailedIFD extends IFD {
         if (offsets == null) {
             throw new FormatException("Invalid IFD: no required StripOffsets/TileOffsets tag");
         }
-        final long numberOfTiles = getTilesPerRow() * getTilesPerColumn();
+        final long numberOfTiles = (long) getTileCountX() * (long) getTileCountY();
         if (offsets.length < numberOfTiles) {
             throw new FormatException("StripByteCounts/TileByteCounts length (" + offsets.length +
                     ") does not match expected number of strips/tiles (" + numberOfTiles + ")");
@@ -483,6 +504,15 @@ public class DetailedIFD extends IFD {
         // But it is not necessary with new TiffReader: if reads correct 32-bit unsigned values.
 
         return offsets;
+    }
+
+    /**
+     * Use {@link #getTileOrStripOffsets()} instead.
+     */
+    @Deprecated
+    @Override
+    public long[] getStripOffsets() throws FormatException {
+        return super.getStripOffsets();
     }
 
     public long[] cachedTileOrStripOffsets() throws FormatException {
@@ -499,7 +529,7 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Negative index = " + index);
         }
         if (index >= offsets.length) {
-            throw new FormatException((isTiled() ?
+            throw new FormatException((hasTileInformation() ?
                     "Tile index is too big for TileOffsets" :
                     "Strip index is too big for StripOffsets") +
                     "array: it contains only " + offsets.length + " elements");
@@ -507,7 +537,8 @@ public class DetailedIFD extends IFD {
         final long result = offsets[index];
         if (result < 0) {
             throw new FormatException(
-                    "Negative value " + result + " in " + (isTiled() ? "TileOffsets" : "StripOffsets") + " array");
+                    "Negative value " + result + " in " +
+                            (hasTileInformation() ? "TileOffsets" : "StripOffsets") + " array");
         }
         return result;
     }
@@ -536,19 +567,10 @@ public class DetailedIFD extends IFD {
         return getFillOrder() == FillOrder.REVERSED;
     }
 
-    public long getImageWidth() throws FormatException {
-        return getImageDimX();
-    }
-
-    public long getImageLength() throws FormatException {
-        return getImageDimY();
-    }
-
     public boolean hasImageDimensions() {
         return containsKey(IMAGE_WIDTH) && containsKey(IMAGE_LENGTH);
     }
 
-    //!! Better analog of IFD.getImageWidth()
     public int getImageDimX() throws FormatException {
         final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
         if (imageWidth <= 0) {
@@ -561,7 +583,6 @@ public class DetailedIFD extends IFD {
         return (int) imageWidth;
     }
 
-    //!! Better analog of IFD.getImageLength()
     public int getImageDimY() throws FormatException {
         final long imageLength = getIFDLongValue(IMAGE_LENGTH);
         if (imageLength <= 0) {
@@ -574,7 +595,23 @@ public class DetailedIFD extends IFD {
         return (int) imageLength;
     }
 
-    //!! Better analog of getRowsPerStrip()
+    /**
+     * Use {@link #getImageDimX()} instead.
+     */
+    @Deprecated
+    @Override
+    public long getImageWidth() throws FormatException {
+        return getImageDimX();
+    }
+
+    /**
+     * Use {@link #getImageDimY()} instead.
+     */
+    @Deprecated
+    @Override
+    public long getImageLength() throws FormatException {
+        return getImageDimY();
+    }
 
     public int getStripRows() throws FormatException {
         final long[] rowsPerStrip = getIFDLongArray(ROWS_PER_STRIP);
@@ -604,6 +641,15 @@ public class DetailedIFD extends IFD {
     }
 
     /**
+     * Use {@link #getStripRows()} instead.
+     */
+    @Deprecated
+    @Override
+    public long[] getRowsPerStrip() throws FormatException {
+        return super.getRowsPerStrip();
+    }
+
+    /**
      * Returns the tile width in tiled image. If there are no tiles,
      * returns max(w,1), where w is the image width.
      *
@@ -630,6 +676,16 @@ public class DetailedIFD extends IFD {
         final int imageDimX = getImageDimX();
         return imageDimX == 0 ? 1 : imageDimX;
         // - imageDimX == 0 is checked to be on the safe side
+    }
+
+
+    /**
+     * Use {@link #getTileSizeX()} instead.
+     */
+    @Deprecated
+    @Override
+    public long getTileWidth() throws FormatException {
+        return getTileSizeX();
     }
 
     /**
@@ -663,38 +719,55 @@ public class DetailedIFD extends IFD {
         // it allows to avoid additional checks in a calling code
     }
 
-    //!! Better analog of IFD.getTilesPerColumn() (but it makes sense to change result type to "int")
+    /**
+     * Use {@link #getTileSizeY()} instead.
+     */
+    @Deprecated
     @Override
-    public long getTilesPerColumn() throws FormatException {
-        return getTilesPerColumn(getTileSizeY());
+    public long getTileLength() throws FormatException {
+        return getTileSizeY();
     }
 
-    public int getTilesPerColumn(int tileSizeY) throws FormatException {
+    public int getTileCountX() throws FormatException {
+        int tileSizeX = getTileSizeX();
+        if (tileSizeX <= 0) {
+            throw new FormatException("Zero or negative tile width = " + tileSizeX);
+        }
+        final long imageWidth = getImageDimX();
+        final long n = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
+        assert n <= Integer.MAX_VALUE : "ceil(" + imageWidth + "/" + tileSizeX + ") > Integer.MAX_VALUE";
+        return (int) n;
+    }
+
+    /**
+     * Use {@link #getTileCountX()} method or
+     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap} class instead.
+     */
+    @Deprecated
+    @Override
+    public long getTilesPerRow() throws FormatException {
+        return getTileCountX();
+    }
+
+    public int getTileCountY() throws FormatException {
+        int tileSizeY = getTileSizeY();
         if (tileSizeY <= 0) {
             throw new FormatException("Zero or negative tile height = " + tileSizeY);
         }
-        final long imageLength = getImageLength();
-        assert imageLength <= Integer.MAX_VALUE : "getImageLength() did not check 31-bit result";
+        final long imageLength = getImageDimY();
         final long n = (imageLength + (long) tileSizeY - 1) / tileSizeY;
         assert n <= Integer.MAX_VALUE : "ceil(" + imageLength + "/" + tileSizeY + ") > Integer.MAX_VALUE";
         return (int) n;
     }
 
-    //!! Better analog of IFD.getTilesPerRow() (but it makes sense to change result type to "int")
+    /**
+     * Use {@link #getTileCountY()} method or
+     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap} class instead.
+     */
+    @Deprecated
     @Override
-    public long getTilesPerRow() throws FormatException {
-        return getTilesPerRow(getTileSizeX());
-    }
-
-    public int getTilesPerRow(int tileSizeX) throws FormatException {
-        if (tileSizeX <= 0) {
-            throw new FormatException("Zero or negative tile width = " + tileSizeX);
-        }
-        final long imageWidth = getImageWidth();
-        assert imageWidth <= Integer.MAX_VALUE : "getImageWidth() did not check 31-bit result";
-        final long n = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
-        assert n <= Integer.MAX_VALUE : "ceil(" + imageWidth + "/" + tileSizeX + ") > Integer.MAX_VALUE";
-        return (int) n;
+    public long getTilesPerColumn() throws FormatException {
+        return getTileCountY();
     }
 
     /**
@@ -760,14 +833,6 @@ public class DetailedIFD extends IFD {
     public int bytesPerSampleBasedOnType() throws FormatException {
         final int pixelType = getPixelType();
         return FormatTools.getBytesPerPixel(pixelType);
-    }
-
-    public long getIFDLongValue(final int tag) throws FormatException {
-        final Number number = (Number) getIFDValue(tag, Number.class);
-        if (number == null) {
-            throw new FormatException("No required tag " + ifdTagName(tag, true) + " in IFD");
-        }
-        return number.longValue();
     }
 
     public DetailedIFD putImageDimensions(int dimX, int dimY) {
@@ -857,7 +922,7 @@ public class DetailedIFD extends IFD {
      * <tt>RowsPerStrip</tt> tag, and {@link #getTileSizeX()} is always equal to the value
      * of <tt>ImageWidth</tt> tag.
      *
-     * <p>For comparison, {@link #isTiled()} returns <tt>true</tt>
+     * <p>For comparison, old <tt>isTiled()</tt> methods returns <tt>true</tt>
      * if IFD contains tag <tt>TileWidth</tt> <i>and</i> does not contain tag <tt>StripOffsets</tt>.
      * However, some TIFF files use <tt>StripOffsets</tt> and <tt>StripByteCounts</tt> tags even
      * in a case of tiled image, for example, cramps-tile.tif from the known image set <i>libtiffpic</i>
@@ -876,6 +941,15 @@ public class DetailedIFD extends IFD {
                     (hasLength ? "" : "NOT ") + "specified");
         }
         return hasWidth;
+    }
+
+    /**
+     * Use {@link #hasTileInformation()} instead.
+     */
+    @Deprecated
+    @Override
+    public boolean isTiled() {
+        return super.isTiled();
     }
 
     public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
@@ -927,7 +1001,7 @@ public class DetailedIFD extends IFD {
     /**
      * Puts new values for <tt>ImageWidth</tt> and <tt>ImageLength</tt> tags.
      *
-     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
+     * <p>Note: this method works even when IFD is frozen by {@link #freeze()} method.
      *
      * @param dimX new TIFF image width (<tt>ImageWidth</tt> tag).
      * @param dimY new TIFF image height (<tt>ImageLength</tt> tag).
@@ -953,7 +1027,7 @@ public class DetailedIFD extends IFD {
      * <tt>StripOffsets</tt> / <tt>StripByteCounts</tt> tag, depending on result of
      * {@link #hasTileInformation()} methods (<tt>true</tt> or <tt>false</tt> correspondingly).
      *
-     * <p>Note: this method works even when IFD is frozen by {@link #freezeForWriting()} method.
+     * <p>Note: this method works even when IFD is frozen by {@link #freeze()} method.
      *
      * @param offsets    byte offset of each tile/strip in TIFF file.
      * @param byteCounts number of (compressed) bytes in each tile/strip.
@@ -962,25 +1036,25 @@ public class DetailedIFD extends IFD {
         Objects.requireNonNull(offsets, "Null offsets");
         Objects.requireNonNull(byteCounts, "Null byte counts");
         final boolean tiled;
-        final long tilesPerRow;
-        final long tilesPerColumn;
+        final long tileCountX;
+        final long tileCountY;
         final int numberOfSeparatedPlanes;
         try {
             tiled = hasTileInformation();
-            tilesPerRow = getTilesPerRow();
-            tilesPerColumn = getTilesPerColumn();
+            tileCountX = getTileCountX();
+            tileCountY = getTileCountY();
             numberOfSeparatedPlanes = isPlanarSeparated() ? getSamplesPerPixel() : 1;
         } catch (FormatException e) {
             throw new IllegalStateException("Illegal IFD: " + e.getMessage(), e);
         }
-        final long totalCount = tilesPerRow * tilesPerColumn * numberOfSeparatedPlanes;
-        if (tilesPerRow * tilesPerColumn > Integer.MAX_VALUE || totalCount > Integer.MAX_VALUE ||
+        final long totalCount = tileCountX * tileCountY * numberOfSeparatedPlanes;
+        if (tileCountX * tileCountY > Integer.MAX_VALUE || totalCount > Integer.MAX_VALUE ||
                 offsets.length != totalCount || byteCounts.length != totalCount) {
             throw new IllegalArgumentException("Incorrect offsets array (" +
                     offsets.length + " values) or byte-counts array (" + byteCounts.length +
                     " values) not equal to " + totalCount + " - actual number of " +
-                    (tiled ? "tiles, " + tilesPerRow + " x " + tilesPerColumn :
-                            "strips, " + tilesPerColumn) +
+                    (tiled ? "tiles, " + tileCountX + " x " + tileCountY :
+                            "strips, " + tileCountY) +
                     (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
         super.put(tiled ? IFD.TILE_OFFSETS : IFD.STRIP_OFFSETS, offsets);
@@ -1024,48 +1098,47 @@ public class DetailedIFD extends IFD {
         Objects.requireNonNull(format, "Null format");
         final StringBuilder sb = new StringBuilder("IFD");
         sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
-        long imageWidth = 0;
-        long imageLength = 0;
+        long dimX = 0;
+        long dimY = 0;
+        int channels = 0;
         int tileSizeX = 1;
         int tileSizeY = 1;
         try {
             sb.append(" ").append(TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName());
+            channels = getSamplesPerPixel();
             if (hasImageDimensions()) {
-                imageWidth = getImageWidth();
-                imageLength = getImageLength();
+                dimX = getImageDimX();
+                dimY = getImageDimY();
                 tileSizeX = getTileSizeX();
                 tileSizeY = getTileSizeY();
-                sb.append("[%dx%d], ".formatted(
-                        imageWidth, imageLength));
+                sb.append("[%dx%dx%d], ".formatted(dimX, dimY, channels));
             } else {
-                sb.append("[?x?], ");
+                sb.append("[?x?x%d], ".formatted(channels));
             }
         } catch (Exception e) {
             sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("]");
         }
         try {
-            final long tilesPerRow = (imageWidth + (long) tileSizeX - 1) / tileSizeX;
-            final long tilesPerColumn = (imageLength + (long) tileSizeY - 1) / tileSizeY;
+            final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
+            final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
             sb.append("%s, precision %s%s, ".formatted(
                     isLittleEndian() ? "little-endian" : "big-endian",
                     FormatTools.getPixelTypeString(getPixelType()),
                     isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
-                        tilesPerRow,
-                        tilesPerColumn,
-                        tilesPerRow * tilesPerColumn,
+                        tileCountX,
+                        tileCountY,
+                        tileCountX * tileCountY,
                         tileSizeX,
                         tileSizeY,
-                        remainderToString(imageWidth, tileSizeX),
-                        remainderToString(imageLength, tileSizeY)));
+                        remainderToString(dimX, tileSizeX),
+                        remainderToString(dimY, tileSizeY)));
             } else {
                 sb.append("%d strips per %d lines (last strip %s, virtual \"tiles\" %dx%d)".formatted(
-                        tilesPerColumn,
+                        tileCountY,
                         tileSizeY,
-                        imageLength == tilesPerColumn * tileSizeY ?
-                                "full" :
-                                remainderToString(imageLength, tileSizeY) + " lines",
+                        dimY == tileCountY * tileSizeY ? "full" : remainderToString(dimY, tileSizeY) + " lines",
                         tileSizeX,
                         tileSizeY));
             }
@@ -1192,7 +1265,7 @@ public class DetailedIFD extends IFD {
     }
 
     private void checkImmutable(String nameOfPart) {
-        if (frozenForWriting) {
+        if (frozen) {
             throw new IllegalStateException(nameOfPart + ": it is frozen for future writing TIFF");
         }
     }
