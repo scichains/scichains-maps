@@ -46,6 +46,8 @@ public class CreatingIFDTest {
         showIFD(ifd, "Compression");
 
         ifd.putImageDimensions(3000, 3000);
+        // ifd.put(IFD.IMAGE_WIDTH, 3e20);
+        // - previous operator enforces exception while showing IFD
         showIFD(ifd, "Dimensions");
     }
 }

@@ -586,7 +586,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final List<DetailedIFD> ifds = allIFDs();
         final List<DetailedIFD> exif = new ArrayList<>();
         for (final DetailedIFD ifd : ifds) {
-            final long offset = ifd.getIFDLongValue(IFD.EXIF, 0);
+            final long offset = ifd.getLong(IFD.EXIF, 0);
             if (offset != 0) {
                 final DetailedIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
                 if (exifIFD != null) {

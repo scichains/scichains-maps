@@ -337,38 +337,43 @@ public class DetailedIFD extends IFD {
                 "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
     }
 
-    public boolean optBoolean(int tag, boolean defaultValue) {
+    public boolean getBoolean(int tag, boolean defaultValue) {
         return optValue(tag, Boolean.class).orElse(defaultValue);
     }
 
-    public int optInt(int tag, int defaultValue) {
-        return optValue(tag, Number.class).orElse(defaultValue).intValue();
+    public int getInt(int tag) throws FormatException {
+        return checkedIntValue(reqValue(tag, Number.class), tag);
     }
 
-    public long getIFDLongValue(final int tag) throws FormatException {
-        final Number number = (Number) getIFDValue(tag, Number.class);
-        if (number == null) {
-            throw new FormatException("No required tag " + ifdTagName(tag, true) + " in IFD");
-        }
-        return number.longValue();
+    public int getInt(int tag, int defaultValue) throws FormatException {
+        return checkedIntValue(optValue(tag, Number.class).orElse(defaultValue), tag);
     }
+
+    public long getLong(int tag) throws FormatException {
+        return reqValue(tag, Number.class).longValue();
+    }
+
+    public long getLong(int tag, int defaultValue) {
+        return optValue(tag, Number.class).orElse(defaultValue).longValue();
+    }
+
 
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
     public boolean isBigTiff() {
-        return optBoolean(BIG_TIFF, false);
+        return getBoolean(BIG_TIFF, false);
     }
 
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
     public boolean isLittleEndian() {
-        return optBoolean(LITTLE_ENDIAN, false);
+        return getBoolean(LITTLE_ENDIAN, false);
     }
 
     // This method is overridden to check that result is positive and to avoid exception for illegal compression
     @Override
     public int getSamplesPerPixel() throws FormatException {
-        int compressionValue = optInt(IFD.COMPRESSION, 0);
+        int compressionValue = getInt(IFD.COMPRESSION, 0);
         if (compressionValue == TiffCompression.OLD_JPEG.getCode()) {
             return 3;
             // always 3 channels: RGB
@@ -572,27 +577,21 @@ public class DetailedIFD extends IFD {
     }
 
     public int getImageDimX() throws FormatException {
-        final long imageWidth = getIFDLongValue(IMAGE_WIDTH);
+        final int imageWidth = getInt(IMAGE_WIDTH);
         if (imageWidth <= 0) {
             throw new FormatException("Zero or negative image width = " + imageWidth);
             // - impossible in a correct TIFF
         }
-        if (imageWidth > Integer.MAX_VALUE) {
-            throw new FormatException("Very large image width " + imageWidth + " >= 2^31 is not supported");
-        }
-        return (int) imageWidth;
+        return imageWidth;
     }
 
     public int getImageDimY() throws FormatException {
-        final long imageLength = getIFDLongValue(IMAGE_LENGTH);
+        final int imageLength = getInt(IMAGE_LENGTH);
         if (imageLength <= 0) {
             throw new FormatException("Zero or negative image height = " + imageLength);
             // - impossible in a correct TIFF
         }
-        if (imageLength > Integer.MAX_VALUE) {
-            throw new FormatException("Very large image height " + imageLength + " >= 2^31 is not supported");
-        }
-        return (int) imageLength;
+        return imageLength;
     }
 
     /**
@@ -662,16 +661,13 @@ public class DetailedIFD extends IFD {
         //!! Better analog of IFD.getTileWidth()
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final long tileWidth = getIFDLongValue(IFD.TILE_WIDTH);
+            final int tileWidth = getInt(IFD.TILE_WIDTH);
+            // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
             if (tileWidth <= 0) {
                 throw new FormatException("Zero or negative tile width = " + tileWidth);
                 // - impossible in a correct TIFF
             }
-            if (tileWidth > Integer.MAX_VALUE) {
-                throw new FormatException("Very large tile width " + tileWidth + " >= 2^31 is not supported");
-                // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
-            }
-            return (int) tileWidth;
+            return tileWidth;
         }
         final int imageDimX = getImageDimX();
         return imageDimX == 0 ? 1 : imageDimX;
@@ -701,16 +697,12 @@ public class DetailedIFD extends IFD {
         //!! Better analog of IFD.getTileLength()
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final long tileLength = getIFDLongValue(IFD.TILE_LENGTH);
+            final int tileLength = getInt(IFD.TILE_LENGTH);
             if (tileLength <= 0) {
                 throw new FormatException("Zero or negative tile length (height) = " + tileLength);
                 // - impossible in a correct TIFF
             }
-            if (tileLength > Integer.MAX_VALUE) {
-                throw new FormatException("Very large tile height " + tileLength + " >= 2^31 is not supported");
-                // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
-            }
-            return (int) tileLength;
+            return tileLength;
         }
         final int stripRows = getStripRows();
         assert stripRows > 0 : "getStripRows() did not check non-positive result";
@@ -869,14 +861,11 @@ public class DetailedIFD extends IFD {
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         final boolean signed = FormatTools.isSigned(pixelType);
         final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
-        final int bitsPerSample = 8 * bytesPerSample;
-        final int[] bpsArray = new int[numberOfChannels];
-        Arrays.fill(bpsArray, bitsPerSample);
-        putIFDValue(IFD.BITS_PER_SAMPLE, bpsArray);
+        putIFDValue(IFD.BITS_PER_SAMPLE, nInts(numberOfChannels, 8 * bytesPerSample));
         if (floatingPoint) {
-            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
+            putIFDValue(IFD.SAMPLE_FORMAT, nInts(numberOfChannels, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
         } else if (signed) {
-            putIFDValue(IFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_INT);
+            putIFDValue(IFD.SAMPLE_FORMAT, nInts(numberOfChannels, DetailedIFD.SAMPLE_FORMAT_INT));
         } else {
             remove(IFD.SAMPLE_FORMAT);
         }
@@ -1008,10 +997,10 @@ public class DetailedIFD extends IFD {
      */
     public DetailedIFD updateImageDimensions(int dimX, int dimY) {
         if (dimX <= 0) {
-            throw new IllegalArgumentException("Zero or negative image width (x-dimension)");
+            throw new IllegalArgumentException("Zero or negative image width (x-dimension): " + dimX);
         }
         if (dimY <= 0) {
-            throw new IllegalArgumentException("Zero or negative image height (y-dimension)");
+            throw new IllegalArgumentException("Zero or negative image height (y-dimension): " + dimY);
         }
         if (!containsKey(IFD.TILE_WIDTH) || !containsKey(IFD.TILE_LENGTH)) {
             // - we prefer not to throw FormatException here, like in hasTileInformation method
@@ -1116,7 +1105,7 @@ public class DetailedIFD extends IFD {
                 sb.append("[?x?x%d], ".formatted(channels));
             }
         } catch (Exception e) {
-            sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("]");
+            sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("] ");
         }
         try {
             final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
@@ -1289,6 +1278,26 @@ public class DetailedIFD extends IFD {
 
     public static boolean isPseudoTag(int tag) {
         return tag == LITTLE_ENDIAN || tag == BIG_TIFF || tag == REUSE;
+    }
+
+    private static int checkedIntValue(Number value, int tag) throws FormatException {
+        Objects.requireNonNull(value);
+        long result = value.longValue();
+        if (result > Integer.MAX_VALUE) {
+            throw new FormatException("Very large " + ifdTagName(tag, true) +
+                    " = " + value + " >= 2^31 is not supported");
+        }
+        if (result < -Integer.MAX_VALUE) {
+            throw new FormatException("Very large (by absolute value) negative " + ifdTagName(tag, true) +
+                    " = " + value + " < -2^31 is not supported");
+        }
+        return (int) result;
+    }
+
+    private static int[] nInts(int count, int filler) {
+        final int[] result = new int[count];
+        Arrays.fill(result, filler);
+        return result;
     }
 
     private static String prettyCompression(TiffCompression compression) {

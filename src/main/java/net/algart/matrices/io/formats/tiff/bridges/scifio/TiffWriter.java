@@ -1537,8 +1537,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - UnsupportedTiffFormatException for unknown compression
 
         final int samplesPerPixel = ifd.getSamplesPerPixel();
-        final boolean palette = samplesPerPixel == 1 && ifd.getIFDValue(IFD.COLOR_MAP) != null;
+        final boolean palette = samplesPerPixel == 1 && ifd.containsKey(IFD.COLOR_MAP);
         final boolean signed = ifd.getIFDIntValue(IFD.SAMPLE_FORMAT) == 2;
+        // - getIFDIntValue method returns the element #0, i.e. for channel #0
         final boolean jpeg = compression == TiffCompression.JPEG;
         if (jpeg && (signed || bits != 8)) {
             throw new FormatException("JPEG compression is not supported for %d-bit%s samples%s".formatted(
