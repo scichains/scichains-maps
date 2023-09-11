@@ -559,6 +559,25 @@ public class DetailedIFD extends IFD {
         }
     }
 
+    @Override
+    public PhotoInterp getPhotometricInterpretation() throws FormatException {
+        final Object photometricInterpretation = getIFDValue(PHOTOMETRIC_INTERPRETATION);
+        if (photometricInterpretation instanceof PhotoInterp) {
+            return (PhotoInterp) photometricInterpretation;
+            // - compatibility with old TiffParser behaviour (can be removed in future versions)
+        }
+        if (photometricInterpretation == null
+                && getInt(IFD.COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
+            return PhotoInterp.RGB;
+        }
+        final int code = getInt(PHOTOMETRIC_INTERPRETATION);
+        try {
+            return PhotoInterp.get(code);
+        } catch (EnumException e) {
+            throw new UnsupportedTiffFormatException("Unsupported TIFF photometric interpretation codee: " + code);
+        }
+    }
+
     // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;

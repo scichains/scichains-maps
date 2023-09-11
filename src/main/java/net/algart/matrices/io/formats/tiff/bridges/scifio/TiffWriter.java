@@ -1509,6 +1509,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
+        final boolean rgbRequested =
+                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode();
         if (!ifd.hasImageDimensions()) {
             ifd = new DetailedIFD(ifd);
             // - do not change original IFD
@@ -1520,7 +1522,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
-                    .setPhotometricRGB(jpegInPhotometricRGB)
+                    .setPhotometricRGB(rgbRequested)
                     .setQuality(jpegQuality);
         }
         codecOptions.width = tile.getSizeX();
@@ -1573,11 +1575,17 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     signed ? " signed" : "",
                     bits == 8 ? " (samples must be unsigned)" : ""));
         }
-        ifd.putPhotometricInterpretation(predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
+        final boolean rgbRequested = extendedCodec && (jpegInPhotometricRGB ||
+                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode());
+        // - for extended codec, you may specify set some photometric interpretation in IFD;
+        // if it is RGB, it will override default YCbCr for chunked JPEG
+        PhotoInterp photometricInterpretation = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
                 : palette ? PhotoInterp.RGB_PALETTE
                 : samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO
-                : jpeg && ifd.isChunked() && !compressJPEGInPhotometricRGB() ? PhotoInterp.Y_CB_CR
-                : PhotoInterp.RGB);
+                : jpeg && ifd.isChunked() && !rgbRequested ? PhotoInterp.Y_CB_CR
+                : PhotoInterp.RGB;
+        ifd.putPhotometricInterpretation(photometricInterpretation);
+        // - if separated (not chunked), it is not important, because we will work with monochrome tiles
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions

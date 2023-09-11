@@ -47,8 +47,8 @@ import java.util.Collection;
 import java.util.List;
 
 public class TiffWriterTest {
-    private final static int IMAGE_WIDTH = 100011;
-    private final static int IMAGE_HEIGHT = 11;
+    private final static int IMAGE_WIDTH = 1011;
+    private final static int IMAGE_HEIGHT = 1051;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -197,7 +197,8 @@ public class TiffWriterTest {
 //                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(true);
-                writer.setJpegInPhotometricRGB(jpegRGB).setJpegQuality(0.8);
+                writer.setJpegInPhotometricRGB(jpegRGB);
+//                writer.setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
 //                writer.setByteFiller((byte) 0xE0);
                 writer.setTileInitializer(TiffWriterTest::customFillEmptyTile);
@@ -228,6 +229,10 @@ public class TiffWriterTest {
                         }
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
+//                    if (jpegRGB) {
+//                        // - alternative for setJpegInPhotometricRGB
+//                        ifd.put(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.RGB.getCode());
+//                    }
                     ifd.putPlanarSeparated(planarSeparated);
                     if (predict) {
                         ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
