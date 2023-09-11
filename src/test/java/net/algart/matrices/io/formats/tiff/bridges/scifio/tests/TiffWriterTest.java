@@ -47,8 +47,8 @@ import java.util.Collection;
 import java.util.List;
 
 public class TiffWriterTest {
-    private final static int IMAGE_WIDTH = 1011;
-    private final static int IMAGE_HEIGHT = 1051;
+    private final static int IMAGE_WIDTH = 100011;
+    private final static int IMAGE_HEIGHT = 11;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
@@ -90,6 +90,11 @@ public class TiffWriterTest {
         boolean bigTiff = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
             bigTiff = true;
+            startArgIndex++;
+        }
+        boolean longTags = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-longTags")) {
+            longTags = true;
             startArgIndex++;
         }
         boolean allowMissing = false;
@@ -204,12 +209,23 @@ public class TiffWriterTest {
                     final int ifdIndex = firstIfdIndex + k;
                     DetailedIFD ifd = new DetailedIFD();
                     ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+                    if (longTags) {
+                        ifd.put(IFD.IMAGE_WIDTH, (long) IMAGE_WIDTH);
+                        ifd.put(IFD.IMAGE_LENGTH, (long) IMAGE_HEIGHT);
+                    }
                     // ifd.put(IFD.JPEG_TABLES, new byte[]{1, 2, 3, 4, 5});
                     // - some invalid field: must not affect non-JPEG formats
                     if (tiled) {
                         ifd.putTileSizes(112, 64);
+                        if (longTags) {
+                            ifd.put(IFD.TILE_WIDTH, (long) ifd.getTileSizeX());
+                            ifd.put(IFD.TILE_LENGTH, (long) ifd.getTileSizeY());
+                        }
                     } else if (!singleStrip) {
                         ifd.putStripSize(100);
+                        if (longTags) {
+                            ifd.put(IFD.ROWS_PER_STRIP, 100L);
+                        }
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
                     ifd.putPlanarSeparated(planarSeparated);

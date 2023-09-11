@@ -34,9 +34,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Supplier;
 
-//!! Better analog of IFD (can be merged with the main IFD)
 public class DetailedIFD extends IFD {
-
     public static final int LAST_IFD_OFFSET = 0;
 
     public enum StringFormat {
@@ -87,11 +85,10 @@ public class DetailedIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
+    private final Map<Integer, TiffIFDEntry> entries;
     private long fileOffsetOfReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
-    private Map<Integer, TiffIFDEntry> entries = null;
-    //!! - provides additional information like IFDType for each entry
     private Integer subIFDType = null;
     private volatile boolean frozen = false;
 
@@ -110,6 +107,8 @@ public class DetailedIFD extends IFD {
             frozen = false;
             // - Important: a copy is not frozen!
             // And it is the only way to clear this flag.
+        } else {
+            entries = null;
         }
     }
 
@@ -119,8 +118,13 @@ public class DetailedIFD extends IFD {
     }
 
     public DetailedIFD() {
+        this((Map<Integer, TiffIFDEntry>) null);
+    }
+
+    public DetailedIFD(Map<Integer, TiffIFDEntry> entries) {
         super(null);
         // Note: log argument is never used in this class.
+        this.entries = entries;
     }
 
     public static DetailedIFD extend(IFD ifd) {
@@ -219,19 +223,6 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public Map<Integer, TiffIFDEntry> getEntries() {
-        return entries;
-    }
-
-    public DetailedIFD setEntries(Map<Integer, TiffIFDEntry> entries) {
-        Objects.requireNonNull(entries, "Null entries");
-        this.entries = Collections.unmodifiableMap(entries);
-        // So, the copy constructor above really creates a good copy.
-        // But we cannot provide full guarantees of the ideal behaviour,
-        // because this HashMap contains Java arrays and can theoretically contain anything.
-        return this;
-    }
-
     public boolean isMainIFD() {
         return subIFDType == null;
     }
@@ -318,23 +309,33 @@ public class DetailedIFD extends IFD {
         return Optional.of(requiredClass.cast(value));
     }
 
-    public <R> Optional<R> getValue(final int tag, final Class<? extends R> requiredClass) throws FormatException {
-        Objects.requireNonNull(requiredClass, "Null requiredClass");
+    public <R> Optional<R> optValue(int tag, Class<? extends R> valueClass, boolean requireCorrectClass)
+            throws FormatException {
+        Objects.requireNonNull(valueClass, "Null valueClass");
         Object value = get(tag);
         if (value == null) {
             return Optional.empty();
         }
-        if (!requiredClass.isInstance(value)) {
-            throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
-                    " has wrong type " + value.getClass().getSimpleName() +
-                    " instead of expected " + requiredClass.getSimpleName());
+        if (!valueClass.isInstance(value)) {
+            if (requireCorrectClass) {
+                throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
+                        " has wrong type " + value.getClass().getSimpleName() +
+                        " instead of expected " + valueClass.getSimpleName());
+            } else {
+                return Optional.empty();
+            }
         }
-        return Optional.of(requiredClass.cast(value));
+        return Optional.of(valueClass.cast(value));
     }
 
-    public <R> R reqValue(final int tag, final Class<? extends R> requiredClass) throws FormatException {
-        return getValue(tag, requiredClass).orElseThrow(() -> new FormatException(
+    public <R> R reqValue(int tag, Class<? extends R> requiredClass) throws FormatException {
+        return optValue(tag, requiredClass, true).orElseThrow(() -> new FormatException(
                 "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
+    }
+
+    public Optional<IFDType> optType(int tag) {
+        TiffIFDEntry entry = entries == null ? null : entries.get(tag);
+        return entry == null ? Optional.empty() : Optional.ofNullable(entry.getType());
     }
 
     public boolean getBoolean(int tag, boolean defaultValue) {
@@ -346,15 +347,15 @@ public class DetailedIFD extends IFD {
     }
 
     public int getInt(int tag, int defaultValue) throws FormatException {
-        return checkedIntValue(optValue(tag, Number.class).orElse(defaultValue), tag);
+        return checkedIntValue(optValue(tag, Number.class, true).orElse(defaultValue), tag);
     }
 
     public long getLong(int tag) throws FormatException {
         return reqValue(tag, Number.class).longValue();
     }
 
-    public long getLong(int tag, int defaultValue) {
-        return optValue(tag, Number.class).orElse(defaultValue).longValue();
+    public long getLong(int tag, int defaultValue) throws FormatException {
+        return optValue(tag, Number.class, true).orElse(defaultValue).longValue();
     }
 
 
@@ -658,7 +659,6 @@ public class DetailedIFD extends IFD {
      * @throws FormatException in a case of incorrect IFD.
      */
     public int getTileSizeX() throws FormatException {
-        //!! Better analog of IFD.getTileWidth()
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
             final int tileWidth = getInt(IFD.TILE_WIDTH);
@@ -694,7 +694,6 @@ public class DetailedIFD extends IFD {
      * @throws FormatException in a case of incorrect IFD.
      */
     public int getTileSizeY() throws FormatException {
-        //!! Better analog of IFD.getTileLength()
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
             final int tileLength = getInt(IFD.TILE_LENGTH);
@@ -1006,8 +1005,10 @@ public class DetailedIFD extends IFD {
             // - we prefer not to throw FormatException here, like in hasTileInformation method
             checkImmutable("Image dimensions cannot be updated in non-tiled TIFF");
         }
-        super.put(IFD.IMAGE_WIDTH, dimX);
-        super.put(IFD.IMAGE_LENGTH, dimY);
+        removeEntries(IMAGE_WIDTH, IMAGE_LENGTH);
+        // - to avoid illegal detection of the type
+        super.put(IMAGE_WIDTH, dimX);
+        super.put(IMAGE_LENGTH, dimY);
         return this;
     }
 
@@ -1046,34 +1047,48 @@ public class DetailedIFD extends IFD {
                             "strips, " + tileCountY) +
                     (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
-        super.put(tiled ? IFD.TILE_OFFSETS : IFD.STRIP_OFFSETS, offsets);
-        super.put(tiled ? IFD.TILE_BYTE_COUNTS : IFD.STRIP_BYTE_COUNTS, byteCounts);
+        removeEntries(TILE_OFFSETS, STRIP_OFFSETS, TILE_BYTE_COUNTS, STRIP_BYTE_COUNTS);
+        // - to avoid illegal detection of the type
+        super.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
+        super.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
         // Just in case, let's also remove extra tags:
-        super.remove(tiled ? IFD.STRIP_OFFSETS : IFD.TILE_OFFSETS);
-        super.remove(tiled ? IFD.STRIP_BYTE_COUNTS : IFD.TILE_BYTE_COUNTS);
+        super.remove(tiled ? STRIP_OFFSETS : TILE_OFFSETS);
+        super.remove(tiled ? STRIP_BYTE_COUNTS : TILE_BYTE_COUNTS);
     }
 
     @Override
     public Object put(Integer key, Object value) {
         checkImmutable();
+        removeEntries(key);
+        // - necessary to avoid possible bugs with detection of type
         return super.put(key, value);
     }
 
     @Override
     public void putAll(Map<? extends Integer, ?> m) {
+        Objects.requireNonNull(m, "Null map");
         checkImmutable();
+        for (Integer key : m.keySet()) {
+            removeEntries(key);
+        }
         super.putAll(m);
     }
 
     @Override
     public Object remove(Object key) {
         checkImmutable();
+        if (key instanceof Integer k) {
+            removeEntries(k);
+        }
         return super.remove(key);
     }
 
     @Override
     public void clear() {
         checkImmutable();
+        if (entries != null) {
+            entries.clear();
+        }
         super.clear();
     }
 
@@ -1256,6 +1271,14 @@ public class DetailedIFD extends IFD {
     private void checkImmutable(String nameOfPart) {
         if (frozen) {
             throw new IllegalStateException(nameOfPart + ": it is frozen for future writing TIFF");
+        }
+    }
+
+    private void removeEntries(int... tags) {
+        if (entries != null) {
+            for (int tag : tags) {
+                entries.remove(tag);
+            }
         }
     }
 

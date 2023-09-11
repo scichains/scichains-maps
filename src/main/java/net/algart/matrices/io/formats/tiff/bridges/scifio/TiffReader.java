@@ -705,7 +705,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-            ifd = new DetailedIFD().setFileOffsetOfReading(startOffset);
+            ifd = new DetailedIFD(entries).setFileOffsetOfReading(startOffset);
             ifd.setSubIFDType(subIFDType);
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -744,11 +744,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     // it means that this IFDType is not supported and should not be stored;
                     // if this tag is present twice (strange mistake if TIFF file),
                     // we do not throw exception and just use the 1st entry
-                    entries.put(tag, entry);
                     ifd.put(tag, value);
+                    entries.put(tag, entry);
+                    // - note that .put is overridden and removes entries[tag]
                 }
             }
-            ifd.setEntries(entries);
             final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numberOfEntries;
             in.seek(positionOfNextOffset);
 

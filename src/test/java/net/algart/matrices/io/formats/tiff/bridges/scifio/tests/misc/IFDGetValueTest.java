@@ -31,7 +31,7 @@ import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import java.util.Optional;
 
 public class IFDGetValueTest {
-    private static void showTag(DetailedIFD ifd, int tag, Class<?> requiredClass) {
+    static void showTag(DetailedIFD ifd, int tag, Class<?> requiredClass) {
         System.out.printf("Tag %s, required class %s:%n",
                 DetailedIFD.ifdTagName(tag, true),
                 requiredClass.getSimpleName());
@@ -39,8 +39,8 @@ public class IFDGetValueTest {
         System.out.printf("optValue: %s [%s]%n",
                 opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         try {
-            opt = ifd.getValue(tag, requiredClass);
-            System.out.printf("getValue: %s [%s]%n",
+            opt = ifd.optValue(tag, requiredClass, true);
+            System.out.printf("optValue(..., true): %s [%s]%n",
                     opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         } catch (FormatException e) {
             System.out.printf("getValue: %s%n", e);
@@ -51,6 +51,7 @@ public class IFDGetValueTest {
         } catch (FormatException e) {
             System.out.printf("reqValue: %s%n", e);
         }
+        System.out.printf("optType: %s%n", ifd.optType(tag));
         System.out.println();
     }
 

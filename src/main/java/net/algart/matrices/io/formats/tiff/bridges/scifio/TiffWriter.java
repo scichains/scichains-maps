@@ -1165,7 +1165,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (bigTiff) {
             out.writeLong(numberOfEntries);
         } else {
-            out.writeShort(numberOfEntries);
+            writeUnsignedShort(out, numberOfEntries);
         }
     }
 
@@ -1235,12 +1235,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final int dataLength = bigTiff ? 8 : 4;
 
         // write directory entry to output buffers
-        out.writeShort(tag); // tag
+        writeUnsignedShort(out, tag); // tag
         if (value instanceof byte[] q) {
             out.writeShort(IFDType.UNDEFINED.getCode());
             // - Most probable type. Maybe in future we will support here some algorithm,
             // determining necessary type on the base of the tag value.
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             if (q.length <= dataLength) {
                 for (byte byteValue : q) {
                     out.writeByte(byteValue);
@@ -1252,10 +1252,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 writeOffset(bufferOffsetInResultFile + extraBuffer.offset());
                 extraBuffer.write(q);
             }
-        } else if (value instanceof short[]) {
+        } else if (value instanceof short[]) { // suppose BYTE (unsigned 8-bit)
             final short[] q = (short[]) value;
             out.writeShort(IFDType.BYTE.getCode());
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             if (q.length <= dataLength) {
                 for (short s : q) {
                     out.writeByte(s);
@@ -1269,13 +1269,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     extraBuffer.writeByte(shortValue);
                 }
             }
-        } else if (value instanceof String) { // ASCII
+        } else if (value instanceof String) { // suppose ASCII
             final char[] q = ((String) value).toCharArray();
             out.writeShort(IFDType.ASCII.getCode()); // type
-            writeIntOrLongValue(out, q.length + 1);
+            writeIntOrLong(out, q.length + 1);
+            // - with concluding zero byte
             if (q.length < dataLength) {
                 for (char c : q) {
-                    out.writeByte(c); // value(s)
+                    writeUnsignedByte(out, c); // value(s)
                 }
                 for (int i = q.length; i < dataLength; i++) {
                     out.writeByte(0); // padding
@@ -1283,17 +1284,27 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             } else {
                 writeOffset(bufferOffsetInResultFile + extraBuffer.offset());
                 for (char charValue : q) {
-                    extraBuffer.writeByte(charValue); // values
+                    writeUnsignedByte(extraBuffer, charValue); // values
                 }
-                extraBuffer.writeByte(0); // concluding NULL byte
+                extraBuffer.writeByte(0); // concluding zero byte
             }
-        } else if (value instanceof int[]) { // SHORT
+        } else if (value instanceof int[]) { // suppose SHORT (unsigned 16-bit)
             final int[] q = (int[]) value;
+            if (q.length == 1) {
+                // - we should allow to use usual int values for 32-bit tags, to avoid a lot of obvious bugs
+                final int v = q[0];
+                if (v >= 0xFFFF) {
+                    out.writeShort(IFDType.LONG.getCode());
+                    writeIntOrLong(out, q.length);
+                    writeIntOrLong(out, v);
+                    return;
+                }
+            }
             out.writeShort(IFDType.SHORT.getCode()); // type
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             if (q.length <= dataLength / 2) {
                 for (int intValue : q) {
-                    out.writeShort(intValue); // value(s)
+                    writeUnsignedShort(out, intValue); // value(s)
                 }
                 for (int i = q.length; i < dataLength / 2; i++) {
                     out.writeShort(0); // padding
@@ -1304,13 +1315,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     extraBuffer.writeShort(intValue); // values
                 }
             }
-        } else if (value instanceof long[]) { // LONG
+        } else if (value instanceof long[]) { // suppose LONG (unsigned 32-bit) or LONG8 for BitTIFF
             final long[] q = (long[]) value;
             if (AVOID_LONG8_FOR_ACTUAL_32_BITS && q.length == 1 && bigTiff) {
                 // - note: inside TIFF, long[1] is saved in the same way as Long; we have a difference in Java only
                 final long v = q[0];
                 if (v == (int) v) {
-                    // - it is very probable for the following tags
+                    // - it is probable for the following tags, if they are added
+                    // manually via DetailedIFD.put with "long" argument
                     switch (tag) {
                         case IFD.IMAGE_WIDTH,
                                 IFD.IMAGE_LENGTH,
@@ -1320,7 +1332,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                                 IFD.ROWS_PER_STRIP,
                                 IFD.NEW_SUBFILE_TYPE -> {
                             out.writeShort(IFDType.LONG.getCode());
-                            out.writeLong(1L);
+                            writeIntOrLong(out, q.length);
                             out.writeInt((int) v);
                             out.writeInt(0);
                             // - 4 bytes of padding until full length 20 bytes
@@ -1331,26 +1343,26 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
             final int type = bigTiff ? IFDType.LONG8.getCode() : IFDType.LONG.getCode();
             out.writeShort(type);
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
 
             if (q.length <= 1) {
                 for (int i = 0; i < q.length; i++) {
-                    writeIntOrLongValue(out, q[0]);
+                    writeIntOrLong(out, q[0]);
                     // - q[0]: it is actually performed 0 or 1 times
                 }
                 for (int i = q.length; i < 1; i++) {
-                    writeIntOrLongValue(out, 0);
+                    writeIntOrLong(out, 0);
                 }
             } else {
                 writeOffset(bufferOffsetInResultFile + extraBuffer.offset());
                 for (long longValue : q) {
-                    writeIntOrLongValue(extraBuffer, longValue);
+                    writeIntOrLong(extraBuffer, longValue);
                 }
             }
         } else if (value instanceof TiffRational[]) { // RATIONAL
             final TiffRational[] q = (TiffRational[]) value;
             out.writeShort(IFDType.RATIONAL.getCode()); // type
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             if (bigTiff && q.length == 1) {
                 out.writeInt((int) q[0].getNumerator());
                 out.writeInt((int) q[0].getDenominator());
@@ -1364,7 +1376,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         } else if (value instanceof float[]) { // FLOAT
             final float[] q = (float[]) value;
             out.writeShort(IFDType.FLOAT.getCode()); // type
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             if (q.length <= dataLength / 4) {
                 for (float floatValue : q) {
                     out.writeFloat(floatValue); // value
@@ -1382,7 +1394,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         } else if (value instanceof double[]) { // DOUBLE
             final double[] q = (double[]) value;
             out.writeShort(IFDType.DOUBLE.getCode()); // type
-            writeIntOrLongValue(out, q.length);
+            writeIntOrLong(out, q.length);
             writeOffset(bufferOffsetInResultFile + extraBuffer.offset());
             for (final double doubleValue : q) {
                 extraBuffer.writeDouble(doubleValue); // values
@@ -1402,20 +1414,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 updatePositionOfLastIFDOffset);
     }
 
-    private void writeIntOrLongValue(final DataHandle<Location> handle, final int value) throws IOException {
-        if (bigTiff) {
-            handle.writeLong(value);
-        } else {
-            handle.writeInt(value);
-        }
-    }
-
     /**
      * Write the given value to the given RandomAccessOutputStream. If the
      * 'bigTiff' flag is set, then the value will be written as an 8 byte long;
      * otherwise, it will be written as a 4 byte integer.
      */
-    private void writeIntOrLongValue(final DataHandle<Location> handle, final long value) throws IOException {
+    private void writeIntOrLong(DataHandle<Location> handle, long value) throws IOException {
         if (bigTiff) {
             handle.writeLong(value);
         } else {
@@ -1426,6 +1430,28 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
             handle.writeInt((int) value);
         }
+    }
+
+    private void writeIntOrLong(DataHandle<Location> handle, int value) throws IOException {
+        if (bigTiff) {
+            handle.writeLong(value);
+        } else {
+            handle.writeInt(value);
+        }
+    }
+
+    private void writeUnsignedShort(DataHandle<Location> handle, int value) throws IOException {
+        if (value < 0 || value > 0xFFFF) {
+            throw new IOException("Attempt to write 32-bit value as 16-bit: " + value);
+        }
+        handle.writeShort(value);
+    }
+
+    private void writeUnsignedByte(DataHandle<Location> handle, int value) throws IOException {
+        if (value < 0 || value > 0xFF) {
+            throw new IOException("Attempt to write 16/32-bit value as 8-bit: " + value);
+        }
+        handle.writeByte(value);
     }
 
     private void writeOffset(long offset) throws IOException {
