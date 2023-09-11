@@ -74,6 +74,8 @@ public class TiffCopyTest {
                 TiffWriter writer = new TiffWriter(context, targetFile);
                 writer.setBigTiff(reader.isBigTiff());
                 writer.setLittleEndian(reader.isLittleEndian());
+                writer.setJpegInPhotometricRGB(true);
+                // - should not be important for copying, when PhotometricInterpretation is already specified
                 writer.startNewFile();
 
                 System.out.printf("Copying to %s...%n", targetFile);

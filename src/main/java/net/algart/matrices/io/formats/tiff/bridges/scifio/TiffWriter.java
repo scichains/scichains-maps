@@ -1575,17 +1575,19 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     signed ? " signed" : "",
                     bits == 8 ? " (samples must be unsigned)" : ""));
         }
-        final boolean rgbRequested = extendedCodec && (jpegInPhotometricRGB ||
+        final boolean rgbRequested = extendedCodec && (jpegInPhotometricRGB ?
+                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) != PhotoInterp.Y_CB_CR.getCode() :
                 ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode());
         // - for extended codec, you may specify set some photometric interpretation in IFD;
-        // if it is RGB, it will override default YCbCr for chunked JPEG
+        // if it is RGB or YCbRr, it will override recommendation of jpegInPhotometricRGB
         PhotoInterp photometricInterpretation = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
                 : palette ? PhotoInterp.RGB_PALETTE
                 : samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO
                 : jpeg && ifd.isChunked() && !rgbRequested ? PhotoInterp.Y_CB_CR
                 : PhotoInterp.RGB;
         ifd.putPhotometricInterpretation(photometricInterpretation);
-        // - if separated (not chunked), it is not important, because we will work with monochrome tiles
+        // - if separated (not chunked), we can write RGB only: we simply do not perform any conversion of
+        // the source 3-channel matrix into YCbCr form, we just write it as 3 separated planes
 
         ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
