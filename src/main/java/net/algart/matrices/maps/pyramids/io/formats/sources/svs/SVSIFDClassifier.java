@@ -50,7 +50,7 @@ public final class SVSIFDClassifier {
 
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
-    private final List<DetailedIFD> ifdList;
+    private final List<TiffMap> maps;
     private final int ifdCount;
     private int thumbnailIndex = -1;
     private int labelIndex = -1;
@@ -59,18 +59,17 @@ public final class SVSIFDClassifier {
 
     public SVSIFDClassifier(List<TiffMap> maps) throws FormatException {
         Objects.requireNonNull(maps);
-        this.ifdList = maps.stream().map(TiffMap::ifd).toList();
+        this.maps = maps;
         this.ifdCount = maps.size();
         detectThumbnail();
         if (!detectTwoLastImages()) {
             detectSingleLastImage();
         }
         for (int k = THUMBNAIL_IFD_INDEX; k < ifdCount; k++) {
-            final IFD ifd = ifdList.get(k);
             if (isSpecial(k)) {
                 continue;
             }
-            if (isSmallImage(ifd)) {
+            if (isSmallImage(this.maps.get(k).ifd())) {
                 unknownSpecialIndexes.add(k);
             }
         }
@@ -198,7 +197,7 @@ public final class SVSIFDClassifier {
         if (ifdCount <= THUMBNAIL_IFD_INDEX) {
             return;
         }
-        final IFD ifd = ifdList.get(THUMBNAIL_IFD_INDEX);
+        final DetailedIFD ifd = maps.get(THUMBNAIL_IFD_INDEX).ifd();
         if (isSmallImage(ifd)) {
             this.thumbnailIndex = THUMBNAIL_IFD_INDEX;
         }
@@ -210,14 +209,16 @@ public final class SVSIFDClassifier {
         }
         final int index1 = ifdCount - 2;
         final int index2 = ifdCount - 1;
-        final IFD ifd1 = ifdList.get(index1);
-        final IFD ifd2 = ifdList.get(index2);
+        final TiffMap map1 = maps.get(index1);
+        final TiffMap map2 = maps.get(index2);
+        final DetailedIFD ifd1 = map1.ifd();
+        final DetailedIFD ifd2 = map2.ifd();
         if (!(isSmallImage(ifd1) && isSmallImage(ifd2))) {
             return false;
         }
         LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                 "  Checking last 2 small IFDs #%d %s and #%d %s for Label and Macro...",
-                index1, sizesToString(ifd1), index2, sizesToString(ifd2)));
+                index1, sizesToString(map1), index2, sizesToString(map2)));
         if (ALWAYS_USE_SVS_SPECIFICATION_FOR_LABEL_AND_MACRO) {
             final TiffCompression compression1 = ifd1.getCompression();
             final TiffCompression compression2 = ifd2.getCompression();
@@ -269,13 +270,14 @@ public final class SVSIFDClassifier {
             return;
         }
         final int index = ifdCount - 1;
-        final IFD ifd = ifdList.get(index);
+        final TiffMap map = maps.get(index);
+        final DetailedIFD ifd = map.ifd();
         if (!isSmallImage(ifd)) {
             return;
         }
         final double ratio = ratio(ifd);
         LOG.log(System.Logger.Level.DEBUG, () -> String.format(
-                "  Checking last 1 small IFDs #%d %s for Label or Macro...", index, sizesToString(ifd)));
+                "  Checking last 1 small IFDs #%d %s for Label or Macro...", index, sizesToString(map)));
         LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                 "  Last IFD #%d, ratio: %.5f, standard Macro %.5f", index, ratio, STANDARD_MACRO_ASPECT_RATIO));
         if (ratio <= STANDARD_MACRO_ASPECT_RATIO * (1.0 - ALLOWED_ASPECT_RATION_DEVIATION)) {
@@ -297,25 +299,22 @@ public final class SVSIFDClassifier {
         }
     }
 
-    static boolean isSmallImage(IFD ifd) throws FormatException {
+    static boolean isSmallImage(DetailedIFD ifd) throws FormatException {
         final long[] tileOffsets = ifd.getIFDLongArray(IFD.TILE_OFFSETS);
 //        System.out.println(tileOffsets == null ? "null" : tileOffsets.length);
-        return tileOffsets == null && ifd.getImageWidth() * ifd.getImageLength() < MAX_PIXEL_COUNT_IN_SPECIAL_IMAGES;
+        return tileOffsets == null &&
+                (long) ifd.getImageDimX() * (long) ifd.getImageDimY() < MAX_PIXEL_COUNT_IN_SPECIAL_IMAGES;
     }
 
-    static String sizesToString(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
-        try {
-            return ifd.getImageWidth() + "x" + ifd.getImageLength();
-        } catch (FormatException e) {
-            return "[invalid image sizes: " + e.getMessage() + "]";
-        }
+    static String sizesToString(TiffMap map) {
+        Objects.requireNonNull(map, "Null map");
+        return map.dimX() + "x" + map.dimY();
     }
 
-    static String compressionToString(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
+    static String compressionToString(TiffMap map) {
+        Objects.requireNonNull(map, "Null map");
         try {
-            return String.valueOf(ifd.getCompression());
+            return String.valueOf(map.ifd().getCompression());
         } catch (FormatException e) {
             return "[invalid image compression: " + e.getMessage() + "]";
         }

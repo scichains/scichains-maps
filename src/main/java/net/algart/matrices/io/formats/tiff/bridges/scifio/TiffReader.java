@@ -1357,7 +1357,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final DetailedIFD ifd = tile.ifd();
         byte[] bytes = tile.getDecodedData();
 
-        if (!KnownTiffCompression.isNonJpegYCbCr(ifd)) {
+        if (!KnownTiffCompression.isYCbCrForNonJpeg(ifd)) {
             return false;
         }
         // - JPEG codec, based on Java API BufferedImage, always returns RGB data
@@ -1461,7 +1461,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final DetailedIFD ifd = tile.ifd();
         final TiffMap map = tile.map();
 
-        if (KnownTiffCompression.isNonJpegYCbCr(ifd)) {
+        if (KnownTiffCompression.isYCbCrForNonJpeg(ifd)) {
             throw new IllegalArgumentException("Y_CB_CR photometric interpretation should be processed separately");
         }
 

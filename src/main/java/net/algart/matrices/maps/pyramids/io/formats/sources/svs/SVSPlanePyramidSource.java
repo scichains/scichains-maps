@@ -33,8 +33,8 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
@@ -42,7 +42,6 @@ import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.matrices.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.maps.pyramids.io.formats.sources.svs.metadata.SVSImageDescription;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import org.scijava.Context;
 
 import java.awt.*;
@@ -130,25 +129,18 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         boolean success = false;
         try {
             final int ifdCount = largeData.maps.size();
-            if (ifdCount == 0) {
-                throw new FormatException("Empty IFD list");
-            }
-            final DetailedIFD ifd0 = largeData.maps.get(0).ifd();
-            //TODO!! replace all IFD -> TiffMap
-            ifd0.checkSizesArePositive();
-            this.bandCount = ifd0.getSamplesPerPixel();
-            if (bandCount <= 0) {
-                throw new FormatException("Zero or negative samples per pixel " + bandCount);
-            }
-            this.elementType = TiffTools.pixelTypeToElementType(ifd0.getPixelType());
-            final long imageDimX = ifd0.getImageDimX();
-            final long imageDimY = ifd0.getImageDimY();
-            this.imageDescriptions = new ArrayList<SVSImageDescription>();
+            final TiffMap map0 = largeData.maps.get(0);
+            map0.ifd().checkSizesArePositive();
+            this.bandCount = map0.numberOfChannels();
+            assert bandCount > 0;
+            this.elementType = map0.elementType();
+            final long imageDimX = map0.dimX();
+            final long imageDimY = map0.dimY();
+            this.imageDescriptions = new ArrayList<>();
             for (int k = 0; k < ifdCount; k++) {
-                final Object description = largeData.maps.get(k).ifd().get(IFD.IMAGE_DESCRIPTION);
-                final String descriptionString = description instanceof String ? (String) description : null;
-                this.imageDescriptions.add(SVSImageDescription.valueOf(descriptionString));
-                // Note: though descriptionString can be null, SVSImageDescription object will never be null here
+                final String description = largeData.maps.get(k).description().orElse(null);
+                this.imageDescriptions.add(SVSImageDescription.valueOf(description));
+                // Note: though description can be null, SVSImageDescription object will never be null here
             }
             this.mainImageDescription = findMainImageDescription(imageDescriptions);
             if (mainImageDescription != null) {
@@ -165,11 +157,11 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.moticFormat = detectMotic(largeData.maps, mainImageDescription);
             this.ifdClassifier = new SVSIFDClassifier(largeData.maps);
             LOG.log(System.Logger.Level.DEBUG, () -> "SVS reader classified IFDs: " + ifdClassifier);
-            final IFD ifdMacro = ifdClassifier.hasMacro() ?
-                    largeData.maps.get(ifdClassifier.getMacroIndex()).ifd() :
+            final TiffMap mapMacro = ifdClassifier.hasMacro() ?
+                    largeData.maps.get(ifdClassifier.getMacroIndex()) :
                     null;
-            final long ifdMacroWidth = ifdMacro == null ? -1 : ifdMacro.getImageWidth();
-            final long ifdMacroHeight = ifdMacro == null ? -1 : ifdMacro.getImageLength();
+            final long ifdMacroWidth = mapMacro == null ? -1 : mapMacro.dimX();
+            final long ifdMacroHeight = mapMacro == null ? -1 : mapMacro.dimY();
             final Double slideWidthInMicrons = additionalCombiningInfo == null ? null :
                     additionalCombiningInfo.getSlideWidthInMicrons();
             final Double slideHeightInMicrons = additionalCombiningInfo == null ? null :
@@ -178,10 +170,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     && mainImageDescription.isGeometrySupported()
                     && (slideWidthInMicrons != null || slideHeightInMicrons != null);
             this.combineWithWholeSlide = combineWithWholeSlideRequest
-                    && ifdMacro != null
+                    && mapMacro != null
                     && geometrySupported
-                    && TiffTools.pixelTypeToElementType(ifdMacro.getPixelType()) == elementType
-                    && ifdMacro.getSamplesPerPixel() == bandCount;
+                    && mapMacro.elementType() == elementType
+                    && mapMacro.numberOfChannels() == bandCount;
             long levelDimX, levelDimY;
             if (combineWithWholeSlide) {
                 this.zeroLevelPixelSize = mainImageDescription.pixelSize();
@@ -230,7 +222,6 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 // very improbable if this.combineWithWholeSlide.
                 // This check also allows to be sure that "(long) v" operator above is  executed without overflow.
             }
-            final boolean ifd0LittleEndian = ifd0.isLittleEndian();
             LOG.log(System.Logger.Level.DEBUG,
                     () -> String.format(Locale.US, "SVS reader opens image %s: %s[%dx%d]%n"
                                     + "  IFD #0/%d %dx%d, %s-endian, %d bands%n"
@@ -241,11 +232,11 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             svsFile,
                             elementType,
                             dimX, dimY, ifdCount,
-                            imageDimX, imageDimY, ifd0LittleEndian ? "little" : "big", bandCount,
+                            imageDimX, imageDimY, largeData.tiffReader.isLittleEndian() ? "little" : "big", bandCount,
                             combineWithWholeSlide,
                             combineWithWholeSlideRequest ? "requested" : "NOT requested",
                             geometrySupported,
-                            metricWholeSlide, metricPyramid, SVSIFDClassifier.compressionToString(ifd0),
+                            metricWholeSlide, metricPyramid, SVSIFDClassifier.compressionToString(map0),
                             printedDescription(0)));
             final ArrayList<long[]> actualDimensions = new ArrayList<>();
             // - these dimensions are not virtual, but in a case of combining with whole slide
@@ -256,18 +247,18 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             long pyramidLevelDimY = imageDimY;
             for (int k = 1; k < ifdCount; k++) {
                 final int index = k;
-                final DetailedIFD ifd = largeData.maps.get(k).ifd();
+                final TiffMap map = largeData.maps.get(k);
                 if (ifdClassifier.isSpecial(k)) {
                     LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                             "  SVS reader skips special IFD #%d/%d: %s, IFD compression method: %s",
                             index, ifdCount,
-                            SVSIFDClassifier.sizesToString(ifd),
-                            SVSIFDClassifier.compressionToString(ifd)));
+                            SVSIFDClassifier.sizesToString(map),
+                            SVSIFDClassifier.compressionToString(map)));
                     continue;
                 }
-                ifd.checkSizesArePositive();
-                final long newPyramidLevelDimX = ifd.getImageDimX();
-                final long newPyramidLevelDimY = ifd.getImageDimY();
+                map.ifd().checkSizesArePositive();
+                final long newPyramidLevelDimX = map.dimX();
+                final long newPyramidLevelDimY = map.dimY();
                 if (actualCompression == 0) {
                     actualCompression = PlanePyramidTools.findCompression(
                             new long[]{bandCount, pyramidLevelDimX, pyramidLevelDimY},
@@ -293,7 +284,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             "  SVS reader checks IFD #%d/%d: "
                                     + "%dx%d, IFD %dx%d; IFD compression method: %s; description: %s",
                             k, ifdCount, levelDimX, levelDimY, newPyramidLevelDimX, newPyramidLevelDimY,
-                            SVSIFDClassifier.compressionToString(ifd), printedDescription(k)));
+                            SVSIFDClassifier.compressionToString(map), printedDescription(k)));
                 }
                 if (!PlanePyramidTools.isDimensionsRelationCorrect(
                         new long[]{bandCount, pyramidLevelDimX, pyramidLevelDimY},
@@ -304,36 +295,36 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             "SVS reader found incorrect compression; skipping following %d IFDs", remaining));
                     for (int i = k; i < ifdCount; i++) {
                         final int skippedIndex = i;
-                        final IFD skippedIfd = largeData.maps.get(i).ifd();
+                        final TiffMap skippedMap = largeData.maps.get(i);
                         if (ifdClassifier.isSpecial(i)) {
                             LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                                     "  SVS reader skips special IFD #%d/%d: %s, IFD compression method: %s",
                                     skippedIndex, ifdCount,
-                                    SVSIFDClassifier.sizesToString(skippedIfd),
-                                    SVSIFDClassifier.compressionToString(skippedIfd)));
+                                    SVSIFDClassifier.sizesToString(skippedMap),
+                                    SVSIFDClassifier.compressionToString(skippedMap)));
                         } else {
                             LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                                     "  SVS reader skips unknown%s IFD #%d/%d: "
                                             + "%s; IFD compression method: %s; description:%n%s",
                                     ifdClassifier.isUnknownSpecial(skippedIndex) ? " (probably special)" : "",
                                     skippedIndex, ifdCount,
-                                    SVSIFDClassifier.sizesToString(skippedIfd),
-                                    SVSIFDClassifier.compressionToString(skippedIfd),
+                                    SVSIFDClassifier.sizesToString(skippedMap),
+                                    SVSIFDClassifier.compressionToString(skippedMap),
                                     printedDescription(skippedIndex)));
                         }
                     }
                     break;
                 }
-                final Class<?> elementType = TiffTools.pixelTypeToElementType(ifd.getPixelType());
+                final Class<?> elementType = map.elementType();
                 if (elementType != this.elementType) {
                     throw new FormatException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""
-                            + " (image description " + ifd.get(IFD.IMAGE_DESCRIPTION) + ")");
+                            + " (image description " + map.description().orElse("N/A") + ")");
                 }
-                if (ifd.getSamplesPerPixel() != bandCount) {
+                if (map.numberOfChannels() != bandCount) {
                     throw new FormatException("Invalid number of samples per pixel: "
-                            + ifd.getSamplesPerPixel() + " instead of " + bandCount
-                            + " (image description " + ifd.get(IFD.IMAGE_DESCRIPTION) + ")");
+                            + map.numberOfChannels() + " instead of " + bandCount
+                            + " (image description " + map.description().orElse("N/A") + ")");
                 }
                 actualDimensions.add(new long[]{bandCount, levelDimX, levelDimY});
                 pyramidLevelDimX = newPyramidLevelDimX;
@@ -761,7 +752,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         }
         int numberOfLZW = 0;
         for (int ifdIndex = 0; ifdIndex < maps.size(); ifdIndex++) {
-            IFD ifd = maps.get(ifdIndex).ifd();
+            final DetailedIFD ifd = maps.get(ifdIndex).ifd();
             if (!SVSIFDClassifier.isSmallImage(ifd) || ifdIndex == SVS_IFD_THUMBNAIL_INDEX) {
                 continue;
             }

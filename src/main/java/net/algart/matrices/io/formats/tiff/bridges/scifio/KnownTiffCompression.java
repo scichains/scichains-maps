@@ -29,7 +29,6 @@ import io.scif.codec.Codec;
 import io.scif.codec.LZWCodec;
 import io.scif.codec.PassthroughCodec;
 import io.scif.codec.ZlibCodec;
-import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEG2000Codec;
@@ -84,7 +83,7 @@ enum KnownTiffCompression {
         this.onlyForReading = onlyForReading;
     }
 
-    public static boolean isNonJpegYCbCr(IFD ifd) throws FormatException {
+    public static boolean isYCbCrForNonJpeg(DetailedIFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         TiffCompression compression = ifd.getCompression();
         return isStandard(compression) && !isJpeg(compression) &&

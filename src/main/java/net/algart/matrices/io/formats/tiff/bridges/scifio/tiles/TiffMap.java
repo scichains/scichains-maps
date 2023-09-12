@@ -201,6 +201,10 @@ public final class TiffMap {
         return elementType;
     }
 
+    public Optional<String> description() {
+        return ifd.optDescription();
+    }
+
     public boolean isTiled() {
         return tiled;
     }

@@ -350,12 +350,20 @@ public class DetailedIFD extends IFD {
         return checkedIntValue(optValue(tag, Number.class, true).orElse(defaultValue), tag);
     }
 
+    public int optInt(int tag, int defaultValue) {
+        return truncatedIntValue(optValue(tag, Number.class).orElse(defaultValue));
+    }
+
     public long getLong(int tag) throws FormatException {
         return reqValue(tag, Number.class).longValue();
     }
 
     public long getLong(int tag, int defaultValue) throws FormatException {
         return optValue(tag, Number.class, true).orElse(defaultValue).longValue();
+    }
+
+    public long optLong(int tag, int defaultValue) {
+        return optValue(tag, Number.class).orElse(defaultValue).longValue();
     }
 
 
@@ -484,8 +492,7 @@ public class DetailedIFD extends IFD {
                 for (int q = 0; q < offsets.length; q++) {
                     offsets[q] = compressedOffsets.get(q);
                 }
-            }
-            catch (final IOException e) {
+            } catch (final IOException e) {
                 throw new FormatException("Failed to retrieve offset", e);
             }
         } else {
@@ -549,9 +556,22 @@ public class DetailedIFD extends IFD {
         return result;
     }
 
+    public Optional<String> optDescription() {
+        return optValue(IMAGE_DESCRIPTION, String.class);
+    }
+
+    public Optional<TiffCompression> optCompression() {
+        final int code = optInt(COMPRESSION, -1);
+        try {
+            return code == -1 ? Optional.empty() : Optional.of(TiffCompression.get(code));
+        } catch (EnumException e) {
+            return Optional.empty();
+        }
+    }
+
     @Override
     public TiffCompression getCompression() throws FormatException {
-        final int code = getIFDIntValue(COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+        final int code = getInt(COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
         try {
             return TiffCompression.get(code);
         } catch (EnumException e) {
@@ -1322,6 +1342,18 @@ public class DetailedIFD extends IFD {
         return tag == LITTLE_ENDIAN || tag == BIG_TIFF || tag == REUSE;
     }
 
+    private static int truncatedIntValue(Number value) {
+        Objects.requireNonNull(value);
+        long result = value.longValue();
+        if (result > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        if (result < Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        return (int) result;
+    }
+
     private static int checkedIntValue(Number value, int tag) throws FormatException {
         Objects.requireNonNull(value);
         long result = value.longValue();
@@ -1329,7 +1361,7 @@ public class DetailedIFD extends IFD {
             throw new FormatException("Very large " + ifdTagName(tag, true) +
                     " = " + value + " >= 2^31 is not supported");
         }
-        if (result < -Integer.MAX_VALUE) {
+        if (result < Integer.MIN_VALUE) {
             throw new FormatException("Very large (by absolute value) negative " + ifdTagName(tag, true) +
                     " = " + value + " < -2^31 is not supported");
         }
