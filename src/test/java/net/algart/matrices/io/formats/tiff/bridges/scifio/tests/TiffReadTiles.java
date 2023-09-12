@@ -38,14 +38,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
 
-public class ReadTiffAndTiles {
+public class TiffReadTiles {
     private static final int MAX_IMAGE_DIM = 8000;
 
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
-            System.out.println("    " + ReadTiffAndTiles.class.getName() +
+            System.out.println("    " + TiffReadTiles.class.getName() +
                     " some_tiff_file result_folder ifdIndex " +
                     "[x y width height [number_of_tests]");
             return;
