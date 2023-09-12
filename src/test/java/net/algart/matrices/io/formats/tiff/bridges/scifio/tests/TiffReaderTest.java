@@ -133,7 +133,7 @@ public class TiffReaderTest {
                                 w, h, bandCount, new TiffInfo().ifdInfo(map.ifd(), ifdIndex, maps.size()));
                     }
                     t1 = System.nanoTime();
-                    array = reader.readImageIntoArray(map, x, y, w, h);
+                    array = reader.readImage(map, x, y, w, h);
                     t2 = System.nanoTime();
                     System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                             test, w, h, (t2 - t1) * 1e-6);
@@ -141,19 +141,19 @@ public class TiffReaderTest {
                 }
 
                 System.out.printf("Saving result image into %s...%n", resultFile);
-                writeImage(array, w, h, bandCount, resultFile);
+                writeImageFile(array, w, h, bandCount, resultFile);
                 reader.close();
             }
             System.out.printf("Done repeat %d/%d%n%n", repeat, numberOfCompleteRepeats);
         }
     }
 
-    static void writeImage(Object array, int w, int h, int bandCount, Path resultFile) throws IOException {
+    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile) throws IOException {
         final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
-        writeImage(image, resultFile.toFile());
+        writeImageFile(image, resultFile.toFile());
     }
 
-    private static void writeImage(BufferedImage image, File resultFile) throws IOException {
+    private static void writeImageFile(BufferedImage image, File resultFile) throws IOException {
         if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
             throw new IIOException("Cannot write " + resultFile);
         }

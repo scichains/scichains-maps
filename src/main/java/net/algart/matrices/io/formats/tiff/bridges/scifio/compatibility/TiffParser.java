@@ -278,7 +278,7 @@ public class TiffParser extends TiffReader {
         return f;
     }
 
-    /** Use {@link #readFirstIFDOffset()} instead. */
+    /** Use {@link #readFirstIFDOffset()} instead, together with {@link #isValid()} check. */
     @Deprecated
     public long getFirstOffset() throws IOException {
         final DataHandle<Location> in = getStream();
@@ -290,7 +290,7 @@ public class TiffParser extends TiffReader {
         return getNextOffset(0);
     }
 
-    /** Use {@link #firstIFD()} instead. */
+    /** Use {@link #firstIFD()} instead, together with {@link #isValid()} check. */
     @Deprecated
     public IFD getFirstIFD() throws IOException {
         final boolean doCaching = isCachingIFDs();
@@ -637,7 +637,7 @@ public class TiffParser extends TiffReader {
                              final int y, final long width, final long height) throws FormatException,
             IOException {
         TiffTools.checkRequestedArea(x, y, width, height);
-        byte[] result = readImage(newMap(DetailedIFD.extend(ifd)), x, y, (int) width, (int) height);
+        byte[] result = readSamples(newMap(DetailedIFD.extend(ifd)), x, y, (int) width, (int) height);
         if (result.length > buf.length) {
             throw new IllegalArgumentException(
                     "Insufficient length of the result buf array: " +

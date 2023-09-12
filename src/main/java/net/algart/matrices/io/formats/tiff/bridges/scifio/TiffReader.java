@@ -468,16 +468,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Equivalent to {@link #ifd(int) ifd(0)}. However, if you really needs access only to 1st IFD,
-     * this method may work faster.
-     *
-     * <p>Note: if this TIFF file is not valid ({@link #isValid()} returns <tt>false</tt>), this method
-     * returns <tt>null</tt> and does not throw an exception.
+     * Reads 1st IFD (#0). If you really needs access only to 1st IFD,
+     * this method may work faster than {@link #map(int)}.
      */
     public DetailedIFD firstIFD() throws IOException, FormatException {
-        if (!isValid()) {
-            return null;
-        }
         DetailedIFD firstIFD = this.firstIFD;
         if (cachingIFDs && firstIFD != null) {
             return this.firstIFD;
@@ -602,13 +596,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Gets offset to the first IFD, or -1 if stream is not TIFF.
+     * Gets offset to the first IFD.
      * Updates {@link #positionOfLastIFDOffset()} to the position of first offset (4, for Bit-TIFF 8).
      */
     public long readFirstIFDOffset() throws IOException, FormatException {
-        if (!isValid()) {
-            return -1;
-        }
         synchronized (fileLock) {
             in.seek(bigTiff ? 8 : 4);
             return readFirstOffsetFromCurrentPosition(true, this.bigTiff);
@@ -652,6 +643,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     public long[] readIFDOffsets() throws IOException, FormatException {
         synchronized (fileLock) {
+            if (!requireValidTiff && !valid) {
+                return new long[0];
+            }
             final long fileLength = in.length();
             final LinkedHashSet<Long> ifdOffsets = new LinkedHashSet<>();
             long offset = readFirstIFDOffset();
@@ -1021,18 +1015,16 @@ public class TiffReader extends AbstractContextual implements Closeable {
         */
     }
 
-
-
-    public byte[] readImage(TiffMap map) throws FormatException, IOException {
-        return readImage(map, false);
-    }
-
-    public byte[] readImage(TiffMap map, boolean storeTilesInMap) throws FormatException, IOException {
-        return readImage(map, 0, 0, map.dimX(), map.dimY(), storeTilesInMap);
-    }
-
     public TiffMap newMap(DetailedIFD ifd) {
         return new TiffMap(ifd);
+    }
+
+    public byte[] readSamples(TiffMap map) throws FormatException, IOException {
+        return readSamples(map, false);
+    }
+
+    public byte[] readSamples(TiffMap map, boolean storeTilesInMap) throws FormatException, IOException {
+        return readSamples(map, 0, 0, map.dimX(), map.dimY(), storeTilesInMap);
     }
 
     /**
@@ -1042,12 +1034,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
      *
      * @return loaded samples in a normalized form of byte sequence.
      */
-    public byte[] readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
+    public byte[] readSamples(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
-        return readImage(map, fromX, fromY, sizeX, sizeY, false);
+        return readSamples(map, fromX, fromY, sizeX, sizeY, false);
     }
 
-    public byte[] readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
+    public byte[] readSamples(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
             throws FormatException, IOException {
             Objects.requireNonNull(map, "Null TIFF map");
         long t1 = debugTime();
@@ -1106,20 +1098,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return samples;
     }
 
-    public Object readImageIntoArray(TiffMap map) throws FormatException, IOException {
+    public Object readImage(TiffMap map) throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
-        return readImageIntoArray(map, 0, 0, map.dimX(), map.dimY());
+        return readImage(map, 0, 0, map.dimX(), map.dimY());
     }
 
-    public Object readImageIntoArray(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
+    public Object readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
-        return readImageIntoArray(map, fromX, fromY, sizeX, sizeY, false);
+        return readImage(map, fromX, fromY, sizeX, sizeY, false);
     }
 
-    public Object readImageIntoArray(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
+    public Object readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
             throws IOException, FormatException {
         Objects.requireNonNull(map, "Null TIFF map");
-        final byte[] samples = readImage(map, fromX, fromY, sizeX, sizeY, storeTilesInMap);
+        final byte[] samples = readSamples(map, fromX, fromY, sizeX, sizeY, storeTilesInMap);
         long t1 = debugTime();
         final Object samplesArray = TiffTools.bytesToArray(samples, map.pixelType(), isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {

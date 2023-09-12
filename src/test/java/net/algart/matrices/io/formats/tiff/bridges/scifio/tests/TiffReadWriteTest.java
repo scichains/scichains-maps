@@ -153,7 +153,7 @@ public class TiffReadWriteTest {
 
                     final int bandCount = readerIFD.getSamplesPerPixel();
                     long t1 = System.nanoTime();
-                    byte[] bytes = reader.readImage(reader.newMap(readerIFD), START_X, START_Y, w, h);
+                    byte[] bytes = reader.readSamples(reader.newMap(readerIFD), START_X, START_Y, w, h);
                     long t2 = System.nanoTime();
                     DetailedIFD writerIFD = new DetailedIFD(readerIFD);
                     if (singleStrip) {
@@ -162,7 +162,7 @@ public class TiffReadWriteTest {
                     }
                     writerIFD.putImageDimensions(w, h);
                     final TiffMap map = writer.newMap(writerIFD, false);
-                    writer.writeImage(map, bytes, START_X, START_Y, w, h);
+                    writer.writeSamples(map, bytes, START_X, START_Y, w, h);
                     long t3 = System.nanoTime();
                     System.out.printf("Effective IFD:%n%s%n", writerIFD);
                     System.out.printf(Locale.US,

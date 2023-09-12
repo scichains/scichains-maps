@@ -286,7 +286,7 @@ public class TiffWriterTest {
                         samplesArray = TiffTools.toInterleavedSamples(
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
-                    writer.writeImageFromArray(map, samplesArray, x, y, w, h);
+                    writer.writeImage(map, samplesArray, x, y, w, h);
                     if (test == 1) {
                         if (map.hasUnset()) {
                             List<TiffTile> unset = map.tiles().stream().filter(TiffTile::hasUnset).toList();

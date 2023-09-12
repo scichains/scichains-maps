@@ -71,7 +71,7 @@ public class TiffWriteHugeFileTest {
                 Arrays.fill(samples, (byte) (10 * k));
                 long t1 = System.nanoTime();
 
-                writer.writeImage(map, samples);
+                writer.writeSamples(map, samples);
                 long t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Image #%d/%d: %dx%d written in %.3f ms, %.3f MB/sec%n",
                         k, numberOfImages, IMAGE_WIDTH, IMAGE_HEIGHT,

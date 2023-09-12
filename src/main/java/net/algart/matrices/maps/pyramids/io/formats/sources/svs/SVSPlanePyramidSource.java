@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource implements PlanePyramidSource {
     private static final boolean ENABLE_VIRTUAL_LAYERS = true;
@@ -823,7 +822,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             throws FormatException, IOException {
         final TiffMap map = largeData.maps.get(ifdIndex);
         map.checkPixelCompatibility(bandCount, elementType, true);
-        final Object data = largeData.tiffReader.readImageIntoArray(map, fromX, fromY, sizeX, sizeY);
+        final Object data = largeData.tiffReader.readImage(map, fromX, fromY, sizeX, sizeY);
         return Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
                 bandCount, sizeX, sizeY);

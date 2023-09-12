@@ -25,31 +25,17 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
-import io.scif.SCIFIO;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.arrays.*;
-import net.algart.executors.api.data.SMat;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIndex;
-import net.algart.multimatrix.MultiMatrix;
-import net.algart.multimatrix.MultiMatrix2D;
-import org.scijava.Context;
 
-import javax.imageio.IIOException;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 public class ReadTiffAndTiles {
@@ -89,7 +75,7 @@ public class ReadTiffAndTiles {
             Object array = null;
             for (int test = 1; test <= numberOfTests; test++) {
                 long t1 = System.nanoTime();
-                array = reader.readImageIntoArray(map, x, y, w, h, true);
+                array = reader.readImage(map, x, y, w, h, true);
                 long t2 = System.nanoTime();
                 System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
                         test, w, h, (t2 - t1) * 1e-6);
@@ -98,14 +84,14 @@ public class ReadTiffAndTiles {
 
             final Path imageFile = resultFolder.resolve("result.bmp");
             System.out.printf("Saving result image into %s...%n", imageFile);
-            TiffReaderTest.writeImage(array, w, h, map.numberOfChannels(), imageFile);
+            TiffReaderTest.writeImageFile(array, w, h, map.numberOfChannels(), imageFile);
             for (TiffTile tile : map.tiles()) {
                 if (!tile.isEmpty()) {
                     final Path tileFile = tilePath(tile, resultFolder);
                     System.out.printf("Saving tile %s in %s...%n", tile, tileFile);
                     Object tileArray = TiffTools.bytesToArray(
                             tile.getDecodedData(), tile.pixelType(), reader.isLittleEndian());
-                    TiffReaderTest.writeImage(
+                    TiffReaderTest.writeImageFile(
                             tileArray,
                             tile.getSizeX(), tile.getSizeY(), tile.samplesPerPixel(),
                             tileFile);

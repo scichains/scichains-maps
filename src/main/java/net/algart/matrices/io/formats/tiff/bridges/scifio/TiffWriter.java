@@ -1013,15 +1013,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         map.ifd().updateDataPositioning(offsets, byteCounts);
     }
 
-    public void writeImage(final TiffMap map, final byte[] samples) throws FormatException, IOException {
+    public void writeSamples(final TiffMap map, byte[] samples) throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
-        writeImage(map, samples, 0, 0, map.dimX(), map.dimY());
+        writeSamples(map, samples, 0, 0, map.dimX(), map.dimY());
     }
 
-    public void writeImage(
-            final TiffMap map,
-            byte[] samples,
-            final int fromX, final int fromY, final int sizeX, final int sizeY)
+    public void writeSamples(TiffMap map, byte[] samples, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samples, "Null samples");
@@ -1062,10 +1059,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void writeImageFromArray(
-            final TiffMap map,
-            Object samplesArray,
-            final int fromX, final int fromY, final int sizeX, final int sizeY)
+    public void writeImage(TiffMap map, Object samplesArray) throws FormatException, IOException {
+        Objects.requireNonNull(map, "Null TIFF map");
+        writeImage(map, samplesArray, 0, 0, map.dimX(), map.dimY());
+    }
+
+    public void writeImage(TiffMap map, Object samplesArray, int fromX, int fromY, int sizeX, int sizeY)
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
@@ -1093,7 +1092,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             String.format(Locale.US, " %.3f MB/s",
                                     samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
         }
-        writeImage(map, samples, fromX, fromY, sizeX, sizeY);
+        writeSamples(map, samples, fromX, fromY, sizeX, sizeY);
     }
 
     public void fillEmptyTile(TiffTile tiffTile) {
