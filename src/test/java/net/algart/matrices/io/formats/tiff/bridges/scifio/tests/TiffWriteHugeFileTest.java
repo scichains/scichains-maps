@@ -57,7 +57,7 @@ public class TiffWriteHugeFileTest {
         final Path targetFile = Paths.get(args[startArgIndex++]);
         final int numberOfImages = Integer.parseInt(args[startArgIndex++]);
 
-        try (final TiffWriter writer = new TiffWriter(null, targetFile)) {
+        try (final TiffWriter writer = new TiffWriter(targetFile)) {
             writer.setBigTiff(bigTiff);
             writer.setLittleEndian(true);
             writer.startNewFile();

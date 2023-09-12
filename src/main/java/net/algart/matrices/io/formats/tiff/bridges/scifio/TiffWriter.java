@@ -140,6 +140,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private long timeCustomizingEncoding = 0;
     private long timeEncoding = 0;
 
+    public TiffWriter(Path file) throws IOException {
+        this(null, file, false);
+    }
+
+    public TiffWriter(Path file, boolean deleteExistingFile) throws IOException {
+        this(null, file, deleteExistingFile);
+    }
+
+    public TiffWriter(DataHandle<Location> out) {
+        this(null, out);
+    }
+
     public TiffWriter(Context context, Path file) throws IOException {
         this(context, file, false);
     }

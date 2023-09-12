@@ -167,11 +167,19 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private long timeCompleteDecoding = 0;
 
     public TiffReader(Path file) throws IOException, FormatException {
-        this(null, file, true);
+        this(null, file);
     }
 
     public TiffReader(Path file, boolean requireValidTiff) throws IOException, FormatException {
         this(null, file, requireValidTiff);
+    }
+
+    public TiffReader(DataHandle<Location> in) throws IOException, FormatException {
+        this(null, in);
+    }
+
+    public TiffReader(DataHandle<Location> in, boolean requireValidTiff) throws IOException, FormatException {
+        this(null, in, requireValidTiff);
     }
 
     public TiffReader(Context context, Path file) throws IOException, FormatException {
