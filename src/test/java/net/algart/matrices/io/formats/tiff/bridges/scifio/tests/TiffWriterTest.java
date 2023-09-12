@@ -196,7 +196,7 @@ public class TiffWriterTest {
                 }
 //                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
-                writer.setLittleEndian(true);
+//                writer.setLittleEndian(true);
                 writer.setJpegInPhotometricRGB(jpegRGB);
 //                writer.setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
@@ -278,7 +278,7 @@ public class TiffWriterTest {
                             preloadPartiallyOverwrittenTiles(writer, map, x, y, w, h);
                         }
                     } else {
-                        map = writer.startNewImage(ifd, resizable);
+                        map = writer.newMap(ifd, resizable);
                     }
 
                     Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.pixelType(), w, h);

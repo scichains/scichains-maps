@@ -60,15 +60,14 @@ public class TiffExtractTileContent {
         try (final Context context = scifio.getContext()) {
             final TiffReader reader = new TiffReader(context, tiffFile);
             System.out.printf("Opening %s by %s...%n", tiffFile, reader);
-            final DetailedIFD ifd = reader.ifd(ifdIndex);
-            System.out.printf("IFD #%d: %s%n", ifdIndex, ifd);
-            final TiffMap map = new TiffMap(ifd);
+            final TiffMap map = reader.map(ifdIndex);
+            System.out.printf("TIFF map #%d: %s%n", ifdIndex, map);
             final TiffTileIndex tileIndex = map.multiplaneIndex(separatedPlaneIndex, col, row);
             TiffTile tile = reader.readEncodedTile(tileIndex);
             reader.prepareEncodedTileForDecoding(tile);
             System.out.printf("Loaded tile:%n    %s%n", tile);
             if (!tile.isEmpty()) {
-                System.out.printf("    Compression format: %s%n", ifd.getCompression().getCodecName());
+                System.out.printf("    Compression format: %s%n", map.ifd().getCompression().getCodecName());
                 byte[] bytes = tile.getData();
                 System.out.printf("Tile saved in %s%n", resultFile);
                 Files.write(resultFile, bytes);

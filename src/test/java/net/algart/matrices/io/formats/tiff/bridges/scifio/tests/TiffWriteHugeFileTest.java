@@ -65,7 +65,7 @@ public class TiffWriteHugeFileTest {
                 DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                 ifd.putTileSizes(1024, 1024);
                 ifd.putCompression(TiffCompression.UNCOMPRESSED);
-                final TiffMap map = writer.startNewImage(ifd, 3, byte.class);
+                final TiffMap map = writer.newMap(ifd, 3, byte.class, false);
 
                 final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT * 3];
                 Arrays.fill(samples, (byte) (10 * k));

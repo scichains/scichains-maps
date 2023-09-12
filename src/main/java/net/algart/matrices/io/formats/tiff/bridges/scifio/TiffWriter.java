@@ -821,15 +821,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public TiffMap startNewImage(
-            DetailedIFD ifd,
-            int numberOfChannels,
-            Class<?> elementType)
+    public TiffMap newMap(DetailedIFD ifd, int numberOfChannels, Class<?> elementType, boolean signedIntegers)
             throws FormatException {
-        return startNewImage(ifd, numberOfChannels, elementType, false, false);
+        return newMap(ifd, numberOfChannels, elementType, signedIntegers, false);
     }
 
-    public TiffMap startNewImage(
+    public TiffMap newMap(
             DetailedIFD ifd,
             int numberOfChannels,
             Class<?> elementType,
@@ -838,7 +835,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         ifd.putPixelInformation(numberOfChannels, elementType, signedIntegers);
-        return startNewImage(ifd, resizable);
+        return newMap(ifd, resizable);
     }
 
     /**
@@ -848,7 +845,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param resizable if <tt>true</tt>, IFD dimensions may not be specified yet.
      * @return map for writing further data.
      */
-    public TiffMap startNewImage(DetailedIFD ifd, boolean resizable) throws FormatException {
+    public TiffMap newMap(DetailedIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd, resizable);

@@ -25,6 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
 import io.scif.FormatException;
+import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
@@ -302,6 +303,26 @@ public final class TiffMap {
      */
     public void expandGrid(int newMinimalTileCountX, int newMinimalTileCountY) {
         expandGrid(newMinimalTileCountX, newMinimalTileCountY, true);
+    }
+
+    public void checkPixelCompatibility(int numberOfChannels, Class<?> elementType, boolean signedIntegers)
+            throws FormatException {
+        checkPixelCompatibility(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
+    }
+
+    public void checkPixelCompatibility(int numberOfChannels,  int pixelType) throws FormatException {
+        if (numberOfChannels <= 0) {
+            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
+        }
+        if (numberOfChannels != this.numberOfChannels) {
+            throw new FormatException("Number of channel mismatch: expected " + numberOfChannels +
+                            " channels, but TIFF image contains " + this.numberOfChannels + " channels");
+        }
+        if (pixelType != this.pixelType) {
+            throw new FormatException(
+                    "Pixel type mismatch: expected elements are " + FormatTools.getPixelTypeString(pixelType)
+                            + ", but TIFF image contains elements "+ FormatTools.getPixelTypeString(this.pixelType));
+        }
     }
 
     public int linearIndex(int separatedPlaneIndex, int xIndex, int yIndex) {

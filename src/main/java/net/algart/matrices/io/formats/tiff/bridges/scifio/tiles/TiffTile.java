@@ -105,6 +105,10 @@ public final class TiffTile {
         return bytesPerPixel;
     }
 
+    public int pixelType() {
+        return map.pixelType();
+    }
+
     public int getSizeX() {
         return sizeX;
     }

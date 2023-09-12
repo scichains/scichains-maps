@@ -87,7 +87,7 @@ public class TiffCopyTest {
 
                     DetailedIFD writeIFD = new DetailedIFD(readIFD);
                     final TiffMap readMap = new TiffMap(readIFD);
-                    final TiffMap writeMap = writer.startNewImage(writeIFD, false);
+                    final TiffMap writeMap = writer.newMap(writeIFD, false);
                     writer.writeForward(writeMap);
                     int k = 0, n = writeMap.size();
                     for (TiffTile targetTile : writeMap.tiles()) {

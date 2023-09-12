@@ -25,16 +25,17 @@
 package net.algart.matrices.maps.pyramids.io.formats.sources.svs;
 
 import io.scif.FormatException;
-import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
-import io.scif.formats.tiff.TiffParser;
 import net.algart.arrays.Arrays;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
-import org.scijava.io.location.FileLocation;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public final class SVSIFDClassifier {
@@ -49,17 +50,17 @@ public final class SVSIFDClassifier {
 
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
-    private final List<IFD> ifdList;
+    private final List<DetailedIFD> ifdList;
     private final int ifdCount;
     private int thumbnailIndex = -1;
     private int labelIndex = -1;
     private int macroIndex = -1;
     private final List<Integer> unknownSpecialIndexes = new ArrayList<>();
 
-    public SVSIFDClassifier(List<? extends IFD> ifdList) throws FormatException {
-        Objects.requireNonNull(ifdList);
-        this.ifdList = new ArrayList<>(ifdList);
-        this.ifdCount = ifdList.size();
+    public SVSIFDClassifier(List<TiffMap> maps) throws FormatException {
+        Objects.requireNonNull(maps);
+        this.ifdList = maps.stream().map(TiffMap::ifd).toList();
+        this.ifdCount = maps.size();
         detectThumbnail();
         if (!detectTwoLastImages()) {
             detectSingleLastImage();
@@ -340,10 +341,11 @@ public final class SVSIFDClassifier {
             return;
         }
         for (String arg : args) {
-            final File file = new File(arg);
-            final TiffParser parser = new TiffParser(new SCIFIO().getContext(), new FileLocation(file));
-            final SVSIFDClassifier detector = new SVSIFDClassifier(parser.getIFDs());
-            System.out.printf("%s:%n%s%n%n", file, detector);
+            final Path file = Paths.get(arg);
+            try (TiffReader reader = new TiffReader(file)) {
+                final var detector = new SVSIFDClassifier(reader.allMaps());
+                System.out.printf("%s:%n%s%n%n", file, detector);
+            }
         }
     }
 }

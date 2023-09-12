@@ -458,13 +458,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return positionOfLastIFDOffset;
     }
 
-    public DetailedIFD ifd(int ifdIndex) throws IOException, FormatException {
+    public TiffMap map(int ifdIndex) throws IOException, FormatException {
         List<DetailedIFD> ifdList = allIFDs();
         if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
             throw new IndexOutOfBoundsException(
                     "IFD index " + ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
         }
-        return ifdList.get(ifdIndex);
+        return newMap(ifdList.get(ifdIndex));
     }
 
     /**
@@ -490,6 +490,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return firstIFD;
     }
 
+
+    public List<TiffMap> allMaps() throws IOException, FormatException {
+        return allIFDs().stream().map(this::newMap).collect(Collectors.toList());
+    }
     /**
      * Returns all IFDs in the file.
      *
@@ -1017,9 +1021,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         */
     }
 
-    public byte[] readImage(final DetailedIFD ifd) throws FormatException, IOException {
-        return readImage(new TiffMap(ifd));
-    }
+
 
     public byte[] readImage(TiffMap map) throws FormatException, IOException {
         return readImage(map, false);
@@ -1029,6 +1031,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return readImage(map, 0, 0, map.dimX(), map.dimY(), storeTilesInMap);
     }
 
+    public TiffMap newMap(DetailedIFD ifd) {
+        return new TiffMap(ifd);
+    }
+
     /**
      * Reads samples in <tt>byte[]</tt> array.
      *
@@ -1036,11 +1042,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
      *
      * @return loaded samples in a normalized form of byte sequence.
      */
-    public byte[] readImage(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
-            throws FormatException, IOException {
-        return readImage(new TiffMap(ifd), fromX, fromY, sizeX, sizeY);
-    }
-
     public byte[] readImage(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
         return readImage(map, fromX, fromY, sizeX, sizeY, false);
@@ -1105,42 +1106,22 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return samples;
     }
 
-    public Object readImageIntoArray(final DetailedIFD ifd) throws FormatException, IOException {
-        return readImageIntoArray(ifd, 0, 0, ifd.getImageDimX(), ifd.getImageDimY());
+    public Object readImageIntoArray(TiffMap map) throws FormatException, IOException {
+        Objects.requireNonNull(map, "Null TIFF map");
+        return readImageIntoArray(map, 0, 0, map.dimX(), map.dimY());
     }
 
-    public Object readImageIntoArray(DetailedIFD ifd, int fromX, int fromY, int sizeX, int sizeY)
+    public Object readImageIntoArray(TiffMap map, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException, FormatException {
-        return readImageIntoArray(
-                ifd, fromX, fromY, sizeX, sizeY, null, null);
+        return readImageIntoArray(map, fromX, fromY, sizeX, sizeY, false);
     }
 
-    public Object readImageIntoArray(
-            DetailedIFD ifd,
-            final int fromX,
-            final int fromY,
-            final int sizeX,
-            final int sizeY,
-            Integer requiredSamplesPerPixel,
-            Class<?> requiredElementType)
-            throws FormatException, IOException {
-        Objects.requireNonNull(ifd, "Null IFD");
-        if (requiredSamplesPerPixel != null && ifd.getSamplesPerPixel() != requiredSamplesPerPixel) {
-            throw new FormatException(
-                    "Number of channel mismatch: expected " + requiredSamplesPerPixel
-                            + " samples per pixel, but IFD image contains " + ifd.getSamplesPerPixel()
-                            + " samples per pixel");
-        }
-        if (requiredElementType != null && optionalElementType(ifd).orElse(null) != requiredElementType) {
-            throw new FormatException(
-                    "Element type mismatch: expected " + requiredElementType
-                            + "[] elements, but some IFD image contains "
-                            + optionalElementType(ifd).map(Class::getName).orElse("unknown")
-                            + "[] elements");
-        }
-        final byte[] samples = readImage(ifd, fromX, fromY, sizeX, sizeY);
+    public Object readImageIntoArray(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
+            throws IOException, FormatException {
+        Objects.requireNonNull(map, "Null TIFF map");
+        final byte[] samples = readImage(map, fromX, fromY, sizeX, sizeY, storeTilesInMap);
         long t1 = debugTime();
-        final Object samplesArray = TiffTools.bytesToArray(samples, ifd.getPixelType(), ifd.isLittleEndian());
+        final Object samplesArray = TiffTools.bytesToArray(samples, map.pixelType(), isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
