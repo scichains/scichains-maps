@@ -389,7 +389,8 @@ public class DetailedIFD extends IFD {
         }
         final int samplesPerPixel = getIFDIntValue(SAMPLES_PER_PIXEL, 1);
         if (samplesPerPixel < 1) {
-            throw new FormatException("Illegal SamplesPerPixel = " + samplesPerPixel);
+            throw new FormatException("TIFF tag SamplesPerPixel contains illegal zero or negative value: " +
+                    samplesPerPixel);
         }
         return samplesPerPixel;
     }
@@ -907,6 +908,7 @@ public class DetailedIFD extends IFD {
         } else {
             remove(IFD.SAMPLE_FORMAT);
         }
+        //TODO!! - previous operators as a separate method
         putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
         return this;
     }

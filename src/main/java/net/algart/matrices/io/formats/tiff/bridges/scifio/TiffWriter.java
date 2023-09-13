@@ -871,6 +871,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return map;
     }
 
+    public TiffMap newMap(DetailedIFD ifd) throws FormatException {
+        return newMap(ifd, false);
+    }
+
     /**
      * Starts overwriting existing IFD image.
      *
@@ -1540,9 +1544,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     private void prepareValidIFD(final DetailedIFD ifd) throws FormatException {
+        final int samplesPerPixel = ifd.getSamplesPerPixel();
         if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            throw new IllegalArgumentException("BitsPerSample tag must be specified for writing TIFF image " +
-                    "(standard TIFF default  value, 1 bit/pixel, is not supported)");
+            int[] bitsPerSample = new int[samplesPerPixel];
+            Arrays.fill(bitsPerSample, 8);
+            ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bitsPerSample);
+            // - default value of BitsPerSample is 1 bit/pixel, but it is not a rare case,
+            // not supported by many client; so, we set another default 8 bits/pixel
         }
         final OptionalInt optionalBits = ifd.tryEqualBitsPerSample();
         if (optionalBits.isEmpty()) {
@@ -1572,7 +1580,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
         // - UnsupportedTiffFormatException for unknown compression
 
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
         final boolean palette = samplesPerPixel == 1 && ifd.containsKey(IFD.COLOR_MAP);
         final boolean signed = ifd.getIFDIntValue(IFD.SAMPLE_FORMAT) == 2;
         // - getIFDIntValue method returns the element #0, i.e. for channel #0

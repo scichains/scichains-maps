@@ -25,7 +25,6 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -34,51 +33,31 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Locale;
 
-public class TiffWriteHugeFileTest {
-    private final static int IMAGE_WIDTH = 10 * 1024;
-    private final static int IMAGE_HEIGHT = 10 * 1024;
+public class TiffWriteSimpleTest {
+    private final static int IMAGE_WIDTH = 100;
+    private final static int IMAGE_HEIGHT = 100;
 
     public static void main(String[] args) throws IOException, FormatException {
-        int startArgIndex = 0;
-        boolean bigTiff = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-bigTiff")) {
-            bigTiff = true;
-            startArgIndex++;
-        }
-        if (args.length < startArgIndex + 2) {
+        if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffWriteHugeFileTest.class.getName() +
-                    " [-bigTiff] " +
-                    "target.tiff number_of_images");
+            System.out.println("    " + TiffWriteSimpleTest.class.getName() +
+                    "target.tiff");
             return;
         }
-        final Path targetFile = Paths.get(args[startArgIndex++]);
-        final int numberOfImages = Integer.parseInt(args[startArgIndex++]);
+        final Path targetFile = Paths.get(args[0]);
 
-        System.out.println("Writing huge TIFF " + targetFile);
+        System.out.println("Writing TIFF " + targetFile);
         try (final TiffWriter writer = new TiffWriter(targetFile)) {
-            writer.setBigTiff(bigTiff);
-            writer.setLittleEndian(true);
+            writer.setByteFiller((byte) 0xB0);
             writer.startNewFile();
-            for (int k = 1; k <= numberOfImages; k++) {
-                DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
-                ifd.putTileSizes(1024, 1024);
-                ifd.putCompression(TiffCompression.UNCOMPRESSED);
-                final TiffMap map = writer.newMap(ifd, 3, byte.class, false);
+            DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+            final TiffMap map = writer.newMap(ifd);
 
-                final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT * 3];
-                Arrays.fill(samples, (byte) (10 * k));
-                long t1 = System.nanoTime();
-
-                writer.writeSamples(map, samples);
-                long t2 = System.nanoTime();
-                System.out.printf(Locale.US, "Image #%d/%d: %dx%d written in %.3f ms, %.3f MB/sec%n",
-                        k, numberOfImages, IMAGE_WIDTH, IMAGE_HEIGHT,
-                        (t2 - t1) * 1e-6, samples.length / 1048576.0 / ((t2 - t1) * 1e-9));
-
-            }
+            final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
+            Arrays.fill(samples, (byte) 10);
+//            writer.writeSamples(map, samples);
+            writer.completeImage(map);
         }
         System.out.println("Done");
     }
