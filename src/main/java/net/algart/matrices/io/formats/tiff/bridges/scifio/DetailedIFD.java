@@ -35,6 +35,13 @@ import java.util.*;
 import java.util.function.Supplier;
 
 public class DetailedIFD extends IFD {
+    /**
+     * Maximal supported number of channels. Popular OpenCV library has the same limit.
+     *
+     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
+     */
+    public static final int MAX_NUMBER_OF_CHANNELS = 512;
+
     public static final int LAST_IFD_OFFSET = 0;
 
     public enum StringFormat {
@@ -387,10 +394,14 @@ public class DetailedIFD extends IFD {
             return 3;
             // always 3 channels: RGB
         }
-        final int samplesPerPixel = getIFDIntValue(SAMPLES_PER_PIXEL, 1);
+        final int samplesPerPixel = getInt(SAMPLES_PER_PIXEL, 1);
         if (samplesPerPixel < 1) {
             throw new FormatException("TIFF tag SamplesPerPixel contains illegal zero or negative value: " +
                     samplesPerPixel);
+        }
+        if (samplesPerPixel > MAX_NUMBER_OF_CHANNELS) {
+            throw new FormatException("TIFF tag SamplesPerPixel contains too large value: " +
+                    samplesPerPixel + " (maximal support number of channels is " + MAX_NUMBER_OF_CHANNELS + ")");
         }
         return samplesPerPixel;
     }
@@ -894,22 +905,43 @@ public class DetailedIFD extends IFD {
      * @return a reference to this object.
      */
     public DetailedIFD putPixelInformation(int numberOfChannels, int pixelType) {
+        putNumberOfChannels(numberOfChannels);
+        // - note: actual number of channels will be 3 in a case of OLD_JPEG;
+        // but it is not a recommended usage (we may set OLD_JPEG compression later)
+        putSamplesType(pixelType);
+        return this;
+    }
+
+    public DetailedIFD putNumberOfChannels(int numberOfChannels) {
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
+        if (numberOfChannels > MAX_NUMBER_OF_CHANNELS) {
+            throw new IllegalArgumentException("Very large number of channels " + numberOfChannels + " > " +
+                    MAX_NUMBER_OF_CHANNELS + " is not supported");
+        }
+        putIFDValue(SAMPLES_PER_PIXEL, numberOfChannels);
+        return this;
+    }
+
+    public DetailedIFD putSamplesType(int pixelType) {
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         final boolean signed = FormatTools.isSigned(pixelType);
         final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
-        putIFDValue(IFD.BITS_PER_SAMPLE, nInts(numberOfChannels, 8 * bytesPerSample));
+        final int samplesPerPixel;
+        try {
+            samplesPerPixel = getSamplesPerPixel();
+        } catch (FormatException e) {
+            throw new IllegalStateException("Cannot set TIFF samples type: SamplesPerPixel tag is invalid", e);
+        }
+        putIFDValue(IFD.BITS_PER_SAMPLE, nInts(samplesPerPixel, 8 * bytesPerSample));
         if (floatingPoint) {
-            putIFDValue(IFD.SAMPLE_FORMAT, nInts(numberOfChannels, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
+            putIFDValue(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
         } else if (signed) {
-            putIFDValue(IFD.SAMPLE_FORMAT, nInts(numberOfChannels, DetailedIFD.SAMPLE_FORMAT_INT));
+            putIFDValue(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_INT));
         } else {
             remove(IFD.SAMPLE_FORMAT);
         }
-        //TODO!! - previous operators as a separate method
-        putIFDValue(IFD.SAMPLES_PER_PIXEL, numberOfChannels);
         return this;
     }
 

@@ -31,6 +31,7 @@ import io.scif.UnsupportedCompressionException;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
+import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -1546,11 +1547,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private void prepareValidIFD(final DetailedIFD ifd) throws FormatException {
         final int samplesPerPixel = ifd.getSamplesPerPixel();
         if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            int[] bitsPerSample = new int[samplesPerPixel];
-            Arrays.fill(bitsPerSample, 8);
-            ifd.putIFDValue(IFD.BITS_PER_SAMPLE, bitsPerSample);
-            // - default value of BitsPerSample is 1 bit/pixel, but it is not a rare case,
-            // not supported by many client; so, we set another default 8 bits/pixel
+            ifd.putSamplesType(FormatTools.UINT8);
+            // - default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
+            // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
         }
         final OptionalInt optionalBits = ifd.tryEqualBitsPerSample();
         if (optionalBits.isEmpty()) {

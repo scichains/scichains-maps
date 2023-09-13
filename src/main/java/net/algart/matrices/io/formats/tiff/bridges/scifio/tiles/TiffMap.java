@@ -33,12 +33,6 @@ import java.util.*;
 
 public final class TiffMap {
     /**
-     * Maximal supported number of channels. Popular OpenCV library has the same limit.
-     *
-     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
-     */
-    public static final int MAX_NUMBER_OF_CHANNELS = 512;
-    /**
      * Maximal supported length of pixel (including all channels).
      *
      * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
@@ -111,13 +105,10 @@ public final class TiffMap {
             }
             this.planarSeparated = ifd.isPlanarSeparated();
             this.numberOfChannels = ifd.getSamplesPerPixel();
+            assert numberOfChannels <= DetailedIFD.MAX_NUMBER_OF_CHANNELS;
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
             this.tileSamplesPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.equalBytesPerSample();
-            if (numberOfChannels > MAX_NUMBER_OF_CHANNELS) {
-                throw new FormatException("Very large number of channels " + numberOfChannels + " > " +
-                        MAX_NUMBER_OF_CHANNELS + " is not supported");
-            }
             if ((long) numberOfChannels * (long) bytesPerSample > MAX_TOTAL_BYTES_PER_PIXEL) {
                 throw new FormatException("Very large number of bytes per pixel " + numberOfChannels + " * " +
                         bytesPerSample + " > " + MAX_TOTAL_BYTES_PER_PIXEL + " is not supported");
