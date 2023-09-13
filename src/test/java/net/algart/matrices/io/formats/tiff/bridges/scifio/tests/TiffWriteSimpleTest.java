@@ -53,11 +53,12 @@ public class TiffWriteSimpleTest {
             writer.startNewFile();
             DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
             final TiffMap map = writer.newMap(ifd);
+            System.out.printf("Saved IFD:%n%s%n", ifd.toString(DetailedIFD.StringFormat.NORMAL));
 
             final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
-            Arrays.fill(samples, (byte) 10);
-//            writer.writeSamples(map, samples);
-            writer.completeImage(map);
+            Arrays.fill(samples, (byte) 80);
+            writer.writeSamples(map, samples);
+//            writer.completeImage(map);
         }
         System.out.println("Done");
     }
