@@ -273,7 +273,7 @@ public class TiffWriterTest {
                         if (breakOldChain) {
                             ifd.setLastIFD();
                         }
-                        map = writer.startExistingImage(ifd);
+                        map = writer.existingMap(ifd);
                         if (preserveOldAccurately) {
                             preloadPartiallyOverwrittenTiles(writer, map, x, y, w, h);
                         }

@@ -369,7 +369,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * byte count (<tt>TileByteCounts</tt> or <tt>StripByteCounts</tt> tag) contains zero value.
      * In this mode, this writer will use zero offset and byte count, if
      * the written tile is actually empty &mdash; no pixels were written in it via
-     * {@link #updateTiles(TiffMap, byte[], int, int, int, int)} or other methods.
+     * {@link #updateSamples(TiffMap, byte[], int, int, int, int)} or other methods.
      * In other case, this writer will create a normal tile, filled by
      * the {@link #setByteFiller(byte) default filler}.
      *
@@ -592,18 +592,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeWriting += t2 - t1;
     }
 
-    public void updateTiles(
+    public void updateSamples(
             final TiffMap map,
-            final byte[] sourceSamples,
+            final byte[] samples,
             final int fromX,
             final int fromY,
             final int sizeX,
-            final int sizeY) throws FormatException {
+            final int sizeY) {
         Objects.requireNonNull(map, "Null tile map");
-        Objects.requireNonNull(sourceSamples, "Null source samples");
+        Objects.requireNonNull(samples, "Null samples");
         final boolean planarSeparated = map.isPlanarSeparated();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
-        TiffTools.checkRequestedAreaInArray(sourceSamples, sizeX, sizeY, map.totalBytesPerPixel());
+        TiffTools.checkRequestedAreaInArray(samples, sizeX, sizeY, map.totalBytesPerPixel());
         map.expandDimensions(fromX + sizeX, fromY + sizeY);
 
         final int mapTileSizeX = map.tileSizeX();
@@ -677,7 +677,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         int tOffset = (fromYInTile * tileSizeX + fromXInTile) * bytesPerPixel;
                         int samplesOffset = (yDiff * sizeX + xDiff) * bytesPerPixel;
                         for (int i = 0; i < sizeYInTile; i++) {
-                            System.arraycopy(sourceSamples, samplesOffset, data, tOffset, partSizeXInBytes);
+                            System.arraycopy(samples, samplesOffset, data, tOffset, partSizeXInBytes);
                             tOffset += tileChunkedRowSizeInBytes;
                             samplesOffset += samplesChunkedRowSizeInBytes;
                         }
@@ -696,7 +696,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             int tOffset = (((s * tileSizeY) + fromYInTile) * tileSizeX + fromXInTile) * bytesPerSample;
                             int samplesOffset = (((p + s) * sizeY + yDiff) * sizeX + xDiff) * bytesPerSample;
                             for (int i = 0; i < sizeYInTile; i++) {
-                                System.arraycopy(sourceSamples, samplesOffset, data, tOffset, partSizeXInBytes);
+                                System.arraycopy(samples, samplesOffset, data, tOffset, partSizeXInBytes);
                                 tOffset += tileOneChannelRowSizeInBytes;
                                 samplesOffset += samplesOneChannelRowSizeInBytes;
                             }
@@ -747,7 +747,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                             final int i = yInTile + yOffset;
                             final int tileOffset = yInTile * tileRowSizeInBytes;
                             final int samplesOffset = (i * sizeX + xOffset) * bytesPerPixel;
-                            System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                            System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
                         }
                     } else {
                         // - Source data are separated to channel planes: standard form, more convenient for image
@@ -769,7 +769,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                                 final int i = yInTile + yOffset;
                                 final int tileOffset = tileChannelOffset + yInTile * tileRowSizeInBytes;
                                 final int samplesOffset = channelOffset + (i * sizeX + xOffset) * bytesPerSample;
-                                System.arraycopy(sourceSamples, samplesOffset, data, tileOffset, partSizeXInBytes);
+                                System.arraycopy(samples, samplesOffset, data, tileOffset, partSizeXInBytes);
                             }
                         }
                     }
@@ -777,6 +777,28 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
         }
          */
+    }
+
+    public void updateImage(
+            final TiffMap map,
+            final Object samplesArray,
+            final int fromX,
+            final int fromY,
+            final int sizeX,
+            final int sizeY) {
+        Objects.requireNonNull(map, "Null tile map");
+        Objects.requireNonNull(samplesArray, "Null samplesArray");
+        final Class<?> elementType = samplesArray.getClass().getComponentType();
+        if (elementType == null) {
+            throw new IllegalArgumentException("The specified samplesArray is not actual an array: " +
+                    "it is " + samplesArray.getClass());
+        }
+        if (elementType != map.elementType()) {
+            throw new IllegalArgumentException("Invalid element type of samples array: " + elementType +
+                    ", but the specified TIFF map stores " + map.elementType());
+        }
+        final byte[] samples = TiffTools.arrayToBytes(samplesArray, isLittleEndian());
+        updateSamples(map, samples, fromX, fromY, sizeX, sizeY);
     }
 
     public void encode(TiffTile tile) throws FormatException {
@@ -896,7 +918,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param ifd IFD of some existing image, probably loaded from the current TIFF file.
      * @return map for writing further data.
      */
-    public TiffMap startExistingImage(DetailedIFD ifd) throws FormatException {
+    public TiffMap existingMap(DetailedIFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd);
@@ -942,9 +964,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (!writingForwardAllowed || map.isResizable()) {
             return;
         }
-        map.completeImageGrid();
-        map.cropAll(true);
-        // - necessary for tiles, that will not be filled by any pixels (empty tiles)
         final long[] offsets = new long[map.numberOfGridTiles()];
         final long[] byteCounts = new long[map.numberOfGridTiles()];
         // - zero-filled by Java
@@ -959,9 +978,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         Objects.requireNonNull(map, "Null TIFF map");
         final boolean resizable = map.isResizable();
         map.checkDimensions();
-        if (resizable) {
-            map.cropAll(true);
-        }
 
         encode(map);
         // - encode tiles, which are not encoded yet
@@ -998,28 +1014,22 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samples, "Null samples");
-        TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY, map.dimX(), map.dimY());
 
         clearTime();
         long t1 = debugTime();
-        writeForward(map);
-
+        updateSamples(map, samples, fromX, fromY, sizeX, sizeY);
         long t2 = debugTime();
-        updateTiles(map, samples, fromX, fromY, sizeX, sizeY);
+        writeForward(map);
         long t3 = debugTime();
-
-        // - Note: already created tiles will have access to newly update information,
-        // because they contain references to this IFD
         encode(map);
         long t4 = debugTime();
-
         completeImage(map);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
             long sizeOf = map.totalSizeInBytes();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
-                            "%.3f initializing + %.3f splitting " +
+                            "%.3f copying data + %.3f writing IFD " +
                             "+ %.3f/%.3f encoding/writing " +
                             "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
@@ -1044,31 +1054,34 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
-        final Class<?> elementType = samplesArray.getClass().getComponentType();
-        if (elementType == null) {
-            throw new IllegalArgumentException("The specified samplesArray is not actual an array: " +
-                    "it is " + samplesArray.getClass());
-        }
-        if (elementType != map.elementType()) {
-            throw new IllegalArgumentException("Invalid element type of samples array: " + elementType +
-                    ", but the specified TIFF map stores " + map.elementType());
-        }
+        clearTime();
         long t1 = debugTime();
-        final byte[] samples = TiffTools.arrayToBytes(samplesArray, isLittleEndian());
+        updateImage(map, samplesArray, fromX, fromY, sizeX, sizeY);
+        long t2 = debugTime();
+        writeForward(map);
+        long t3 = debugTime();
+        encode(map);
+        long t4 = debugTime();
+        completeImage(map);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
-            long t2 = debugTime();
+            long t5 = debugTime();
+            long sizeOf = map.totalSizeInBytes();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
-                    "%s converted %d bytes (%.3f MB) from %s[] in %.3f ms%s",
+                    "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
+                            "%.3f conversion/copying data + %.3f writing IFD " +
+                            "+ %.3f/%.3f encoding/writing " +
+                            "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
-                    samples.length, samples.length / 1048576.0,
-                    elementType.getSimpleName(),
-                    (t2 - t1) * 1e-6,
-                    samples == samplesArray ?
-                            "" :
-                            String.format(Locale.US, " %.3f MB/s",
-                                    samples.length / 1048576.0 / ((t2 - t1) * 1e-9))));
+                    map.numberOfChannels(), sizeX, sizeY, sizeOf / 1048576.0,
+                    (t5 - t1) * 1e-6,
+                    (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
+                    (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
+                    timePreparingDecoding * 1e-6,
+                    timeCustomizingEncoding * 1e-6,
+                    timeEncoding * 1e-6,
+                    timeWriting * 1e-6,
+                    sizeOf / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
-        writeSamples(map, samples, fromX, fromY, sizeX, sizeY);
     }
 
     public void fillEmptyTile(TiffTile tiffTile) {
@@ -1405,7 +1418,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         // - without saving in the map; this lightweight operation helps to simplify logic
                     }
                     tile.cropToMap(true);
-                    // - like in updateTiles
+                    // - like in updateSamples
                     if (!tile.isEmpty()) {
                         writeEncodedTile(tile, true);
                     }
