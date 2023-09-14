@@ -521,11 +521,12 @@ public final class TiffTile {
     @Override
     public String toString() {
         return "TIFF " +
+                (isEmpty() ? "(empty) ": "") +
                 (encoded ? "encoded" : "non-encoded") +
                 (interleaved ? " interleaved" : "") +
                 " tile" +
                 (isEmpty() ?
-                        ", empty " + sizeX + "x" + sizeY :
+                        ", " + sizeX + "x" + sizeY :
                         ", actual sizes " + sizeX + "x" + sizeY + " (" +
                                 storedNumberOfPixels + " pixels, " + storedDataLength + " bytes)") +
                 ", index " + index +

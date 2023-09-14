@@ -243,7 +243,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public boolean isReadyForWriting() {
+    public boolean isFrozen() {
         return frozen;
     }
 

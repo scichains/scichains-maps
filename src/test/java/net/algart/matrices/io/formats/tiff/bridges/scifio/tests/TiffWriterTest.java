@@ -287,6 +287,7 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImage(map, samplesArray, x, y, w, h);
+                    // writer.completeImage(map); - called inside writeImage, but not a problem to call twice
                     if (test == 1) {
                         if (map.hasUnset()) {
                             List<TiffTile> unset = map.tiles().stream().filter(TiffTile::hasUnset).toList();
