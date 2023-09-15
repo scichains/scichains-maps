@@ -287,7 +287,12 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImage(map, samplesArray, x, y, w, h);
-                    // writer.completeImage(map); - called inside writeImage, but not a problem to call twice
+                    // writer.writeImage(map, samplesArray, x, y, w, h);
+                    // - usually not a problem to call twice, but if we have partially filled tiles on existing map,
+                    // then preserveOldAccurately mode will not work properly
+                    // (without 2nd preloadPartiallyOverwrittenTiles)
+                    // writer.completeImage(map); // - called inside writeImage, but not a problem to call twice
+                    // writer.completeImage(map); // - called inside writeImage, but not a problem to call twice
                     if (test == 1) {
                         if (map.hasUnset()) {
                             List<TiffTile> unset = map.tiles().stream().filter(TiffTile::hasUnset).toList();

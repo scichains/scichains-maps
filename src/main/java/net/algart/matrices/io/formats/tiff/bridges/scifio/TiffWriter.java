@@ -644,6 +644,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     final int xDiff = tileStartX - fromX;
 
                     final TiffTile tile = map.getOrNewMultiplane(p, xIndex, yIndex);
+                    tile.checkReadyForNewDecodedData(false);
                     tile.cropToMap(true);
                     // - In stripped image, we should correct the height of the last row.
                     // It is important for writing: without this correction, GIMP and other libtiff-based programs
@@ -673,6 +674,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 //                        System.out.printf("!!!Chunked: %d%n", samplesPerPixel);
                         // - Case A: source data are already interleaved (like RGBRGB...): maybe, external code
                         // prefers to use interleaved form, for example, OpenCV library.
+                        // Here tile will be actually interleaved directly after this method;
+                        // we'll need to inform it about this fact (by setInterleaved(true)) later in encode().
                         final int partSizeXInBytes = sizeXInTile * bytesPerPixel;
                         int tOffset = (fromYInTile * tileSizeX + fromXInTile) * bytesPerPixel;
                         int samplesOffset = (yDiff * sizeX + xDiff) * bytesPerPixel;

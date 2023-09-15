@@ -307,6 +307,18 @@ public final class TiffTile {
         return data == null;
     }
 
+    public void checkReadyForNewDecodedData(Boolean requiredInterleavedState) {
+        if (encoded) {
+            throw new IllegalStateException("TIFF tile is not ready to store new decoded data, because " +
+                    "it is encoded (probably contains encoded data): " + this);
+        }
+        if (requiredInterleavedState != null && requiredInterleavedState != interleaved) {
+            final String status = interleaved ? "interleaved" : "separated";
+            throw new IllegalStateException("TIFF tile is not ready to store new decoded data, because " +
+                    "it is " + status + " (probably contains decoded, but already " + status + " data): " + this);
+        }
+    }
+
     public byte[] getData() {
         checkEmpty();
         return data;
@@ -348,6 +360,12 @@ public final class TiffTile {
 
     public TiffTile free() {
         this.data = null;
+        this.interleaved = false;
+        // - before possible setting new decoded data, we should restore default status interleaved = false
+        this.encoded = false;
+        // - method checkReadyForNewDecodedData() require that the tile should not be declared as encoded
+        // Note: we should not clear information about stored data file range, because
+        // it will be used even after flushing data to disk (with freeing this tile)
         return this;
     }
 
@@ -483,6 +501,7 @@ public final class TiffTile {
     }
 
     public TiffTile interleaveSamplesIfNecessary() {
+        checkEmpty();
         if (!isInterleaved()) {
             interleaveSamples();
         }
@@ -490,6 +509,7 @@ public final class TiffTile {
     }
 
     public TiffTile separateSamplesIfNecessary() {
+        checkEmpty();
         if (isInterleaved()) {
             separateSamples();
         }
