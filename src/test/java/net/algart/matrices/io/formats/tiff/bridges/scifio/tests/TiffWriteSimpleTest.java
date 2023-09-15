@@ -60,8 +60,8 @@ public class TiffWriteSimpleTest {
             final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
             Arrays.fill(samples, (byte) 80);
             writer.writeSamples(map, samples);
-            writer.writeSamples(map, samples);
-            // writer.completeImage(map); - not a problem to call twice
+            // writer.writeSamples(map, samples);
+            // writer.completeImage(map); // - not a problem to call twice
         }
         System.out.println("Done");
     }
