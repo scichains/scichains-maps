@@ -2,7 +2,7 @@
   <configuration default="false" name="TiffWriterTest (1)" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffWriterTest" />
     <module name="scichains-maps" />
-    <option name="PROGRAM_PARAMETERS" value="-nocontext -randomAccess -preserveOldAccurately -jpegRGB -tiled /tmp/newtiff.tiff uint8 3 JPEG 200 300 250 300 1 0" />
+    <option name="PROGRAM_PARAMETERS" value="-nocontext -randomAccess -preserveOldAccurately -jpegRGB -tiled -thoroughTesting /tmp/newtiff.tiff uint8 3 JPEG 200 300 250 300 1 0" />
     <option name="VM_PARAMETERS" value="-ea -esa -Dnet.algart.matrices.io.formats.tiff.timing=true -Djava.util.logging.config.file=\SciChains\conf\logging.properties" />
     <extension name="coverage">
       <pattern>

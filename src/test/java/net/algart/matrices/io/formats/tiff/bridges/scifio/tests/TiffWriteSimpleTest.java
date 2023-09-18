@@ -58,10 +58,11 @@ public class TiffWriteSimpleTest {
             System.out.printf("Saved IFD:%n%s%n", ifd.toString(DetailedIFD.StringFormat.NORMAL));
 
             final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
-            Arrays.fill(samples, (byte) 80);
-            writer.writeSamples(map, samples);
-            // writer.writeSamples(map, samples);
-            // writer.completeImage(map); // - not a problem to call twice
+            Arrays.fill(samples, (byte) 128);
+            writer.updateSamples(map, samples);
+            // writer.writeForward(map); // - uncomment to write IFD BEFORE image
+            writer.complete(map);
+            // writer.writeSamples(map, samples); // - equivalent to previous 3 methods
         }
         System.out.println("Done");
     }

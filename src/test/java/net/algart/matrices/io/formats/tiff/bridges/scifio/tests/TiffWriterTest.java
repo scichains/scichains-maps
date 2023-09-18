@@ -137,6 +137,11 @@ public class TiffWriterTest {
             reverseBits = true;
             startArgIndex++;
         }
+        boolean thoroughTesting = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-thoroughTesting")) {
+            thoroughTesting = true;
+            startArgIndex++;
+        }
         if (args.length < startArgIndex + 2) {
             System.out.println("Usage:");
             System.out.println("    " + TiffWriterTest.class.getName() +
@@ -271,6 +276,7 @@ public class TiffWriterTest {
                         // - if we add more than 1 image, they break the existing chain
                         // (not necessary, it is just a choice for this demo)
                         if (breakOldChain) {
+                            // - note: in this case the space in the previous file will be lost!
                             ifd.setLastIFD();
                         }
                         map = writer.existingMap(ifd);
@@ -287,12 +293,18 @@ public class TiffWriterTest {
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
                     }
                     writer.writeImage(map, samplesArray, x, y, w, h);
-                    // writer.writeImage(map, samplesArray, x, y, w, h);
-                    // - usually not a problem to call twice, but if we have partially filled tiles on existing map,
-                    // then preserveOldAccurately mode will not work properly
-                    // (without 2nd preloadPartiallyOverwrittenTiles)
-                    // writer.completeImage(map); // - called inside writeImage, but not a problem to call twice
-                    // writer.completeImage(map); // - called inside writeImage, but not a problem to call twice
+                    if (thoroughTesting) {
+                        long length = writer.getStream().length();
+                        // writer.writeImage(map, samplesArray, x, y, w, h);
+                        // - usually not a problem to call twice, but file space will be used twice;
+                        // if we have partially filled tiles on existing map, then preserveOldAccurately mode
+                        // will not work properly (without 2nd preloadPartiallyOverwrittenTiles)
+                        writer.complete(map); // - called inside writeImage, but not a problem to call twice
+                        writer.complete(map); // - called inside writeImage, but not a problem to call twice
+                        if (writer.getStream().length() != length) {
+                            throw new AssertionError("File increased!");
+                        }
+                    }
                     if (test == 1) {
                         if (map.hasUnset()) {
                             List<TiffTile> unset = map.tiles().stream().filter(TiffTile::hasUnset).toList();

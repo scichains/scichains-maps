@@ -99,7 +99,7 @@ public class TiffCopyTest {
                         writer.writeTile(targetTile);
                         System.out.printf("\rCopying tile %d/%d...\r", ++k, n);
                     }
-                    writer.completeImage(writeMap);
+                    writer.complete(writeMap);
                 }
                 reader.close();
                 writer.close();

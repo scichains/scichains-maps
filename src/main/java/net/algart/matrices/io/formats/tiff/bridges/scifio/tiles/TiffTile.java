@@ -420,28 +420,35 @@ public final class TiffTile {
         return this;
     }
 
-    /**
-     * Returns the number of pixels, actually stored in the {@link #getData() data array} in this tile
-     * in the decoded form, or 0 after creating this object.
-     *
-     * <p>Note: that this method throws <tt>IllegalStateException</tt> if the data are {@link #isEncoded() encoded},
-     * for example, immediately after reading tile from file. If the tile is {@link #isEmpty() empty} (no data),
-     * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
-     *
-     * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
-     *
-     * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
-     *
-     * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile size
-     * {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
-     * decoding method returns only sequence of pixels and does not return information about the size.
-     * In this situation, the external code sets the tile sizes from a priory information, but the decoded tile
-     * may be actually less; for example, it takes place for the last strip in non-tiled TIFF format.
-     * You can check, does the actual number of stored pixels equal to tile size, via
-     * {@link #checkStoredNumberOfPixels()} method.
-     *
-     * @return the number of pixels in the last non-null data array, which was stored in this object.
-     */
+    public TiffTile copyStoredDataFileRange(TiffTile other) {
+        Objects.requireNonNull(other, "Null other tile");
+        this.storedDataLength = other.storedDataLength;
+        this.storedDataFileOffset = other.storedDataFileOffset;
+        return this;
+    }
+
+        /**
+         * Returns the number of pixels, actually stored in the {@link #getData() data array} in this tile
+         * in the decoded form, or 0 after creating this object.
+         *
+         * <p>Note: that this method throws <tt>IllegalStateException</tt> if the data are {@link #isEncoded() encoded},
+         * for example, immediately after reading tile from file. If the tile is {@link #isEmpty() empty} (no data),
+         * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
+         *
+         * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
+         *
+         * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
+         *
+         * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile size
+         * {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
+         * decoding method returns only sequence of pixels and does not return information about the size.
+         * In this situation, the external code sets the tile sizes from a priory information, but the decoded tile
+         * may be actually less; for example, it takes place for the last strip in non-tiled TIFF format.
+         * You can check, does the actual number of stored pixels equal to tile size, via
+         * {@link #checkStoredNumberOfPixels()} method.
+         *
+         * @return the number of pixels in the last non-null data array, which was stored in this object.
+         */
     @SuppressWarnings("JavadocDeclaration")
     public int getStoredNumberOfPixels() {
         if (isEncoded()) {

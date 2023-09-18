@@ -592,6 +592,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         timeWriting += t2 - t1;
     }
 
+    public void updateSamples(TiffMap map, byte[] samples) {
+        Objects.requireNonNull(map, "Null TIFF map");
+        updateImage(map, samples, 0, 0, map.dimX(), map.dimY());
+    }
+
     public void updateSamples(
             final TiffMap map,
             final byte[] samples,
@@ -599,7 +604,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromY,
             final int sizeX,
             final int sizeY) {
-        Objects.requireNonNull(map, "Null tile map");
+        Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samples, "Null samples");
         final boolean planarSeparated = map.isPlanarSeparated();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
@@ -782,6 +787,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
          */
     }
 
+    public void updateImage(TiffMap map, Object samplesArray) {
+        Objects.requireNonNull(map, "Null TIFF map");
+        updateImage(map, samplesArray, 0, 0, map.dimX(), map.dimY());
+    }
+
     public void updateImage(
             final TiffMap map,
             final Object samplesArray,
@@ -789,7 +799,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             final int fromY,
             final int sizeX,
             final int sizeY) {
-        Objects.requireNonNull(map, "Null tile map");
+        Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(samplesArray, "Null samplesArray");
         final Class<?> elementType = samplesArray.getClass().getComponentType();
         if (elementType == null) {
@@ -958,7 +968,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>Note: this method does nothing if the image is {@link TiffMap#isResizable() resizable}
      * or if this action is disabled by {@link #setWritingForwardAllowed(boolean) setWritingForwardAllowed(false)}
      * call.
-     * In this case, IFD will be written at the final stage ({@link #completeImage(TiffMap)} method).
+     * In this case, IFD will be written at the final stage ({@link #complete(TiffMap)} method).
      *
      * @param map map, describing the image.
      */
@@ -977,7 +987,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void completeImage(final TiffMap map) throws IOException, FormatException {
+    public void complete(final TiffMap map) throws IOException, FormatException {
         Objects.requireNonNull(map, "Null TIFF map");
         final boolean resizable = map.isResizable();
         map.checkDimensions();
@@ -1026,7 +1036,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t3 = debugTime();
         encode(map);
         long t4 = debugTime();
-        completeImage(map);
+        complete(map);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
             long sizeOf = map.totalSizeInBytes();
@@ -1065,7 +1075,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t3 = debugTime();
         encode(map);
         long t4 = debugTime();
-        completeImage(map);
+        complete(map);
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
             long sizeOf = map.totalSizeInBytes();
@@ -1415,11 +1425,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             for (int yIndex = 0; yIndex < gridTileCountY; yIndex++) {
                 for (int xIndex = 0; xIndex < gridTileCountX; xIndex++, k++) {
                     TiffTileIndex tileIndex = map.multiplaneIndex(p, xIndex, yIndex);
-                    TiffTile tile = map.get(tileIndex);
-                    if (tile == null) {
-                        tile = new TiffTile(tileIndex);
-                        // - without saving in the map; this lightweight operation helps to simplify logic
-                    }
+                    TiffTile tile = map.getOrNew(tileIndex);
+                    // - non-existing is created (empty) and saved in the map;
+                    // this is necessary to inform the map about new data file range for this tile
+                    // and to avoid twice writing it while twice calling "complete()" method
                     tile.cropToMap(true);
                     // - like in updateSamples
                     if (!tile.isEmpty()) {
@@ -1428,20 +1437,25 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     if (tile.hasStoredDataFileOffset()) {
                         offsets[k] = tile.getStoredDataFileOffset();
                         byteCounts[k] = tile.getStoredDataLength();
-                    } else if (!missingTilesAllowed) {
-                        if (!tile.equalSizes(filler)) {
-                            // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
-                            // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
-                            filler = new TiffTile(tileIndex).setEqualSizes(tile);
-                            filler.fillEmpty(tileInitializer);
-                            encode(filler);
-                            writeEncodedTile(filler, false);
-                            // - note: unlike usual tiles, the filler tile is written once,
-                            // but its offset/byte-count are used many times!
+                    } else {
+                        assert tile.isEmpty() : "writeEncodedTile() call above did not store data file offset!";
+                        if (!missingTilesAllowed) {
+                            if (!tile.equalSizes(filler)) {
+                                // - usually performed once, maybe twice for stripped image (where last strip has smaller height)
+                                // or even 2 * numberOfSeparatedPlanes times for plane-separated tiles
+                                filler = new TiffTile(tileIndex).setEqualSizes(tile);
+                                filler.fillEmpty(tileInitializer);
+                                encode(filler);
+                                writeEncodedTile(filler, false);
+                                // - note: unlike usual tiles, the filler tile is written once,
+                                // but its offset/byte-count are used many times!
+                            }
+                            offsets[k] = filler.getStoredDataFileOffset();
+                            byteCounts[k] = filler.getStoredDataLength();
+                            tile.copyStoredDataFileRange(filler);
                         }
-                        offsets[k] = filler.getStoredDataFileOffset();
-                        byteCounts[k] = filler.getStoredDataLength();
-                    } // else offsets[k]/byteCounts[k] stay to be zero
+                        // else (if missingTilesAllowed) offsets[k]/byteCounts[k] stay to be zero
+                    }
                 }
             }
         }

@@ -1265,7 +1265,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             int sizeY,
             boolean storeTilesInMap)
             throws FormatException, IOException {
-        Objects.requireNonNull(map, "Null tile map");
+        Objects.requireNonNull(map, "Null TIFF map");
         Objects.requireNonNull(resultSamples, "Null result samples");
         assert fromX >= 0 && fromY >= 0 && sizeX >= 0 && sizeY >= 0;
         // Note: we cannot process image larger than 2^31 x 2^31 pixels,
