@@ -906,8 +906,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd, resizable);
-        map.buildGrid();
-        // - useful to provide loops on all tiles
+        if (!resizable) {
+            map.buildGrid();
+            // - useful to provide loops on all tiles
+        }
         ifd.removeNextIFDOffset();
         ifd.removeDataPositioning();
         if (resizable) {
