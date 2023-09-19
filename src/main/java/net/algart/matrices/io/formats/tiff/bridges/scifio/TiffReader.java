@@ -1061,9 +1061,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // in a case when unpackUnusualPrecisions performs unpacking
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         byte[] samples = new byte[size];
-        if (size == 0) {
-            return samples;
-        }
 
         if (byteFiller != 0) {
             // - samples array is already zero-filled by Java
@@ -1271,6 +1268,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Note: we cannot process image larger than 2^31 x 2^31 pixels,
         // though TIFF supports maximal sizes 2^32 x 2^32
         // (IFD.getImageWidth/getImageLength do not allow so large results)
+        if (sizeX == 0 || sizeY == 0) {
+            // - if no pixels are updated, no need to expand the map and to check correct expansion
+            return;
+        }
 
         final int mapTileSizeX = map.tileSizeX();
         final int mapTileSizeY = map.tileSizeY();

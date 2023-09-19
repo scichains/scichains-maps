@@ -154,6 +154,10 @@ public class TiffReaderTest {
     }
 
     private static void writeImageFile(BufferedImage image, File resultFile) throws IOException {
+        if (image == null) {
+            System.err.printf("Warning: zero-sizes image cannot be written into %s%n", resultFile);
+            return;
+        }
         if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
             throw new IIOException("Cannot write " + resultFile);
         }
@@ -169,6 +173,10 @@ public class TiffReaderTest {
             channels.add(Matrices.matrix(array, sizeX, sizeY));
         }
         MultiMatrix2D multiMatrix = MultiMatrix.valueOf2DRGBA(channels);
+        if (multiMatrix.size() == 0) {
+            return null;
+            // - provided for testing only (BufferedImage cannot have zero sizes)
+        }
         return SMat.valueOf(multiMatrix).toBufferedImage();
     }
 

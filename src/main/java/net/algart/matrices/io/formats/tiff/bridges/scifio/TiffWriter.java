@@ -609,6 +609,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final boolean planarSeparated = map.isPlanarSeparated();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         TiffTools.checkRequestedAreaInArray(samples, sizeX, sizeY, map.totalBytesPerPixel());
+        if (sizeX == 0 || sizeY == 0) {
+            // - if no pixels are updated, no need to expand the map and to check correct expansion
+            return;
+        }
         map.expandDimensions(fromX + sizeX, fromY + sizeY);
 
         final int mapTileSizeX = map.tileSizeX();
@@ -623,12 +627,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final int minXIndex = fromX / mapTileSizeX;
         final int minYIndex = fromY / mapTileSizeY;
         if (minXIndex >= map.gridTileCountX() || minYIndex >= map.gridTileCountY()) {
-            throw new AssertionError("Map was not expanded/checked properly: too large " +
-                    minXIndex + ", " + minYIndex + ", map: " + map);
+            throw new AssertionError("Map was not expanded/checked properly: minimal tile index (" +
+                    minXIndex + "," + minYIndex + ") is out of tile grid 0<=x<" +
+                    map.gridTileCountX() + ", 0<=y<" + map.gridTileCountY() + "; map: " + map);
         }
         final int maxXIndex = Math.min(map.gridTileCountX() - 1, (toX - 1) / mapTileSizeX);
         final int maxYIndex = Math.min(map.gridTileCountY() - 1, (toY - 1) / mapTileSizeY);
-        assert minYIndex <= maxYIndex && minXIndex <= maxXIndex;
 
         final int tileChunkedRowSizeInBytes = mapTileSizeX * bytesPerPixel;
         final int samplesChunkedRowSizeInBytes = sizeX * bytesPerPixel;

@@ -52,14 +52,15 @@ public class TiffWriteSimpleTest {
             writer.setByteFiller((byte) 0xB0);
             writer.startNewFile();
             // writer.startNewFile(); // - not a problem to call twice
-            DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+            DetailedIFD ifd = new DetailedIFD();
+            ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
             TiffMap map = writer.newMap(ifd);
             // map = writer.newMap(ifd); - will throw an exception
             System.out.printf("Saved IFD:%n%s%n", ifd.toString(DetailedIFD.StringFormat.NORMAL));
 
             final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
-            Arrays.fill(samples, (byte) 128);
-            writer.updateSamples(map, samples);
+            Arrays.fill(samples, (byte) 40);
+            writer.updateImage(map, samples);
             // writer.writeForward(map); // - uncomment to write IFD BEFORE image
             writer.complete(map);
             // writer.writeSamples(map, samples); // - equivalent to previous 3 methods
