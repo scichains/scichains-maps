@@ -86,14 +86,13 @@ public class TiffCopyTest {
                     System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
 
                     DetailedIFD writeIFD = new DetailedIFD(readIFD);
-                    final TiffMap readMap = new TiffMap(readIFD);
+                    final TiffMap readMap = reader.newMap(readIFD);
                     final TiffMap writeMap = writer.newMap(writeIFD, false);
                     writer.writeForward(writeMap);
-                    int k = 0, n = writeMap.size();
-                    for (TiffTile targetTile : writeMap.tiles()) {
-                        TiffTileIndex sourceTileIndex = readMap.copyIndex(targetTile.index());
-                        // - note: targetTile.index() refers to writeIFD, where we still have no data
-                        TiffTile sourceTile = reader.readTile(sourceTileIndex);
+                    int k = 0, n = readMap.size();
+                    for (TiffTileIndex index : readMap.indexes()) {
+                        TiffTile sourceTile = reader.readTile(index);
+                        TiffTile targetTile = writeMap.getOrNew(writeMap.copyIndex(index));
                         targetTile.setDecodedData(sourceTile.getDecodedData());
                         writeMap.put(targetTile);
                         writer.writeTile(targetTile);

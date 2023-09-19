@@ -906,6 +906,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd, resizable);
+        map.buildGrid();
+        // - useful to provide loops on all tiles
         ifd.removeNextIFDOffset();
         ifd.removeDataPositioning();
         if (resizable) {
@@ -943,7 +945,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long[] byteCounts = ifd.cachedTileOrStripByteCounts();
         assert offsets != null;
         assert byteCounts != null;
-        map.completeImageGrid();
+        map.buildGrid();
         if (offsets.length < map.size() || byteCounts.length < map.size()) {
             throw new ConcurrentModificationException("Strange length of tile offsets " + offsets.length +
                     " or byte counts " + byteCounts.length);

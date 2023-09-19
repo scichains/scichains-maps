@@ -148,6 +148,10 @@ public final class TiffMap {
         return Collections.unmodifiableMap(tileMap);
     }
 
+    public Set<TiffTileIndex> indexes() {
+        return Collections.unmodifiableSet(tileMap.keySet());
+    }
+
     public Collection<TiffTile> tiles() {
         return Collections.unmodifiableCollection(tileMap.values());
     }
@@ -407,12 +411,11 @@ public final class TiffMap {
         tiles.forEach(this::put);
     }
 
-    public TiffMap completeImageGrid() {
-        final Map<TiffTileIndex, TiffTile> newMap = new LinkedHashMap<>();
+    public TiffMap buildGrid() {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < gridTileCountY; y++) {
                 for (int x = 0; x < gridTileCountX; x++) {
-                   getOrNewMultiplane(p, x, y);
+                   getOrNewMultiplane(p, x, y).cropToMap(true);
                 }
             }
         }

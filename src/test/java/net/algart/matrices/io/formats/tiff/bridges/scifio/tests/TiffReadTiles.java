@@ -74,6 +74,7 @@ public class TiffReadTiles {
             }
             Object array = null;
             for (int test = 1; test <= numberOfTests; test++) {
+                System.out.printf("Reading image from %s...%n", tiffFile);
                 long t1 = System.nanoTime();
                 array = reader.readImage(map, x, y, w, h, true);
                 long t2 = System.nanoTime();
