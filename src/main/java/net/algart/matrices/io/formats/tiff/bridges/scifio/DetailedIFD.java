@@ -290,22 +290,6 @@ public class DetailedIFD extends IFD {
                 () -> "Invalid requested area: ", () -> "");
     }
 
-    /**
-     * Checks that the sizes of this IFD (<tt>ImageWidth</tt> and <tt>ImageLength</tt>) are positive integers
-     * in range <tt>1..Integer.MAX_VALUE</tt>. If it is not so, throws {@link FormatException}.
-     *
-     * @throws FormatException if image width or height is negaitve or <tt>&gt;Integer.MAX_VALUE</tt>.
-     */
-    public void checkSizesArePositive() throws FormatException {
-        int dimX = getImageDimX();
-        int dimY = getImageDimY();
-        if (dimX <= 0 || dimY <= 0) {
-            throw new FormatException("Zero or negative IFD image sizes " + dimX + "x" + dimY + " are not allowed");
-            // - important for some classes, processing IFD images, that cannot work with zero-size areas
-            // (for example, due to usage of AlgART IRectangularArea)
-        }
-    }
-
     public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
         Objects.requireNonNull(requiredClass, "Null requiredClass");
         Object value = get(tag);

@@ -130,7 +130,6 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         try {
             final int ifdCount = largeData.maps.size();
             final TiffMap map0 = largeData.maps.get(0);
-            map0.ifd().checkSizesArePositive();
             this.bandCount = map0.numberOfChannels();
             assert bandCount > 0;
             this.elementType = map0.elementType();
@@ -256,7 +255,6 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                             SVSIFDClassifier.compressionToString(map)));
                     continue;
                 }
-                map.ifd().checkSizesArePositive();
                 final long newPyramidLevelDimX = map.dimX();
                 final long newPyramidLevelDimY = map.dimY();
                 if (actualCompression == 0) {
