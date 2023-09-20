@@ -906,10 +906,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd, resizable);
-        if (!resizable) {
-            map.buildGrid();
-            // - useful to provide loops on all tiles
-        }
+        map.buildGrid();
+        // - useful to perform loops on all tiles, especially in non-resizable case
         ifd.removeNextIFDOffset();
         ifd.removeDataPositioning();
         if (resizable) {
@@ -958,9 +956,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - actually not necessary, but helps to avoid possible bugs
         int k = 0;
         for (TiffTile tile : map.tiles()) {
-            // - we can be sure that completeImageGrid in an empty map provides correct tiles order
             tile.setStoredDataFileRange(offsets[k], (int) byteCounts[k]);
-            // - "tell" that all tiles already exist in the file
+            // - we "tell" that all tiles already exist in the file;
+            // note we can use index k, because buildGrid() method, called above for an empty map,
+            // provided correct tiles order
             tile.removeUnset();
             k++;
         }

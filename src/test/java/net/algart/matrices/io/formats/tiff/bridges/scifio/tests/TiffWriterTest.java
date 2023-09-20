@@ -214,7 +214,9 @@ public class TiffWriterTest {
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;
                     DetailedIFD ifd = new DetailedIFD();
-                    ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+                    if (!resizable) {
+                        ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+                    }
                     if (longTags) {
                         ifd.put(IFD.IMAGE_WIDTH, (long) IMAGE_WIDTH);
                         ifd.put(IFD.IMAGE_LENGTH, (long) IMAGE_HEIGHT);

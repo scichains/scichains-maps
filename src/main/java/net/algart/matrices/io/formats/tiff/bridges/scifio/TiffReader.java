@@ -1025,7 +1025,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     public TiffMap newMap(DetailedIFD ifd) {
         return new TiffMap(ifd).buildGrid();
-        // - building grid is useful to provide loops on all tiles
+        // - building grid is useful to perform loops on all tiles
     }
 
     public byte[] readSamples(TiffMap map) throws FormatException, IOException {
