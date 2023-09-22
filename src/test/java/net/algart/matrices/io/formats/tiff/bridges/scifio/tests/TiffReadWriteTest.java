@@ -157,7 +157,7 @@ public class TiffReadWriteTest {
                     long t2 = System.nanoTime();
                     DetailedIFD writerIFD = new DetailedIFD(readerIFD);
                     if (singleStrip) {
-                        writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
+                        writerIFD.put(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
                     }
                     writerIFD.putImageDimensions(w, h);
@@ -221,7 +221,7 @@ public class TiffReadWriteTest {
                         }
                         writerIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
                         if (singleStrip) {
-                            writerIFD.putIFDValue(IFD.ROWS_PER_STRIP, h);
+                            writerIFD.putStripSize(h);
                             // - not remove! Removing means default value!
                         }
                         writerIFD.putImageDimensions(w, h);
@@ -244,9 +244,10 @@ public class TiffReadWriteTest {
         System.out.println("Done");
     }
 
+    // A clone of very old method, helped to use TiffSaver in 2014
     private static void writeSeveralTilesOrStrips(
             final io.scif.formats.tiff.TiffSaver saver,
-            final byte[] data, final IFD ifd,
+            final byte[] data, final DetailedIFD ifd,
             final int pixelType, int bandCount,
             final int lefTopX, final int leftTopY,
             final int width, final int height,
@@ -257,7 +258,7 @@ public class TiffReadWriteTest {
         ifd.remove(IFD.TILE_BYTE_COUNTS);
         // - enforces TiffSaver to recalculate these fields
         if (ifd.getCompression() == TiffCompression.JPEG) {
-            ifd.putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.Y_CB_CR);
+            ifd.put(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.Y_CB_CR);
         }
         DataHandle<Location> out = saver.getStream();
         final long fp = out.offset();

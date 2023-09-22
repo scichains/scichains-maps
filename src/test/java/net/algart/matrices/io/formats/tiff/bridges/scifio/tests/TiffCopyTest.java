@@ -83,27 +83,31 @@ public class TiffCopyTest {
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final DetailedIFD readIFD = ifds.get(ifdIndex);
+                    final DetailedIFD writeIFD = new DetailedIFD(readIFD);
                     System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
-
-                    DetailedIFD writeIFD = new DetailedIFD(readIFD);
-                    final TiffMap readMap = reader.newMap(readIFD);
-                    final TiffMap writeMap = writer.newMap(writeIFD, false);
-                    writer.writeForward(writeMap);
-                    int k = 0, n = readMap.size();
-                    for (TiffTileIndex index : readMap.indexes()) {
-                        TiffTile sourceTile = reader.readTile(index);
-                        TiffTile targetTile = writeMap.getOrNew(writeMap.copyIndex(index));
-                        targetTile.setDecodedData(sourceTile.getDecodedData());
-                        writeMap.put(targetTile);
-                        writer.writeTile(targetTile);
-                        System.out.printf("\rCopying tile %d/%d...\r", ++k, n);
-                    }
-                    writer.complete(writeMap);
+                    copyImage(readIFD, writeIFD, reader, writer);
                 }
                 reader.close();
                 writer.close();
             }
         }
         System.out.println("Done");
+    }
+
+    static void copyImage(DetailedIFD readIFD, DetailedIFD writeIFD, TiffReader reader, TiffWriter writer)
+            throws FormatException, IOException {
+        final TiffMap readMap = reader.newMap(readIFD);
+        final TiffMap writeMap = writer.newMap(writeIFD, false);
+        writer.writeForward(writeMap);
+        int k = 0, n = readMap.size();
+        for (TiffTileIndex index : readMap.indexes()) {
+            TiffTile sourceTile = reader.readTile(index);
+            TiffTile targetTile = writeMap.getOrNew(writeMap.copyIndex(index));
+            targetTile.setDecodedData(sourceTile.getDecodedData());
+            writeMap.put(targetTile);
+            writer.writeTile(targetTile);
+            System.out.printf("\rCopying tile %d/%d...\r", ++k, n);
+        }
+        writer.complete(writeMap);
     }
 }

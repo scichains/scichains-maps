@@ -131,22 +131,26 @@ public class ExtendedJPEGCodec extends AbstractCodec {
         int bandSize = buf[0].length;
         if (options.ycbcr && buf.length == 3) {
             final int nBytes = bandSize / (b.getWidth() * b.getHeight());
-            final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
+            if (nBytes != 1) {
+                // - should not occur
+                throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample is " + nBytes +
+                        ", but only 1 byte/sample is supported");
+            }
             for (int i = 0; i < bandSize; i += nBytes) {
-                final int y = Bytes.toInt(buf[0], i, nBytes, options.littleEndian);
-                int cb = Bytes.toInt(buf[1], i, nBytes, options.littleEndian);
-                int cr = Bytes.toInt(buf[2], i, nBytes, options.littleEndian);
+                final int y = buf[0][i] & 0xFF;
+                int cb = buf[1][i] & 0xFF;
+                int cr = buf[2][i] & 0xFF;
 
-                cb = Math.max(0, cb - 128);
-                cr = Math.max(0, cr - 128);
+                cb = cb - 128;
+                cr = cr - 128;
 
-                final int red = (int) (y + 1.402 * cr) & mask;
-                final int green = (int) (y - 0.34414 * cb - 0.71414 * cr) & mask;
-                final int blue = (int) (y + 1.772 * cb) & mask;
+                final double red = (y + 1.402 * cr);
+                final double green = (y - 0.34414 * cb - 0.71414 * cr);
+                final double blue = (y + 1.772 * cb);
 
-                Bytes.unpack(red, buf[0], i, nBytes, options.littleEndian);
-                Bytes.unpack(green, buf[1], i, nBytes, options.littleEndian);
-                Bytes.unpack(blue, buf[2], i, nBytes, options.littleEndian);
+                buf[0][i] = (byte) toUnsignedByte(red);
+                buf[1][i] = (byte) toUnsignedByte(green);
+                buf[2][i] = (byte) toUnsignedByte(blue);
             }
         }
 
@@ -176,5 +180,9 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new IIOException("Cannot write JPEG");
         }
         return writers.next();
+    }
+
+    private static int toUnsignedByte(double v) {
+        return v < 0.0 ? 0 : v > 255.0 ? 255 : (int) Math.round(v);
     }
 }

@@ -237,8 +237,8 @@ public class TiffWriterTest {
                     }
                     ifd.putCompression(compression == null ? null : TiffCompression.valueOf(compression));
 //                    if (jpegRGB) {
-//                        // - alternative for setJpegInPhotometricRGB
-//                        ifd.put(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.RGB.getCode());
+                        // - alternative for setJpegInPhotometricRGB
+//                        ifd.putPhotometricInterpretation(PhotoInterp.RGB);
 //                    }
                     ifd.putPlanarSeparated(planarSeparated);
                     if (predict) {

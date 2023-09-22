@@ -298,6 +298,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * Sets whether you need to compress JPEG tiles/stripes with photometric interpretation RGB.
      * Default value is <tt>false</tt>, that means using YCbCr photometric interpretation &mdash;
      * standard encoding for JPEG, but not so popular in TIFF.
+     * If photometric interpretation in already specified IFD and if it is RGB or YCbCr,
+     * it will override recommendation of this flag.
      *
      * <p>This parameter is ignored (as if it is <tt>false</tt>), unless {@link #isExtendedCodec()}.
      *
@@ -347,7 +349,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * Specifies custom photo interpretation, which will be saved in IFD instead of the automatically chosen
      * value. If the argument is <tt>null</tt>, this feature is disabled.
      *
-     * <p>Such custom predefined photo interpretation allows to save unusual TIFF, for example, YCvCr LZW format.
+     * <p>Such custom predefined photo interpretation allows to save unusual TIFF, for example, YCbCr LZW format.
      * However, this class does not perform any data processing in this case: you should prepare correct
      * pixel data yourself.
      *
@@ -1615,7 +1617,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // }
 
         if (!ifd.containsKey(IFD.COMPRESSION)) {
-            ifd.putIFDValue(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+            ifd.put(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
             // - We prefer explicitly specify this case
         }
         final TiffCompression compression = ifd.getCompression();
@@ -1635,7 +1637,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) != PhotoInterp.Y_CB_CR.getCode() :
                 ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode());
         // - for extended codec, you may specify set some photometric interpretation in IFD;
-        // if it is RGB or YCbRr, it will override recommendation of jpegInPhotometricRGB
+        // if it is RGB or YCbCr, it will override recommendation of jpegInPhotometricRGB
         PhotoInterp photometricInterpretation = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
                 : palette ? PhotoInterp.RGB_PALETTE
                 : samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO
@@ -1645,9 +1647,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - if separated (not chunked), we can write RGB only: we simply do not perform any conversion of
         // the source 3-channel matrix into YCbCr form, we just write it as 3 separated planes
 
-        ifd.putIFDValue(IFD.LITTLE_ENDIAN, out.isLittleEndian());
+        ifd.put(IFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
-        ifd.putIFDValue(IFD.BIG_TIFF, bigTiff);
+        ifd.put(IFD.BIG_TIFF, bigTiff);
         // - not used, but helps to provide good DetailedIFD.toString
     }
 

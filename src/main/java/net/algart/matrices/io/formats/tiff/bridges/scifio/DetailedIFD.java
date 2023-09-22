@@ -904,7 +904,7 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Very large number of channels " + numberOfChannels + " > " +
                     MAX_NUMBER_OF_CHANNELS + " is not supported");
         }
-        putIFDValue(SAMPLES_PER_PIXEL, numberOfChannels);
+        put(SAMPLES_PER_PIXEL, numberOfChannels);
         return this;
     }
 
@@ -918,11 +918,11 @@ public class DetailedIFD extends IFD {
         } catch (FormatException e) {
             throw new IllegalStateException("Cannot set TIFF samples type: SamplesPerPixel tag is invalid", e);
         }
-        putIFDValue(IFD.BITS_PER_SAMPLE, nInts(samplesPerPixel, 8 * bytesPerSample));
+        put(IFD.BITS_PER_SAMPLE, nInts(samplesPerPixel, 8 * bytesPerSample));
         if (floatingPoint) {
-            putIFDValue(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
+            put(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
         } else if (signed) {
-            putIFDValue(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_INT));
+            put(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_INT));
         } else {
             remove(IFD.SAMPLE_FORMAT);
         }
@@ -933,21 +933,27 @@ public class DetailedIFD extends IFD {
         return putCompression(compression, false);
     }
 
-    public DetailedIFD putCompression(TiffCompression compression, boolean keepDefaultValue) {
-        if (compression == null && keepDefaultValue) {
+    public DetailedIFD putCompression(TiffCompression compression, boolean putAlsoDefaultUncompressed) {
+        if (compression == null && putAlsoDefaultUncompressed) {
             compression = TiffCompression.UNCOMPRESSED;
         }
         if (compression == null) {
             remove(IFD.COMPRESSION);
         } else {
-            putIFDValue(IFD.COMPRESSION, compression.getCode());
+            put(IFD.COMPRESSION, compression.getCode());
         }
+        return this;
+    }
+
+    public DetailedIFD putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+        Objects.requireNonNull(photometricInterpretation, "Null photometricInterpretation");
+        put(PHOTOMETRIC_INTERPRETATION, photometricInterpretation.getCode());
         return this;
     }
 
     public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
         if (planarSeparated) {
-            putIFDValue(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
+            put(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
         } else {
             remove(IFD.PLANAR_CONFIGURATION);
         }
@@ -1008,8 +1014,8 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Illegal tile sizes " + tileSizeX + "x" + tileSizeY
                     + ": they must be multiples of 16");
         }
-        putIFDValue(IFD.TILE_WIDTH, tileSizeX);
-        putIFDValue(IFD.TILE_LENGTH, tileSizeY);
+        put(IFD.TILE_WIDTH, tileSizeX);
+        put(IFD.TILE_LENGTH, tileSizeY);
         return this;
     }
 
@@ -1027,7 +1033,7 @@ public class DetailedIFD extends IFD {
         if (stripSizeY <= 0) {
             throw new IllegalArgumentException("Zero or negative strip y-size");
         }
-        putIFDValue(IFD.ROWS_PER_STRIP, new long[]{stripSizeY});
+        put(IFD.ROWS_PER_STRIP, new long[]{stripSizeY});
         return this;
     }
 
@@ -1310,15 +1316,6 @@ public class DetailedIFD extends IFD {
     @Override
     public void printIFD() {
         LOG.log(System.Logger.Level.TRACE, this);
-    }
-
-    // User does not need this operation: it is performed inside TiffWriter
-    void putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
-        if (photometricInterpretation == null) {
-            remove(IFD.PHOTOMETRIC_INTERPRETATION);
-        } else {
-            putIFDValue(IFD.PHOTOMETRIC_INTERPRETATION, photometricInterpretation.getCode());
-        }
     }
 
     private void checkImmutable() {
