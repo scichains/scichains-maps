@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="TiffConvertToFakeYCbCrTest" type="Application" factoryName="Application" nameIsGenerated="true">
-    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffConvertToFakeYCbCrTest" />
+  <configuration default="false" name="TiffConvertToFakeColorSpaceTest" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffConvertToFakeColorSpaceTest" />
     <module name="scichains-maps" />
-    <option name="PROGRAM_PARAMETERS" value="C:\TMP\newtiff.tiff C:\TMP\fake_yuv.tiff 0 0" />
+    <option name="PROGRAM_PARAMETERS" value="C:\TMP\newtiff.tiff C:\TMP\fake_yuv.tiff   Y_CB_CR RGB 0 0" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.*" />

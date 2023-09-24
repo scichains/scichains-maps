@@ -36,17 +36,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-public class TiffConvertToFakeYCbCrTest {
+public class TiffConvertToFakeColorSpaceTest {
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
         if (args.length < startArgIndex + 2) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffConvertToFakeYCbCrTest.class.getName()
-                    + " source.tif target.tif [firstIFDIndex lastIFDIndex]");
+            System.out.println("    " + TiffConvertToFakeColorSpaceTest.class.getName()
+                    + " source.tif target.tif written fake [firstIFDIndex lastIFDIndex]");
+            System.out.println("where written/fake are RGB or Y_CB_CR");
             return;
         }
         final Path sourceFile = Paths.get(args[startArgIndex++]);
         final Path targetFile = Paths.get(args[startArgIndex++]);
+        final PhotoInterp before = PhotoInterp.valueOf(args[startArgIndex++]);
+        final PhotoInterp after = PhotoInterp.valueOf(args[startArgIndex++]);
         final int firstIFDIndex = startArgIndex < args.length ?
                 Integer.parseInt(args[startArgIndex]) :
                 0;
@@ -75,13 +78,14 @@ public class TiffConvertToFakeYCbCrTest {
                     continue;
                 }
                 System.out.printf("\rTransforming #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
-                writeIFD.putPhotometricInterpretation(PhotoInterp.RGB);
-                writeIFD.put(DetailedIFD.Y_CB_CR_SUB_SAMPLING, new int[] {1, 1});
+                writeIFD.putPhotometricInterpretation(before);
+                writeIFD.put(DetailedIFD.Y_CB_CR_SUB_SAMPLING,
+                        before == PhotoInterp.RGB ? new int[] {1, 1} : new int[] {2, 2});
                 // - instruct Java AWT to store as RGB and disable sub-sampling (RGB are encoded without sub-sampling)
                 TiffCopyTest.copyImage(readIFD, writeIFD, reader, writer);
                 final DetailedIFD cloneIFD = new DetailedIFD(writeIFD);
                 // - writeIFD is frozen and cannot be modified
-                cloneIFD.putPhotometricInterpretation(PhotoInterp.Y_CB_CR);
+                cloneIFD.putPhotometricInterpretation(after);
                 writer.rewriteIFD(cloneIFD, false);
                 // - replacing photometric interpretation in already written IFD
             }
