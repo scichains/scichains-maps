@@ -69,13 +69,13 @@ public class AWTReadMetadataTest {
         System.out.printf("Default read parameters: %s%n", param);
         reader.setInput(stream, true, false);
         IIOMetadata imageMetadata = reader.getImageMetadata(0);
-        Node metadataNode = imageMetadata.getAsTree(IIOMetadataFormatImpl.standardMetadataFormatName);
-        System.out.printf("%nDefault metadata:%n%s", nodeToString(metadataNode));
-        metadataNode = imageMetadata.getAsTree("javax_imageio_jpeg_image_1.0");
-        System.out.printf("%nNative metadata:%n%s", nodeToString(metadataNode));
+        System.out.printf("%nDefault metadata:%n%s", nodeToString(imageMetadata.getAsTree(
+                IIOMetadataFormatImpl.standardMetadataFormatName)));
+        System.out.printf("%nNative metadata:%n%s", nodeToString(imageMetadata.getAsTree(
+                "javax_imageio_jpeg_image_1.0")));
     }
 
-    private static String nodeToString(Node node) throws TransformerException {
+    static String nodeToString(Node node) throws TransformerException {
         StringWriter sw = new StringWriter();
         Transformer t = TransformerFactory.newInstance().newTransformer();
         t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");

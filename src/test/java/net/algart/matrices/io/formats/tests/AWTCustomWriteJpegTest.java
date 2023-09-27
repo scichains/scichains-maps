@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class AWTReadWriteJpegTest {
+public class AWTCustomWriteJpegTest {
     public static final boolean NEED_JCS_RGB = true;
 
     public static ImageWriter getJPEGWriter() throws IIOException {
@@ -61,7 +61,7 @@ public class AWTReadWriteJpegTest {
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + AWTReadWriteJpegTest.class.getName()
+            System.out.println("    " + AWTCustomWriteJpegTest.class.getName()
                     + " some_image.jpeg result.jpeg");
             return;
         }

@@ -59,12 +59,11 @@ public class AWTSimpleReadTest {
         }
     }
 
-    private static String extension(String fileName, String defaultExtension) {
+    static String extension(String fileName, String defaultExtension) {
         int p = fileName.lastIndexOf('.');
         if (p == -1) {
             return defaultExtension;
         }
         return fileName.substring(p + 1);
     }
-
 }
