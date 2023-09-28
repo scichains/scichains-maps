@@ -97,7 +97,6 @@ public class TiffReaderTest {
 //                reader.setExtendedCodec(false);
 //                reader.setCachingIFDs(false);
                 reader.setMissingTilesAllowed(true);
-                reader.setYCbCrCorrection(true);
                 reader.setByteFiller((byte) 0x80);
 //                reader.setCropTilesToImageBoundaries(false);
                 final long positionOfLastOffset = reader.positionOfLastIFDOffset();

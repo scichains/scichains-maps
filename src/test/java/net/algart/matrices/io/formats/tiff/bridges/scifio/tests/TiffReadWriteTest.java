@@ -213,11 +213,12 @@ public class TiffReadWriteTest {
                         // is copied completely into getSamples byte[] argument.
                         // It is the reason why we should check only first h lines while comparing with the old parser.
                         // It is also the reason why we should perform interleaving before comparison.
+                        boolean differ = false;
                         if (!Arrays.equals(buf1, bytes) ||
                                 !Arrays.equals(buf2, 0, checkedLength, bytes, 0, checkedLength)) {
                             compareResults(buf1, bytes, "Other parsing matrix");
                             compareResults(buf2, bytes, "Old parser");
-                            throw new AssertionError();
+                            differ = true;
                         }
                         writerIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
                         if (singleStrip) {
@@ -231,6 +232,9 @@ public class TiffReadWriteTest {
                                 writerIFD, readerIFD.getPixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
+                        if (differ) {
+                            throw new AssertionError("Difference!");
+                        }
                     }
                 }
                 reader.close();

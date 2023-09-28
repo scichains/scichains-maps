@@ -25,6 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility;
 
 import io.scif.FormatException;
+import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
@@ -62,6 +63,8 @@ public class TiffParser extends TiffReader {
     private boolean fakeBigTiff = false;
     // - Probably support of this feature was implemented incorrectly.
     // See https://github.com/scifio/scifio/issues/514
+
+    private boolean ycbcrCorrection = true;
 
     private IFDList ifdList;
     private IFD firstIFD;
@@ -108,6 +111,11 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public void setUse64BitOffsets(final boolean use64Bit) {
         fakeBigTiff = use64Bit;
+    }
+
+    /** Sets whether or not YCbCr color correction is allowed. */
+    public void setYCbCrCorrection(final boolean correctionAllowed) {
+        ycbcrCorrection = correctionAllowed;
     }
 
     /**
@@ -630,7 +638,7 @@ public class TiffParser extends TiffReader {
 
     /**
      * This function is deprecated, because almost identical behaviour is implemented by
-     * {@link #readImage(DetailedIFD, int, int, int, int)}.
+     * {@link #readImage(TiffMap, int, int, int, int)}.
      */
     @Deprecated
     public byte[] getSamples(final IFD ifd, final byte[] buf, final int x,
@@ -875,6 +883,15 @@ public class TiffParser extends TiffReader {
         return new TiffIFDEntry(entryTag, entryType, valueCount, offset);
     }
 
+    @Override
+    protected CodecOptions correctReadingOptions(CodecOptions codecOptions, TiffTile tile, Codec customCodec)
+            throws FormatException {
+        DetailedIFD ifd = tile.ifd();
+        codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR &&
+                ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING) == 1 &&
+                ycbcrCorrection;
+        return codecOptions;
+    }
 
     @Deprecated
     private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)

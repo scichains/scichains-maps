@@ -577,7 +577,7 @@ public class DetailedIFD extends IFD {
 
     @Override
     public PhotoInterp getPhotometricInterpretation() throws FormatException {
-        final Object photometricInterpretation = getIFDValue(PHOTOMETRIC_INTERPRETATION);
+        final Object photometricInterpretation = get(PHOTOMETRIC_INTERPRETATION);
         if (photometricInterpretation instanceof PhotoInterp) {
             return (PhotoInterp) photometricInterpretation;
             // - compatibility with old TiffParser behaviour (can be removed in future versions)
@@ -590,11 +590,42 @@ public class DetailedIFD extends IFD {
         try {
             return PhotoInterp.get(code);
         } catch (EnumException e) {
-            throw new UnsupportedTiffFormatException("Unsupported TIFF photometric interpretation codee: " + code);
+            throw new UnsupportedTiffFormatException("Unsupported TIFF photometric interpretation code: " + code);
         }
     }
 
-    // Usually false: PlanarConfiguration=2 is not in widespread use
+    public int[] getYCbCrSubsampling() throws FormatException {
+        final Object value = get(Y_CB_CR_SUB_SAMPLING);
+        if (value == null) {
+            return new int[] {2, 2};
+        }
+        int[] result;
+        if (value instanceof int[] ints) {
+            result = ints;
+        } else if (value instanceof short[] shorts) {
+            result = new int[shorts.length];
+            for (int k = 0; k < result.length; k++) {
+                result[k] = shorts[k];
+            }
+        } else {
+            throw new FormatException("TIFF tag YCbCrSubSampling has the wrong type " +
+                    value.getClass().getSimpleName() + ": must be int[] or short[]");
+        }
+        if (result.length < 2) {
+            throw new FormatException("TIFF tag YCbCrSubSampling contains only " + result.length +
+                    " elements: " + Arrays.toString(result) + "; it must contain at least 2 numbers");
+        }
+        for (int v : result) {
+            if (v <= 0) {
+                throw new FormatException("TIFF tag YCbCrSubSampling must contain only positive elements, " +
+                        "but it is " + Arrays.toString(result));
+            }
+        }
+        return Arrays.copyOf(result, 2);
+    }
+
+
+        // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;
     }

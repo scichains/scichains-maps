@@ -26,6 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 
 import io.scif.FormatException;
 import io.scif.codec.*;
+import io.scif.formats.tiff.PhotoInterp;
 import io.scif.gui.AWTImageTools;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleInputStream;
@@ -44,6 +45,9 @@ import java.util.Iterator;
 import java.util.Objects;
 
 public class ExtendedJPEGCodec extends AbstractCodec {
+    private static final boolean USE_LEGACY_DECODE_Y_CB_CR = false;
+    // - Should be false for correct behaviour and better performance; necessary for debugging needs only.
+
     @Parameter
     private CodecService codecService;
 
@@ -98,13 +102,12 @@ public class ExtendedJPEGCodec extends AbstractCodec {
 
     @Override
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
-        //TODO!! optimize loops, especially AWTImageTools.getPixelBytes
+        //TODO!! optimize AWTImageTools.getPixelBytes
         final long offset = in.offset();
         BufferedImage b;
         try {
             b = ImageIO.read(new BufferedInputStream(new DataHandleInputStream<>(in), 8192));
-        }
-        catch (final IOException exc) {
+        } catch (final IOException exc) {
             // probably a lossless JPEG; delegate to LosslessJPEGCodec
             if (codecService == null) {
                 throw new IllegalStateException(
@@ -125,18 +128,73 @@ public class ExtendedJPEGCodec extends AbstractCodec {
 
         final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
 
-        // Correct for YCbCr encoding, if necessary.
-        // In TiffParser it is a rare case: YCbCr is encoded with non-standard sub-sampling;
-        // so, there is no sense to optimize this.
+        if (options instanceof ExtendedJPEGCodecOptions extendedOptions) {
+            decodeYCbCr(b, buf, extendedOptions);
+        }
+
         int bandSize = buf[0].length;
-        if (options.ycbcr && buf.length == 3) {
-            final int nBytes = bandSize / (b.getWidth() * b.getHeight());
-            if (nBytes != 1) {
-                // - should not occur
-                throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample is " + nBytes +
-                        ", but only 1 byte/sample is supported");
+        byte[] result = new byte[buf.length * bandSize];
+        if (buf.length == 1) {
+            result = buf[0];
+        } else {
+            if (options.interleaved) {
+                int next = 0;
+                for (int i = 0; i < bandSize; i++) {
+                    for (byte[] bytes : buf) {
+                        result[next++] = bytes[i];
+                    }
+                }
+            } else {
+                for (int i = 0; i < buf.length; i++) {
+                    System.arraycopy(buf[i], 0, result, i * bandSize, bandSize);
+                }
             }
-            for (int i = 0; i < bandSize; i += nBytes) {
+        }
+        return result;
+    }
+
+    private static void decodeYCbCr(BufferedImage b, byte[][] buf, ExtendedJPEGCodecOptions options)
+            throws FormatException {
+        final int[] subsampling = options.getYCbCrSubsampling();
+        boolean correctionNecessary =
+                options.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+                        && subsampling[0] == 1 && subsampling[1] == 1
+                        && buf.length == 3;
+        //TODO!! check also actual color space
+        if (correctionNecessary) {
+            // Rare case: YCbCr is encoded with non-standard sub-sampling
+            // (maybe, as a result of incorrect detecting as RGB);
+            // so, there is no sense to optimize this.
+            if (USE_LEGACY_DECODE_Y_CB_CR) {
+                final int nBytes = buf[0].length / (b.getWidth() * b.getHeight());
+                final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
+                for (int i = 0; i < buf[0].length; i += nBytes) {
+                    final int y = Bytes.toInt(buf[0], i, nBytes, options.littleEndian);
+                    int cb = Bytes.toInt(buf[1], i, nBytes, options.littleEndian);
+                    int cr = Bytes.toInt(buf[2], i, nBytes, options.littleEndian);
+
+                    cb = Math.max(0, cb - 128);
+                    cr = Math.max(0, cr - 128);
+
+                    final int red = (int) (y + 1.402 * cr) & mask;
+                    final int green = (int) (y - 0.34414 * cb - 0.71414 * cr) & mask;
+                    final int blue = (int) (y + 1.772 * cb) & mask;
+
+                    Bytes.unpack(red, buf[0], i, nBytes, options.littleEndian);
+                    Bytes.unpack(green, buf[1], i, nBytes, options.littleEndian);
+                    Bytes.unpack(blue, buf[2], i, nBytes, options.littleEndian);
+                }
+                return;
+            }
+
+            int bandSize = buf[0].length;
+            final long size = (long) b.getWidth() * (long) b.getHeight();
+            if (bandSize != size) {
+                // - should not occur
+                throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample in JPEG " +
+                        "must be 1, but actually we have " + (double) bandSize / (double) size + " bytes/sample");
+            }
+            for (int i = 0; i < bandSize; i++) {
                 final int y = buf[0][i] & 0xFF;
                 int cb = buf[1][i] & 0xFF;
                 int cr = buf[2][i] & 0xFF;
@@ -153,24 +211,6 @@ public class ExtendedJPEGCodec extends AbstractCodec {
                 buf[2][i] = (byte) toUnsignedByte(blue);
             }
         }
-
-        byte[] rtn = new byte[buf.length * bandSize];
-        if (buf.length == 1) rtn = buf[0];
-        else {
-            if (options.interleaved) {
-                int next = 0;
-                for (int i = 0; i < bandSize; i++) {
-                    for (byte[] bytes : buf) {
-                        rtn[next++] = bytes[i];
-                    }
-                }
-            } else {
-                for (int i = 0; i < buf.length; i++) {
-                    System.arraycopy(buf[i], 0, rtn, i * bandSize, bandSize);
-                }
-            }
-        }
-        return rtn;
     }
 
 

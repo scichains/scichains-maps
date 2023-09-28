@@ -34,6 +34,7 @@ import io.scif.common.Constants;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTile;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffTileIO;
@@ -115,7 +116,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     // Since scijava-common 2.95.1, we use optimized ReadBufferDataHandle for reading file;
     // now acceleration for 23220 int32 values is 0.2 ms instead of 0.4 ms.
 
-    private static final boolean USE_OLD_UNPACK_BYTES = false;
+    private static final boolean USE_LEGACY_UNPACK_BYTES = false;
     // - Should be false for better performance; necessary for debugging needs only.
 
     private static final int MINIMAL_ALLOWED_TIFF_FILE_LENGTH = 8 + 2 + 12 + 4;
@@ -131,7 +132,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
     private boolean assumeEqualStrips = false;
-    private boolean yCbCrCorrection = true;
     private boolean cachingIFDs = true;
     private boolean missingTilesAllowed = false;
     private byte byteFiller = 0;
@@ -347,18 +347,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
      */
     public TiffReader setCodecOptions(final CodecOptions codecOptions) {
         this.codecOptions = codecOptions;
-        return this;
-    }
-
-    public boolean isYCbCrCorrection() {
-        return yCbCrCorrection;
-    }
-
-    /**
-     * Sets whether or not YCbCr color correction is allowed.
-     */
-    public TiffReader setYCbCrCorrection(final boolean yCbCrCorrection) {
-        this.yCbCrCorrection = yCbCrCorrection;
         return this;
     }
 
@@ -969,7 +957,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // - this solution requires using SCIFIO context class; it is better to avoid this
         TiffTools.addPredictionIfRequested(tile);
 
-        if (USE_OLD_UNPACK_BYTES) {
+        if (USE_LEGACY_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
             unpackBytesLegacy(samples, 0, tile.getDecodedData(), tile.ifd());
             tile.setDecodedData(samples);
@@ -1143,6 +1131,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
+    /**
+     * This method is called before using codec options for decompression.
+     * You can add here some additional customizations.
+     */
+    protected CodecOptions correctReadingOptions(CodecOptions codecOptions, TiffTile tile, Codec customCodec)
+            throws FormatException {
+        return codecOptions;
+    }
+
     private void clearTime() {
         timeReading = 0;
         timeCustomizingDecoding = 0;
@@ -1210,7 +1207,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
-        CodecOptions codecOptions = new CodecOptions(this.codecOptions);
+        CodecOptions codecOptions = customCodec instanceof ExtendedJPEGCodec ?
+                new ExtendedJPEGCodecOptions(this.codecOptions)
+                        .setPhotometricInterpretation(ifd.getPhotometricInterpretation())
+                        .setYCbCrSubsampling(ifd.getYCbCrSubsampling()) :
+                new CodecOptions(this.codecOptions);
         codecOptions.littleEndian = ifd.isLittleEndian();
         final int samplesLength = tile.getSizeInBytes();
         // - Note: it may be LESS than a usual number of samples in the tile/strip.
@@ -1231,13 +1232,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Default is [2,2].
         // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
         // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
-        codecOptions.ycbcr =
-                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                        && subSampleHorizontal == 1
-                        && yCbCrCorrection;
+//        codecOptions.ycbcr =
+//                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
+//                        && subSampleHorizontal == 1
+//                        && yCbCrCorrection;
         // - Rare case: Y_CB_CR is encoded with non-standard sub-sampling
 
-        if (USE_OLD_UNPACK_BYTES) {
+        if (USE_LEGACY_UNPACK_BYTES) {
             codecOptions.interleaved = true;
             // - old-style unpackBytes does not "understand" already-separated tiles
         } else {
@@ -1250,7 +1251,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // which suppose that data are interleaved according TIFF format specification).
         // Value "true" is necessary for other codecs, that work with high-level classes (like JPEG or JPEG-2000) and
         // need to be instructed to interleave results (unlike LZW or DECOMPRESSED, which work with data "as-is").
-        return codecOptions;
+        return correctReadingOptions(codecOptions, tile, customCodec);
     }
 
     // Note: this method does not store tile in the tile map.

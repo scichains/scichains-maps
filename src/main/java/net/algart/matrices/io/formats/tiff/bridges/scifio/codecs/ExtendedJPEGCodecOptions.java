@@ -25,8 +25,21 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 
 import io.scif.codec.CodecOptions;
+import io.scif.formats.tiff.PhotoInterp;
 
 public class ExtendedJPEGCodecOptions extends CodecOptions {
+    /**
+     * Value of TIFF tag PhotometricInterpretation (READ).
+     */
+    private PhotoInterp photometricInterpretation = null;
+    /**
+     * Value of TIFF tag YCbCrSubSampling (READ).
+     */
+    private int[] yCbCrSubsampling = null;
+
+    /**
+     * Whether we want to make RGB JPEG (WRITE).
+     */
     private boolean photometricRGB = false;
 
     public ExtendedJPEGCodecOptions(final CodecOptions options) {
@@ -36,6 +49,23 @@ public class ExtendedJPEGCodecOptions extends CodecOptions {
         }
     }
 
+    public PhotoInterp getPhotometricInterpretation() {
+        return photometricInterpretation;
+    }
+
+    public ExtendedJPEGCodecOptions setPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+        this.photometricInterpretation = photometricInterpretation;
+        return this;
+    }
+
+    public int[] getYCbCrSubsampling() {
+        return yCbCrSubsampling;
+    }
+
+    public ExtendedJPEGCodecOptions setYCbCrSubsampling(int[] yCbCrSubsampling) {
+        this.yCbCrSubsampling = yCbCrSubsampling;
+        return this;
+    }
 
     public boolean isPhotometricRGB() {
         return photometricRGB;
