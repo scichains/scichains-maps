@@ -30,6 +30,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.imageio.*;
+import javax.imageio.metadata.IIOInvalidTreeException;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
@@ -92,6 +93,13 @@ public class AWTCustomMetadataWriteJpegTest {
 
         ImageWriteParam writeParam = writer.getDefaultWriteParam();
         IIOMetadata metadata = writer.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
+        correctColorSpace(metadata, "RGB");
+        IIOImage iioImage = new IIOImage(bi, null, metadata);
+        // - metadata necessary (with necessary markers)
+        writer.write(null, iioImage, writeParam);
+    }
+
+    static Node correctColorSpace(IIOMetadata metadata, String colorSpace) throws IIOInvalidTreeException {
         Node tree = metadata.getAsTree("javax_imageio_1.0");
         NodeList rootNodes = tree.getChildNodes();
         for (int k = 0, n = rootNodes.getLength(); k < n; k++) {
@@ -108,15 +116,13 @@ public class AWTCustomMetadataWriteJpegTest {
                         NamedNodeMap attributes = subChild.getAttributes();
                         Node name = attributes.getNamedItem("name");
                         System.out.println("    name = " + name.getNodeValue());
-                        name.setNodeValue("RGB");
+                        name.setNodeValue(colorSpace);
                         System.out.println("    name (new) = " + name.getNodeValue());
                     }
                 }
             }
         }
         metadata.setFromTree("javax_imageio_1.0", tree);
-        IIOImage iioImage = new IIOImage(bi, null, metadata);
-        // - metadata necessary (with necessary markers)
-        writer.write(null, iioImage, writeParam);
+        return tree;
     }
 }

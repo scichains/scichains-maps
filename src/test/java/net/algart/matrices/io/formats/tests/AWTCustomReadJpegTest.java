@@ -72,6 +72,11 @@ public class AWTCustomReadJpegTest {
         System.out.printf("Default read parameters: %s%n", param);
         param.setSourceSubsampling(1, 1, 0, 0);
 
+        reader.setInput(stream, false, false);
+        IIOMetadata metadata = reader.getImageMetadata(0);
+        AWTCustomMetadataWriteJpegTest.correctColorSpace(metadata, "YCbCr");
+        // - does not help
+
 //        ComponentColorModel colorModel = new ComponentColorModel(
 //                new YCbCrColorSpace(), null, false, false,
 //                Transparency.OPAQUE, 0);
@@ -80,7 +85,6 @@ public class AWTCustomReadJpegTest {
 //        param.setDestinationType(imageTypeSpecifier);
         // - does not work: it is the only way to select one of (usually 2) ALREADY DETECTED image types
 
-        reader.setInput(stream, false, true);
         BufferedImage bi = reader.read(0, param);
 
         System.out.printf("Successfully read: %s%n%n", bi);
