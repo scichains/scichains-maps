@@ -56,26 +56,43 @@ public class AWTReadMetadataTest {
         final File srcFile = new File(args[0]);
 
         System.out.printf("Opening %s...%n", srcFile);
-        final ImageInputStream stream = ImageIO.createImageInputStream(srcFile);
+        ImageInputStream stream = ImageIO.createImageInputStream(srcFile);
         if (stream == null) {
             throw new IIOException("Can't create an ImageInputStream!");
         }
         Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
-        if (!readers.hasNext()) {
-            throw new IIOException("Cannot read " + srcFile + ": unknown format");
+        while (readers.hasNext()) {
+            ImageReader reader = readers.next();
+
+            stream = ImageIO.createImageInputStream(srcFile);
+            // - reset stream (some plugins move file pointer by getStreamMetadata)
+            System.out.printf("%nAnalysing by reader %s:%n%n", reader);
+            ImageReadParam param = reader.getDefaultReadParam();
+            System.out.printf("Default read parameters: %s%n", param);
+            reader.setInput(stream, true, false);
+            IIOMetadata imageMetadata = reader.getImageMetadata(0);
+            System.out.printf("Controller: %s%n", imageMetadata.getController());
+            System.out.printf("Default controller: %s%n", imageMetadata.getDefaultController());
+            System.out.printf("%nDefault metadata:%n%s", metadataToString(imageMetadata,
+                    IIOMetadataFormatImpl.standardMetadataFormatName));
+            try {
+                System.out.printf("%nNative metadata:%n%s", metadataToString(imageMetadata,
+                        "javax_imageio_jpeg_image_1.0"));
+            } catch (Exception e) {
+                System.out.printf("%nCannot detect native metadata javax_imageio_jpeg_image_1.0:%n%s", e);
+            }
+            IIOMetadata streamMetadata = reader.getStreamMetadata();
+            System.out.printf("%nStream metadata:%n%s", metadataToString(streamMetadata,
+                    IIOMetadataFormatImpl.standardMetadataFormatName));
+            System.out.println();
         }
-        ImageReader reader = readers.next();
-        ImageReadParam param = reader.getDefaultReadParam();
-        System.out.printf("Default read parameters: %s%n", param);
-        reader.setInput(stream, true, false);
-        IIOMetadata imageMetadata = reader.getImageMetadata(0);
-        System.out.printf("%nDefault metadata:%n%s", nodeToString(imageMetadata.getAsTree(
-                IIOMetadataFormatImpl.standardMetadataFormatName)));
-        System.out.printf("%nNative metadata:%n%s", nodeToString(imageMetadata.getAsTree(
-                "javax_imageio_jpeg_image_1.0")));
     }
 
-    static String nodeToString(Node node) throws TransformerException {
+    static String metadataToString(IIOMetadata metadata, String formatName) throws TransformerException {
+        if (metadata == null) {
+            return "no metadata";
+        }
+        Node node = metadata.getAsTree(formatName);
         StringWriter sw = new StringWriter();
         Transformer t = TransformerFactory.newInstance().newTransformer();
         t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
