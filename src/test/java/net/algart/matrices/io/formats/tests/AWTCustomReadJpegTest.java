@@ -103,10 +103,10 @@ public class AWTCustomReadJpegTest {
 
         if (false) {
             IIOMetadata imageMetadata = reader.getImageMetadata(0);
-            System.out.printf("%nDefault metadata:%n%s", AWTReadMetadataTest.nodeToString(imageMetadata.getAsTree(
-                    IIOMetadataFormatImpl.standardMetadataFormatName)));
-            System.out.printf("%nNative metadata:%n%s", AWTReadMetadataTest.nodeToString(imageMetadata.getAsTree(
-                    "javax_imageio_jpeg_image_1.0")));
+            System.out.printf("%nDefault metadata:%n%s", AWTReadMetadataTest.metadataToString(imageMetadata,
+                    IIOMetadataFormatImpl.standardMetadataFormatName));
+            System.out.printf("%nNative metadata:%n%s", AWTReadMetadataTest.metadataToString(imageMetadata,
+                    "javax_imageio_jpeg_image_1.0"));
         }
     }
 }
