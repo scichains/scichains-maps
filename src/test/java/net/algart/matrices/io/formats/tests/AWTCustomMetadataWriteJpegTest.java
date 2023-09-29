@@ -25,6 +25,10 @@
 package net.algart.matrices.io.formats.tests;
 
 
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
@@ -32,10 +36,9 @@ import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
-public class AWTCustomWriteJpegTest {
+public class AWTCustomMetadataWriteJpegTest {
     public static final boolean NEED_JCS_RGB = true;
 
     public static ImageWriter getJPEGWriter() throws IIOException {
@@ -61,7 +64,7 @@ public class AWTCustomWriteJpegTest {
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
-            System.out.println("    " + AWTCustomWriteJpegTest.class.getName()
+            System.out.println("    " + AWTCustomMetadataWriteJpegTest.class.getName()
                     + " some_image.jpeg result.jpeg");
             return;
         }
@@ -74,23 +77,7 @@ public class AWTCustomWriteJpegTest {
         if (stream == null) {
             throw new IIOException("Can't create an ImageInputStream!");
         }
-        Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
-        if (!readers.hasNext()) {
-            throw new IIOException("Cannot read " + srcFile + ": unknown format");
-        }
-        ImageReader reader = readers.next();
-        ImageReadParam param = reader.getDefaultReadParam();
-        System.out.printf("Default read parameters: %s%n", param);
-        reader.setInput(stream, true, true);
-        BufferedImage bi = reader.read(0, param);
-        IIOMetadata imageMetadata = reader.getImageMetadata(0);
-        ImageTypeSpecifier rawImageType = reader.getRawImageType(0);
-        if (bi == null) {
-            throw new AssertionError("Strange null result");
-        }
-        System.out.printf("Image metadata: %s%n", imageMetadata);
-        System.out.printf("Raw image type, model: %s%n", rawImageType.getColorModel());
-        System.out.printf("Raw image type, color space: %s%n", rawImageType.getColorModel().getColorSpace().getType());
+        BufferedImage bi = ImageIO.read(stream);
         System.out.printf("Successfully read: %s%n%n", bi);
 
         System.out.printf("Writing JPEG image into %s...%n", resultFile);
@@ -103,15 +90,33 @@ public class AWTCustomWriteJpegTest {
 
         ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi);
 
-        ImageWriteParam writeParam = getJPEGWriteParam(writer, NEED_JCS_RGB ? imageTypeSpecifier : null);
-
-        IIOMetadata metadata = writer.getDefaultImageMetadata(NEED_JCS_RGB ? null : imageTypeSpecifier, writeParam);
-        // - imageType = null, in other case setDestinationType will be ignored!
-
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+        IIOMetadata metadata = writer.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
+        Node tree = metadata.getAsTree("javax_imageio_1.0");
+        NodeList rootNodes = tree.getChildNodes();
+        for (int k = 0, n = rootNodes.getLength(); k < n; k++) {
+            Node rootChild = rootNodes.item(k);
+            String childName = rootChild.getNodeName();
+            System.out.println(childName);
+            if ("Chroma".equalsIgnoreCase(childName)) {
+                NodeList nodes = rootChild.getChildNodes();
+                for (int i = 0, m = nodes.getLength(); i < m; i++) {
+                    Node subChild = nodes.item(i);
+                    String subChildName = subChild.getNodeName();
+                    System.out.println("  " + subChildName);
+                    if ("ColorSpaceType".equalsIgnoreCase(subChildName)) {
+                        NamedNodeMap attributes = subChild.getAttributes();
+                        Node name = attributes.getNamedItem("name");
+                        System.out.println("    name = " + name.getNodeValue());
+                        name.setNodeValue("RGB");
+                        System.out.println("    name (new) = " + name.getNodeValue());
+                    }
+                }
+            }
+        }
+        metadata.setFromTree("javax_imageio_1.0", tree);
         IIOImage iioImage = new IIOImage(bi, null, metadata);
         // - metadata necessary (with necessary markers)
         writer.write(null, iioImage, writeParam);
-        System.out.printf("Compression types: %s%n",
-                Arrays.toString(writeParam.getCompressionTypes()));
     }
 }

@@ -83,7 +83,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
             if (photometricRGB) {
                 writeParam.setDestinationType(imageTypeSpecifier);
-                // - Important! It informs getDefaultImageMetadata to add Adove and SOF markers,
+                // - Important! It informs getDefaultImageMetadata to add Adobe and SOF markers,
                 // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
             }
             final IIOMetadata metadata = jpegWriter.getDefaultImageMetadata(
