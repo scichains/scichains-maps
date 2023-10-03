@@ -74,8 +74,9 @@ public class AWTCustomReadJpegTest {
 
         reader.setInput(stream, false, false);
         IIOMetadata metadata = reader.getImageMetadata(0);
-        AWTCustomMetadataWriteJpegTest.correctColorSpace(metadata, "YCbCr");
-        // - does not help
+        AWTCustomWriteJpegTest.correctColorSpace(metadata, "YCbCr");
+        // - does not help: metadata are really changed, but this Java object is ignored
+        // while reading inside JPEG inside AWT native code
 
 //        ComponentColorModel colorModel = new ComponentColorModel(
 //                new YCbCrColorSpace(), null, false, false,

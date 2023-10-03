@@ -41,19 +41,26 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.File;
+import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
 
 public class AWTReadMetadataTest {
-    public static void main(String[] args) throws Exception {
-        if (args.length < 1) {
+    public static void main(String... args) throws IOException {
+        int startArgIndex = 0;
+        boolean allReaders = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-allReaders")) {
+            allReaders = true;
+            startArgIndex++;
+        }
+        if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
             System.out.println("    " + AWTReadMetadataTest.class.getName()
-                    + " some_image.jpeg/png/bmp/");
+                    + " [-allReaders] some_image.jpeg/png/bmp/");
             return;
         }
 
-        final File srcFile = new File(args[0]);
+        final File srcFile = new File(args[startArgIndex]);
 
         System.out.printf("Opening %s...%n", srcFile);
         ImageInputStream stream = ImageIO.createImageInputStream(srcFile);
@@ -63,41 +70,56 @@ public class AWTReadMetadataTest {
         Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
         while (readers.hasNext()) {
             ImageReader reader = readers.next();
+            System.out.printf("%nAnalysing by reader %s:%n%n", reader);
+            Class<? extends ImageReader> c = reader.getClass();
+            System.out.printf("%s%n%s%n%s%n", c, c.getPackage(), c.getProtectionDomain());
 
             stream = ImageIO.createImageInputStream(srcFile);
             // - reset stream (some plugins move file pointer by getStreamMetadata)
-            System.out.printf("%nAnalysing by reader %s:%n%n", reader);
             ImageReadParam param = reader.getDefaultReadParam();
             System.out.printf("Default read parameters: %s%n", param);
             reader.setInput(stream, true, false);
             IIOMetadata imageMetadata = reader.getImageMetadata(0);
             System.out.printf("Controller: %s%n", imageMetadata.getController());
             System.out.printf("Default controller: %s%n", imageMetadata.getDefaultController());
-            System.out.printf("%nDefault metadata:%n%s", metadataToString(imageMetadata,
-                    IIOMetadataFormatImpl.standardMetadataFormatName));
-            try {
-                System.out.printf("%nNative metadata:%n%s", metadataToString(imageMetadata,
-                        "javax_imageio_jpeg_image_1.0"));
-            } catch (Exception e) {
-                System.out.printf("%nCannot detect native metadata javax_imageio_jpeg_image_1.0:%n%s", e);
-            }
+            System.out.printf("%nDefault metadata:%n%s", metadataToStringStandard(imageMetadata));
+            System.out.printf("%nNative metadata:%n%s", metadataToStringNative(imageMetadata));
             IIOMetadata streamMetadata = reader.getStreamMetadata();
             System.out.printf("%nStream metadata:%n%s", metadataToString(streamMetadata,
                     IIOMetadataFormatImpl.standardMetadataFormatName));
             System.out.println();
+            if (!allReaders) {
+                break;
+            }
         }
     }
 
-    static String metadataToString(IIOMetadata metadata, String formatName) throws TransformerException {
+    static String metadataToStringStandard(IIOMetadata metadata) {
+        return metadataToString(metadata, IIOMetadataFormatImpl.standardMetadataFormatName);
+    }
+
+    static String metadataToStringNative(IIOMetadata metadata) {
+        try {
+            return metadataToString(metadata, "javax_imageio_jpeg_image_1.0");
+        } catch (Exception e) {
+            return ("Cannot detect native metadata javax_imageio_jpeg_image_1.0:" + e);
+        }
+    }
+
+    static String metadataToString(IIOMetadata metadata, String formatName) {
         if (metadata == null) {
             return "no metadata";
         }
         Node node = metadata.getAsTree(formatName);
         StringWriter sw = new StringWriter();
-        Transformer t = TransformerFactory.newInstance().newTransformer();
-        t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-        t.setOutputProperty(OutputKeys.INDENT, "yes");
-        t.transform(new DOMSource(node), new StreamResult(sw));
-        return sw.toString();
+        try {
+            Transformer t = TransformerFactory.newInstance().newTransformer();
+            t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            t.setOutputProperty(OutputKeys.INDENT, "yes");
+            t.transform(new DOMSource(node), new StreamResult(sw));
+            return sw.toString();
+        } catch (TransformerException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

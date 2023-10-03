@@ -25,20 +25,24 @@
 package net.algart.matrices.io.formats.tests;
 
 
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
 import javax.imageio.*;
+import javax.imageio.metadata.IIOInvalidTreeException;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
 public class AWTCustomWriteJpegTest {
     public static final boolean NEED_JCS_RGB = true;
 
-    public static ImageWriter getJPEGWriter() throws IIOException {
+    static ImageWriter getJPEGWriter() throws IIOException {
         Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
         if (!writers.hasNext()) {
             throw new IIOException("Cannot write JPEG");
@@ -46,28 +50,107 @@ public class AWTCustomWriteJpegTest {
         return writers.next();
     }
 
-    public static ImageWriteParam getJPEGWriteParam(ImageWriter writer, ImageTypeSpecifier imageTypeSpecifier) {
+    static Node correctColorSpace(IIOMetadata metadata, String colorSpace) throws IIOInvalidTreeException {
+        Node tree = metadata.getAsTree("javax_imageio_1.0");
+//        metadata.setFromTree("javax_imageio_1.0", tree); // - leads to duplicate APP0!
+//        if (true) return tree;
+        System.out.printf("Source metadata, standard:%n%s%n",
+                AWTReadMetadataTest.metadataToStringStandard(metadata));
+        System.out.printf("Source metadata, native:%n%s%n",
+                AWTReadMetadataTest.metadataToStringNative(metadata));
+        NodeList rootNodes = tree.getChildNodes();
+        for (int k = 0, n = rootNodes.getLength(); k < n; k++) {
+            Node rootChild = rootNodes.item(k);
+            String childName = rootChild.getNodeName();
+//            System.out.println(childName);
+            if ("Chroma".equalsIgnoreCase(childName)) {
+                NodeList nodes = rootChild.getChildNodes();
+                for (int i = 0, m = nodes.getLength(); i < m; i++) {
+                    Node subChild = nodes.item(i);
+                    String subChildName = subChild.getNodeName();
+//                    System.out.println("  " + subChildName);
+                    if ("ColorSpaceType".equalsIgnoreCase(subChildName)) {
+                        NamedNodeMap attributes = subChild.getAttributes();
+                        Node name = attributes.getNamedItem("name");
+//                        System.out.println("    name = " + name.getNodeValue());
+                        name.setNodeValue(colorSpace);
+//                        System.out.println("    name (new) = " + name.getNodeValue());
+                    }
+                }
+            }
+        }
+        metadata.setFromTree("javax_imageio_1.0", tree);
+        System.out.printf("Corrected metadata, standard:%n%s%n",
+                AWTReadMetadataTest.metadataToStringStandard(metadata));
+        System.out.printf("Corrected metadata, native:%n%s%n",
+                AWTReadMetadataTest.metadataToStringNative(metadata));
+        return tree;
+    }
+
+    public static void writeJpegViaImageType(BufferedImage image, File file, boolean rgbSpace) throws IOException {
+        ImageWriter writer = getJPEGWriter();
+        System.out.printf("Registered writer is %s%n", writer.getClass());
+
+        ImageOutputStream ios = ImageIO.createImageOutputStream(file);
+        writer.setOutput(ios);
+
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
+
         ImageWriteParam writeParam = writer.getDefaultWriteParam();
         writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
         writeParam.setCompressionType("JPEG");
-        if (imageTypeSpecifier != null) {
+        if (rgbSpace) {
             writeParam.setDestinationType(imageTypeSpecifier);
             // - Important! It informs getDefaultImageMetadata to add Adobe and SOF markers,
             // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
         }
-        return writeParam;
+
+        IIOMetadata metadata = writer.getDefaultImageMetadata(rgbSpace ? null : imageTypeSpecifier, writeParam);
+        // - imageType = null, in other case setDestinationType will be ignored!
+
+        System.out.printf("Writing JPEG image into %s via image type %s...%n", file, imageTypeSpecifier);
+        IIOImage iioImage = new IIOImage(image, null, metadata);
+        writer.write(null, iioImage, writeParam);
+    }
+
+    public static void writeJpegViaMetadata(BufferedImage image, File file, boolean rgbSpace) throws IOException {
+        ImageWriter writer = getJPEGWriter();
+        System.out.printf("Registered writer is %s%n", writer.getClass());
+
+        ImageOutputStream ios = ImageIO.createImageOutputStream(file);
+        writer.setOutput(ios);
+
+        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
+        ImageWriteParam writeParam = writer.getDefaultWriteParam();
+        writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writeParam.setCompressionType("JPEG");
+
+        IIOMetadata metadata = writer.getDefaultImageMetadata(imageTypeSpecifier, writeParam);
+        correctColorSpace(metadata, rgbSpace ? "RGB" : "YCbCr");
+        // - lead to invalid metadata (duplicate APP0) in a case YCbCr
+        // Note: for RGB case, this method leads to results, identical to writeJpegViaImageType
+        System.out.printf("Writing JPEG image into %s via metadata %s...%n", file, metadata);
+        IIOImage iioImage = new IIOImage(image, null, metadata);
+        writer.write(metadata, iioImage, writeParam);
     }
 
     public static void main(String[] args) throws IOException {
-        if (args.length < 2) {
+        int startArgIndex = 0;
+        boolean rgb = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-rgb")) {
+            rgb = true;
+            startArgIndex++;
+        }
+        if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
             System.out.println("    " + AWTCustomWriteJpegTest.class.getName()
-                    + " some_image.jpeg result.jpeg");
+                    + " [-rgb] method1|method2 some_image.jpeg result.jpeg");
             return;
         }
 
-        final File srcFile = new File(args[0]);
-        final File resultFile = new File(args[1]);
+        final String method = args[startArgIndex];
+        final File srcFile = new File(args[startArgIndex + 1]);
+        final File resultFile = new File(args[startArgIndex + 2]);
 
         System.out.printf("Opening %s...%n", srcFile);
         final ImageInputStream stream = ImageIO.createImageInputStream(srcFile);
@@ -93,25 +176,13 @@ public class AWTCustomWriteJpegTest {
         System.out.printf("Raw image type, color space: %s%n", rawImageType.getColorModel().getColorSpace().getType());
         System.out.printf("Successfully read: %s%n%n", bi);
 
-        System.out.printf("Writing JPEG image into %s...%n", resultFile);
         resultFile.delete();
-        ImageWriter writer = getJPEGWriter();
-        System.out.printf("Registered writer is %s%n", writer.getClass());
-
-        ImageOutputStream ios = ImageIO.createImageOutputStream(resultFile);
-        writer.setOutput(ios);
-
-        ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(bi);
-
-        ImageWriteParam writeParam = getJPEGWriteParam(writer, NEED_JCS_RGB ? imageTypeSpecifier : null);
-
-        IIOMetadata metadata = writer.getDefaultImageMetadata(NEED_JCS_RGB ? null : imageTypeSpecifier, writeParam);
-        // - imageType = null, in other case setDestinationType will be ignored!
-
-        IIOImage iioImage = new IIOImage(bi, null, metadata);
-        // - metadata necessary (with necessary markers)
-        writer.write(null, iioImage, writeParam);
-        System.out.printf("Compression types: %s%n",
-                Arrays.toString(writeParam.getCompressionTypes()));
+        switch (method) {
+            case "method1" -> writeJpegViaImageType(bi, resultFile, rgb);
+            case "method2" -> writeJpegViaMetadata(bi, resultFile, rgb);
+            default -> throw new IllegalArgumentException("Unknown method " + args[startArgIndex]);
+        }
+        System.out.printf("%n%n");
+        AWTReadMetadataTest.main(resultFile.toString());
     }
 }
