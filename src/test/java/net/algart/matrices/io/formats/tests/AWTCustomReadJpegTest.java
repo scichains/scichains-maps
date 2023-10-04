@@ -38,18 +38,26 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 
+// Actually this test is not "custom": it just illustrates that we cannot customize default reading scheme,
+// namely, cannot set up necessary color space
 public class AWTCustomReadJpegTest {
     public static void main(String[] args) throws IOException, TransformerException {
-        if (args.length < 3) {
+        int startArgIndex = 0;
+        boolean enforceAWT = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-enforceAWT")) {
+            enforceAWT = true;
+            startArgIndex++;
+        }
+        if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
             System.out.println("    " + AWTCustomReadJpegTest.class.getName()
-                    + " some_image.jpeg result.bmp resultRawRaster.bmp");
+                    + " [-enforceAWT] some_image.jpeg result.bmp resultRawRaster.bmp");
             return;
         }
 
-        final File srcFile = new File(args[0]);
-        final File resultFile = new File(args[1]);
-        final File resultRasterFile = new File(args[2]);
+        final File srcFile = new File(args[startArgIndex]);
+        final File resultFile = new File(args[startArgIndex + 1]);
+        final File resultRasterFile = new File(args[startArgIndex + 2]);
 
         Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("JPEG");
         while (readers.hasNext()) {
@@ -61,22 +69,31 @@ public class AWTCustomReadJpegTest {
 //        BufferedImage biSimple = ImageIO.read(srcFile);
         final ImageInputStream stream = ImageIO.createImageInputStream(srcFile);
         if (stream == null) {
+            // - for example, non-existing file
             throw new IIOException("Can't create an ImageInputStream!");
         }
         readers = ImageIO.getImageReadersByFormatName("JPEG");
-        if (!readers.hasNext()) {
+        ImageReader reader;
+        if (enforceAWT) {
+            reader = findAWTCodec(readers);
+        } else {
+            reader = readers.hasNext() ? readers.next() : null;
+        }
+        if (reader == null) {
             throw new IIOException("Cannot read JPEG");
         }
-        ImageReader reader = readers.next();
+        System.out.println("Using JPEG reader: " + reader);
+
         ImageReadParam param = reader.getDefaultReadParam();
         System.out.printf("Default read parameters: %s%n", param);
         param.setSourceSubsampling(1, 1, 0, 0);
 
         reader.setInput(stream, false, false);
         IIOMetadata metadata = reader.getImageMetadata(0);
-        AWTCustomWriteJpegTest.correctColorSpace(metadata, "YCbCr");
+//        AWTCustomWriteJpegTest.correctColorSpace(metadata, "YCbCr");
         // - does not help: metadata are really changed, but this Java object is ignored
-        // while reading inside JPEG inside AWT native code
+        // while reading inside JPEG inside AWT native code;
+        // in TwelveMonkey library, leads to IllegalStateException: Metadata is read-only
 
 //        ComponentColorModel colorModel = new ComponentColorModel(
 //                new YCbCrColorSpace(), null, false, false,
@@ -113,5 +130,31 @@ public class AWTCustomReadJpegTest {
             System.out.printf("%nNative metadata:%n%s", AWTReadMetadataTest.metadataToString(imageMetadata,
                     "javax_imageio_jpeg_image_1.0"));
         }
+    }
+
+    private static <T> T findAWTCodec(Iterator<T> iterator) {
+        if (!iterator.hasNext()) {
+            return null;
+        }
+        T first = iterator.next();
+        if (isProbableAWTClass(first)) {
+            return first;
+            // - This is maximally typical behaviour, in particularly, used in ImageIO.read/write.
+            // But it can be not the desirable behaviour, when we have some additional plugins
+            // like TwelveMonkeys ImageIO, which are registered as the first plugin INSTEAD of built-in
+            // Java AWT plugin, because, for example, TwelveMonkeys does not guarantee the identical behaviour;
+            // in this case, we should try to find the original AWT plugin.
+        }
+        while (iterator.hasNext()) {
+            T other = iterator.next();
+            if (isProbableAWTClass(other)) {
+                return other;
+            }
+        }
+        return first;
+    }
+
+    private static boolean isProbableAWTClass(Object o) {
+        return o != null && o.getClass().getName().startsWith("com.sun.");
     }
 }

@@ -26,27 +26,24 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 
 import io.scif.FormatException;
 import io.scif.codec.*;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.gui.AWTImageTools;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleInputStream;
 import org.scijava.io.location.Location;
 import org.scijava.plugin.Parameter;
-import org.scijava.util.Bytes;
 
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Iterator;
+import java.io.InputStream;
 import java.util.Objects;
 
 public class ExtendedJPEGCodec extends AbstractCodec {
-    private static final boolean USE_LEGACY_DECODE_Y_CB_CR = false;
-    // - Should be false for correct behaviour and better performance; necessary for debugging needs only.
 
     @Parameter
     private CodecService codecService;
@@ -73,7 +70,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
 
         try {
             final ImageOutputStream ios = ImageIO.createImageOutputStream(result);
-            final ImageWriter jpegWriter = getJPEGWriter();
+            final ImageWriter jpegWriter = JPEGTools.getJPEGWriter();
             jpegWriter.setOutput(ios);
 
             final ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
@@ -104,9 +101,22 @@ public class ExtendedJPEGCodec extends AbstractCodec {
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
         //TODO!! optimize AWTImageTools.getPixelBytes
         final long offset = in.offset();
-        BufferedImage b;
-        try {
-            b = ImageIO.read(new BufferedInputStream(new DataHandleInputStream<>(in), 8192));
+        BufferedImage b = null;
+        try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192);
+             ImageInputStream stream = ImageIO.createImageInputStream(input)) {
+            if (stream == null) {
+                throw new IIOException("Cannot decompress JPEG tile");
+            }
+            ImageReader reader = JPEGTools.getJPEGReaderOrNull(stream);
+            if (reader != null) {
+                ImageReadParam param = reader.getDefaultReadParam();
+                reader.setInput(stream, true, true);
+                try {
+                    b = reader.read(0, param);
+                } finally {
+                    reader.dispose();
+                }
+            }
         } catch (final IOException exc) {
             // probably a lossless JPEG; delegate to LosslessJPEGCodec
             if (codecService == null) {
@@ -129,7 +139,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
         final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
 
         if (options instanceof ExtendedJPEGCodecOptions extendedOptions) {
-            decodeYCbCr(b, buf, extendedOptions);
+            JPEGTools.decodeYCbCr(b, buf, extendedOptions);
         }
 
         int bandSize = buf[0].length;
@@ -151,78 +161,5 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             }
         }
         return result;
-    }
-
-    private static void decodeYCbCr(BufferedImage b, byte[][] buf, ExtendedJPEGCodecOptions options)
-            throws FormatException {
-        final int[] subsampling = options.getYCbCrSubsampling();
-        boolean correctionNecessary =
-                options.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-                        && subsampling[0] == 1 && subsampling[1] == 1
-                        && buf.length == 3;
-        //TODO!! check also actual color space
-        if (correctionNecessary) {
-            // Rare case: YCbCr is encoded with non-standard sub-sampling
-            // (maybe, as a result of incorrect detecting as RGB);
-            // so, there is no sense to optimize this.
-            if (USE_LEGACY_DECODE_Y_CB_CR) {
-                final int nBytes = buf[0].length / (b.getWidth() * b.getHeight());
-                final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
-                for (int i = 0; i < buf[0].length; i += nBytes) {
-                    final int y = Bytes.toInt(buf[0], i, nBytes, options.littleEndian);
-                    int cb = Bytes.toInt(buf[1], i, nBytes, options.littleEndian);
-                    int cr = Bytes.toInt(buf[2], i, nBytes, options.littleEndian);
-
-                    cb = Math.max(0, cb - 128);
-                    cr = Math.max(0, cr - 128);
-
-                    final int red = (int) (y + 1.402 * cr) & mask;
-                    final int green = (int) (y - 0.34414 * cb - 0.71414 * cr) & mask;
-                    final int blue = (int) (y + 1.772 * cb) & mask;
-
-                    Bytes.unpack(red, buf[0], i, nBytes, options.littleEndian);
-                    Bytes.unpack(green, buf[1], i, nBytes, options.littleEndian);
-                    Bytes.unpack(blue, buf[2], i, nBytes, options.littleEndian);
-                }
-                return;
-            }
-
-            int bandSize = buf[0].length;
-            final long size = (long) b.getWidth() * (long) b.getHeight();
-            if (bandSize != size) {
-                // - should not occur
-                throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample in JPEG " +
-                        "must be 1, but actually we have " + (double) bandSize / (double) size + " bytes/sample");
-            }
-            for (int i = 0; i < bandSize; i++) {
-                final int y = buf[0][i] & 0xFF;
-                int cb = buf[1][i] & 0xFF;
-                int cr = buf[2][i] & 0xFF;
-
-                cb = cb - 128;
-                cr = cr - 128;
-
-                final double red = (y + 1.402 * cr);
-                final double green = (y - 0.34414 * cb - 0.71414 * cr);
-                final double blue = (y + 1.772 * cb);
-
-                buf[0][i] = (byte) toUnsignedByte(red);
-                buf[1][i] = (byte) toUnsignedByte(green);
-                buf[2][i] = (byte) toUnsignedByte(blue);
-            }
-        }
-    }
-
-
-    private static ImageWriter getJPEGWriter() throws IIOException {
-        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-        if (!writers.hasNext()) {
-            throw new IIOException("Cannot write JPEG");
-        }
-        return writers.next();
-    }
-
-    private static int toUnsignedByte(double v) {
-        return v < 0.0 ? 0 : v > 255.0 ? 255 : (int) Math.round(v);
     }
 }
