@@ -80,7 +80,8 @@
             <artifactId>scijava-common</artifactId>
             <version>2.96.0</version>
         </dependency>
-        <!-- Note: the following dependencies must not affect to correct reading/writing JPEG -->
+        <!-- Note: the following dependencies MUST NOT affect to correct reading/writing JPEG -->
+        <!-- you may uncomment them for testing this fact! -->
 <!--        <dependency>-->
 <!--            <groupId>com.twelvemonkeys.imageio</groupId>-->
 <!--            <artifactId>imageio-jpeg</artifactId>-->
