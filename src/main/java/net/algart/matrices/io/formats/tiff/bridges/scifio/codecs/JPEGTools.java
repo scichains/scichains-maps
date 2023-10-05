@@ -117,7 +117,7 @@ public class JPEGTools {
         if (result == null) {
             throw new IIOException("Cannot write JPEG: no necessary registered plugin");
         }
-        return writers.next();
+        return result;
     }
 
     private static <T> T findAWTCodec(Iterator<T> iterator) {

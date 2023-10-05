@@ -90,7 +90,11 @@ public class ExtendedJPEGCodec extends AbstractCodec {
 
             final IIOImage iioImage = new IIOImage(image, null, metadata);
             // - metadata necessary (with necessary markers)
-            jpegWriter.write(null, iioImage, writeParam);
+            try {
+                jpegWriter.write(null, iioImage, writeParam);
+            } finally {
+                jpegWriter.dispose();
+            }
         } catch (final IOException e) {
             throw new FormatException("Cannot compress JPEG data", e);
         }
