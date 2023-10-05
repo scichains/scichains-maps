@@ -26,16 +26,13 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 
 import io.scif.FormatException;
 import io.scif.codec.*;
+import io.scif.formats.tiff.PhotoInterp;
 import io.scif.gui.AWTImageTools;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleInputStream;
 import org.scijava.io.location.Location;
 import org.scijava.plugin.Parameter;
 
-import javax.imageio.*;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.stream.ImageInputStream;
-import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -60,67 +57,30 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
                     "(only 8-bit samples allowed)");
         }
-        final boolean photometricRGB = options instanceof ExtendedJPEGCodecOptions o && o.isPhotometricRGB();
-        final double quality = options.quality;
+        final PhotoInterp colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
+                extended.getPhotometricInterpretation() :
+                PhotoInterp.Y_CB_CR;
 
-        final ByteArrayOutputStream result = new ByteArrayOutputStream();
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final BufferedImage image = AWTImageTools.makeImage(data, options.width,
                 options.height, options.channels, options.interleaved,
                 options.bitsPerSample / 8, false, options.littleEndian, options.signed);
 
         try {
-            final ImageOutputStream ios = ImageIO.createImageOutputStream(result);
-            final ImageWriter jpegWriter = JPEGTools.getJPEGWriter();
-            jpegWriter.setOutput(ios);
-
-            final ImageWriteParam writeParam = jpegWriter.getDefaultWriteParam();
-            writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            writeParam.setCompressionType("JPEG");
-            writeParam.setCompressionQuality((float) quality);
-            final ImageTypeSpecifier imageTypeSpecifier = new ImageTypeSpecifier(image);
-            if (photometricRGB) {
-                writeParam.setDestinationType(imageTypeSpecifier);
-                // - Important! It informs getDefaultImageMetadata to add Adobe and SOF markers,
-                // that is detected by JPEGImageWriter and leads to correct outCsType = JPEG.JCS_RGB
-            }
-            final IIOMetadata metadata = jpegWriter.getDefaultImageMetadata(
-                    photometricRGB ? null : imageTypeSpecifier,
-                    writeParam);
-            // - Important! imageType = null necessary for RGB, in other case setDestinationType will be ignored!
-
-            final IIOImage iioImage = new IIOImage(image, null, metadata);
-            // - metadata necessary (with necessary markers)
-            try {
-                jpegWriter.write(null, iioImage, writeParam);
-            } finally {
-                jpegWriter.dispose();
-            }
+            JPEGTools.writeJPEG(image, output, colorSpace, options.quality);
         } catch (final IOException e) {
             throw new FormatException("Cannot compress JPEG data", e);
         }
-        return result.toByteArray();
+        return output.toByteArray();
     }
 
     @Override
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
         //TODO!! optimize AWTImageTools.getPixelBytes
         final long offset = in.offset();
-        BufferedImage b = null;
-        try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192);
-             ImageInputStream stream = ImageIO.createImageInputStream(input)) {
-            if (stream == null) {
-                throw new IIOException("Cannot decompress JPEG tile");
-            }
-            ImageReader reader = JPEGTools.getJPEGReaderOrNull(stream);
-            if (reader != null) {
-                ImageReadParam param = reader.getDefaultReadParam();
-                reader.setInput(stream, true, true);
-                try {
-                    b = reader.read(0, param);
-                } finally {
-                    reader.dispose();
-                }
-            }
+        BufferedImage image;
+        try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192)) {
+                    image = JPEGTools.readJPEG(input);
         } catch (final IOException exc) {
             // probably a lossless JPEG; delegate to LosslessJPEGCodec
             if (codecService == null) {
@@ -131,7 +91,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             final Codec codec = codecService.getCodec(LosslessJPEGCodec.class);
             return codec.decompress(in, options);
         }
-        if (b == null) {
+        if (image == null) {
             throw new FormatException("Cannot read JPEG image: unknown format");
             // - for example, OLD_JPEG
         }
@@ -140,10 +100,13 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             options = CodecOptions.getDefaultOptions();
         }
 
-        final byte[][] buf = AWTImageTools.getPixelBytes(b, options.littleEndian);
+        final byte[][] buf = AWTImageTools.getPixelBytes(image, options.littleEndian);
 
-        if (options instanceof ExtendedJPEGCodecOptions extendedOptions) {
-            JPEGTools.decodeYCbCr(b, buf, extendedOptions);
+        if (options instanceof ExtendedJPEGCodecOptions extended) {
+            JPEGTools.completeReadingJPEG(buf,
+                    Math.multiplyExact(image.getWidth(), image.getHeight()),
+                    extended.getPhotometricInterpretation(),
+                    extended.getYCbCrSubsampling());
         }
 
         int bandSize = buf[0].length;

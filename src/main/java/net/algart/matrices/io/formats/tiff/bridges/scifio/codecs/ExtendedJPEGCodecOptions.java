@@ -27,25 +27,23 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.PhotoInterp;
 
+import java.util.Objects;
+
 public class ExtendedJPEGCodecOptions extends CodecOptions {
     /**
-     * Value of TIFF tag PhotometricInterpretation (READ).
+     * Value of TIFF tag PhotometricInterpretation (READ/WRITE).
      */
-    private PhotoInterp photometricInterpretation = null;
+    private PhotoInterp photometricInterpretation = PhotoInterp.Y_CB_CR;
     /**
      * Value of TIFF tag YCbCrSubSampling (READ).
      */
-    private int[] yCbCrSubsampling = null;
-
-    /**
-     * Whether we want to make RGB JPEG (WRITE).
-     */
-    private boolean photometricRGB = false;
+    private int[] yCbCrSubsampling = {2, 2};
 
     public ExtendedJPEGCodecOptions(final CodecOptions options) {
         super(options);
         if (options instanceof ExtendedJPEGCodecOptions extended) {
-            photometricRGB = extended.photometricRGB;
+            photometricInterpretation = extended.photometricInterpretation;
+            yCbCrSubsampling = extended.yCbCrSubsampling == null ? null : extended.yCbCrSubsampling.clone();
         }
     }
 
@@ -54,25 +52,17 @@ public class ExtendedJPEGCodecOptions extends CodecOptions {
     }
 
     public ExtendedJPEGCodecOptions setPhotometricInterpretation(PhotoInterp photometricInterpretation) {
-        this.photometricInterpretation = photometricInterpretation;
+        this.photometricInterpretation = Objects.requireNonNull(photometricInterpretation,
+                "Null photometricInterpretation");
         return this;
     }
 
     public int[] getYCbCrSubsampling() {
-        return yCbCrSubsampling;
+        return yCbCrSubsampling.clone();
     }
 
     public ExtendedJPEGCodecOptions setYCbCrSubsampling(int[] yCbCrSubsampling) {
-        this.yCbCrSubsampling = yCbCrSubsampling;
-        return this;
-    }
-
-    public boolean isPhotometricRGB() {
-        return photometricRGB;
-    }
-
-    public ExtendedJPEGCodecOptions setPhotometricRGB(boolean photometricRGB) {
-        this.photometricRGB = photometricRGB;
+        this.yCbCrSubsampling = Objects.requireNonNull(yCbCrSubsampling, "Null yCbCrSubsampling").clone();
         return this;
     }
 

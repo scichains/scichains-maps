@@ -1566,8 +1566,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         DetailedIFD ifd = tile.ifd();
-        final boolean rgbRequested =
-                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode();
         if (!ifd.hasImageDimensions()) {
             ifd = new DetailedIFD(ifd);
             // - do not change original IFD
@@ -1579,8 +1577,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
-                    .setPhotometricRGB(rgbRequested)
                     .setQuality(jpegQuality);
+            if (ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode()) {
+                ((ExtendedJPEGCodecOptions) codecOptions).setPhotometricInterpretation(PhotoInterp.RGB);
+            }
         }
         codecOptions.width = tile.getSizeX();
         codecOptions.height = tile.getSizeY();
