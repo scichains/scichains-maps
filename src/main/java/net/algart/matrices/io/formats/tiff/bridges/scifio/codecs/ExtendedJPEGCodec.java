@@ -78,9 +78,9 @@ public class ExtendedJPEGCodec extends AbstractCodec {
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
         //TODO!! optimize AWTImageTools.getPixelBytes
         final long offset = in.offset();
-        BufferedImage image;
+        JPEGTools.ImageInformation imageInformation;
         try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192)) {
-                    image = JPEGTools.readJPEG(input);
+            imageInformation = JPEGTools.readJPEG(input);
         } catch (final IOException exc) {
             // probably a lossless JPEG; delegate to LosslessJPEGCodec
             if (codecService == null) {
@@ -91,7 +91,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             final Codec codec = codecService.getCodec(LosslessJPEGCodec.class);
             return codec.decompress(in, options);
         }
-        if (image == null) {
+        if (imageInformation == null) {
             throw new FormatException("Cannot read JPEG image: unknown format");
             // - for example, OLD_JPEG
         }
@@ -100,30 +100,32 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             options = CodecOptions.getDefaultOptions();
         }
 
-        final byte[][] buf = AWTImageTools.getPixelBytes(image, options.littleEndian);
+        BufferedImage bi = imageInformation.bufferedImage();
+        final byte[][] data = AWTImageTools.getPixelBytes(bi, options.littleEndian);
 
         if (options instanceof ExtendedJPEGCodecOptions extended) {
-            JPEGTools.completeReadingJPEG(buf,
-                    Math.multiplyExact(image.getWidth(), image.getHeight()),
+            JPEGTools.completeReadingJPEG(
+                    imageInformation,
+                    data,
                     extended.getPhotometricInterpretation(),
                     extended.getYCbCrSubsampling());
         }
 
-        int bandSize = buf[0].length;
-        byte[] result = new byte[buf.length * bandSize];
-        if (buf.length == 1) {
-            result = buf[0];
+        int bandSize = data[0].length;
+        byte[] result = new byte[data.length * bandSize];
+        if (data.length == 1) {
+            result = data[0];
         } else {
             if (options.interleaved) {
                 int next = 0;
                 for (int i = 0; i < bandSize; i++) {
-                    for (byte[] bytes : buf) {
+                    for (byte[] bytes : data) {
                         result[next++] = bytes[i];
                     }
                 }
             } else {
-                for (int i = 0; i < buf.length; i++) {
-                    System.arraycopy(buf[i], 0, result, i * bandSize, bandSize);
+                for (int i = 0; i < data.length; i++) {
+                    System.arraycopy(data[i], 0, result, i * bandSize, bandSize);
                 }
             }
         }

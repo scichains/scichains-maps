@@ -27,6 +27,9 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.codecs;
 import io.scif.FormatException;
 import io.scif.formats.tiff.PhotoInterp;
 import org.scijava.util.Bytes;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
@@ -43,13 +46,17 @@ public class JPEGTools {
     private static final boolean USE_LEGACY_DECODE_Y_CB_CR = false;
     // - Should be false for correct behaviour and better performance; necessary for debugging needs only.
 
+    public record ImageInformation(BufferedImage bufferedImage, IIOMetadata metadata) {
+    }
+
     private JPEGTools() {
     }
 
     /**
      * Analog of <tt>ImageIO.read</tt>. Actually can read any formats, not only JPEG.
+     * Also reads metadata (but not thumbnails).
      */
-    public static BufferedImage readJPEG(InputStream in) throws IOException {
+    public static ImageInformation readJPEG(InputStream in) throws IOException {
         ImageInputStream stream = ImageIO.createImageInputStream(in);
         if (stream == null) {
             throw new IIOException("Cannot decompress JPEG tile");
@@ -61,7 +68,9 @@ public class JPEGTools {
         ImageReadParam param = reader.getDefaultReadParam();
         reader.setInput(stream, true, true);
         try {
-            return reader.read(0, param);
+            IIOMetadata imageMetadata = reader.getImageMetadata(0);
+            BufferedImage image = reader.read(0, param);
+            return new ImageInformation(image, imageMetadata);
         } finally {
             reader.dispose();
         }
@@ -111,23 +120,50 @@ public class JPEGTools {
         }
     }
 
-    public static void completeReadingJPEG(byte[][] data, int bandLength, PhotoInterp colorSpace, int[] subsampling)
-            throws FormatException {
-        Objects.requireNonNull(data,"Null data");
-        Objects.requireNonNull(colorSpace, "Null color space");
-        Objects.requireNonNull(subsampling, "Null subsampling");
-        if (bandLength < 0) {
-            throw new IllegalArgumentException("Negative band length");
+    public static String tryToFindColorSpace(IIOMetadata metadata) {
+        Node tree = metadata.getAsTree("javax_imageio_1.0");
+        NodeList rootNodes = tree.getChildNodes();
+        for (int k = 0, n = rootNodes.getLength(); k < n; k++) {
+            Node rootChild = rootNodes.item(k);
+            String childName = rootChild.getNodeName();
+            if ("Chroma".equalsIgnoreCase(childName)) {
+                NodeList nodes = rootChild.getChildNodes();
+                for (int i = 0, m = nodes.getLength(); i < m; i++) {
+                    Node subChild = nodes.item(i);
+                    String subChildName = subChild.getNodeName();
+                    if ("ColorSpaceType".equalsIgnoreCase(subChildName)) {
+                        NamedNodeMap attributes = subChild.getAttributes();
+                        Node name = attributes.getNamedItem("name");
+                        return name.getNodeValue();
+                    }
+                }
+            }
         }
+        return null;
+    }
+
+
+    public static void completeReadingJPEG(
+            ImageInformation imageInformation,
+            byte[][] data,
+            PhotoInterp declaredColorSpace,
+            int[] declaredSubsampling)
+            throws FormatException {
+        Objects.requireNonNull(imageInformation, "Null image information");
+        Objects.requireNonNull(data, "Null data");
+        Objects.requireNonNull(declaredColorSpace, "Null color space");
+        Objects.requireNonNull(declaredSubsampling, "Null declared subsampling");
+        final long bandLength = (long) imageInformation.bufferedImage.getWidth()
+                * (long) imageInformation.bufferedImage.getHeight();
+        String colorSpace = tryToFindColorSpace(imageInformation.metadata);
         final boolean correctionNecessary =
-                colorSpace == PhotoInterp.Y_CB_CR
-                        && subsampling[0] == 1 && subsampling[1] == 1
+                "RGB".equalsIgnoreCase(colorSpace)
+                        && declaredColorSpace == PhotoInterp.Y_CB_CR
+                        && declaredSubsampling[0] == 1 && declaredSubsampling[1] == 1
                         && data.length == 3;
-        //TODO!! check also actual color space
         if (correctionNecessary) {
-            // Rare case: YCbCr is encoded with non-standard sub-sampling
-            // (maybe, as a result of incorrect detecting as RGB);
-            // so, there is no sense to optimize this.
+            // Rare case: YCbCr is encoded with non-standard sub-sampling (more exactly, without sub-sampling),
+            // and the JPEG is incorrectly detected as RGB; so, there is no sense to optimize this.
             if (USE_LEGACY_DECODE_Y_CB_CR) {
                 decodeYCbCrLegacy(data, bandLength);
                 return;
@@ -158,10 +194,10 @@ public class JPEGTools {
         }
     }
 
-    private static void decodeYCbCrLegacy(byte[][] buf, int bandLength) {
+    private static void decodeYCbCrLegacy(byte[][] buf, long bandLength) {
         final boolean littleEndian = false;
         // - not important for 8-bit values
-        final int nBytes = buf[0].length / bandLength;
+        final int nBytes = (int) (buf[0].length / bandLength);
         final int mask = (int) (Math.pow(2, nBytes * 8) - 1);
         for (int i = 0; i < buf[0].length; i += nBytes) {
             final int y = Bytes.toInt(buf[0], i, nBytes, littleEndian);
