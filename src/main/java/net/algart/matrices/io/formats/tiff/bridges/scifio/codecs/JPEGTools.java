@@ -173,7 +173,7 @@ public class JPEGTools {
                 // - should not occur
                 throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample in JPEG " +
                         "must be 1, but actually we have " +
-                        (double) data[0].length / (double) (long) bandLength + " bytes/sample");
+                        (double) data[0].length / (double) bandLength + " bytes/sample");
             }
             for (int i = 0; i < data[0].length; i++) {
                 final int y = data[0][i] & 0xFF;
