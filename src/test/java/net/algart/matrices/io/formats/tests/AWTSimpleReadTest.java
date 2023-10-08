@@ -50,7 +50,6 @@ public class AWTSimpleReadTest {
             throw new IIOException("Can't create an ImageInputStream!");
         }
         BufferedImage bi = ImageIO.read(stream);
-        System.out.printf("Successfully read: %s%n%n", bi);
 
         System.out.printf("Writing %s...%n", resultFile);
         resultFile.delete();
