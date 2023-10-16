@@ -159,6 +159,7 @@ public class JPEGTools {
         final boolean correctionNecessary =
                 "RGB".equalsIgnoreCase(colorSpace)
                         && declaredColorSpace == PhotoInterp.Y_CB_CR
+                        && declaredSubsampling.length >= 2
                         && declaredSubsampling[0] == 1 && declaredSubsampling[1] == 1
                         && data.length == 3;
         if (correctionNecessary) {

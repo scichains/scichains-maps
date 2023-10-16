@@ -66,6 +66,8 @@ public class TiffParser extends TiffReader {
 
     private boolean ycbcrCorrection = true;
 
+    private boolean equalStrips = false;
+
     private IFDList ifdList;
     private IFD firstIFD;
 
@@ -98,12 +100,13 @@ public class TiffParser extends TiffReader {
     /**
      * Sets whether or not to assume that strips are of equal size.
      *
-     * @param assumeEqualStrips Whether or not the strips are of equal size.
+     * @param equalStrips Whether or not the strips are of equal size.
      */
     @Deprecated
-    public void setAssumeEqualStrips(final boolean assumeEqualStrips) {
-        super.setAssumeEqualStrips(assumeEqualStrips);
+    public void setAssumeEqualStrips(final boolean equalStrips) {
+        this.equalStrips = equalStrips;
     }
+
 
     /**
      * Sets whether or not 64-bit offsets are used for non-BigTIFF files.
@@ -113,7 +116,9 @@ public class TiffParser extends TiffReader {
         fakeBigTiff = use64Bit;
     }
 
-    /** Sets whether or not YCbCr color correction is allowed. */
+    /**
+     * Sets whether or not YCbCr color correction is allowed.
+     */
     public void setYCbCrCorrection(final boolean correctionAllowed) {
         ycbcrCorrection = correctionAllowed;
     }
@@ -146,8 +151,8 @@ public class TiffParser extends TiffReader {
                     fillInIFD(ifd);
                 }
                 subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
+            } catch (final FormatException e) {
             }
-            catch (final FormatException e) {}
             if (subOffsets != null) {
                 for (final long subOffset : subOffsets) {
                     final IFD sub = getIFD(subOffset);
@@ -162,7 +167,9 @@ public class TiffParser extends TiffReader {
         return ifds;
     }
 
-    /** Use {@link #allThumbnailIFDs()} ()} instead. */
+    /**
+     * Use {@link #allThumbnailIFDs()} ()} instead.
+     */
     @Deprecated
     public IFDList getThumbnailIFDs() throws IOException {
         final IFDList ifds = getIFDs();
@@ -177,7 +184,9 @@ public class TiffParser extends TiffReader {
         return thumbnails;
     }
 
-    /** Use {@link #allNonThumbnailIFDs()} ()} instead. */
+    /**
+     * Use {@link #allNonThumbnailIFDs()} ()} instead.
+     */
     @Deprecated
     public IFDList getNonThumbnailIFDs() throws IOException {
         final IFDList ifds = getIFDs();
@@ -192,7 +201,9 @@ public class TiffParser extends TiffReader {
         return nonThumbs;
     }
 
-    /** Use {@link #allExifIFDs()} instead. */
+    /**
+     * Use {@link #allExifIFDs()} instead.
+     */
     @Deprecated
     public IFDList getExifIFDs() throws FormatException, IOException {
         final IFDList ifds = getIFDs();
@@ -208,8 +219,6 @@ public class TiffParser extends TiffReader {
         }
         return exif;
     }
-
-
 
 
     /**
@@ -258,7 +267,9 @@ public class TiffParser extends TiffReader {
     }
 
 
-    /** Use {@link #readIFDOffsets()} instead. */
+    /**
+     * Use {@link #readIFDOffsets()} instead.
+     */
     @Deprecated
     public long[] getIFDOffsets() throws IOException {
         final DataHandle<Location> in = getStream();
@@ -286,7 +297,9 @@ public class TiffParser extends TiffReader {
         return f;
     }
 
-    /** Use {@link #readFirstIFDOffset()} instead, together with {@link #isValid()} check. */
+    /**
+     * Use {@link #readFirstIFDOffset()} instead, together with {@link #isValid()} check.
+     */
     @Deprecated
     public long getFirstOffset() throws IOException {
         final DataHandle<Location> in = getStream();
@@ -298,7 +311,9 @@ public class TiffParser extends TiffReader {
         return getNextOffset(0);
     }
 
-    /** Use {@link #firstIFD()} instead, together with {@link #isValid()} check. */
+    /**
+     * Use {@link #firstIFD()} instead, together with {@link #isValid()} check.
+     */
     @Deprecated
     public IFD getFirstIFD() throws IOException {
         final boolean doCaching = isCachingIFDs();
@@ -347,8 +362,7 @@ public class TiffParser extends TiffReader {
             TiffIFDEntry entry = null;
             try {
                 entry = readTiffIFDEntry();
-            }
-            catch (final EnumException e) {
+            } catch (final EnumException e) {
 //                log.debug("", e);
             }
             if (entry == null) break;
@@ -388,8 +402,7 @@ public class TiffParser extends TiffReader {
 
             if (pointer != in.offset() && !doCaching) {
                 value = entry;
-            }
-            else value = getIFDValue(entry);
+            } else value = getIFDValue(entry);
 
             if (value != null && !ifd.containsKey(tag)) {
                 ifd.put(tag, value);
@@ -401,7 +414,9 @@ public class TiffParser extends TiffReader {
         return ifd;
     }
 
-    /** Fill in IFD entries that are stored at an arbitrary offset. */
+    /**
+     * Fill in IFD entries that are stored at an arbitrary offset.
+     */
     @Deprecated
     public void fillInIFD(final IFD ifd) throws IOException {
         final HashSet<TiffIFDEntry> entries = new HashSet<>();
@@ -427,8 +442,8 @@ public class TiffParser extends TiffReader {
         final int count = entry.getValueCount();
         final long offset = entry.getValueOffset();
 
-//            log.trace("Reading entry " + entry.getTag() + " from " + offset +
-//                    "; type=" + type + ", count=" + count);
+//        log.trace("Reading entry " + entry.getTag() + " from " + offset +
+//                "; type=" + type + ", count=" + count);
 
         if (offset >= in.length()) {
             return null;
@@ -497,7 +512,7 @@ public class TiffParser extends TiffReader {
                 type == IFDType.IFD8) {
             if (count == 1) return new Long(in.readLong());
             long[] longs = null;
-            boolean equalStrips = isAssumeEqualStrips();
+
             if (equalStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS || entry
                     .getTag() == IFD.TILE_BYTE_COUNTS)) {
                 longs = new long[1];
@@ -560,9 +575,9 @@ public class TiffParser extends TiffReader {
             }
             return doubles;
         }
+
         return null;
     }
-
 
 
     /**
@@ -739,7 +754,7 @@ public class TiffParser extends TiffReader {
 
                 int offset = 0;
                 for (int tile = firstTile; tile <= lastTile; tile++) {
-                    long byteCount = isAssumeEqualStrips() ? stripByteCounts[0]
+                    long byteCount = equalStrips ? stripByteCounts[0]
                             : stripByteCounts[tile];
                     if (byteCount == numSamples && pixel > 1) {
                         byteCount *= pixel;

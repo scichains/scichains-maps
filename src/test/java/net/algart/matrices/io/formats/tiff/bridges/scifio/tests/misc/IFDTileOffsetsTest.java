@@ -46,7 +46,6 @@ public class IFDTileOffsetsTest {
         final int ifdIndex = Integer.parseInt(args[1]);
 
         TiffReader reader = new TiffReader(null, file, false);
-//        reader.setAssumeEqualStrips(true);
         long t1 = System.nanoTime();
         DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
         long t2 = System.nanoTime();

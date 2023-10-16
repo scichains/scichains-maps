@@ -29,7 +29,9 @@ import io.scif.SCIFIO;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
@@ -66,6 +68,11 @@ public class TiffReaderTest {
             tiny = true;
             startArgIndex++;
         }
+        boolean compatibility = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-compatibility")) {
+            compatibility = true;
+            startArgIndex++;
+        }
 
         if (args.length < startArgIndex + 3) {
             System.out.println("Usage:");
@@ -89,7 +96,8 @@ public class TiffReaderTest {
         for (int repeat = 1; repeat <= numberOfCompleteRepeats; repeat++) {
             try (final Context context = noContext ? null : new SCIFIO().getContext()) {
                 long t1 = System.nanoTime();
-                final TiffReader reader = cache ?
+                final TiffReader reader = compatibility ?
+                        new TiffParser(context, tiffFile) : cache ?
                         new CachingTiffReader(context, tiffFile)
                                 .setMaxCachingMemory(tiny ? 1000000 : CachingTiffReader.DEFAULT_MAX_CACHING_MEMORY) :
                         new TiffReader(context, tiffFile);
@@ -98,6 +106,7 @@ public class TiffReaderTest {
 //                reader.setCachingIFDs(false);
                 reader.setMissingTilesAllowed(true);
                 reader.setByteFiller((byte) 0x80);
+//                ((TiffParser) reader).setAssumeEqualStrips(true);
 //                reader.setCropTilesToImageBoundaries(false);
                 final long positionOfLastOffset = reader.positionOfLastIFDOffset();
                 assert positionOfLastOffset == -1 : "constructor should not set positionOfLastOffset";
@@ -117,7 +126,13 @@ public class TiffReaderTest {
                     System.out.printf("%nNo IFD #%d, using last IFD #%d instead%n%n", ifdIndex, maps.size() - 1);
                     ifdIndex = maps.size() - 1;
                 }
-                final TiffMap map = maps.get(ifdIndex);
+                final TiffMap map;
+                if (compatibility) {
+                    //noinspection deprecation
+                    map = reader.newMap(DetailedIFD.extend(((TiffParser) reader).getIFDs().get(ifdIndex)));
+                } else {
+                    map = maps.get(ifdIndex);
+                }
                 if (w < 0) {
                     w = Math.min(map.dimX(), MAX_IMAGE_DIM);
                 }

@@ -131,7 +131,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean autoUnpackUnusualPrecisions = true;
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
-    private boolean assumeEqualStrips = false;
     private boolean cachingIFDs = true;
     private boolean missingTilesAllowed = false;
     private byte byteFiller = 0;
@@ -256,16 +255,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         if (exceptionHandler != null) {
             exceptionHandler.accept(openingException);
         }
-    }
-
-    @Deprecated
-    protected boolean isAssumeEqualStrips() {
-        return assumeEqualStrips;
-    }
-
-    @Deprecated
-    protected void setAssumeEqualStrips(final boolean assumeEqualStrips) {
-        this.assumeEqualStrips = assumeEqualStrips;
     }
 
     public boolean isRequireValidTiff() {
@@ -728,7 +717,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 long tEntry2 = debugTime();
                 timeEntries += tEntry2 - tEntry1;
 
-                final Object value = readIFDValueAtCurrentPosition(in, entry, assumeEqualStrips);
+                final Object value = readIFDValueAtCurrentPosition(in, entry);
                 long tEntry3 = debugTime();
                 timeArrays += tEntry3 - tEntry2;
 //            System.err.printf("%d values from %d: %.6f ms%n", valueCount, valueOffset, (tEntry3 - tEntry2) * 1e-6);
@@ -802,12 +791,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final DetailedIFD ifd = tileIndex.ifd();
         final int index = tileIndex.linearIndex();
         // - also checks that tile index is not out of image bounds
-        final int countIndex = assumeEqualStrips ? 0 : index;
-        // - see getIFDValue(): if assumeEqualStrips, getStripByteCounts() will return long[1] array,
-        // filled in getIFDValue(TiffIFDEntry)
         final long offset = ifd.cachedTileOrStripOffset(index);
         assert offset >= 0 : "offset " + offset + " was not checked in DetailedIFD";
-        final int byteCount = ifd.cachedTileOrStripByteCount(countIndex);
+        final int byteCount = cachedByteCountWithCompatibilityTrick(ifd, index);
+
         /*
         // Some strange old code, seems to be useless
         final int rowsPerStrip = ifd.cachedStripSizeY();
@@ -1226,18 +1213,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // and this class will throw an exception "data may be lost" in further
         // tile.completeNumberOfPixels() call.
         codecOptions.maxBytes = Math.max(samplesLength, tile.getStoredDataLength());
-        final int subSampleHorizontal = ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING);
-        // - Usually it is an array [1,1], [2,2], [2,1] or something like this:
-        // see documentation on YCbCrSubSampling TIFF tag.
-        // Default is [2,2].
-        // getIFDIntValue method returns the element #0, i.e. horizontal sub-sampling
-        // Value 1 means "ImageWidth of this chroma image is equal to the ImageWidth of the associated luma image".
-//        codecOptions.ycbcr =
-//                ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR
-//                        && subSampleHorizontal == 1
-//                        && yCbCrCorrection;
-        // - Rare case: Y_CB_CR is encoded with non-standard sub-sampling
-
         if (USE_LEGACY_UNPACK_BYTES) {
             codecOptions.interleaved = true;
             // - old-style unpackBytes does not "understand" already-separated tiles
@@ -1342,6 +1317,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
+    private static int cachedByteCountWithCompatibilityTrick(DetailedIFD ifd, int index) throws FormatException {
+        final boolean tiled = ifd.hasTileInformation();
+        final int tag = tiled ? IFD.TILE_BYTE_COUNTS : IFD.STRIP_BYTE_COUNTS;
+        Object value = ifd.get(tag);
+        if (value instanceof long[] byteCounts &&
+                byteCounts.length == 1 &&
+                byteCounts[0] == (int) byteCounts[0]) {
+            // - possible in a rare case:
+            // we use TiffParser.getIFD to read this IFD,
+            // and this file is Big-TIFF,
+            // and if we set "equal-strip" mode by TiffParser.setAssumeEqualStrips
+            return (int) byteCounts[0];
+        }
+        return ifd.cachedTileOrStripByteCount(index);
+    }
 
     // Unlike AbstractCodec.decompress, this method does not require using "handles" field, annotated as @Parameter
     // This function is not universal, it cannot be applied to any codec!
@@ -1833,10 +1823,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return offset;
     }
 
-    private static Object readIFDValueAtCurrentPosition(
-            DataHandle<?> in,
-            TiffIFDEntry entry,
-            boolean assumeEqualStrips)
+    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFDEntry entry)
             throws IOException, FormatException {
         final IFDType type = entry.getType();
         final int count = entry.getValueCount();
@@ -1928,22 +1915,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (count == 1) {
                 return in.readLong();
             }
-            if (assumeEqualStrips && (entry.getTag() == IFD.STRIP_BYTE_COUNTS ||
-                    entry.getTag() == IFD.TILE_BYTE_COUNTS)) {
-                long[] longs = new long[1];
-                longs[0] = in.readLong();
-                return longs;
+            if (OPTIMIZE_READING_IFD_ARRAYS) {
+                final byte[] bytes = readIFDBytes(in, 8 * (long) count);
+                return TiffTools.bytesToLongArray(bytes, in.isLittleEndian());
             } else {
-                if (OPTIMIZE_READING_IFD_ARRAYS) {
-                    final byte[] bytes = readIFDBytes(in, 8 * (long) count);
-                    return TiffTools.bytesToLongArray(bytes, in.isLittleEndian());
-                } else {
-                    long[] longs = new long[count];
-                    for (int j = 0; j < count; j++) {
-                        longs[j] = in.readLong();
-                    }
-                    return longs;
+                long[] longs = new long[count];
+                for (int j = 0; j < count; j++) {
+                    longs[j] = in.readLong();
                 }
+                return longs;
             }
         } else if (type == IFDType.RATIONAL || type == IFDType.SRATIONAL) {
             // Two LONGs or SLONGs: the first represents the numerator
