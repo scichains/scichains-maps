@@ -473,6 +473,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public List<TiffMap> allMaps() throws IOException, FormatException {
         return allIFDs().stream().map(this::newMap).collect(Collectors.toList());
     }
+
     /**
      * Returns all IFDs in the file.
      *
@@ -1025,7 +1026,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     public byte[] readSamples(TiffMap map, int fromX, int fromY, int sizeX, int sizeY, boolean storeTilesInMap)
             throws FormatException, IOException {
-            Objects.requireNonNull(map, "Null TIFF map");
+        Objects.requireNonNull(map, "Null TIFF map");
         long t1 = debugTime();
         clearTime();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
@@ -1370,24 +1371,24 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
 
         final int samplesLength = tile.map().tileSizeInBytes();
-        final int[] bitsPerSample = ifd.getBitsPerSample();
+        final int bits = ifd.tryEqualBitsPerSample().orElse(-1);
+        if (bits != 8) {
+            throw new UnsupportedTiffFormatException("Cannot unpack YCbCr TIFF image with " +
+                    Arrays.toString(ifd.getBitsPerSample()) +
+                    " bits per samples: only [8, 8, 8] variant is supported");
+        }
 
         final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
-        final long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
         if (channels != 3) {
             throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
                     "there are " + channels + " channels in SamplesPerPixel TIFF tag");
         }
         // - Note: we do not divide sampleCount by number of channels!
         // It is necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
-        if (sampleCount > Integer.MAX_VALUE) {
-            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
-        }
 
         final long tileSizeX = tile.getSizeX();
 
-        final int bytesPerSample = ifd.equalBytesPerSample();
-        final int numberOfPixels = samplesLength / (channels * bytesPerSample);
+        final int numberOfPixels = samplesLength / channels;
 
         final byte[] unpacked = new byte[samplesLength];
 
@@ -1412,42 +1413,37 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int subY = subsampling == null ? 2 : subsampling[1];
         final int block = subX * subY;
         final int nTiles = (int) (tileSizeX / subX);
-        for (int i = 0; i < sampleCount; i++) {
-            if (i >= numberOfPixels) break;
+        for (int i = 0; i < numberOfPixels; i++) {
+            // unpack non-YCbCr samples
+            // unpack YCbCr unpacked; these need special handling, as
+            // each of the RGB components depends upon two or more of the YCbCr
+            // components
+            final int lumaIndex = i + (2 * (i / block));
+            final int chromaIndex = (i / block) * (block + 2) + block;
 
-            for (int channel = 0; channel < channels; channel++) {
-                // unpack non-YCbCr samples
-                // unpack YCbCr unpacked; these need special handling, as
-                // each of the RGB components depends upon two or more of the YCbCr
-                // components
-                if (channel == channels - 1) {
-                    final int lumaIndex = i + (2 * (i / block));
-                    final int chromaIndex = (i / block) * (block + 2) + block;
+            if (chromaIndex + 1 >= bytes.length) break;
 
-                    if (chromaIndex + 1 >= bytes.length) break;
+            final int tileIndex = i / block;
+            final int pixel = i % block;
+            final long r = (long) subY * (tileIndex / nTiles) + (pixel / subX);
+            final long c = (long) subX * (tileIndex % nTiles) + (pixel % subX);
 
-                    final int tileIndex = i / block;
-                    final int pixel = i % block;
-                    final long r = (long) subY * (tileIndex / nTiles) + (pixel / subX);
-                    final long c = (long) subX * (tileIndex % nTiles) + (pixel % subX);
+            final int idx = (int) (r * tileSizeX + c);
 
-                    final int idx = (int) (r * tileSizeX + c);
+            if (idx < numberOfPixels) {
+                final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
 
-                    if (idx < numberOfPixels) {
-                        final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                        final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                        final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+                final double red = cr * (2 - 2 * lumaRed) + y;
+                final double blue = cb * (2 - 2 * lumaBlue) + y;
+                final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
 
-                        final double red = cr * (2 - 2 * lumaRed) + y;
-                        final double blue = cb * (2 - 2 * lumaBlue) + y;
-                        final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
-
-                        unpacked[idx] = (byte) toUnsignedByte(red);
-                        unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
-                        unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
-                    }
-                }
+                unpacked[idx] = (byte) toUnsignedByte(red);
+                unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
+                unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
             }
+
         }
 
         tile.setDecodedData(unpacked);
