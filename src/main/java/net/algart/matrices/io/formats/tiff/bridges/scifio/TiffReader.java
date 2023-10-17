@@ -1412,7 +1412,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int subX = subsampling == null ? 2 : subsampling[0];
         final int subY = subsampling == null ? 2 : subsampling[1];
         final int block = subX * subY;
-        final int nTiles = (int) (tileSizeX / subX);
+        final int nHorizontalBlocks = (int) (tileSizeX / subX);
         for (int i = 0; i < numberOfPixels; i++) {
             // unpack non-YCbCr samples
             // unpack YCbCr unpacked; these need special handling, as
@@ -1425,8 +1425,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
             final int tileIndex = i / block;
             final int pixel = i % block;
-            final long r = (long) subY * (tileIndex / nTiles) + (pixel / subX);
-            final long c = (long) subX * (tileIndex % nTiles) + (pixel % subX);
+            final long r = (long) subY * (tileIndex / nHorizontalBlocks) + (pixel / subX);
+            final long c = (long) subX * (tileIndex % nHorizontalBlocks) + (pixel % subX);
 
             final int idx = (int) (r * tileSizeX + c);
 
