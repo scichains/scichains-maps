@@ -40,8 +40,6 @@ import java.io.IOException;
 import java.util.Iterator;
 
 public class AWTCustomWriteJpegTest {
-    public static final boolean NEED_JCS_RGB = true;
-
     static ImageWriter getJPEGWriter() throws IIOException {
         Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
         if (!writers.hasNext()) {
@@ -131,7 +129,7 @@ public class AWTCustomWriteJpegTest {
         // Note: for RGB case, this method leads to results, identical to writeJpegViaImageType
         System.out.printf("Writing JPEG image into %s via metadata %s...%n", file, metadata);
         IIOImage iioImage = new IIOImage(image, null, metadata);
-        writer.write(metadata, iioImage, writeParam);
+        writer.write(null, iioImage, writeParam);
     }
 
     public static void main(String[] args) throws IOException {

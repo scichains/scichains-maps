@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tests;
+package net.algart.matrices.io.formats.tests.bugs;
 
 
 import javax.imageio.*;

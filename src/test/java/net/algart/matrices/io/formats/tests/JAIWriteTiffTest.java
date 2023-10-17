@@ -29,6 +29,7 @@ import io.scif.media.imageioimpl.plugins.tiff.TIFFIFD;
 import io.scif.media.imageioimpl.plugins.tiff.TIFFImageMetadata;
 import io.scif.media.imageioimpl.plugins.tiff.TIFFImageWriter;
 import io.scif.media.imageioimpl.plugins.tiff.TIFFJPEGCompressor;
+import net.algart.matrices.io.formats.tests.bugs.AWTWriteJpegBug;
 
 import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
