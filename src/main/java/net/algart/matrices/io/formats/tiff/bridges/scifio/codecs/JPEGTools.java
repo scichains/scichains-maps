@@ -177,16 +177,16 @@ public class JPEGTools {
                         (double) data[0].length / (double) bandLength + " bytes/sample");
             }
             for (int i = 0; i < data[0].length; i++) {
-                final int y = data[0][i] & 0xFF;
+                int y = data[0][i] & 0xFF;
                 int cb = data[1][i] & 0xFF;
                 int cr = data[2][i] & 0xFF;
 
                 cb -= 128;
                 cr -= 128;
 
-                final double red = (y + 1.402 * cr);
-                final double green = (y - 0.34414 * cb - 0.71414 * cr);
-                final double blue = (y + 1.772 * cb);
+                double red = (y + 1.402 * cr);
+                double green = (y - 0.34414 * cb - 0.71414 * cr);
+                double blue = (y + 1.772 * cb);
 
                 data[0][i] = (byte) toUnsignedByte(red);
                 data[1][i] = (byte) toUnsignedByte(green);
@@ -218,7 +218,7 @@ public class JPEGTools {
         }
     }
 
-    public static ImageReader getImageReaderOrNull(Object inputStream) throws IIOException {
+    public static ImageReader getImageReaderOrNull(Object inputStream) {
         Iterator<ImageReader> readers = ImageIO.getImageReaders(inputStream);
         return findAWTCodec(readers);
     }

@@ -616,12 +616,22 @@ public class DetailedIFD extends IFD {
                     " elements: " + Arrays.toString(result) + "; it must contain at least 2 numbers");
         }
         for (int v : result) {
-            if (v <= 0) {
-                throw new FormatException("TIFF tag YCbCrSubSampling must contain only positive elements, " +
+            if (v != 1 && v != 2 && v != 4) {
+                throw new FormatException("TIFF tag YCbCrSubSampling must contain only values 1, 2 or 4, " +
                         "but it is " + Arrays.toString(result));
             }
         }
         return Arrays.copyOf(result, 2);
+    }
+
+    public int[] getYCbCrSubsamplingLogarithms() throws FormatException {
+        int[] result = getYCbCrSubsampling();
+        for (int k = 0; k < result.length; k++) {
+            final int v = result[k];
+            result[k] = 31 - Integer.numberOfLeadingZeros(v);
+            assert 1 << result[k] == v;
+        }
+        return result;
     }
 
 

@@ -118,6 +118,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private static final boolean USE_LEGACY_UNPACK_BYTES = false;
     // - Should be false for better performance; necessary for debugging needs only.
+    private static final boolean THOROUGHLY_TEST_Y_CB_CR_LOOP = false;
 
     private static final int MINIMAL_ALLOWED_TIFF_FILE_LENGTH = 8 + 2 + 12 + 4;
     // - 8 bytes header + at least 1 IFD entry (usually at least 2 entries required: ImageWidth + ImageLength);
@@ -1364,13 +1365,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         // - JPEG codec, based on Java API BufferedImage, always returns RGB data
 
-        if (ifd.isPlanarSeparated()) {
+        final TiffMap map = tile.map();
+        if (map.isPlanarSeparated()) {
             // - there is no simple way to support this exotic situation: Cb/Cr values are saved in other tiles
-            throw new FormatException("TIFF YCbCr photometric interpretation is not supported in planar format " +
-                    "(separated component plances)");
+            throw new UnsupportedTiffFormatException("TIFF YCbCr photometric interpretation is not supported " +
+                    "in planar format (separated component planes: TIFF tag PlanarConfiguration=2)");
         }
 
-        final int samplesLength = tile.map().tileSizeInBytes();
+        final int samplesLength = map.tileSizeInBytes();
         final int bits = ifd.tryEqualBitsPerSample().orElse(-1);
         if (bits != 8) {
             throw new UnsupportedTiffFormatException("Cannot unpack YCbCr TIFF image with " +
@@ -1378,72 +1380,102 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     " bits per samples: only [8, 8, 8] variant is supported");
         }
 
-        final int channels = ifd.isPlanarSeparated() ? 1 : ifd.getSamplesPerPixel();
-        if (channels != 3) {
+        if (map.tileSamplesPerPixel() != 3) {
             throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
-                    "there are " + channels + " channels in SamplesPerPixel TIFF tag");
+                    "there are " + map.tileSamplesPerPixel() + " channels in SamplesPerPixel TIFF tag");
         }
-        // - Note: we do not divide sampleCount by number of channels!
-        // It is necessary, for example, for unpacking dscf0013.tif from libtiffpic examples set
 
-        final long tileSizeX = tile.getSizeX();
 
-        final int numberOfPixels = samplesLength / channels;
+        final int sizeX = tile.getSizeX();
+        final int sizeY = tile.getSizeY();
+        final int numberOfPixels = sizeX * sizeY;
 
         final byte[] unpacked = new byte[samplesLength];
 
         // unpack pixels
         // set up YCbCr-specific values
-        float lumaRed = PhotoInterp.LUMA_RED;
-        float lumaGreen = PhotoInterp.LUMA_GREEN;
-        float lumaBlue = PhotoInterp.LUMA_BLUE;
+        double lumaRed = PhotoInterp.LUMA_RED;
+        double lumaGreen = PhotoInterp.LUMA_GREEN;
+        double lumaBlue = PhotoInterp.LUMA_BLUE;
         int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
         if (reference == null) {
-            reference = new int[]{0, 0, 0, 0, 0, 0};
+            reference = new int[]{0, 255, 128, 255, 128, 255};
+            // - original SCIFIO code used here zero-filled array, this is incorrect
         }
-        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
-        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(IFD.Y_CB_CR_COEFFICIENTS);
-        if (coefficients != null) {
-            lumaRed = coefficients[0].floatValue();
-            lumaGreen = coefficients[1].floatValue();
-            lumaBlue = coefficients[2].floatValue();
+        final int[] subsamplingLog = ifd.getYCbCrSubsamplingLogarithms();
+        final TiffRational[] coefficients = ifd.optValue(
+                        IFD.Y_CB_CR_COEFFICIENTS, TiffRational[].class, true)
+                .orElse(new TiffRational[0]);
+        if (coefficients.length >= 3) {
+            lumaRed = coefficients[0].doubleValue();
+            lumaGreen = coefficients[1].doubleValue();
+            lumaBlue = coefficients[2].doubleValue();
         }
+        final double crCoefficient = 2 - 2 * lumaRed;
+        final double cbCoefficient = 2 - 2 * lumaBlue;
         final double lumaGreenInv = 1.0 / lumaGreen;
-        final int subX = subsampling == null ? 2 : subsampling[0];
-        final int subY = subsampling == null ? 2 : subsampling[1];
-        final int block = subX * subY;
-        final int nHorizontalBlocks = (int) (tileSizeX / subX);
-        for (int i = 0; i < numberOfPixels; i++) {
-            // unpack non-YCbCr samples
-            // unpack YCbCr unpacked; these need special handling, as
-            // each of the RGB components depends upon two or more of the YCbCr
-            // components
-            final int lumaIndex = i + (2 * (i / block));
-            final int chromaIndex = (i / block) * (block + 2) + block;
+        final int subXLog = subsamplingLog[0];
+        final int subYLog = subsamplingLog[1];
+        final int blockLog = subXLog + subYLog;
+        final int block = 1 << blockLog;
+        final int nHorizontalBlocks = sizeX >>> subXLog;
+        for (int yIndex = 0, i = 0; yIndex < sizeY; yIndex++) {
+            final int yBlockIndex = yIndex >>> subYLog;
+            final int yAligned = yBlockIndex << subYLog;
+            final int lineAligned = yBlockIndex * nHorizontalBlocks;
+            for (int xIndex = 0; xIndex < sizeX; xIndex++, i++) {
+                // unpack non-YCbCr samples
+                // unpack YCbCr unpacked; these need special handling, as
+                // each of the RGB components depends upon two or more of the YCbCr
+                // components
+                final int blockIndex = i >>> blockLog; // = i / block
+                final int aligned = blockIndex << blockLog;
+                final int indexInBlock = i - aligned;
+                final int blockIndexTwice = 2 * blockIndex; // 1 block for Cb + 1 block for Cr
+                final int lumaIndex = i + blockIndexTwice;
+                final int blockStart = aligned + blockIndexTwice;
+                final int chromaIndex = block + blockStart;
+                // Every block contains block Luma (Y) values, 1 Cb value and 1 Cr value, for example (2x2):
+                //    YYYYbrYYYYbrYYYYbr...
+                //                |"blockStart" position
 
-            if (chromaIndex + 1 >= bytes.length) break;
+                if (chromaIndex + 1 >= bytes.length) {
+                    break;
+                }
 
-            final int tileIndex = i / block;
-            final int pixel = i % block;
-            final long r = (long) subY * (tileIndex / nHorizontalBlocks) + (pixel / subX);
-            final long c = (long) subX * (tileIndex % nHorizontalBlocks) + (pixel % subX);
+                final int yIndexInBlock = indexInBlock >>> subXLog;
+                final int xIndexInBlock = indexInBlock - (yIndexInBlock << subXLog);
+                final int resultYIndex = yAligned + yIndexInBlock;
+                final int resultXIndex = ((blockIndex - lineAligned) << subXLog) + xIndexInBlock;
+                if (THOROUGHLY_TEST_Y_CB_CR_LOOP) {
+                    final int subX = 1 << subXLog;
+                    final int subY = 1 << subYLog;
+                    final int t = i / block;
+                    final int pixel = i % block;
+                    final long r = (long) subY * (t / nHorizontalBlocks) + (pixel / subX);
+                    final long c = (long) subX * (t % nHorizontalBlocks) + (pixel % subX);
+                    // - these formulas were used in original SCIFIO code
+                    assert t / nHorizontalBlocks == yBlockIndex;
+                    assert t % nHorizontalBlocks == blockIndex - lineAligned;
+                    assert c == resultXIndex;
+                    assert r == resultYIndex;
+                }
 
-            final int idx = (int) (r * tileSizeX + c);
+                final int index = resultYIndex * sizeX + resultXIndex;
+                if (index < numberOfPixels) {
+                    final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                    final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                    final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
 
-            if (idx < numberOfPixels) {
-                final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+                    final double red = cr * crCoefficient + y;
+                    final double blue = cb * cbCoefficient + y;
+                    final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
 
-                final double red = cr * (2 - 2 * lumaRed) + y;
-                final double blue = cb * (2 - 2 * lumaBlue) + y;
-                final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
-
-                unpacked[idx] = (byte) toUnsignedByte(red);
-                unpacked[numberOfPixels + idx] = (byte) toUnsignedByte(green);
-                unpacked[2 * numberOfPixels + idx] = (byte) toUnsignedByte(blue);
+                    unpacked[index] = (byte) toUnsignedByte(red);
+                    unpacked[numberOfPixels + index] = (byte) toUnsignedByte(green);
+                    unpacked[2 * numberOfPixels + index] = (byte) toUnsignedByte(blue);
+                }
             }
-
         }
 
         tile.setDecodedData(unpacked);
