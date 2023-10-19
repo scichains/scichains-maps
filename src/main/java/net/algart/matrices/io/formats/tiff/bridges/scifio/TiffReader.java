@@ -1552,8 +1552,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
         }
 
-        final long imageWidth = tile.getSizeX();
-        final long imageHeight = tile.getSizeY();
+        final long tileSizeX = tile.getSizeX();
+        final long tileSizeY = tile.getSizeY();
 
         final boolean littleEndian = ifd.isLittleEndian();
 
@@ -1564,8 +1564,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long maxValue = (long) Math.pow(2, bps0) - 1;
         if (photoInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
-        int skipBits = (int) (8 - ((imageWidth * bps0 * samplesPerPixel) % 8));
-        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * imageWidth + imageHeight))) {
+        int skipBits = (int) (8 - ((tileSizeX * bps0 * samplesPerPixel) % 8));
+        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * tileSizeX + tileSizeY))) {
             skipBits = 0;
         }
 
@@ -1587,7 +1587,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                             (photoInterpretation != PhotoInterp.CFA_ARRAY &&
                                     photoInterpretation != PhotoInterp.RGB_PALETTE)) {
                         value = bb.getBits(bps0) & 0xffff;
-                        if ((i % imageWidth) == imageWidth - 1) {
+                        if ((i % tileSizeX) == tileSizeX - 1) {
                             bb.skipBits(skipBits);
                         }
                     }
