@@ -1415,9 +1415,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final double lumaGreenInv = 1.0 / lumaGreen;
         final int subXLog = subsamplingLog[0];
         final int subYLog = subsamplingLog[1];
+        final int subXMinus1 = (1 << subXLog) - 1;
         final int blockLog = subXLog + subYLog;
         final int block = 1 << blockLog;
-        final int nHorizontalBlocks = sizeX >>> subXLog;
+        final int nHorizontalBlocks = (sizeX + subXMinus1) >>> subXLog;
         for (int yIndex = 0, i = 0; yIndex < sizeY; yIndex++) {
             final int yBlockIndex = yIndex >>> subYLog;
             final int yAligned = yBlockIndex << subYLog;
@@ -1430,10 +1431,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 final int blockIndex = i >>> blockLog; // = i / block
                 final int aligned = blockIndex << blockLog;
                 final int indexInBlock = i - aligned;
+                assert indexInBlock < block;
                 final int blockIndexTwice = 2 * blockIndex; // 1 block for Cb + 1 block for Cr
-                final int lumaIndex = i + blockIndexTwice;
                 final int blockStart = aligned + blockIndexTwice;
-                final int chromaIndex = block + blockStart;
+                final int lumaIndex = blockStart + indexInBlock;
+                final int chromaIndex = blockStart + block;
                 // Every block contains block Luma (Y) values, 1 Cb value and 1 Cr value, for example (2x2):
                 //    YYYYbrYYYYbrYYYYbr...
                 //                |"blockStart" position
@@ -1476,6 +1478,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 unpacked[resultIndex] = (byte) toUnsignedByte(red);
                 unpacked[numberOfPixels + resultIndex] = (byte) toUnsignedByte(green);
                 unpacked[2 * numberOfPixels + resultIndex] = (byte) toUnsignedByte(blue);
+            }
+            while ((i & subXMinus1) != 0) {
+                i++;
+                // - horizontal alignment
             }
         }
 
