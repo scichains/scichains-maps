@@ -1372,7 +1372,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     "in planar format (separated component planes: TIFF tag PlanarConfiguration=2)");
         }
 
-        final int samplesLength = map.tileSizeInBytes();
         final int bits = ifd.tryEqualBitsPerSample().orElse(-1);
         if (bits != 8) {
             throw new UnsupportedTiffFormatException("Cannot unpack YCbCr TIFF image with " +
@@ -1390,7 +1389,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int sizeY = tile.getSizeY();
         final int numberOfPixels = sizeX * sizeY;
 
-        final byte[] unpacked = new byte[samplesLength];
+        final byte[] unpacked = new byte[3 * numberOfPixels];
 
         // unpack pixels
         // set up YCbCr-specific values
@@ -1460,21 +1459,23 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     assert c == resultXIndex;
                     assert r == resultYIndex;
                 }
-
-                final int index = resultYIndex * sizeX + resultXIndex;
-                if (index < numberOfPixels) {
-                    final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                    final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                    final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
-
-                    final double red = cr * crCoefficient + y;
-                    final double blue = cb * cbCoefficient + y;
-                    final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
-
-                    unpacked[index] = (byte) toUnsignedByte(red);
-                    unpacked[numberOfPixels + index] = (byte) toUnsignedByte(green);
-                    unpacked[2 * numberOfPixels + index] = (byte) toUnsignedByte(blue);
+                if (resultXIndex >= sizeX || resultYIndex >= sizeY) {
+                    // - for a case when the sizes are not aligned by subX/subY
+                    continue;
                 }
+
+                final int resultIndex = resultYIndex * sizeX + resultXIndex;
+                final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+
+                final double red = cr * crCoefficient + y;
+                final double blue = cb * cbCoefficient + y;
+                final double green = (y - lumaBlue * blue - lumaRed * red) * lumaGreenInv;
+
+                unpacked[resultIndex] = (byte) toUnsignedByte(red);
+                unpacked[numberOfPixels + resultIndex] = (byte) toUnsignedByte(green);
+                unpacked[2 * numberOfPixels + resultIndex] = (byte) toUnsignedByte(blue);
             }
         }
 

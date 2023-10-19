@@ -333,7 +333,7 @@ public class DetailedIFD extends IFD {
         return optValue(tag, Boolean.class).orElse(defaultValue);
     }
 
-    public int getInt(int tag) throws FormatException {
+    public int reqInt(int tag) throws FormatException {
         return checkedIntValue(reqValue(tag, Number.class), tag);
     }
 
@@ -345,7 +345,7 @@ public class DetailedIFD extends IFD {
         return truncatedIntValue(optValue(tag, Number.class).orElse(defaultValue));
     }
 
-    public long getLong(int tag) throws FormatException {
+    public long reqLong(int tag) throws FormatException {
         return reqValue(tag, Number.class).longValue();
     }
 
@@ -586,7 +586,7 @@ public class DetailedIFD extends IFD {
                 && getInt(IFD.COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
             return PhotoInterp.RGB;
         }
-        final int code = getInt(PHOTOMETRIC_INTERPRETATION);
+        final int code = reqInt(PHOTOMETRIC_INTERPRETATION);
         try {
             return PhotoInterp.get(code);
         } catch (EnumException e) {
@@ -654,7 +654,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int getImageDimX() throws FormatException {
-        final int imageWidth = getInt(IMAGE_WIDTH);
+        final int imageWidth = reqInt(IMAGE_WIDTH);
         if (imageWidth <= 0) {
             throw new FormatException("Zero or negative image width = " + imageWidth);
             // - impossible in a correct TIFF
@@ -663,7 +663,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int getImageDimY() throws FormatException {
-        final int imageLength = getInt(IMAGE_LENGTH);
+        final int imageLength = reqInt(IMAGE_LENGTH);
         if (imageLength <= 0) {
             throw new FormatException("Zero or negative image height = " + imageLength);
             // - impossible in a correct TIFF
@@ -737,7 +737,7 @@ public class DetailedIFD extends IFD {
     public int getTileSizeX() throws FormatException {
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final int tileWidth = getInt(IFD.TILE_WIDTH);
+            final int tileWidth = reqInt(IFD.TILE_WIDTH);
             // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
             if (tileWidth <= 0) {
                 throw new FormatException("Zero or negative tile width = " + tileWidth);
@@ -772,7 +772,7 @@ public class DetailedIFD extends IFD {
     public int getTileSizeY() throws FormatException {
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final int tileLength = getInt(IFD.TILE_LENGTH);
+            final int tileLength = reqInt(IFD.TILE_LENGTH);
             if (tileLength <= 0) {
                 throw new FormatException("Zero or negative tile length (height) = " + tileLength);
                 // - impossible in a correct TIFF
