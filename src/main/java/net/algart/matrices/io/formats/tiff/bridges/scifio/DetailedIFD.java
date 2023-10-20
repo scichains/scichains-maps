@@ -902,6 +902,25 @@ public class DetailedIFD extends IFD {
         return FormatTools.getBytesPerPixel(pixelType);
     }
 
+    public boolean isOrdinaryPrecision() throws FormatException {
+        final int bits = tryEqualBitsPerSample().orElse(-1);
+        return bits == 8 || bits == 16 || bits == 32 || bits == 64;
+    }
+
+    public boolean isStandardYCbCrNonJpeg() throws FormatException {
+        TiffCompression compression = getCompression();
+        return isStandard(compression) && !isJpeg(compression) &&
+                getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
+    }
+
+    public boolean isStandardInverted() throws FormatException {
+        TiffCompression compression = getCompression();
+        PhotoInterp photometricInterpretation = getPhotometricInterpretation();
+        return isStandard(compression) && !isJpeg(compression) &&
+                (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                        photometricInterpretation == PhotoInterp.CMYK);
+    }
+
     public DetailedIFD putImageDimensions(int dimX, int dimY) {
         checkImmutable();
         updateImageDimensions(dimX, dimY);
@@ -1357,6 +1376,19 @@ public class DetailedIFD extends IFD {
     @Override
     public void printIFD() {
         LOG.log(System.Logger.Level.TRACE, this);
+    }
+
+    public static boolean isStandard(TiffCompression compression) {
+        Objects.requireNonNull(compression, "Null compression");
+        return compression.getCode() <= 7;
+    }
+
+    public static boolean isJpeg(TiffCompression compression) {
+        Objects.requireNonNull(compression, "Null compression");
+        return compression == TiffCompression.JPEG
+                || compression == TiffCompression.OLD_JPEG
+                || compression == TiffCompression.ALT_JPEG;
+        // - actually only TiffCompression.JPEG is surely supported
     }
 
     private void checkImmutable() {
