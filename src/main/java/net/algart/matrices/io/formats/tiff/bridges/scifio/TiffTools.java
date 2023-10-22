@@ -491,6 +491,7 @@ public class TiffTools {
     // The main reason to make this clone is removing usage of LogService class
     // and to fix a bug: it was not work with tiles, only with strips.
     public static void addPredictionIfRequested(TiffTile tile) throws FormatException {
+        Objects.requireNonNull(tile, "Null tile");
         final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
         final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);

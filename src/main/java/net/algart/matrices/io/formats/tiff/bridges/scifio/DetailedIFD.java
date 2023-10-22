@@ -913,7 +913,15 @@ public class DetailedIFD extends IFD {
                 getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
     }
 
-    public boolean isStandardInverted() throws FormatException {
+    public boolean isStandardCompression() throws FormatException {
+        return isStandard(getCompression());
+    }
+
+    public boolean isStandardJpeg() throws FormatException {
+        return isJpeg(getCompression());
+    }
+
+    public boolean isStandardInvertedCompression() throws FormatException {
         TiffCompression compression = getCompression();
         PhotoInterp photometricInterpretation = getPhotometricInterpretation();
         return isStandard(compression) && !isJpeg(compression) &&

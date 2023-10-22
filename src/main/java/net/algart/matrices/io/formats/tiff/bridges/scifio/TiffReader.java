@@ -953,10 +953,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setInterleaved(false);
         } else {
             if (!repackSimpleFormats(tile)) {
+                if (!tile.isInterleaved()) {
+                    throw new IllegalArgumentException("Tile data must be interleaved for correct completing " +
+                            "to decode " + tile.ifd().getCompression() + " (separated data are allowed for codecs " +
+                            "like JPEG, that must fully decode data themselves, but not for this " +
+                            "compression): " + tile);
+                }
                 if (!unpackUnusualBits(tile)) {
-                    if (!decodeYCbCr(tile)) {
-                        throw new AssertionError("At least one of 3 methods should return true!");
-                    }
+                    decodeYCbCr(tile);
                 }
             }
         }
@@ -1359,14 +1363,24 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
+    private static boolean isAdditionalPostprocessingNecessary(DetailedIFD ifd) throws FormatException {
+        TiffCompression compression = ifd.getCompression();
+        if (!DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression)) {
+            // - JPEG codec and all non-standard codecs like JPEG2000 should perform all necessary
+            // bits unpacking or color space corrections themselves
+            return true;
+        }
+        if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
+            return false;
+        }
+        return ifd.isOrdinaryPrecision() && !ifd.isStandardInvertedCompression();
+    }
+
     private boolean repackSimpleFormats(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        if (ifd.isStandardYCbCrNonJpeg()) {
-            return false;
-        }
-        if (!ifd.isOrdinaryPrecision() || ifd.isStandardInverted()) {
+        if (!isAdditionalPostprocessingNecessary(ifd)) {
             return false;
         }
         if (tile.getStoredDataLength() > tile.map().tileSizeInBytes()) {
@@ -1387,6 +1401,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Also note: it is better to rearrange pixels before separating (if necessary),
         // because rearranging interleaved pixels is little more simple.
         tile.separateSamplesIfNecessary();
+
+        // Note: other 2 functions, unpackUnusualBits and decodeYCbCr, always work with interleaved
+        // data and separate data themselves to a tile with correct sizes
         return true;
 
     }
@@ -1395,18 +1412,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
+        if (isAdditionalPostprocessingNecessary(ifd)) {
+            return false;
+        }
         if (ifd.isStandardYCbCrNonJpeg()) {
             return false;
         }
-        if (ifd.isOrdinaryPrecision() && !ifd.isStandardInverted()) {
-            return false;
-        }
+        assert tile.isInterleaved() : "unpackUnusualBits should not be called for separated tile";
+        assert ifd.isStandardCompression() :
+                "non-standard compression not checked by isAdditionalPostprocessingNecessary";
 
         final int samplesPerPixel = tile.samplesPerPixel();
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
+        final long sizeX = tile.getSizeX();
+        final long sizeY = tile.getSizeY();
         final int resultSamplesLength = tile.map().tileSizeInBytes();
-        // - the length of the RESULT array, that should be stored in the returning tile
-        // (in the old code it was just the length of the passed byte[] "samples" array)
 
         final int bytesPerSample = tile.bytesPerSample();
         final int numberOfPixels = resultSamplesLength / (samplesPerPixel * bytesPerSample);
@@ -1424,8 +1444,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
         }
 
-        final long tileSizeX = tile.getSizeX();
-        final long tileSizeY = tile.getSizeY();
 
         final boolean littleEndian = ifd.isLittleEndian();
 
@@ -1436,8 +1454,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long maxValue = (long) Math.pow(2, bps0) - 1;
         if (photometricInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
 
-        int skipBits = (int) (8 - ((tileSizeX * bps0 * samplesPerPixel) % 8));
-        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * tileSizeX + tileSizeY))) {
+        int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
+        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
             skipBits = 0;
         }
 
@@ -1459,7 +1477,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                             (photometricInterpretation != PhotoInterp.CFA_ARRAY &&
                                     photometricInterpretation != PhotoInterp.RGB_PALETTE)) {
                         value = bb.getBits(bps0) & 0xffff;
-                        if ((i % tileSizeX) == tileSizeX - 1) {
+                        if ((i % sizeX) == sizeX - 1) {
                             bb.skipBits(skipBits);
                         }
                     }
@@ -1489,6 +1507,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         if (!ifd.isStandardYCbCrNonJpeg()) {
             return false;
         }
+        assert tile.isInterleaved() : "decodeYCbCr should not be called for separated tile";
         byte[] bytes = tile.getDecodedData();
 
         final TiffMap map = tile.map();
@@ -1513,7 +1532,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final int sizeX = tile.getSizeX();
         final int sizeY = tile.getSizeY();
-        final int numberOfPixels = sizeX * sizeY;
+        final int numberOfPixels = tile.getSizeInPixels();
 
         final byte[] unpacked = new byte[3 * numberOfPixels];
 
@@ -1647,7 +1666,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // Chris Allan <callan@glencoesoftware.com>
         if (usualPrecision &&
                 tile.getStoredDataLength() <= resultSamplesLength &&
-                !ifd.isStandardInverted()) {
+                !ifd.isStandardInvertedCompression()) {
             if (tile.getStoredDataLength() > map.tileSizeInBytes()) {
                 // - this check is better than IllegalArgumentException in the further adjustNumberOfPixels
                 throw new FormatException("Too large decoded TIFF data: " + tile.getStoredDataLength() +

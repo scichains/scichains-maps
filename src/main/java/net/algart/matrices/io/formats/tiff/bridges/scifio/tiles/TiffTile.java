@@ -131,6 +131,9 @@ public final class TiffTile {
      * <p>These are purely informational properties, not affecting processing the stored data
      * and supported for additional convenience of usage this object.
      *
+     * <p>There is a guarantee that the total {@link #getSizeInBytes() number of bytes},
+     * required to store <tt>sizeX*sizeY</tt> pixels, will be <tt>&le;Integer.MAX_VALUE.</tt>
+     *
      * @param sizeX the tile width; must be positive.
      * @param sizeY the tile height; must be positive.
      * @return a reference to this object.
@@ -158,6 +161,24 @@ public final class TiffTile {
         this.sizeInPixels = sizeInPixels;
         this.sizeInBytes = sizeInPixels * bytesPerPixel;
         return this;
+    }
+
+    public TiffTile setEqualSizes(TiffTile other) {
+        Objects.requireNonNull(other, "Null other tile");
+        return setSizes(other.sizeX, other.sizeY);
+    }
+
+    public boolean equalSizes(TiffTile other) {
+        return other != null && sizeX == other.sizeX && sizeY == other.sizeY;
+        // - note: there is no sense to check samplesPerPixel, it is not a "size", but property of pixel format
+    }
+
+    public int getSizeInPixels() {
+        return sizeInPixels;
+    }
+
+    public int getSizeInBytes() {
+        return sizeInBytes;
     }
 
     public IRectangularArea rectangle() {
@@ -204,24 +225,6 @@ public final class TiffTile {
         } else {
             return setSizes(Math.min(sizeX, map.dimX() - index.fromX()), Math.min(sizeY, map.dimY() - index.fromY()));
         }
-    }
-
-    public TiffTile setEqualSizes(TiffTile other) {
-        Objects.requireNonNull(other, "Null other tile");
-        return setSizes(other.sizeX, other.sizeY);
-    }
-
-    public boolean equalSizes(TiffTile other) {
-        return other != null && sizeX == other.sizeX && sizeY == other.sizeY;
-        // - note: there is no sense to check samplesPerPixel, it is not a "size", but property of pixel format
-    }
-
-    public int getSizeInPixels() {
-        return sizeInPixels;
-    }
-
-    public int getSizeInBytes() {
-        return sizeInBytes;
     }
 
     public Collection<IRectangularArea> getUnsetArea() {
