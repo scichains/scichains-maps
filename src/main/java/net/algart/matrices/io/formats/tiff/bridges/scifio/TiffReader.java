@@ -1427,10 +1427,17 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final long sizeY = tile.getSizeY();
         final int resultSamplesLength = tile.getSizeInBytes();
 
+        final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bytesPerSample = tile.bytesPerSample();
+        if (bytesPerSample > 4) {
+            throw new UnsupportedTiffFormatException("TIFF with compression " +
+                    ifd.getCompression().getCodecName() + ", " +
+                    "photometric interpretation " + photometricInterpretation.getName() +
+                    " and more than 4 bytes per sample (" + Arrays.toString(bitsPerSample) + " bits) " +
+                    "is not supported");
+        }
         final int numberOfPixels = tile.getSizeInPixels();
 
-        final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
         final byte[] bytes = tile.getDecodedData();
