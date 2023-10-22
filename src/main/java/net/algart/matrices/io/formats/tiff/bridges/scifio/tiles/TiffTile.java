@@ -336,7 +336,7 @@ public final class TiffTile {
     }
 
     public TiffTile setEncodedData(byte[] data) {
-        return setData(data, true);
+        return setData(data, true, false);
     }
 
     public TiffTile fillEmpty(Consumer<TiffTile> initializer) {
@@ -358,7 +358,11 @@ public final class TiffTile {
     }
 
     public TiffTile setDecodedData(byte[] data) {
-        return setData(data, false);
+        return setData(data, false, true);
+    }
+
+    public TiffTile setPartiallyDecodedData(byte[] data) {
+        return setData(data, false, false);
     }
 
     public TiffTile free() {
@@ -430,33 +434,35 @@ public final class TiffTile {
         return this;
     }
 
-        /**
-         * Returns the number of pixels, actually stored in the {@link #getData() data array} in this tile
-         * in the decoded form, or 0 after creating this object.
-         *
-         * <p>Note: that this method throws <tt>IllegalStateException</tt> if the data are {@link #isEncoded() encoded},
-         * for example, immediately after reading tile from file. If the tile is {@link #isEmpty() empty} (no data),
-         * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
-         *
-         * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
-         *
-         * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
-         *
-         * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile size
-         * {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
-         * decoding method returns only sequence of pixels and does not return information about the size.
-         * In this situation, the external code sets the tile sizes from a priory information, but the decoded tile
-         * may be actually less; for example, it takes place for the last strip in non-tiled TIFF format.
-         * You can check, does the actual number of stored pixels equal to tile size, via
-         * {@link #checkStoredNumberOfPixels()} method.
-         *
-         * @return the number of pixels in the last non-null data array, which was stored in this object.
-         */
+    /**
+     * Returns the number of pixels, actually stored in the {@link #getData() data array} in this tile
+     * in the decoded form, or 0 after creating this object.
+     *
+     * <p>Note: that this method throws <tt>IllegalStateException</tt> if the data are
+     * {@link #isEncoded() encoded}, for example, immediately after reading tile from file.
+     * If the tile is {@link #isEmpty() empty} (no data),
+     * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
+     *
+     * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
+     *
+     * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
+     *
+     * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile
+     * size {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
+     * decoding method returns only sequence of pixels and does not return information about the size.
+     * In this situation, the external code sets the tile sizes from a priory information, but the decoded tile
+     * may be actually less; for example, it takes place for the last strip in non-tiled TIFF format.
+     * You can check, does the actual number of stored pixels equal to tile size, via
+     * {@link #checkStoredNumberOfPixels()} method.
+     *
+     * @return the number of pixels in the last non-null data array, which was stored in this object.
+     */
     @SuppressWarnings("JavadocDeclaration")
     public int getStoredNumberOfPixels() {
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are not decoded, number of pixels is unknown: " + this);
         }
+        checkAlignedStoredNumberOfPixels();
         return storedNumberOfPixels;
     }
 
@@ -551,7 +557,7 @@ public final class TiffTile {
     @Override
     public String toString() {
         return "TIFF " +
-                (isEmpty() ? "(empty) ": "") +
+                (isEmpty() ? "(empty) " : "") +
                 (encoded ? "encoded" : "non-encoded") +
                 (interleaved ? " interleaved" : "") +
                 " tile" +
@@ -591,10 +597,10 @@ public final class TiffTile {
         // Note: doesn't check this.map to avoid infinite recursion!
     }
 
-    private TiffTile setData(byte[] data, boolean encoded) {
+    private TiffTile setData(byte[] data, boolean encoded, boolean checkAligned) {
         Objects.requireNonNull(data, "Null " + (encoded ? "encoded" : "decoded") + " data");
         final int storedNumberOfPixels = data.length / bytesPerPixel;
-        if (!encoded && storedNumberOfPixels * bytesPerPixel != data.length) {
+        if (!encoded && checkAligned && storedNumberOfPixels * bytesPerPixel != data.length) {
             throw new IllegalArgumentException("Invalid length of decoded data " + data.length +
                     ": it must be a multiple of the pixel length " +
                     bytesPerPixel + " = " + samplesPerPixel + " * " + bytesPerSample +
@@ -609,6 +615,15 @@ public final class TiffTile {
             // - data file offset has no sense for decoded data
         }
         return this;
+    }
+
+    private void checkAlignedStoredNumberOfPixels() {
+        if (!encoded && storedNumberOfPixels * bytesPerPixel != data.length) {
+            throw new IllegalStateException("Unaligned length of decoded data " + data.length +
+                    ": it must be a multiple of the pixel length " +
+                    bytesPerPixel + " = " + samplesPerPixel + " * " + bytesPerSample +
+                    " (channels per pixel * bytes per channel sample)");
+        }
     }
 
     private void initializeEmptyArea() {

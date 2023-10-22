@@ -26,7 +26,6 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import io.scif.codec.BitBuffer;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.codec.PassthroughCodec;
@@ -863,13 +862,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t2 = debugTime();
         if (codec != null) {
-            tile.setDecodedData(codecDecompress(encodedData, codec, codecOptions));
+            tile.setPartiallyDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
             if (scifio == null) {
                 throw new IllegalStateException(
                         "Compression type " + compression + " requires specifying non-null SCIFIO context");
             }
-            tile.setDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
+            tile.setPartiallyDecodedData(compression.decompress(scifio.codec(), encodedData, codecOptions));
         }
         tile.setInterleaved(codecOptions.interleaved);
         long t3 = debugTime();
@@ -1426,33 +1425,25 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
         final long sizeX = tile.getSizeX();
         final long sizeY = tile.getSizeY();
-        final int resultSamplesLength = tile.map().tileSizeInBytes();
+        final int resultSamplesLength = tile.getSizeInBytes();
 
         final int bytesPerSample = tile.bytesPerSample();
-        final int numberOfPixels = resultSamplesLength / (samplesPerPixel * bytesPerSample);
-        assert numberOfPixels == tile.map().tileSizeInPixels();
+        final int numberOfPixels = tile.getSizeInPixels();
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bps0 = bitsPerSample[0];
         final boolean noDiv8 = bps0 % 8 != 0;
-        byte[] bytes = tile.getDecodedData();
-        long sampleCount = (long) 8 * bytes.length / bitsPerSample[0];
-        if (!tile.isPlanarSeparated()) {
-            sampleCount /= samplesPerPixel;
-        }
-        if (sampleCount > Integer.MAX_VALUE) {
-            throw new FormatException("Too large tile: " + sampleCount + " >= 2^31 actual samples");
-        }
-
+        final byte[] bytes = tile.getDecodedData();
 
         final boolean littleEndian = ifd.isLittleEndian();
 
-        final BitBuffer bb = new BitBuffer(bytes);
+        final CustomBitBuffer bb = new CustomBitBuffer(bytes);
 
         final byte[] unpacked = new byte[resultSamplesLength];
 
-        long maxValue = (long) Math.pow(2, bps0) - 1;
-        if (photometricInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+        long maxValue = (1 << bps0) - 1;
+//        if (photometricInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+        // - Why?
 
         int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
         if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
@@ -1460,8 +1451,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
 
         // unpack pixels
-        for (int i = 0; i < sampleCount; i++) {
-            if (i >= numberOfPixels) break;
+        MainLoop:
+        for (int i = 0; i < numberOfPixels; i++) {
 
             for (int channel = 0; channel < samplesPerPixel; channel++) {
                 final int index = bytesPerSample * (i * samplesPerPixel + channel);
@@ -1476,7 +1467,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     if ((channel == 0 && photometricInterpretation == PhotoInterp.RGB_PALETTE) ||
                             (photometricInterpretation != PhotoInterp.CFA_ARRAY &&
                                     photometricInterpretation != PhotoInterp.RGB_PALETTE)) {
-                        value = bb.getBits(bps0) & 0xffff;
+//                        System.out.println((count++) + "/" + numberOfPixels * samplesPerPixel);
+                        value = bb.getBits(bps0);
+                        if (value == -1) {
+                            break MainLoop;
+                        }
+                        value &= 0xffff;
                         if ((i % sizeX) == sizeX - 1) {
                             bb.skipBits(skipBits);
                         }
@@ -1705,7 +1701,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final boolean littleEndian = ifd.isLittleEndian();
 
-        final BitBuffer bb = new BitBuffer(bytes);
+        final io.scif.codec.BitBuffer bb = new io.scif.codec.BitBuffer(bytes);
 
         final byte[] unpacked = new byte[resultSamplesLength];
 
@@ -1771,6 +1767,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         int nChannels = bitsPerSample.length;
 
         int sampleCount = (int) (((long) 8 * bytes.length) / bitsPerSample[0]);
+        //!! It is a bug! This formula is invalid in the case skipBits!=0
         if (photoInterp == PhotoInterp.Y_CB_CR) sampleCount *= 3;
         if (planar) {
             nChannels = 1;
@@ -1795,7 +1792,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         final boolean littleEndian = ifd.isLittleEndian();
 
-        final BitBuffer bb = new BitBuffer(bytes);
+        final io.scif.codec.BitBuffer bb = new io.scif.codec.BitBuffer(bytes);
 
         // Hyper optimisation that takes any 8-bit or 16-bit data, where there
         // is
@@ -1862,6 +1859,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                         if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
                                 (photoInterp != PhotoInterp.CFA_ARRAY &&
                                         photoInterp != PhotoInterp.RGB_PALETTE)) {
+//                            System.out.println((count++) + "/" + nSamples * nChannels);
                             value = bb.getBits(bps0) & 0xffff;
                             if ((ndx % imageWidth) == imageWidth - 1) {
                                 bb.skipBits(skipBits);
