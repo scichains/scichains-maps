@@ -339,87 +339,6 @@ public class TiffTools {
         return separatedBytes;
     }
 
-    // Note: we prefer to pass numberOfChannels directly, not calculate it on the base of IFD,
-    // because in some cases (like processing tile) number of channels should be set to 1 for planar IFD,
-    // but in other cases (like processing whole image) it is not so.
-    public static byte[] unpackUnusualPrecisions(
-            final byte[] samples,
-            final IFD ifd,
-            final int numberOfChannels,
-            final int numberOfPixels) throws FormatException {
-        Objects.requireNonNull(samples, "Null samples");
-        Objects.requireNonNull(ifd, "Null IFD");
-        if (numberOfChannels <= 0) {
-            throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
-        }
-        if (numberOfPixels < 0) {
-            throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
-        }
-        final int pixelType = ifd.getPixelType();
-        if (pixelType != FormatTools.FLOAT) {
-            return samples;
-        }
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
-        final boolean float16 = equalBitsPerSample && bitsPerSample[0] == 16;
-        final boolean float24 = equalBitsPerSample && bitsPerSample[0] == 24;
-        if (!float16 && !float24) {
-            return samples;
-        }
-        // Following code is necessary in a very rare case, and no sense to seriously optimize it
-        final boolean littleEndian = ifd.isLittleEndian();
-        final int packedBytesPerSample = float16 ? 2 : 3;
-
-        final int size = checkedMul(new long[]{numberOfPixels, numberOfChannels, 4},
-                new String[]{"number of pixels", "number of channels", "4 bytes per float"},
-                () -> "Invalid sizes: ", () -> "");
-        final int numberOfSamples = numberOfChannels * numberOfPixels;
-        if (samples.length < numberOfSamples * packedBytesPerSample) {
-            throw new IllegalArgumentException("Too short samples array byte[" + samples.length +
-                    "]: it does not contain " + numberOfPixels + " pixels per " + numberOfChannels +
-                    " samples, " + packedBytesPerSample + " bytes/sample");
-        }
-        final byte[] unpacked = new byte[size];
-        final int mantissaBits = float16 ? 10 : 16;
-        final int exponentBits = float16 ? 5 : 7;
-        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
-        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
-        final int power2MantissaBits = pow2(mantissaBits);
-        final int power2MantissaBitsMinus1 = pow2(mantissaBits) - 1;
-        final int bits = (packedBytesPerSample * 8) - 1;
-        for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
-            final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-            final int sign = v >> bits;
-            int exponent = (v >> mantissaBits) & power2ExponentBitsMinus1;
-            int mantissa = v & power2MantissaBitsMinus1;
-
-            if (exponent == 0) {
-                if (mantissa != 0) {
-                    while (true) {
-                        if (!((mantissa & power2MantissaBits) == 0)) {
-                            break;
-                        }
-                        mantissa <<= 1;
-                        exponent--;
-                    }
-                    exponent++;
-                    mantissa &= power2MantissaBitsMinus1;
-                    exponent += exponentIncrement;
-                }
-            } else if (exponent == power2ExponentBitsMinus1) {
-                exponent = 255;
-            } else {
-                exponent += exponentIncrement;
-            }
-
-            mantissa <<= (23 - mantissaBits);
-
-            final int value = (sign << 31) | (exponent << 23) | mantissa;
-            Bytes.unpack(value, unpacked, i * 4, 4, littleEndian);
-        }
-        return unpacked;
-    }
-
     public static void invertFillOrderIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
         invertFillOrderIfRequested(tile.ifd(), tile.getData());
@@ -724,17 +643,4 @@ public class TiffTools {
             separatedBytes[i + bandSize2] = bytes[disp++];
         }
     }
-
-    private static int pow2(int b) {
-        return 1 << b;
-    }
-
-//    public static void main(String[] args) {
-//        for (int k = 0; k < 40; k++) {
-//            int a = (int) Math.pow(2, k);
-//            int b = 1 << k;
-//            if (a != b) throw new AssertionError();
-//            System.out.println(a + ", " + b);
-//        }
-//    }
 }
