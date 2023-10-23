@@ -689,7 +689,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-            ifd = new DetailedIFD(entries).setFileOffsetOfReading(startOffset);
+            ifd = new DetailedIFD(entries).setFileOffsetForReading(startOffset);
             ifd.setSubIFDType(subIFDType);
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -1362,41 +1362,47 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
-    private static boolean isAdditionalPostprocessingNecessary(DetailedIFD ifd) throws FormatException {
+    private static int isAdditionalPostprocessingNecessary(DetailedIFD ifd) throws FormatException {
         TiffCompression compression = ifd.getCompression();
         if (!DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression)) {
             // - JPEG codec and all non-standard codecs like JPEG2000 should perform all necessary
             // bits unpacking or color space corrections themselves
-            return true;
+            return 1;
         }
         if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
-            return false;
+            return 0;
         }
-        return ifd.isOrdinaryPrecision() && !ifd.isStandardInvertedCompression();
+        return ifd.isOrdinaryPrecision() && !ifd.isStandardInvertedCompression() ? 2 : 0;
     }
 
-    private boolean repackSimpleFormats(TiffTile tile) throws FormatException {
+    private static boolean repackSimpleFormats(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        if (!isAdditionalPostprocessingNecessary(ifd)) {
+        int code = isAdditionalPostprocessingNecessary(ifd);
+        if (code == 0) {
             return false;
         }
-        if (tile.getStoredDataLength() > tile.map().tileSizeInBytes()) {
-            // - this check is better than IllegalArgumentException in the further adjustNumberOfPixels
+        if (tile.getStoredDataLength() > tile.map().tileSizeInBytes() && code == 1) {
+            // - Strange situation: JPEG or some extended codec has decoded to large tile.
+            // But for "simple" compressions (uncompressed, LZW, Deflate) we enable this situation:
+            // it helps to create special tests.
+            // Note that the further adjustNumberOfPixels throws IllegalArgumentException in this situation,
+            // when its argument is false.
             throw new FormatException("Too large decoded TIFF data: " + tile.getStoredDataLength() +
                     " bytes, its is greater than one " +
                     (tile.map().isTiled() ? "tile" : "strip") + " (" + tile.map().tileSizeInBytes() + " bytes); "
                     + "probably TIFF file is corrupted or format is not properly supported");
         }
-        tile.adjustNumberOfPixels(cropTilesToImageBoundaries);
+        tile.adjustNumberOfPixels(true);
         // - Note: getStoredDataLength() is unpredictable, because it is the result of decompression by a codec;
         // in particular, for JPEG compression last strip in non-tiled TIFF may be shorter or even larger
         // than a full tile.
-        // If cropping boundary tiles is disabled, larger data should be considered as a format error,
+        // If cropping boundary tiles is enabled, actual height of the last strip is reduced
+        // (see readEncodedTile method), so larger data is possible (it is a minor format separately).
+        // If cropping boundary tiles is disabled, larger data MAY be considered as a format error,
         // because tile sizes are the FULL sizes of tile in the grid (it is checked above independently).
-        // If cropping is enabled, actual height of the last strip is reduced (see readEncodedTile method),
-        // so larger data is possible (it is a minor format separately).
+        // We consider this situation as an error in a case of "complex" codecs like JPEG, JPEG-2000 etc.
         // Also note: it is better to rearrange pixels before separating (if necessary),
         // because rearranging interleaved pixels is little more simple.
         tile.separateSamplesIfNecessary();
@@ -1407,11 +1413,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     }
 
-    private boolean unpackUnusualBits(TiffTile tile) throws FormatException {
+    private static boolean unpackUnusualBits(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        if (isAdditionalPostprocessingNecessary(ifd)) {
+        if (isAdditionalPostprocessingNecessary(ifd) != 0) {
             return false;
         }
         if (ifd.isStandardYCbCrNonJpeg()) {

@@ -36,12 +36,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-public class TiffConvertToFakeColorSpaceTest {
+public class TiffFalsifyJPEGColorSpace {
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
-        if (args.length < startArgIndex + 2) {
+        if (args.length < startArgIndex + 4) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffConvertToFakeColorSpaceTest.class.getName()
+            System.out.println("    " + TiffFalsifyJPEGColorSpace.class.getName()
                     + " source.tif target.tif written fake [firstIFDIndex lastIFDIndex]");
             System.out.println("where written/fake are RGB or Y_CB_CR");
             return;
@@ -69,15 +69,15 @@ public class TiffConvertToFakeColorSpaceTest {
             System.out.printf("Transforming to %s...%n", targetFile);
             final List<DetailedIFD> ifds = reader.allIFDs();
             lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
-            for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                final DetailedIFD readIFD = ifds.get(ifdIndex);
+            for (int i = firstIFDIndex; i <= lastIFDIndex; i++) {
+                final DetailedIFD readIFD = ifds.get(i);
                 final DetailedIFD writeIFD = new DetailedIFD(readIFD);
                 if (readIFD.getCompression() != TiffCompression.JPEG) {
-                    System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
+                    System.out.printf("\rCopying #%d/%d: %s%n", i, ifds.size(), readIFD);
                     TiffCopyTest.copyImage(readIFD, writeIFD, reader, writer);
                     continue;
                 }
-                System.out.printf("\rTransforming #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
+                System.out.printf("\rTransforming #%d/%d: %s%n", i, ifds.size(), readIFD);
                 writeIFD.putPhotometricInterpretation(before);
                 writeIFD.put(DetailedIFD.Y_CB_CR_SUB_SAMPLING,
                         before == PhotoInterp.RGB ? new int[] {1, 1} : new int[] {2, 2});

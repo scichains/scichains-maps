@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="TiffConvertToFakeColorSpaceTest" type="Application" factoryName="Application" nameIsGenerated="true">
-    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffConvertToFakeColorSpaceTest" />
+  <configuration default="false" name="TiffFalsifyJPEGColorSpace" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffFalsifyJPEGColorSpace" />
     <module name="scichains-maps" />
     <option name="PROGRAM_PARAMETERS" value="C:\TMP\newtiff.tiff C:\TMP\fake_yuv.tiff   RGB Y_CB_CR  0 0" />
     <extension name="coverage">

@@ -93,7 +93,7 @@ public class DetailedIFD extends IFD {
     private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
 
     private final Map<Integer, TiffIFDEntry> entries;
-    private long fileOffsetOfReading = -1;
+    private long fileOffsetForReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
     private Integer subIFDType = null;
@@ -106,7 +106,7 @@ public class DetailedIFD extends IFD {
         super(ifd, null);
         // Note: log argument is never used in this class.
         if (ifd instanceof DetailedIFD detailedIFD) {
-            fileOffsetOfReading = detailedIFD.fileOffsetOfReading;
+            fileOffsetForReading = detailedIFD.fileOffsetForReading;
             fileOffsetForWriting = detailedIFD.fileOffsetForWriting;
             nextIFDOffset = detailedIFD.nextIFDOffset;
             entries = detailedIFD.entries == null ? null : new LinkedHashMap<>(detailedIFD.entries);
@@ -139,27 +139,27 @@ public class DetailedIFD extends IFD {
         return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
-    public boolean hasFileOffsetOfReading() {
-        return fileOffsetOfReading >= 0;
+    public boolean hasFileOffsetForReading() {
+        return fileOffsetForReading >= 0;
     }
 
-    public long getFileOffsetOfReading() {
-        if (fileOffsetOfReading < 0) {
+    public long getFileOffsetForReading() {
+        if (fileOffsetForReading < 0) {
             throw new IllegalStateException("IFD offset of the TIFF tile is not set while reading");
         }
-        return fileOffsetOfReading;
+        return fileOffsetForReading;
     }
 
-    public DetailedIFD setFileOffsetOfReading(long fileOffsetOfReading) {
-        if (fileOffsetOfReading < 0) {
-            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetOfReading);
+    public DetailedIFD setFileOffsetForReading(long fileOffsetForReading) {
+        if (fileOffsetForReading < 0) {
+            throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetForReading);
         }
-        this.fileOffsetOfReading = fileOffsetOfReading;
+        this.fileOffsetForReading = fileOffsetForReading;
         return this;
     }
 
-    public DetailedIFD removeFileOffsetOfReading() {
-        this.fileOffsetOfReading = -1;
+    public DetailedIFD removeFileOffsetForReading() {
+        this.fileOffsetForReading = -1;
         return this;
     }
 
@@ -1285,8 +1285,8 @@ public class DetailedIFD extends IFD {
         } catch (Exception e) {
             sb.append(" [").append(e.getMessage()).append("]");
         }
-        if (hasFileOffsetOfReading()) {
-            sb.append(", reading offset @%d=0x%X".formatted(fileOffsetOfReading, fileOffsetOfReading));
+        if (hasFileOffsetForReading()) {
+            sb.append(", reading offset @%d=0x%X".formatted(fileOffsetForReading, fileOffsetForReading));
         }
         if (hasFileOffsetForWriting()) {
             sb.append(", writing offset @%d=0x%X".formatted(fileOffsetForWriting, fileOffsetForWriting));
