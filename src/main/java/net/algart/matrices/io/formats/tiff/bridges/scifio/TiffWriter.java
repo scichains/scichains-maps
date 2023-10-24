@@ -447,7 +447,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // write magic number
             if (bigTiff) {
                 out.writeShort(TiffConstants.BIG_TIFF_MAGIC_NUMBER);
-            } else out.writeShort(TiffConstants.MAGIC_NUMBER);
+            } else {
+                out.writeShort(TiffConstants.MAGIC_NUMBER);
+            }
 
             // write the offset to the first IFD
 
