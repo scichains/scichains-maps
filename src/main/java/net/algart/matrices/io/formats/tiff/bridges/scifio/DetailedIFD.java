@@ -902,9 +902,14 @@ public class DetailedIFD extends IFD {
         return FormatTools.getBytesPerPixel(pixelType);
     }
 
-    public boolean isOrdinaryPrecision() throws FormatException {
+    public boolean isOrdinaryBitDepth() throws FormatException {
         final int bits = tryEqualBitsPerSample().orElse(-1);
         return bits == 8 || bits == 16 || bits == 32 || bits == 64;
+    }
+
+    public boolean isByteAlignedBitDepth() throws FormatException {
+        final int bits = tryEqualBitsPerSample().orElse(-1);
+        return bits > 0 && (bits & 7) == 0;
     }
 
     public boolean isStandardYCbCrNonJpeg() throws FormatException {

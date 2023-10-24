@@ -947,7 +947,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         if (USE_LEGACY_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
-            unpackBytesLegacy(samples, 0, tile.getDecodedData(), tile.ifd());
+            TiffTools.unpackBytesLegacy(samples, 0, tile.getDecodedData(), tile.ifd());
             tile.setDecodedData(samples);
             tile.setInterleaved(false);
         } else {
@@ -1356,168 +1356,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return prettyFileName(" %s", in);
     }
 
-    // Exact copy of old code
-    private static void unpackBytesLegacy(
-            final byte[] samples, final int startIndex,
-            final byte[] bytes, final IFD ifd) throws FormatException {
-        final boolean planar = ifd.getPlanarConfiguration() == 2;
-
-        final TiffCompression compression = ifd.getCompression();
-        PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        if (compression == TiffCompression.JPEG) photoInterp = PhotoInterp.RGB;
-
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        int nChannels = bitsPerSample.length;
-
-        int sampleCount = (int) (((long) 8 * bytes.length) / bitsPerSample[0]);
-        //!! It is a bug! This formula is invalid in the case skipBits!=0
-        if (photoInterp == PhotoInterp.Y_CB_CR) sampleCount *= 3;
-        if (planar) {
-            nChannels = 1;
-        } else {
-            sampleCount /= nChannels;
-        }
-
-//        log.trace("unpacking " + sampleCount + " samples (startIndex=" +
-//                startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
-//                "; numBytes=" + bytes.length + ")");
-
-        final long imageWidth = ifd.getImageWidth();
-        final long imageHeight = ifd.getImageLength();
-
-        final int bps0 = bitsPerSample[0];
-        final int numBytes = ifd.getBytesPerSample()[0];
-        final int nSamples = samples.length / (nChannels * numBytes);
-
-        final boolean noDiv8 = bps0 % 8 != 0;
-        final boolean bps8 = bps0 == 8;
-        final boolean bps16 = bps0 == 16;
-
-        final boolean littleEndian = ifd.isLittleEndian();
-
-        final io.scif.codec.BitBuffer bb = new io.scif.codec.BitBuffer(bytes);
-
-        // Hyper optimisation that takes any 8-bit or 16-bit data, where there
-        // is
-        // only one channel, the source byte buffer's size is less than or equal
-        // to
-        // that of the destination buffer and for which no special unpacking is
-        // required and performs a simple array copy. Over the course of reading
-        // semi-large datasets this can save **billions** of method calls.
-        // Wed Aug 5 19:04:59 BST 2009
-        // Chris Allan <callan@glencoesoftware.com>
-        if ((bps8 || bps16) && bytes.length <= samples.length && nChannels == 1 &&
-                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR) {
-            System.arraycopy(bytes, 0, samples, 0, bytes.length);
-            return;
-        }
-
-        long maxValue = (long) Math.pow(2, bps0) - 1;
-        if (photoInterp == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
-
-        int skipBits = (int) (8 - ((imageWidth * bps0 * nChannels) % 8));
-        if (skipBits == 8 || (bytes.length * 8L < bps0 * (nChannels * imageWidth +
-                imageHeight))) {
-            skipBits = 0;
-        }
-
-        // set up YCbCr-specific values
-        float lumaRed = PhotoInterp.LUMA_RED;
-        float lumaGreen = PhotoInterp.LUMA_GREEN;
-        float lumaBlue = PhotoInterp.LUMA_BLUE;
-        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
-        if (reference == null) {
-            reference = new int[]{0, 0, 0, 0, 0, 0};
-        }
-        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
-        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(
-                IFD.Y_CB_CR_COEFFICIENTS);
-        if (coefficients != null) {
-            lumaRed = coefficients[0].floatValue();
-            lumaGreen = coefficients[1].floatValue();
-            lumaBlue = coefficients[2].floatValue();
-        }
-        final int subX = subsampling == null ? 2 : subsampling[0];
-        final int subY = subsampling == null ? 2 : subsampling[1];
-        final int block = subX * subY;
-        final int nTiles = (int) (imageWidth / subX);
-
-        // unpack pixels
-        for (int sample = 0; sample < sampleCount; sample++) {
-            final int ndx = startIndex + sample;
-            if (ndx >= nSamples) break;
-
-            for (int channel = 0; channel < nChannels; channel++) {
-                final int index = numBytes * (sample * nChannels + channel);
-                final int outputIndex = (channel * nSamples + ndx) * numBytes;
-
-                // unpack non-YCbCr samples
-                if (photoInterp != PhotoInterp.Y_CB_CR) {
-                    long value = 0;
-
-                    if (noDiv8) {
-                        // bits per sample is not a multiple of 8
-
-                        if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
-                                (photoInterp != PhotoInterp.CFA_ARRAY &&
-                                        photoInterp != PhotoInterp.RGB_PALETTE)) {
-//                            System.out.println((count++) + "/" + nSamples * nChannels);
-                            value = bb.getBits(bps0) & 0xffff;
-                            if ((ndx % imageWidth) == imageWidth - 1) {
-                                bb.skipBits(skipBits);
-                            }
-                        }
-                    } else {
-                        value = Bytes.toLong(bytes, index, numBytes, littleEndian);
-                    }
-
-                    if (photoInterp == PhotoInterp.WHITE_IS_ZERO ||
-                            photoInterp == PhotoInterp.CMYK) {
-                        value = maxValue - value;
-                    }
-
-                    if (outputIndex + numBytes <= samples.length) {
-                        Bytes.unpack(value, samples, outputIndex, numBytes, littleEndian);
-                    }
-                } else {
-                    // unpack YCbCr samples; these need special handling, as
-                    // each of
-                    // the RGB components depends upon two or more of the YCbCr
-                    // components
-                    if (channel == nChannels - 1) {
-                        final int lumaIndex = sample + (2 * (sample / block));
-                        final int chromaIndex = (sample / block) * (block + 2) + block;
-
-                        if (chromaIndex + 1 >= bytes.length) break;
-
-                        final int tile = ndx / block;
-                        final int pixel = ndx % block;
-                        final long r = (long) subY * (tile / nTiles) + (pixel / subX);
-                        final long c = (long) subX * (tile % nTiles) + (pixel % subX);
-
-                        final int idx = (int) (r * imageWidth + c);
-
-                        if (idx < nSamples) {
-                            final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                            final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                            final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
-
-                            final int red = (int) (cr * (2 - 2 * lumaRed) + y);
-                            final int blue = (int) (cb * (2 - 2 * lumaBlue) + y);
-                            final int green = (int) ((y - lumaBlue * blue - lumaRed * red) /
-                                    lumaGreen);
-
-                            samples[idx] = (byte) (red & 0xff);
-                            samples[nSamples + idx] = (byte) (green & 0xff);
-                            samples[2 * nSamples + idx] = (byte) (blue & 0xff);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private long readFirstOffsetFromCurrentPosition(boolean updatePositionOfLastOffset, boolean bigTiff)
             throws IOException, FormatException {
         final long offset = readNextOffset(updatePositionOfLastOffset, true, bigTiff);
@@ -1813,15 +1651,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
                 "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
         return result;
-    }
-
-    private static Optional<Class<?>> optionalElementType(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
-        try {
-            return Optional.of(TiffTools.pixelTypeToElementType(ifd.getPixelType()));
-        } catch (FormatException e) {
-            return Optional.empty();
-        }
     }
 
     private static String prettyFileName(String format, DataHandle<Location> handle) {

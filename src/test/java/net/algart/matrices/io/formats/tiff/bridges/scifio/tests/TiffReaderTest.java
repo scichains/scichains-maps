@@ -179,6 +179,15 @@ public class TiffReaderTest {
     }
 
     private static BufferedImage unpackedArrayToImage(Object data, int sizeX, int sizeY, int bandCount) {
+        if (data instanceof int[] ints) {
+            // - standard method SMat.toBufferedImage uses AlgART interpretation: 2^31 is white;
+            // it is incorrect for TIFF files
+            byte[] bytes = new byte[ints.length];
+            for (int k = 0; k < bytes.length; k++) {
+                bytes[k] = (byte) (ints[k] >>> 24);
+            }
+            data = bytes;
+        }
         Matrix<UpdatablePArray> matrix = Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
                 sizeX, sizeY, bandCount);

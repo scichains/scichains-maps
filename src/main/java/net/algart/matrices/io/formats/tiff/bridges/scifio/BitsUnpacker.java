@@ -72,9 +72,9 @@ public abstract class BitsUnpacker {
 
     public static BitsUnpacker getInstance(byte[] bytes, boolean littleEndian) {
         if (littleEndian) {
-            return new LittleEndian(bytes);
+            return new BigEndian(bytes);
         } else {
-            return new LittleEndian(bytes);
+            return new BigEndian(bytes);
             //TODO!!
         }
     }
@@ -135,8 +135,8 @@ public abstract class BitsUnpacker {
      */
     public abstract int getBits(int bitsToRead);
 
-    static class LittleEndian extends BitsUnpacker {
-        LittleEndian(byte[] byteBuffer) {
+    static class BigEndian extends BitsUnpacker {
+        BigEndian(byte[] byteBuffer) {
             super(byteBuffer);
         }
 

@@ -511,16 +511,19 @@ public class TiffTools {
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final int bytesPerSample = tile.bytesPerSample();
         if (bytesPerSample > 4) {
-            throw new UnsupportedTiffFormatException("TIFF with compression " +
-                    ifd.getCompression().getCodecName() + ", " +
-                    "photometric interpretation " + photometricInterpretation.getName() +
-                    " and more than 4 bytes per sample (" + Arrays.toString(bitsPerSample) + " bits) " +
-                    "is not supported");
+            throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
+                    ifd.getCompression().getCodecName() + "\", " +
+                    "photometric interpretation \"" + photometricInterpretation.getName() +
+                    "\" and " + bytesPerSample + " bytes per sample (" +
+                    Arrays.toString(bitsPerSample) + " bits)");
         }
+        // So, the only non-standard byte count is 3;
+        // 24-bit float and 17..24-bit integer cases will be processed later in unpackUnusualPrecisions
+
         final int numberOfPixels = tile.getSizeInPixels();
+        final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
 
         final int bps0 = bitsPerSample[0];
-        final boolean noDiv8 = bps0 % 8 != 0;
         final byte[] bytes = tile.getDecodedData();
 
         final boolean littleEndian = ifd.isLittleEndian();
@@ -549,7 +552,7 @@ public class TiffTools {
                 // unpack non-YCbCr samples
                 long value = 0;
 
-                if (noDiv8) {
+                if (!byteAligned) {
                     // bits per sample is not a multiple of 8
 
                     if ((channel == 0 && photometricInterpretation == PhotoInterp.RGB_PALETTE) ||
@@ -639,8 +642,8 @@ public class TiffTools {
             lumaGreen = coefficients[1].doubleValue();
             lumaBlue = coefficients[2].doubleValue();
         }
-        final double crCoefficient = 2 - 2 * lumaRed;
-        final double cbCoefficient = 2 - 2 * lumaBlue;
+        final double crCoefficient = 2.0 - 2.0 * lumaRed;
+        final double cbCoefficient = 2.0 - 2.0 * lumaBlue;
         final double lumaGreenInv = 1.0 / lumaGreen;
         final int subXLog = subsamplingLog[0];
         final int subYLog = subsamplingLog[1];
@@ -724,7 +727,7 @@ public class TiffTools {
     // but in other cases (like processing whole image) it is not so.
     public static byte[] unpackUnusualPrecisions(
             final byte[] samples,
-            final IFD ifd,
+            final DetailedIFD ifd,
             final int numberOfChannels,
             final int numberOfPixels) throws FormatException {
         Objects.requireNonNull(samples, "Null samples");
@@ -735,20 +738,23 @@ public class TiffTools {
         if (numberOfPixels < 0) {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
+        final int packedBytesPerSample = ifd.equalBytesPerSample();
         final int pixelType = ifd.getPixelType();
-        if (pixelType != FormatTools.FLOAT) {
-            return samples;
-        }
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        final boolean equalBitsPerSample = Arrays.stream(bitsPerSample).allMatch(t -> t == bitsPerSample[0]);
-        final boolean float16 = equalBitsPerSample && bitsPerSample[0] == 16;
-        final boolean float24 = equalBitsPerSample && bitsPerSample[0] == 24;
-        if (!float16 && !float24) {
+        final boolean fp = pixelType == FormatTools.FLOAT || pixelType == FormatTools.DOUBLE;
+        // - actually DOUBLE is not used below
+        final int bitsPerSample = ifd.tryEqualBitsPerSample().orElse(-1);
+        final boolean float16 = bitsPerSample == 16 && fp;
+        final boolean float24 = bitsPerSample == 24 && fp;
+        final boolean int24 = packedBytesPerSample == 3 && !float24;
+        // If the data were correctly loaded into a tile with usage TiffReader.completeDecoding method, then:
+        // 1) they are aligned by 8-bit (by unpackBitsAndInvertValues method);
+        // 2) number of bytes per sample may be only 1..4 or 8: other cases are rejected by unpackBitsAndInvertValues.
+        // So, we only need to check a case 3 bytes (17..24 bits before correction) and special cases float16/float24.
+        if (!float16 && !float24 && !int24) {
             return samples;
         }
         // Following code is necessary in a very rare case, and no sense to seriously optimize it
         final boolean littleEndian = ifd.isLittleEndian();
-        final int packedBytesPerSample = float16 ? 2 : 3;
 
         final int size = checkedMul(new long[]{numberOfPixels, numberOfChannels, 4},
                 new String[]{"number of pixels", "number of channels", "4 bytes per float"},
@@ -760,6 +766,14 @@ public class TiffTools {
                     " samples, " + packedBytesPerSample + " bytes/sample");
         }
         final byte[] unpacked = new byte[size];
+        if (int24) {
+            for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
+                final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
+                Bytes.unpack((long) v << 8, unpacked, i * 4, 4, littleEndian);
+            }
+            return unpacked;
+        }
+
         final int mantissaBits = float16 ? 10 : 16;
         final int exponentBits = float16 ? 5 : 7;
         final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
@@ -837,6 +851,168 @@ public class TiffTools {
         if (sizeX * sizeY > arrayLength || sizeX * sizeY * (long) pixelLength > arrayLength) {
             throw new IllegalArgumentException("Requested area " + sizeX + "x" + sizeY +
                     " is too large for array of " + arrayLength + " elements, " + pixelLength + " per pixel");
+        }
+    }
+
+    // Exact copy of old TiffParser.unpackBytes method
+    static void unpackBytesLegacy(
+            final byte[] samples, final int startIndex,
+            final byte[] bytes, final IFD ifd) throws FormatException {
+        final boolean planar = ifd.getPlanarConfiguration() == 2;
+
+        final TiffCompression compression = ifd.getCompression();
+        PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
+        if (compression == TiffCompression.JPEG) photoInterp = PhotoInterp.RGB;
+
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+        int nChannels = bitsPerSample.length;
+
+        int sampleCount = (int) (((long) 8 * bytes.length) / bitsPerSample[0]);
+        //!! It is a bug! This formula is invalid in the case skipBits!=0
+        if (photoInterp == PhotoInterp.Y_CB_CR) sampleCount *= 3;
+        if (planar) {
+            nChannels = 1;
+        } else {
+            sampleCount /= nChannels;
+        }
+
+//        log.trace("unpacking " + sampleCount + " samples (startIndex=" +
+//                startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
+//                "; numBytes=" + bytes.length + ")");
+
+        final long imageWidth = ifd.getImageWidth();
+        final long imageHeight = ifd.getImageLength();
+
+        final int bps0 = bitsPerSample[0];
+        final int numBytes = ifd.getBytesPerSample()[0];
+        final int nSamples = samples.length / (nChannels * numBytes);
+
+        final boolean noDiv8 = bps0 % 8 != 0;
+        final boolean bps8 = bps0 == 8;
+        final boolean bps16 = bps0 == 16;
+
+        final boolean littleEndian = ifd.isLittleEndian();
+
+        final io.scif.codec.BitBuffer bb = new io.scif.codec.BitBuffer(bytes);
+
+        // Hyper optimisation that takes any 8-bit or 16-bit data, where there
+        // is
+        // only one channel, the source byte buffer's size is less than or equal
+        // to
+        // that of the destination buffer and for which no special unpacking is
+        // required and performs a simple array copy. Over the course of reading
+        // semi-large datasets this can save **billions** of method calls.
+        // Wed Aug 5 19:04:59 BST 2009
+        // Chris Allan <callan@glencoesoftware.com>
+        if ((bps8 || bps16) && bytes.length <= samples.length && nChannels == 1 &&
+                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
+                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR) {
+            System.arraycopy(bytes, 0, samples, 0, bytes.length);
+            return;
+        }
+
+        long maxValue = (long) Math.pow(2, bps0) - 1;
+        if (photoInterp == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+
+        int skipBits = (int) (8 - ((imageWidth * bps0 * nChannels) % 8));
+        if (skipBits == 8 || (bytes.length * 8L < bps0 * (nChannels * imageWidth +
+                imageHeight))) {
+            skipBits = 0;
+        }
+
+        // set up YCbCr-specific values
+        float lumaRed = PhotoInterp.LUMA_RED;
+        float lumaGreen = PhotoInterp.LUMA_GREEN;
+        float lumaBlue = PhotoInterp.LUMA_BLUE;
+        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
+        if (reference == null) {
+            reference = new int[]{0, 0, 0, 0, 0, 0};
+        }
+        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
+        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(
+                IFD.Y_CB_CR_COEFFICIENTS);
+        if (coefficients != null) {
+            lumaRed = coefficients[0].floatValue();
+            lumaGreen = coefficients[1].floatValue();
+            lumaBlue = coefficients[2].floatValue();
+        }
+        final int subX = subsampling == null ? 2 : subsampling[0];
+        final int subY = subsampling == null ? 2 : subsampling[1];
+        final int block = subX * subY;
+        final int nTiles = (int) (imageWidth / subX);
+
+        // unpack pixels
+        for (int sample = 0; sample < sampleCount; sample++) {
+            final int ndx = startIndex + sample;
+            if (ndx >= nSamples) break;
+
+            for (int channel = 0; channel < nChannels; channel++) {
+                final int index = numBytes * (sample * nChannels + channel);
+                final int outputIndex = (channel * nSamples + ndx) * numBytes;
+
+                // unpack non-YCbCr samples
+                if (photoInterp != PhotoInterp.Y_CB_CR) {
+                    long value = 0;
+
+                    if (noDiv8) {
+                        // bits per sample is not a multiple of 8
+
+                        if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
+                                (photoInterp != PhotoInterp.CFA_ARRAY &&
+                                        photoInterp != PhotoInterp.RGB_PALETTE)) {
+//                            System.out.println((count++) + "/" + nSamples * nChannels);
+                            value = bb.getBits(bps0) & 0xffff;
+                            if ((ndx % imageWidth) == imageWidth - 1) {
+                                bb.skipBits(skipBits);
+                            }
+                        }
+                    } else {
+                        value = Bytes.toLong(bytes, index, numBytes, littleEndian);
+                    }
+
+                    if (photoInterp == PhotoInterp.WHITE_IS_ZERO ||
+                            photoInterp == PhotoInterp.CMYK) {
+                        value = maxValue - value;
+                    }
+
+                    if (outputIndex + numBytes <= samples.length) {
+                        Bytes.unpack(value, samples, outputIndex, numBytes, littleEndian);
+                    }
+                } else {
+                    // unpack YCbCr samples; these need special handling, as
+                    // each of
+                    // the RGB components depends upon two or more of the YCbCr
+                    // components
+                    if (channel == nChannels - 1) {
+                        final int lumaIndex = sample + (2 * (sample / block));
+                        final int chromaIndex = (sample / block) * (block + 2) + block;
+
+                        if (chromaIndex + 1 >= bytes.length) break;
+
+                        final int tile = ndx / block;
+                        final int pixel = ndx % block;
+                        final long r = (long) subY * (tile / nTiles) + (pixel / subX);
+                        final long c = (long) subX * (tile % nTiles) + (pixel % subX);
+
+                        final int idx = (int) (r * imageWidth + c);
+
+                        if (idx < nSamples) {
+                            final int y = (bytes[lumaIndex] & 0xff) - reference[0];
+                            final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
+                            final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+
+                            final int red = (int) (cr * (2 - 2 * lumaRed) + y);
+                            final int blue = (int) (cb * (2 - 2 * lumaBlue) + y);
+                            final int green = (int) ((y - lumaBlue * blue - lumaRed * red) /
+                                    lumaGreen);
+
+                            samples[idx] = (byte) (red & 0xff);
+                            samples[nSamples + idx] = (byte) (green & 0xff);
+                            samples[2 * nSamples + idx] = (byte) (blue & 0xff);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -980,7 +1156,7 @@ public class TiffTools {
         if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
             return 0;
         }
-        return ifd.isOrdinaryPrecision() && !ifd.isStandardInvertedCompression() ? 2 : 0;
+        return ifd.isOrdinaryBitDepth() && !ifd.isStandardInvertedCompression() ? 2 : 0;
     }
 
     private static void checkSeparated(TiffTile tile) throws FormatException {
