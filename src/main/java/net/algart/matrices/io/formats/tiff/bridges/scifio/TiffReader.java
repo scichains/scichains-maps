@@ -951,9 +951,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setDecodedData(samples);
             tile.setInterleaved(false);
         } else {
-            if (!TiffUnpackingTools.repackSimpleFormats(tile)) {
-                if (!TiffUnpackingTools.unpackUnusualBits(tile)) {
-                    TiffUnpackingTools.decodeYCbCr(tile);
+            if (!TiffTools.rearrangeUnpackedSamples(tile)) {
+                if (!TiffTools.unpackBitsAndInvertValues(tile)) {
+                    TiffTools.convertYCbCrToRGB(tile);
                 }
             }
         }
@@ -1053,8 +1053,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t3 = debugTime();
         if (autoUnpackUnusualPrecisions) {
-            samples = TiffUnpackingTools.unpackUnusualPrecisions(
-                    samples, ifd, numberOfChannels, sizeX * sizeY);
+            samples = TiffTools.unpackUnusualPrecisions(samples, ifd, numberOfChannels, sizeX * sizeY);
         }
         long t4 = debugTime();
         if (interleaveResults) {
