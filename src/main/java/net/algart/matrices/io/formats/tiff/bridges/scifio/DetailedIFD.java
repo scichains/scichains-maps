@@ -1393,7 +1393,8 @@ public class DetailedIFD extends IFD {
 
     public static boolean isStandard(TiffCompression compression) {
         Objects.requireNonNull(compression, "Null compression");
-        return compression.getCode() <= 7;
+        return compression.getCode() <= 10;
+        // - actually maximal supported standard TiffCompression is DEFLATE=8
     }
 
     public static boolean isJpeg(TiffCompression compression) {

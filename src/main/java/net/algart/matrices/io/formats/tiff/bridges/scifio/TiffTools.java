@@ -454,7 +454,7 @@ public class TiffTools {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        int code = isAdditionalPostprocessingNecessary(ifd);
+        int code = isAdditionalRepackNecessary(ifd);
         if (code == 0) {
             return false;
         }
@@ -488,11 +488,12 @@ public class TiffTools {
 
     }
 
-    public static boolean unpackBitsAndInvertValues(TiffTile tile) throws FormatException {
+    public static boolean unpackBitsAndInvertValues(TiffTile tile, boolean suppressValueCorrection)
+            throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        if (isAdditionalPostprocessingNecessary(ifd) != 0) {
+        if (isAdditionalRepackNecessary(ifd) != 0) {
             return false;
         }
         if (ifd.isStandardYCbCrNonJpeg()) {
@@ -500,7 +501,7 @@ public class TiffTools {
         }
         checkSeparated(tile);
         assert ifd.isStandardCompression() :
-                "non-standard compression not checked by isAdditionalPostprocessingNecessary";
+                "non-standard compression not checked by isAdditionalRepackNecessary";
 
         final int samplesPerPixel = tile.samplesPerPixel();
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
@@ -522,6 +523,7 @@ public class TiffTools {
 
         final int numberOfPixels = tile.getSizeInPixels();
         final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
+        final int alignedBitsPerSample = 8 * bytesPerSample;
 
         final int bps0 = bitsPerSample[0];
         final byte[] bytes = tile.getDecodedData();
@@ -532,20 +534,24 @@ public class TiffTools {
 
         final byte[] unpacked = new byte[resultSamplesLength];
 
-        long maxValue = (1 << bps0) - 1;
-//        if (photometricInterpretation == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
-        // - Why?
+        final long maxValue = (1 << bps0) - 1;
 
         int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
         if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
             skipBits = 0;
         }
 
+        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
+                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
+                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
+            suppressValueCorrection = true;
+        }
         // unpack pixels
         MainLoop:
         for (int i = 0; i < numberOfPixels; i++) {
 
             for (int channel = 0; channel < samplesPerPixel; channel++) {
+                final int bits = bitsPerSample[channel];
                 final int index = bytesPerSample * (i * samplesPerPixel + channel);
                 final int outputIndex = (channel * numberOfPixels + i) * bytesPerSample;
 
@@ -572,9 +578,12 @@ public class TiffTools {
                     value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
                 }
 
-                if (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                        photometricInterpretation == PhotoInterp.CMYK) {
-                    value = maxValue - value;
+                if (!suppressValueCorrection) {
+                    if (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                            photometricInterpretation == PhotoInterp.CMYK) {
+                        value = maxValue - value;
+                    }
+                    value <<= alignedBitsPerSample - bits;
                 }
 
                 if (outputIndex + bytesPerSample <= unpacked.length) {
@@ -1146,7 +1155,7 @@ public class TiffTools {
         }
     }
 
-    private static int isAdditionalPostprocessingNecessary(DetailedIFD ifd) throws FormatException {
+    private static int isAdditionalRepackNecessary(DetailedIFD ifd) throws FormatException {
         TiffCompression compression = ifd.getCompression();
         if (!DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression)) {
             // - JPEG codec and all non-standard codecs like JPEG2000 should perform all necessary
@@ -1154,6 +1163,7 @@ public class TiffTools {
             return 1;
         }
         if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
+            // - convertYCbCrToRGB function performs necessary repacking itself
             return 0;
         }
         return ifd.isOrdinaryBitDepth() && !ifd.isStandardInvertedCompression() ? 2 : 0;

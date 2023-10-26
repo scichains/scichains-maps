@@ -44,7 +44,6 @@ import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.ReadBufferDataHandle;
 import org.scijava.io.location.BytesLocation;
 import org.scijava.io.location.Location;
-import org.scijava.util.Bytes;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -129,6 +128,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean requireValidTiff;
     private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
+    private boolean autoCorrectColorRange = true;
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
     private boolean cachingIFDs = true;
@@ -297,6 +297,15 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     public TiffReader setAutoUnpackUnusualPrecisions(boolean autoUnpackUnusualPrecisions) {
         this.autoUnpackUnusualPrecisions = autoUnpackUnusualPrecisions;
+        return this;
+    }
+
+    public boolean isAutoCorrectColorRange() {
+        return autoCorrectColorRange;
+    }
+
+    public TiffReader setAutoCorrectColorRange(boolean autoCorrectColorRange) {
+        this.autoCorrectColorRange = autoCorrectColorRange;
         return this;
     }
 
@@ -952,7 +961,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setInterleaved(false);
         } else {
             if (!TiffTools.rearrangeUnpackedSamples(tile)) {
-                if (!TiffTools.unpackBitsAndInvertValues(tile)) {
+                if (!TiffTools.unpackBitsAndInvertValues(tile, !autoCorrectColorRange)) {
                     TiffTools.convertYCbCrToRGB(tile);
                 }
             }
