@@ -128,7 +128,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean requireValidTiff;
     private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
-    private boolean autoCorrectColorRange = true;
+    private boolean autoCorrectUnusualColorRange = true;
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
     private boolean cachingIFDs = true;
@@ -300,12 +300,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isAutoCorrectColorRange() {
-        return autoCorrectColorRange;
+    public boolean isAutoCorrectUnusualColorRange() {
+        return autoCorrectUnusualColorRange;
     }
 
-    public TiffReader setAutoCorrectColorRange(boolean autoCorrectColorRange) {
-        this.autoCorrectColorRange = autoCorrectColorRange;
+    public TiffReader setAutoCorrectUnusualColorRange(boolean autoCorrectUnusualColorRange) {
+        this.autoCorrectUnusualColorRange = autoCorrectUnusualColorRange;
         return this;
     }
 
@@ -961,7 +961,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setInterleaved(false);
         } else {
             if (!TiffTools.rearrangeUnpackedSamples(tile)) {
-                if (!TiffTools.unpackBitsAndInvertValues(tile, !autoCorrectColorRange)) {
+                if (!TiffTools.unpackBitsAndInvertValues(tile, !autoCorrectUnusualColorRange)) {
                     TiffTools.convertYCbCrToRGB(tile);
                 }
             }
