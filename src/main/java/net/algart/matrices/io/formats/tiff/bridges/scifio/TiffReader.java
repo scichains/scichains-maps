@@ -961,8 +961,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setInterleaved(false);
         } else {
             if (!TiffTools.rearrangeUnpackedSamples(tile)) {
-                if (!TiffTools.unpackBitsAndInvertValues(tile, !autoCorrectUnusualColorRange)) {
-                    TiffTools.convertYCbCrToRGB(tile);
+                if (!TiffTools.separateYCbCrToRGB(tile)) {
+                    TiffTools.separateBitsAndInvertValues(tile, !autoCorrectUnusualColorRange);
                 }
             }
         }

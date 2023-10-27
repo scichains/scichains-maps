@@ -488,122 +488,14 @@ public class TiffTools {
 
     }
 
-    public static boolean unpackBitsAndInvertValues(TiffTile tile, boolean suppressValueCorrection)
-            throws FormatException {
-        Objects.requireNonNull(tile);
-        final DetailedIFD ifd = tile.ifd();
-
-        if (isAdditionalRepackNecessary(ifd) != 0) {
-            return false;
-        }
-        if (ifd.isStandardYCbCrNonJpeg()) {
-            return false;
-        }
-        checkSeparated(tile);
-        assert ifd.isStandardCompression() :
-                "non-standard compression not checked by isAdditionalRepackNecessary";
-
-        final int samplesPerPixel = tile.samplesPerPixel();
-        final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
-        final long sizeX = tile.getSizeX();
-        final long sizeY = tile.getSizeY();
-        final int resultSamplesLength = tile.getSizeInBytes();
-
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        final int bytesPerSample = tile.bytesPerSample();
-        if (bytesPerSample > 4) {
-            throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
-                    ifd.getCompression().getCodecName() + "\", " +
-                    "photometric interpretation \"" + photometricInterpretation.getName() +
-                    "\" and " + bytesPerSample + " bytes per sample (" +
-                    Arrays.toString(bitsPerSample) + " bits)");
-        }
-        // So, the only non-standard byte count is 3;
-        // 24-bit float and 17..24-bit integer cases will be processed later in unpackUnusualPrecisions
-
-        final int numberOfPixels = tile.getSizeInPixels();
-        final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
-        final int alignedBitsPerSample = 8 * bytesPerSample;
-
-        final int bps0 = bitsPerSample[0];
-        final byte[] bytes = tile.getDecodedData();
-
-        final boolean littleEndian = ifd.isLittleEndian();
-
-        final BitsUnpacker bb = BitsUnpacker.getInstance(bytes, littleEndian);
-
-        final byte[] unpacked = new byte[resultSamplesLength];
-
-        final long maxValue = (1 << bps0) - 1;
-
-        int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
-        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
-            skipBits = 0;
-        }
-
-        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
-                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
-                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
-            suppressValueCorrection = true;
-        }
-        // unpack pixels
-        MainLoop:
-        for (int i = 0; i < numberOfPixels; i++) {
-
-            for (int channel = 0; channel < samplesPerPixel; channel++) {
-                final int bits = bitsPerSample[channel];
-                final int index = bytesPerSample * (i * samplesPerPixel + channel);
-                final int outputIndex = (channel * numberOfPixels + i) * bytesPerSample;
-
-                // unpack non-YCbCr samples
-                long value = 0;
-
-                if (!byteAligned) {
-                    // bits per sample is not a multiple of 8
-
-                    if ((channel == 0 && photometricInterpretation == PhotoInterp.RGB_PALETTE) ||
-                            (photometricInterpretation != PhotoInterp.CFA_ARRAY &&
-                                    photometricInterpretation != PhotoInterp.RGB_PALETTE)) {
-//                        System.out.println((count++) + "/" + numberOfPixels * samplesPerPixel);
-                        value = bb.getBits(bps0);
-                        if (value == -1) {
-                            break MainLoop;
-                        }
-                        value &= 0xffff;
-                        if ((i % sizeX) == sizeX - 1) {
-                            bb.skipBits(skipBits);
-                        }
-                    }
-                } else {
-                    value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
-                }
-
-                if (!suppressValueCorrection) {
-                    if (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                            photometricInterpretation == PhotoInterp.CMYK) {
-                        value = maxValue - value;
-                    }
-                    value <<= alignedBitsPerSample - bits;
-                }
-
-                if (outputIndex + bytesPerSample <= unpacked.length) {
-                    Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
-                }
-            }
-        }
-        tile.setDecodedData(unpacked);
-        tile.setInterleaved(false);
-        return true;
-    }
-
-    public static boolean convertYCbCrToRGB(TiffTile tile) throws FormatException {
+    public static boolean separateYCbCrToRGB(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
         if (!ifd.isStandardYCbCrNonJpeg()) {
             return false;
         }
-        checkSeparated(tile);
+        checkInterleaved(tile);
         byte[] bytes = tile.getDecodedData();
 
         final TiffMap map = tile.map();
@@ -726,6 +618,114 @@ public class TiffTools {
             }
         }
 
+        tile.setDecodedData(unpacked);
+        tile.setInterleaved(false);
+        return true;
+    }
+
+    public static boolean separateBitsAndInvertValues(TiffTile tile, boolean suppressValueCorrection)
+            throws FormatException {
+        Objects.requireNonNull(tile);
+        final DetailedIFD ifd = tile.ifd();
+
+        if (isAdditionalRepackNecessary(ifd) != 0) {
+            return false;
+        }
+        if (ifd.isStandardYCbCrNonJpeg()) {
+            return false;
+        }
+        checkInterleaved(tile);
+        assert ifd.isStandardCompression() :
+                "non-standard compression not checked by isAdditionalRepackNecessary";
+
+        final int samplesPerPixel = tile.samplesPerPixel();
+        final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
+        final long sizeX = tile.getSizeX();
+        final long sizeY = tile.getSizeY();
+        final int resultSamplesLength = tile.getSizeInBytes();
+
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+        final int bytesPerSample = tile.bytesPerSample();
+        if (bytesPerSample > 4) {
+            throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
+                    ifd.getCompression().getCodecName() + "\", " +
+                    "photometric interpretation \"" + photometricInterpretation.getName() +
+                    "\" and " + bytesPerSample + " bytes per sample (" +
+                    Arrays.toString(bitsPerSample) + " bits)");
+        }
+        // So, the only non-standard byte count is 3;
+        // 24-bit float and 17..24-bit integer cases will be processed later in unpackUnusualPrecisions
+
+        final int numberOfPixels = tile.getSizeInPixels();
+        final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
+        final int alignedBitsPerSample = 8 * bytesPerSample;
+
+        final int bps0 = bitsPerSample[0];
+        final byte[] bytes = tile.getDecodedData();
+
+        final boolean littleEndian = ifd.isLittleEndian();
+
+        final BitsUnpacker bb = BitsUnpacker.getInstance(bytes, littleEndian);
+
+        final byte[] unpacked = new byte[resultSamplesLength];
+
+        final long maxValue = (1 << bps0) - 1;
+
+        int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
+        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
+            skipBits = 0;
+        }
+
+        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
+                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
+                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
+            suppressValueCorrection = true;
+        }
+        // unpack pixels
+        MainLoop:
+        for (int i = 0; i < numberOfPixels; i++) {
+
+            for (int channel = 0; channel < samplesPerPixel; channel++) {
+                final int bits = bitsPerSample[channel];
+                final int index = bytesPerSample * (i * samplesPerPixel + channel);
+                final int outputIndex = (channel * numberOfPixels + i) * bytesPerSample;
+
+                // unpack non-YCbCr samples
+                long value = 0;
+
+                if (!byteAligned) {
+                    // bits per sample is not a multiple of 8
+
+                    if ((channel == 0 && photometricInterpretation == PhotoInterp.RGB_PALETTE) ||
+                            (photometricInterpretation != PhotoInterp.CFA_ARRAY &&
+                                    photometricInterpretation != PhotoInterp.RGB_PALETTE)) {
+//                        System.out.println((count++) + "/" + numberOfPixels * samplesPerPixel);
+                        value = bb.getBits(bps0);
+                        if (value == -1) {
+                            break MainLoop;
+                        }
+                        value &= 0xffff;
+                        if ((i % sizeX) == sizeX - 1) {
+                            bb.skipBits(skipBits);
+                        }
+                    }
+                } else {
+                    value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
+                }
+
+                if (!suppressValueCorrection) {
+                    if (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                            photometricInterpretation == PhotoInterp.CMYK) {
+                        value = maxValue - value;
+                    }
+                    value <<= alignedBitsPerSample - bits;
+                }
+
+                if (outputIndex + bytesPerSample <= unpacked.length) {
+                    Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
+                }
+            }
+        }
         tile.setDecodedData(unpacked);
         tile.setInterleaved(false);
         return true;
@@ -1169,7 +1169,7 @@ public class TiffTools {
         return ifd.isOrdinaryBitDepth() && !ifd.isStandardInvertedCompression() ? 2 : 0;
     }
 
-    private static void checkSeparated(TiffTile tile) throws FormatException {
+    private static void checkInterleaved(TiffTile tile) throws FormatException {
         if (!tile.isInterleaved()) {
             throw new IllegalArgumentException("Tile data must be interleaved for correct completing " +
                     "to decode " + tile.ifd().getCompression() + " (separated data are allowed for codecs " +
