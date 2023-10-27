@@ -1340,7 +1340,12 @@ public class DetailedIFD extends IFD {
                             }
                         }
                     }
-                    case IFD.FILL_ORDER -> additional = getFillOrder().getName() + " bits order";
+                    case IFD.FILL_ORDER -> {
+                        additional = switch (getFillOrder()) {
+                            case NORMAL -> "default bits order: highest first (big-endian, 76543210)";
+                            case REVERSED -> "reversed bits order: lowest first (little-endian, 01234567)";
+                        };
+                    }
                     case IFD.PREDICTOR -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {

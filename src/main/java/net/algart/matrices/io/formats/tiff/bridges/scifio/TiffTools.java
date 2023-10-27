@@ -705,9 +705,6 @@ public class TiffTools {
                             break MainLoop;
                         }
                         value &= 0xffff;
-                        if ((i % sizeX) == sizeX - 1) {
-                            bb.skipBits(skipBits);
-                        }
                     }
                 } else {
                     value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
@@ -724,6 +721,9 @@ public class TiffTools {
                 if (outputIndex + bytesPerSample <= unpacked.length) {
                     Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
                 }
+            }
+            if ((i % sizeX) == sizeX - 1) {
+                bb.skipBits(skipBits);
             }
         }
         tile.setDecodedData(unpacked);
