@@ -635,8 +635,8 @@ public class TiffTools {
             return false;
         }
         checkInterleaved(tile);
-        assert ifd.isStandardCompression() :
-                "non-standard compression not checked by isAdditionalRepackNecessary";
+        assert ifd.isStandardCompression() && !ifd.isJpeg() :
+                "non-standard/JPEG compression not checked by isAdditionalRepackNecessary";
 
         final int samplesPerPixel = tile.samplesPerPixel();
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
@@ -645,6 +645,10 @@ public class TiffTools {
         final int resultSamplesLength = tile.getSizeInBytes();
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
+        assert samplesPerPixel <= bitsPerSample.length :
+                "samplesPerPixel=" + samplesPerPixel + ">bitsPerSample.length, " +
+                        "but it is possible only for OLD_JPEG, that should be already checked";
+        // - but samplesPerPixel can be =1 for planar-separated tiles
         final int bytesPerSample = tile.bytesPerSample();
         if (bytesPerSample > 4) {
             throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
@@ -674,6 +678,11 @@ public class TiffTools {
         int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
         if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
             skipBits = 0;
+        }
+        final int[] multipliers = new int[bitsPerSample.length];
+        for (int k = 0; k < multipliers.length; k++) {
+            multipliers[k] = ((1 << 8 * bytesPerSample) - 1) / ((1 << bitsPerSample[k]) - 1);
+            // - note that 2^n-1 is divisible by 2^m-1 when m < n
         }
 
         if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
@@ -715,7 +724,7 @@ public class TiffTools {
                             photometricInterpretation == PhotoInterp.CMYK) {
                         value = maxValue - value;
                     }
-                    value <<= alignedBitsPerSample - bits;
+                    value *= multipliers[channel];
                 }
 
                 if (outputIndex + bytesPerSample <= unpacked.length) {

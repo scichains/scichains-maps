@@ -272,6 +272,23 @@ public final class TiffTile {
         return unsetArea == null || !unsetArea.isEmpty();
     }
 
+    /**
+     * Returns <tt>true</tt>>, if the stored pixel samples (as supposed) are interleaved, like RGBRGB...,
+     * or <tt>false</tt> if not (RRR...GGG...BBB...).
+     * It doesn't matter in a case of monochrome images and in a case of {@link #isEncoded() encoded} data.
+     * Default value is <tt>false</tt>.
+     *
+     * <p>By default, the data are considered to be <b>not</b> interleaved, in other words, {@link #isSeparated()
+     * separated}. Methods, reading and decoding the tile from TIFF, always return separated tile.
+     * Methods, encoding the file for writing to TIFF, may work both with interleaved tiles,
+     * but it should be explicitly declared, like in
+     * {@link TiffWriter#setAutoInterleaveSource(boolean)} method (with <tt>false</tt> argument).</p>
+     *
+     * <p>This is purely informational property, not affecting processing the stored data
+     * by methods of this object and supported for additional convenience of usage this class.</p>
+     *
+     * @return whether the data in the tile are interleaved.
+     */
     public boolean isInterleaved() {
         return interleaved;
     }
@@ -282,16 +299,7 @@ public final class TiffTile {
 
     /**
      * Sets the flag, are the stored pixel samples are interleaved (like RGBRGB...) or not (RRR...GGG...BBB...).
-     * It doesn't matter in a case of monochrome images and in a case of {@link #isEncoded() encoded} data.
-     *
-     * <p>By default, it is considered to be <b>not</b> interleaved, in other words, {@link #isSeparated()
-     * separated}. Methods, reading and decoding the tile from TIFF, always return separated tile.
-     * Methods, encoding the file for writing to TIFF, may work both with interleaved tiles,
-     * but it should be explicitly declared, like in
-     * {@link TiffWriter#setAutoInterleaveSource(boolean)} method (with <tt>false</tt> argument).</p>
-     *
-     * <p>This is purely informational property, not affecting processing the stored data
-     * by methods of this object and supported for additional convenience of usage this class.</p>
+     * See {@link #isInterleaved()}.
      *
      * @param interleaved whether the data should be considered as interleaved.
      * @return a reference to this object.

@@ -949,6 +949,66 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
+    /**
+     * Completes decoding tile after decoding by some {@link Codec}. This method is automatically called
+     * at the end of {@link #decode(TiffTile)} method.
+     *
+     * <p>First of all, this method always rearranges data in the file: if the codec returned
+     * {@link TiffTile#isInterleaved() interleaved} data, this method
+     * {@link TiffTile#separateSamplesIfNecessary() separates} them.
+     * Interleaved data are the standard for internal pixel storage for simple formats like
+     * {@link TiffCompression#LZW} and may be  returned by complex codecs like {@link TiffCompression#JPEG_2000}.
+     *
+     * <p>This method does 3 other corrections for some standard compression algorithms:
+     * <ul>
+     * <li>{@link TiffCompression#UNCOMPRESSED},</li>
+     * <li>{@link TiffCompression#LZW},</li>
+     * <li>{@link TiffCompression#DEFLATE},</li>
+     * <li>{@link TiffCompression#PACK_BITS}.</li>
+     * </ul>
+     *
+     * <p>1st correction: unpacking. TIFF supports storing pixel samples in any number of bits,
+     * not always divisible by 8, in other words, one pixel sample can occupy non-integer number of bytes.
+     * Most useful from these cases is 1-bit monochrome picture, where 8 pixels are packed into 1 byte.
+     * Sometimes the pictures with 4 bits/pixels (monochrome or with palette) or 3*4=12 bits/pixels (RGB) appear.
+     * You can also meet old RGB 32-bit images with 5+5+5 or 5+6+5 bits/channel.</p>
+     *
+     * <p>However, the API of this class represents any image as a sequence of <i>bytes</i>. This method performs
+     * all necessary unpacking so that the result image use an integer number of bytes per each pixel sample (channel).
+     * For example, 1-bit binary image is converted to 8-bit: 0 transformed to 0, 1 to 255;
+     * 4-bit grayscale image is converted by multiplying by 17 (so that maximal possible 4-bit value, 15,
+     * will become maximal possible 8-bit value 255=17*15); 12-bit RGB image is converted to 16-bit
+     * by multiplying each channel by (2<sup>16</sup>&minus;1)/(2<sup>12</sup>&minus;1), etc.</p>
+     *
+     * <p>2nd correction: inversion. Some TIFF files use CMYK color space or WhiteIsZero interpretation of grayscale
+     * images, where dark colors are represented by smaller values and bright colors by higher, in particlular,
+     * 0 is white, maximal value (255 for 8-bit) is black.</p>
+     *
+     * <p>However, the API of this class suppose that all returned images are RGB, RGBA or usual monochrome.
+     * Complex codecs like JPEG perform necessary conversion themselves, but the simple codecs like
+     * {@link TiffCompression#UNCOMPRESSED} do not this correction. This is performed by this method.
+     * For CMYK or WhiteIsZero it means inversion of the pixel samples: v is transformed to MAX&minus;v,
+     * where MAX is the maximal possible value (255 for 8-bit).</p>
+     *
+     * <p>3rd correction: conversion of YCbCr color space to usual RGB. It is a rare situation, when
+     * the image is stored as YCbCr, however not in JPEG format, but uncompressed or, for example, as LZW.
+     * This method performs necessary conversion to RGB (but only if the image is exactly 8-bit).</p>
+     *
+     * <p>Note: this method never increase number of <i>bytes</i>, necessary for representing a single pixel sample.
+     * It can increase the number of <i>bits</i> per sample, but onty to the nearest greater integer number of
+     * bytes: 1..7 bits are transformed to 8 bits/sample, 9..15 to 16 bits/sample, 17..23 to 24 bits/sample etc.
+     * Thus, this method <b>does not unpack 3-byte samples</b> (to 4-byte) and
+     * <b>does not unpack 16- or 24-bit</b> floating-point formats. These cases
+     * are processed after reading all tiles inside {@link #readSamples(TiffMap, int, int, int, int)}
+     * method, if {@link #isAutoUnpackUnusualPrecisions()} flag is set, or may be performed by external
+     * code with help of {@link TiffTools#unpackUnusualPrecisions(byte[], DetailedIFD, int, int)} method.
+     *
+     * <p>This method does not allow 5, 6, 7 or greater than 8 bytes/sample
+     * (but 8 bytes/sample is allowed: it is probably <tt>double</tt> precision).</p>
+     *
+     * @param tile the tile that should be corrected.
+     * @throws FormatException
+     */
     public void completeDecoding(TiffTile tile) throws FormatException {
         // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
         // - this solution requires using SCIFIO context class; it is better to avoid this

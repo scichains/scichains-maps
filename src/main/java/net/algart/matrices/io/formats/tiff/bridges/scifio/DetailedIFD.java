@@ -922,7 +922,7 @@ public class DetailedIFD extends IFD {
         return isStandard(getCompression());
     }
 
-    public boolean isStandardJpeg() throws FormatException {
+    public boolean isJpeg() throws FormatException {
         return isJpeg(getCompression());
     }
 

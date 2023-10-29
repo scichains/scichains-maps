@@ -104,6 +104,7 @@ public class TiffReaderTest {
                 long t2 = System.nanoTime();
 //                reader.setExtendedCodec(false);
 //                reader.setCachingIFDs(false);
+//                reader.setAutoUnpackUnusualPrecisions(false);
 //                reader.setAutoCorrectUnusualColorRange(false);
                 reader.setMissingTilesAllowed(true);
                 reader.setByteFiller((byte) 0x80);
