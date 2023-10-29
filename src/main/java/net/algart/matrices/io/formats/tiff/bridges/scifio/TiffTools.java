@@ -743,11 +743,13 @@ public class TiffTools {
     // Note: we prefer to pass numberOfChannels directly, not calculate it on the base of IFD,
     // because in some cases (like processing tile) number of channels should be set to 1 for planar IFD,
     // but in other cases (like processing whole image) it is not so.
+    // Note: this method CHANGES the number of bytes/sample.
     public static byte[] unpackUnusualPrecisions(
             final byte[] samples,
             final DetailedIFD ifd,
             final int numberOfChannels,
-            final int numberOfPixels) throws FormatException {
+            final int numberOfPixels,
+            boolean suppressScalingUnsignedInt24) throws FormatException {
         Objects.requireNonNull(samples, "Null samples");
         Objects.requireNonNull(ifd, "Null IFD");
         if (numberOfChannels <= 0) {
@@ -757,7 +759,7 @@ public class TiffTools {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
         final int packedBytesPerSample = ifd.equalBytesPerSample();
-        final int pixelType = ifd.getPixelType();
+        final int pixelType = ifd.pixelType();
         final boolean fp = pixelType == FormatTools.FLOAT || pixelType == FormatTools.DOUBLE;
         // - actually DOUBLE is not used below
         final int bitsPerSample = ifd.tryEqualBitsPerSample().orElse(-1);
@@ -786,8 +788,9 @@ public class TiffTools {
         final byte[] unpacked = new byte[size];
         if (int24) {
             for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
-                final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-                Bytes.unpack((long) v << 8, unpacked, i * 4, 4, littleEndian);
+                final int value = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
+                final long newValue = suppressScalingUnsignedInt24 ? value : (long) value << 8;
+                Bytes.unpack(newValue, unpacked, i * 4, 4, littleEndian);
             }
             return unpacked;
         }

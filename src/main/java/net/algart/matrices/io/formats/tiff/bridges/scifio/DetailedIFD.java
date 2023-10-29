@@ -398,20 +398,126 @@ public class DetailedIFD extends IFD {
             bitsPerSample = new int[]{1};
             // - In the following loop, this array will be appended to necessary length.
         }
-
-        final int samplesPerPixel = getSamplesPerPixel();
-        if (bitsPerSample.length < samplesPerPixel) {
-            // - Result must contain at least samplesPerPixel elements (SCIFIO agreement)
-            final int bits = bitsPerSample[0];
-            bitsPerSample = new int[samplesPerPixel];
-            Arrays.fill(bitsPerSample, bits);
+        if (bitsPerSample.length == 0) {
+            throw new FormatException("Zero length of BitsPerSample array");
         }
-        for (int i = 0; i < samplesPerPixel; i++) {
+        for (int i = 0; i < bitsPerSample.length; i++) {
             if (bitsPerSample[i] <= 0) {
                 throw new FormatException("Zero or negative BitsPerSample[" + i + "] = " + bitsPerSample[i]);
             }
         }
+        final int samplesPerPixel = getSamplesPerPixel();
+        if (bitsPerSample.length < samplesPerPixel) {
+            // - Result must contain at least samplesPerPixel elements (SCIFIO agreement)
+            // It is not a bug, because getSamplesPerPixel() MAY return 3 for OLD_JPEG
+            int[] newBitsPerSample = new int[samplesPerPixel];
+            for (int i = 0; i < newBitsPerSample.length; i++) {
+                newBitsPerSample[i] = bitsPerSample[i < bitsPerSample.length ? i : 0];
+            }
+            bitsPerSample = newBitsPerSample;
+        }
         return bitsPerSample;
+    }
+
+    public int pixelType() throws FormatException {
+        return pixelType(true);
+    }
+
+    public int pixelType(boolean requireSupportedDepth) throws FormatException {
+        final int bytesPerSample;
+        if (requireSupportedDepth) {
+            bytesPerSample = equalBytesPerSample();
+        } else {
+            try {
+                bytesPerSample = equalBytesPerSample();
+            } catch (FormatException e) {
+                return -1;
+            }
+        }
+        int[] sampleFormats = getIFDIntArray(SAMPLE_FORMAT);
+        if (sampleFormats == null) {
+            sampleFormats = new int[]{SAMPLE_FORMAT_UINT};
+        }
+        if (sampleFormats.length == 0) {
+            throw new FormatException("Zero length of SampleFormat array");
+        }
+        for (int v : sampleFormats) {
+            if (v != sampleFormats[0]) {
+                throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: " +
+                        "different sample format for different samples (" +
+                        Arrays.toString(sampleFormats) + ")");
+            }
+        }
+        int result = -1;
+        switch (sampleFormats[0]) {
+            case SAMPLE_FORMAT_UINT -> {
+                switch (bytesPerSample) {
+                    case 1 -> result = FormatTools.UINT8;
+                    case 2 -> result = FormatTools.UINT16;
+                    case 3, 4 -> result = FormatTools.UINT32;
+                    // - note: 3-byte format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
+                }
+                if (result == -1 && requireSupportedDepth) {
+                    throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
+                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
+                            bytesPerSample + " bytes/sample for unsigned integers (only 1..4 bytes/sample supported)");
+
+                }
+            }
+            case SAMPLE_FORMAT_INT -> {
+                switch (bytesPerSample) {
+                    case 1 -> result = FormatTools.INT8;
+                    case 2 -> result = FormatTools.INT16;
+                    case 3, 4 -> result = FormatTools.INT32;
+                    // - note: 3-byte format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
+                }
+                if (result == -1 && requireSupportedDepth) {
+                    throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
+                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
+                            bytesPerSample + " bytes/sample for signed integers (only 1..4 bytes/sample supported)");
+                }
+            }
+            case SAMPLE_FORMAT_IEEEFP -> {
+                switch (bytesPerSample) {
+                    case 2, 3, 4 -> result = FormatTools.FLOAT;
+                    case 8 -> result = FormatTools.DOUBLE;
+                    // - note: 2/3-byte float format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
+                }
+                if (result == -1 && requireSupportedDepth) {
+                    throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
+                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
+                            bytesPerSample + " bytes/sample for floating point values " +
+                            "(only 2, 3, 4 bytes/sample supported)");
+                }
+            }
+            case SAMPLE_FORMAT_VOID -> {
+                if (bytesPerSample == 1) {
+                    result = FormatTools.UINT8;
+                } else {
+                    if (requireSupportedDepth) {
+                        throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
+                                Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
+                                bytesPerSample + " bytes/sample for void values " +
+                                "(only 1 byte/sample is supported for unknown data type)");
+                    }
+                }
+            }
+            default -> {
+                if (requireSupportedDepth) {
+                    throw new UnsupportedTiffFormatException("Unsupported TIFF data type: SampleFormat=" +
+                            Arrays.toString(sampleFormats));
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Use {@link #pixelType()} instead, that does not permit unsupported number of bits.
+     */
+    @Deprecated
+    public int getPixelType() throws FormatException {
+        return super.getPixelType();
     }
 
     // This method replaces old getStripByteCounts to remove extra support of absence of StripByteCounts
@@ -597,7 +703,7 @@ public class DetailedIFD extends IFD {
     public int[] getYCbCrSubsampling() throws FormatException {
         final Object value = get(Y_CB_CR_SUB_SAMPLING);
         if (value == null) {
-            return new int[] {2, 2};
+            return new int[]{2, 2};
         }
         int[] result;
         if (value instanceof int[] ints) {
@@ -635,7 +741,7 @@ public class DetailedIFD extends IFD {
     }
 
 
-        // Usually false: PlanarConfiguration=2 is not in widespread use
+    // Usually false: PlanarConfiguration=2 is not in widespread use
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;
     }
@@ -898,7 +1004,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int bytesPerSampleBasedOnType() throws FormatException {
-        final int pixelType = getPixelType();
+        final int pixelType = pixelType();
         return FormatTools.getBytesPerPixel(pixelType);
     }
 
@@ -1240,11 +1346,13 @@ public class DetailedIFD extends IFD {
         sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
         long dimX = 0;
         long dimY = 0;
-        int channels = 0;
+        int channels;
         int tileSizeX = 1;
         int tileSizeY = 1;
         try {
-            sb.append(" ").append(TiffTools.pixelTypeToElementType(getPixelType()).getSimpleName());
+            final int pixelType = pixelType(false);
+            sb.append(" ");
+            sb.append(pixelType == -1 ? "???" : TiffTools.pixelTypeToElementType(pixelType).getSimpleName());
             channels = getSamplesPerPixel();
             if (hasImageDimensions()) {
                 dimX = getImageDimX();
@@ -1259,11 +1367,12 @@ public class DetailedIFD extends IFD {
             sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("] ");
         }
         try {
+            final int pixelType = pixelType(false);
             final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
             final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
             sb.append("%s, precision %s%s, ".formatted(
                     isLittleEndian() ? "little-endian" : "big-endian",
-                    FormatTools.getPixelTypeString(getPixelType()),
+                    pixelType == -1 ? "???" : FormatTools.getPixelTypeString(pixelType),
                     isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(

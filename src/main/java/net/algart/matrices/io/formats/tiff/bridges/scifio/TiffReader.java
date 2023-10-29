@@ -1122,7 +1122,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t3 = debugTime();
         if (autoUnpackUnusualPrecisions) {
-            samples = TiffTools.unpackUnusualPrecisions(samples, ifd, numberOfChannels, sizeX * sizeY);
+            samples = TiffTools.unpackUnusualPrecisions(
+                    samples, ifd, numberOfChannels, sizeX * sizeY, !autoCorrectUnusualColorRange);
         }
         long t4 = debugTime();
         if (interleaveResults) {
