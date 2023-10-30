@@ -70,13 +70,8 @@ public abstract class BitsUnpacker {
         eofByteIndex = bytes.length;
     }
 
-    public static BitsUnpacker getInstance(byte[] bytes, boolean littleEndian) {
-        if (littleEndian) {
+    public static BitsUnpacker getUnpackerHighBitFirst(byte[] bytes) {
             return new BigEndian(bytes);
-        } else {
-            return new BigEndian(bytes);
-            //TODO!!
-        }
     }
 
     public long position() {

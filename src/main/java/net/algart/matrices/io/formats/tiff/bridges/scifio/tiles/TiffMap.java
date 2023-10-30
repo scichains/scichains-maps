@@ -54,6 +54,7 @@ public final class TiffMap {
     private final int numberOfSeparatedPlanes;
     private final int tileSamplesPerPixel;
     private final int bytesPerSample;
+    private final int bytesPerUnpackedSample;
     private final int tileBytesPerPixel;
     private final int totalBytesPerPixel;
     private final int pixelType;
@@ -116,6 +117,7 @@ public final class TiffMap {
             this.tileBytesPerPixel = tileSamplesPerPixel * bytesPerSample;
             this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
             this.pixelType = ifd.pixelType();
+            this.bytesPerUnpackedSample = FormatTools.getBytesPerPixel(pixelType);
             this.elementType = TiffTools.pixelTypeToElementType(pixelType);
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
@@ -176,8 +178,46 @@ public final class TiffMap {
         return tileSamplesPerPixel;
     }
 
+    /**
+     * Minimal number of bytes, necessary to store one channel of the pixel inside TIFF file:
+     * &#8968;BitsPerSample/8&#8969;.
+     * This class requires that this value is equal for all channels, even
+     * if <tt>BitsPerSample</tt> tag contain different number of bits per channel (for example, 5+6+5).
+     *
+     * <p>Note that the actual number of bytes, used for storing the pixel samples in memory
+     * after reading data from TIFF file, may be little greater: see {@link #bytesPerUnpackedSample()}.
+     *
+     * @return number of bytes, necessary to store one channel of the pixel inside TIFF.
+     */
     public int bytesPerSample() {
         return bytesPerSample;
+    }
+
+    /**
+     * Number of bytes, actually used for storing one channel of the pixel in memory.
+     * This number of bytes is correct for data, loaded from TIFF file by
+     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader}, and for source data,
+     * that should be qwritten by {@link net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter}.
+     *
+     * <p>Usually this value is equal to results of {@link #bytesPerSample()}, excepting the following rare cases:</p>
+     *
+     * <ul>
+     *     <li>every channel is encoded as N-bit integer value, where 17&le;N&le;24, and, so, requires 3 bytes
+     *     (image, stored in memory, must have 2<sup>k</sup> bytes (k=1..3) per every sample, to allow to represent
+     *     it by one of Java types <tt>byte</tt>, <tt>short</tt>, <tt>int</tt>, <tt>float</tt>, <tt>double</tt>);
+     *     </li>
+     *     <li>pixels are encoded as 16-bit or 24-bit floating point values (in memory, such image
+     *     will be unpacked into usual array of 32-bit <tt>float</tt> values).</li>
+     * </ul>
+     *
+     * <p>Note that this difference is possible only while reading TIFF files, created by some other software.
+     * While using {@link net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter} class of this module,
+     * it is not allowed to write image with precisions listed above.</p>
+     *
+     * @return number of bytes, used for storing one channel of the pixel in memory.
+     */
+    public int bytesPerUnpackedSample() {
+        return bytesPerUnpackedSample;
     }
 
     public int tileBytesPerPixel() {

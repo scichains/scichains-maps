@@ -535,7 +535,7 @@ public class TiffTools {
             // - original SCIFIO code used here zero-filled array, this is incorrect
         }
         final int[] subsamplingLog = ifd.getYCbCrSubsamplingLogarithms();
-        final TiffRational[] coefficients = ifd.optValue(
+        final TiffRational[] coefficients = ifd.getValue(
                         IFD.Y_CB_CR_COEFFICIENTS, TiffRational[].class, true)
                 .orElse(new TiffRational[0]);
         if (coefficients.length >= 3) {
@@ -669,7 +669,7 @@ public class TiffTools {
 
         final boolean littleEndian = ifd.isLittleEndian();
 
-        final BitsUnpacker bb = BitsUnpacker.getInstance(bytes, littleEndian);
+        final BitsUnpacker bb = BitsUnpacker.getUnpackerHighBitFirst(bytes);
 
         final byte[] unpacked = new byte[resultSamplesLength];
 

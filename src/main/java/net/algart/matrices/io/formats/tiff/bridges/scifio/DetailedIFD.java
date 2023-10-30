@@ -279,7 +279,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleBasedOnType(),
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerUnpackedSample(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
                 () -> "Invalid requested area: ", () -> "");
     }
@@ -300,7 +300,7 @@ public class DetailedIFD extends IFD {
         return Optional.of(requiredClass.cast(value));
     }
 
-    public <R> Optional<R> optValue(int tag, Class<? extends R> valueClass, boolean requireCorrectClass)
+    public <R> Optional<R> getValue(int tag, Class<? extends R> valueClass, boolean requireCorrectClass)
             throws FormatException {
         Objects.requireNonNull(valueClass, "Null valueClass");
         Object value = get(tag);
@@ -320,7 +320,7 @@ public class DetailedIFD extends IFD {
     }
 
     public <R> R reqValue(int tag, Class<? extends R> requiredClass) throws FormatException {
-        return optValue(tag, requiredClass, true).orElseThrow(() -> new FormatException(
+        return getValue(tag, requiredClass, true).orElseThrow(() -> new FormatException(
                 "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
     }
 
@@ -329,7 +329,7 @@ public class DetailedIFD extends IFD {
         return entry == null ? Optional.empty() : Optional.ofNullable(entry.getType());
     }
 
-    public boolean getBoolean(int tag, boolean defaultValue) {
+    public boolean optBoolean(int tag, boolean defaultValue) {
         return optValue(tag, Boolean.class).orElse(defaultValue);
     }
 
@@ -338,7 +338,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int getInt(int tag, int defaultValue) throws FormatException {
-        return checkedIntValue(optValue(tag, Number.class, true).orElse(defaultValue), tag);
+        return checkedIntValue(getValue(tag, Number.class, true).orElse(defaultValue), tag);
     }
 
     public int optInt(int tag, int defaultValue) {
@@ -350,7 +350,7 @@ public class DetailedIFD extends IFD {
     }
 
     public long getLong(int tag, int defaultValue) throws FormatException {
-        return optValue(tag, Number.class, true).orElse(defaultValue).longValue();
+        return getValue(tag, Number.class, true).orElse(defaultValue).longValue();
     }
 
     public long optLong(int tag, int defaultValue) {
@@ -361,13 +361,13 @@ public class DetailedIFD extends IFD {
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
     public boolean isBigTiff() {
-        return getBoolean(BIG_TIFF, false);
+        return optBoolean(BIG_TIFF, false);
     }
 
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
     public boolean isLittleEndian() {
-        return getBoolean(LITTLE_ENDIAN, false);
+        return optBoolean(LITTLE_ENDIAN, false);
     }
 
     // This method is overridden to check that result is positive and to avoid exception for illegal compression
@@ -1003,7 +1003,7 @@ public class DetailedIFD extends IFD {
         return bytes0;
     }
 
-    public int bytesPerSampleBasedOnType() throws FormatException {
+    public int bytesPerUnpackedSample() throws FormatException {
         final int pixelType = pixelType();
         return FormatTools.getBytesPerPixel(pixelType);
     }

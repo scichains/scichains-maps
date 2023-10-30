@@ -1609,6 +1609,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                     "requested number of bits per sample is not supported: " + bits + " bits");
         }
+        final int pixelType;
+        try {
+            pixelType = ifd.pixelType();
+        } catch (FormatException e) {
+            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
+                    "requested combination of number of bits per sample and sample format is not supported: " +
+                    e.getMessage());
+        }
+        //TODO!! check 16/24-bit
+
         // The following solution seems to be unnecessary: we do not specify default tile size,
         // why to do this with rarely used strips? Single strip is also well!
         //
@@ -1626,13 +1636,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - UnsupportedTiffFormatException for unknown compression
 
         final boolean palette = samplesPerPixel == 1 && ifd.containsKey(IFD.COLOR_MAP);
-        final boolean signed = ifd.getIFDIntValue(IFD.SAMPLE_FORMAT) == 2;
         // - getIFDIntValue method returns the element #0, i.e. for channel #0
         final boolean jpeg = compression == TiffCompression.JPEG;
-        if (jpeg && (signed || bits != 8)) {
+        if (jpeg && (pixelType != FormatTools.UINT8)) {
             throw new FormatException("JPEG compression is not supported for %d-bit%s samples%s".formatted(
                     bits,
-                    signed ? " signed" : "",
+                    pixelType == FormatTools.INT8 ? " signed" : "",
                     bits == 8 ? " (samples must be unsigned)" : ""));
         }
         final boolean rgbRequested = extendedCodec && (jpegInPhotometricRGB ?
