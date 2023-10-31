@@ -443,9 +443,13 @@ public class DetailedIFD extends IFD {
         }
         for (int v : sampleFormats) {
             if (v != sampleFormats[0]) {
-                throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: " +
-                        "different sample format for different samples (" +
-                        Arrays.toString(sampleFormats) + ")");
+                if (requireSupportedDepth) {
+                    throw new UnsupportedTiffFormatException("Unsupported TIFF IFD: " +
+                            "different sample format for different samples (" +
+                            Arrays.toString(sampleFormats) + ")");
+                } else {
+                    return -1;
+                }
             }
         }
         int result = -1;
@@ -459,8 +463,8 @@ public class DetailedIFD extends IFD {
                 }
                 if (result == -1 && requireSupportedDepth) {
                     throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
-                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
-                            bytesPerSample + " bytes/sample for unsigned integers (only 1..4 bytes/sample supported)");
+                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " + bytesPerSample +
+                            " bytes/sample for unsigned integers (only 1..4 bytes/sample supported)");
 
                 }
             }
@@ -473,8 +477,8 @@ public class DetailedIFD extends IFD {
                 }
                 if (result == -1 && requireSupportedDepth) {
                     throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
-                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
-                            bytesPerSample + " bytes/sample for signed integers (only 1..4 bytes/sample supported)");
+                            Arrays.toString(getBitsPerSample()) + " bits/sample, or " + bytesPerSample +
+                            " bytes/sample for signed integers, but only 1..4 bytes/sample cases are supported");
                 }
             }
             case SAMPLE_FORMAT_IEEEFP -> {
@@ -486,8 +490,8 @@ public class DetailedIFD extends IFD {
                 if (result == -1 && requireSupportedDepth) {
                     throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
                             Arrays.toString(getBitsPerSample()) + " bits/sample, or " +
-                            bytesPerSample + " bytes/sample for floating point values " +
-                            "(only 2, 3, 4 bytes/sample supported)");
+                            bytesPerSample + " bytes/sample for floating point values, " +
+                            "but only 2, 3, 4 bytes/sample cases are supported");
                 }
             }
             case SAMPLE_FORMAT_VOID -> {

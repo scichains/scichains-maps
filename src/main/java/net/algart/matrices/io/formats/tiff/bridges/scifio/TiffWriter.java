@@ -1593,9 +1593,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private void prepareValidIFD(final DetailedIFD ifd) throws FormatException {
         final int samplesPerPixel = ifd.getSamplesPerPixel();
         if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            ifd.putSamplesType(FormatTools.UINT8);
-            // - default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
+            ifd.put(IFD.BITS_PER_SAMPLE, new int[] {8});
+            // - Default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
+            // Note: we do not change SAMPLE_FORMAT tag here!
         }
         final OptionalInt optionalBits = ifd.tryEqualBitsPerSample();
         if (optionalBits.isEmpty()) {
@@ -1617,7 +1618,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     "requested combination of number of bits per sample and sample format is not supported: " +
                     e.getMessage());
         }
-        //TODO!! check 16/24-bit
+        if (pixelType == FormatTools.FLOAT && bits != 32) {
+            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
+                    "requested number of bits per sample is not supported: " +
+                    bits + " bits for floating-point precision");
+        }
 
         // The following solution seems to be unnecessary: we do not specify default tile size,
         // why to do this with rarely used strips? Single strip is also well!
