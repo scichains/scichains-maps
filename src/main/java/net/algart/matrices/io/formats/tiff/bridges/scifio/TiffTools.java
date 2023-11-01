@@ -802,19 +802,16 @@ public class TiffTools {
         final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
         final int power2MantissaBits = pow2(mantissaBits);
         final int power2MantissaBitsMinus1 = pow2(mantissaBits) - 1;
-        final int bits = (packedBytesPerSample * 8) - 1;
+        final int packedBitsPerSampleMinus1 = (packedBytesPerSample * 8) - 1;
         for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
             final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-            final int sign = v >> bits;
+            final int sign = v >> packedBitsPerSampleMinus1;
             int exponent = (v >> mantissaBits) & power2ExponentBitsMinus1;
             int mantissa = v & power2MantissaBitsMinus1;
 
             if (exponent == 0) {
                 if (mantissa != 0) {
-                    while (true) {
-                        if (!((mantissa & power2MantissaBits) == 0)) {
-                            break;
-                        }
+                    while ((mantissa & power2MantissaBits) == 0) {
                         mantissa <<= 1;
                         exponent--;
                     }
