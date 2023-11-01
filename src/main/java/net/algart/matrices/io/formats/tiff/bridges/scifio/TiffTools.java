@@ -788,6 +788,7 @@ public class TiffTools {
         final byte[] unpacked = new byte[size];
         if (int24) {
             for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
+                // - very rare case, no sense to optimize
                 final int value = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
                 final long newValue = suppressScalingUnsignedInt24 ? value : (long) value << 8;
                 Bytes.unpack(newValue, unpacked, i * 4, 4, littleEndian);

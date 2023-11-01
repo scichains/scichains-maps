@@ -58,6 +58,11 @@ public class TiffReaderTest {
             noContext = true;
             startArgIndex++;
         }
+        boolean contrast = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-contrast")) {
+            contrast = true;
+            startArgIndex++;
+        }
         boolean cache = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-cache")) {
             cache = true;
@@ -158,15 +163,16 @@ public class TiffReaderTest {
                 }
 
                 System.out.printf("Saving result image into %s...%n", resultFile);
-                writeImageFile(array, w, h, bandCount, resultFile);
+                writeImageFile(array, w, h, bandCount, resultFile, contrast);
                 reader.close();
             }
             System.out.printf("Done repeat %d/%d%n%n", repeat, numberOfCompleteRepeats);
         }
     }
 
-    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile) throws IOException {
-        final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount);
+    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile, boolean contrast)
+            throws IOException {
+        final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount, contrast);
         writeImageFile(image, resultFile.toFile());
     }
 
@@ -180,8 +186,9 @@ public class TiffReaderTest {
         }
     }
 
-    private static BufferedImage unpackedArrayToImage(Object data, int sizeX, int sizeY, int bandCount) {
-        if (data instanceof int[] ints) {
+    private static BufferedImage unpackedArrayToImage(
+            Object data, int sizeX, int sizeY, int bandCount, boolean contrast) {
+        if (data instanceof int[] ints && !contrast) {
             // - standard method SMat.toBufferedImage uses AlgART interpretation: 2^31 is white;
             // it is incorrect for TIFF files
             byte[] bytes = new byte[ints.length];
@@ -202,6 +209,9 @@ public class TiffReaderTest {
         if (multiMatrix.size() == 0) {
             return null;
             // - provided for testing only (BufferedImage cannot have zero sizes)
+        }
+        if (contrast) {
+            multiMatrix = multiMatrix.contrast();
         }
         return SMat.valueOf(multiMatrix).toBufferedImage();
     }
