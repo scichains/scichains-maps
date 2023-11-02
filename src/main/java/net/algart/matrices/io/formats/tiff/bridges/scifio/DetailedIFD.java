@@ -1457,8 +1457,8 @@ public class DetailedIFD extends IFD {
                     }
                     case IFD.FILL_ORDER -> {
                         additional = switch (getFillOrder()) {
-                            case NORMAL -> "default bits order: highest first (big-endian, 76543210)";
-                            case REVERSED -> "reversed bits order: lowest first (little-endian, 01234567)";
+                            case NORMAL -> "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)";
+                            case REVERSED -> "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
                         };
                     }
                     case IFD.PREDICTOR -> {

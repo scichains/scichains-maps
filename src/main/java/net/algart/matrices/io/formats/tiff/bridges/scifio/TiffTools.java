@@ -504,7 +504,7 @@ public class TiffTools {
             return false;
         }
         checkInterleaved(tile);
-        byte[] bytes = tile.getDecodedData();
+        final byte[] data = tile.getDecodedData();
 
         final TiffMap map = tile.map();
         if (map.isPlanarSeparated()) {
@@ -524,7 +524,6 @@ public class TiffTools {
             throw new FormatException("TIFF YCbCr photometric interpretation requires 3 channels, but " +
                     "there are " + map.tileSamplesPerPixel() + " channels in SamplesPerPixel TIFF tag");
         }
-
 
         final int sizeX = tile.getSizeX();
         final int sizeY = tile.getSizeY();
@@ -581,7 +580,7 @@ public class TiffTools {
                 //    YYYYbrYYYYbrYYYYbr...
                 //                |"blockStart" position
 
-                if (chromaIndex + 1 >= bytes.length) {
+                if (chromaIndex + 1 >= data.length) {
                     break;
                 }
 
@@ -608,9 +607,9 @@ public class TiffTools {
                 }
 
                 final int resultIndex = resultYIndex * sizeX + resultXIndex;
-                final int y = (bytes[lumaIndex] & 0xff) - reference[0];
-                final int cb = (bytes[chromaIndex] & 0xff) - reference[2];
-                final int cr = (bytes[chromaIndex + 1] & 0xff) - reference[4];
+                final int y = (data[lumaIndex] & 0xff) - reference[0];
+                final int cb = (data[chromaIndex] & 0xff) - reference[2];
+                final int cr = (data[chromaIndex + 1] & 0xff) - reference[4];
 
                 final double red = cr * crCoefficient + y;
                 final double blue = cb * cbCoefficient + y;
@@ -648,6 +647,15 @@ public class TiffTools {
                     "non-standard/JPEG compression, though it was already checked)");
             // - was checked in isSimpleRearrangingBytesEnough
         }
+        final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
+        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
+                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
+                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
+            suppressValueCorrection = true;
+        }
+        final boolean invertedBrightness = photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
+                photometricInterpretation == PhotoInterp.CMYK;
+
         final int bytesPerSample = tile.bytesPerSample();
         if (bytesPerSample > 4) {
             throw new IllegalStateException("Corrupted IFD, probably by direct modifications (" +
@@ -658,9 +666,10 @@ public class TiffTools {
         // we must complete such samples to 24 bits, and they will be processed later in unpackUnusualPrecisions
         final int[] bitsPerSample = ifd.getBitsPerSample();
         final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
-        if (byteAligned) {
+        if (byteAligned && !invertedBrightness) {
             throw new IllegalStateException("Corrupted IFD, probably by a parallel thread " +
-                    "(BitsPerSample tag is byte-aligned, though it was already checked)");
+                    "(BitsPerSample tag is byte-aligned and inversion is not necessary, " +
+                    "though it was already checked)");
             // - was checked in isSimpleRearrangingBytesEnough; other case,
             // when we have DIFFERENT number of bytes, must be checked while creating TiffMap
         }
@@ -672,85 +681,55 @@ public class TiffTools {
                     "it is possible only for OLD_JPEG, that was already checked)");
         // - but samplesPerPixel can be =1 for planar-separated tiles
 
-        final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
         final long sizeX = tile.getSizeX();
         final long sizeY = tile.getSizeY();
         final int resultSamplesLength = tile.getSizeInBytes();
-
-
         final int numberOfPixels = tile.getSizeInPixels();
-        final int alignedBitsPerSample = 8 * bytesPerSample;
-
-        final int bps0 = bitsPerSample[0];
-        final byte[] bytes = tile.getDecodedData();
+        assert numberOfPixels == sizeX * sizeY;
 
         final boolean littleEndian = ifd.isLittleEndian();
 
-        final BitsUnpacker bb = BitsUnpacker.getUnpackerHighBitFirst(bytes);
-
+        final byte[] data = tile.getDecodedData();
+        final BitsUnpacker bitsUnpacker = BitsUnpacker.getUnpackerHighBitFirst(data);
         final byte[] unpacked = new byte[resultSamplesLength];
 
-        final long maxValue = (1 << bps0) - 1;
-
-        int skipBits = (int) (8 - ((sizeX * bps0 * samplesPerPixel) % 8));
-        if (skipBits == 8 || ((long) bytes.length * 8 < bps0 * (samplesPerPixel * sizeX + sizeY))) {
-            skipBits = 0;
-        }
         final int[] multipliers = new int[bitsPerSample.length];
         for (int k = 0; k < multipliers.length; k++) {
             multipliers[k] = ((1 << 8 * bytesPerSample) - 1) / ((1 << bitsPerSample[k]) - 1);
             // - note that 2^n-1 is divisible by 2^m-1 when m < n
         }
-
-        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
-                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
-                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
-            suppressValueCorrection = true;
-        }
-        // unpack pixels
         MainLoop:
-        for (int i = 0; i < numberOfPixels; i++) {
+        for (int yIndex = 0, i = 0; yIndex < sizeY; yIndex++) {
+            for (int xIndex = 0; xIndex < sizeX; xIndex++, i++) {
+                for (int s = 0; s < samplesPerPixel; s++) {
+                    final int bits = bitsPerSample[s];
+                    final long maxValue = (1L << bits) - 1;
+                    // - we need long type, because maximal number of bits here is 32
+                    // (but if not ALL bits/sample are 32 - such cases do not require this method)
+                    final int outputIndex = (s * numberOfPixels + i) * bytesPerSample;
 
-            for (int channel = 0; channel < samplesPerPixel; channel++) {
-                final int bits = bitsPerSample[channel];
-                final int index = bytesPerSample * (i * samplesPerPixel + channel);
-                final int outputIndex = (channel * numberOfPixels + i) * bytesPerSample;
-
-                // unpack non-YCbCr samples
-                long value = 0;
-
-                if (!byteAligned) {
-                    // bits per sample is not a multiple of 8
-
-                    if ((channel == 0 && photometricInterpretation == PhotoInterp.RGB_PALETTE) ||
-                            (photometricInterpretation != PhotoInterp.CFA_ARRAY &&
-                                    photometricInterpretation != PhotoInterp.RGB_PALETTE)) {
-//                        System.out.println((count++) + "/" + numberOfPixels * samplesPerPixel);
-                        value = bb.getBits(bps0);
-                        if (value == -1) {
+                    long value;
+                    if (byteAligned) {
+                        final int index = (i * samplesPerPixel + s) * bytesPerSample;
+                        value = Bytes.toLong(data, index, bytesPerSample, littleEndian);
+                    } else {
+                        if (bitsUnpacker.isEof()) {
                             break MainLoop;
                         }
-                        value &= 0xffff;
+                        value = bitsUnpacker.getBits(bits) & 0xFFFFFFFFL;
+                        // - unsigned 32-bit value
                     }
-                } else {
-                    value = Bytes.toLong(bytes, index, bytesPerSample, littleEndian);
-                }
-
-                if (!suppressValueCorrection) {
-                    if (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                            photometricInterpretation == PhotoInterp.CMYK) {
-                        value = maxValue - value;
+                    if (!suppressValueCorrection) {
+                        if (invertedBrightness) {
+                            value = maxValue - value;
+                        }
+                        value *= multipliers[s];
                     }
-                    value *= multipliers[channel];
-                }
-
-                if (outputIndex + bytesPerSample <= unpacked.length) {
+                    assert outputIndex + bytesPerSample <= unpacked.length;
                     Bytes.unpack(value, unpacked, outputIndex, bytesPerSample, littleEndian);
                 }
             }
-            if ((i % sizeX) == sizeX - 1) {
-                bb.skipBits(skipBits);
-            }
+            bitsUnpacker.skipBitsUntilNextByte();
         }
         tile.setDecodedData(unpacked);
         tile.setInterleaved(false);

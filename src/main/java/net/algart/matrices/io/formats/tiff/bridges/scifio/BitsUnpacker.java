@@ -27,9 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 /**
  * A class for reading arbitrary numbers of bits from a byte array.
  */
-//TODO!! add independent test
 public abstract class BitsUnpacker {
-    //TODO!! replace with operators
     static final int[] BACK_MASK = {0x00, // 00000000
             0x01, // 00000001
             0x03, // 00000011
@@ -58,7 +56,7 @@ public abstract class BitsUnpacker {
 
     final int eofByteIndex;
 
-    boolean eofFlag;
+    boolean eof;
 
     /**
      * Default constructor.
@@ -71,7 +69,7 @@ public abstract class BitsUnpacker {
     }
 
     public static BitsUnpacker getUnpackerHighBitFirst(byte[] bytes) {
-            return new BigEndian(bytes);
+        return new BigEndian(bytes);
     }
 
     public long position() {
@@ -90,7 +88,7 @@ public abstract class BitsUnpacker {
 
         // handles skipping past eof
         if ((long) eofByteIndex * 8 < (long) currentByteIndex * 8 + currentBitIndex + bits) {
-            eofFlag = true;
+            eof = true;
             currentByteIndex = eofByteIndex;
             currentBitIndex = 0;
             return;
@@ -103,6 +101,17 @@ public abstract class BitsUnpacker {
         while (currentBitIndex >= 8) {
             currentByteIndex++;
             currentBitIndex -= 8;
+        }
+    }
+
+    public void skipBitsUntilNextByte() {
+        assert currentBitIndex < 8;
+        if (currentBitIndex != 0) {
+            currentByteIndex++;
+            currentBitIndex = 0;
+            if (currentByteIndex == eofByteIndex) {
+                eof = true;
+            }
         }
     }
 
@@ -130,6 +139,10 @@ public abstract class BitsUnpacker {
      */
     public abstract int getBits(int bitsToRead);
 
+    public boolean isEof() {
+        return eof;
+    }
+
     static class BigEndian extends BitsUnpacker {
         BigEndian(byte[] byteBuffer) {
             super(byteBuffer);
@@ -143,7 +156,7 @@ public abstract class BitsUnpacker {
             if (bitsToRead == 0) {
                 return 0;
             }
-            if (eofFlag) {
+            if (eof) {
                 return -1; // Already at end of file
             }
             int toStore = 0;
@@ -180,14 +193,13 @@ public abstract class BitsUnpacker {
                     // then push them into the int.
                     toStore = toStore << bitsToRead;
                     final int cb = bytes[currentByteIndex] & 0xff;
-                    toStore += (cb & (0x00FF - FRONT_MASK[currentBitIndex])) >> (bitsLeft -
-                            bitsToRead);
+                    toStore += (cb & (0x00FF - FRONT_MASK[currentBitIndex])) >> (bitsLeft - bitsToRead);
                     currentBitIndex += bitsToRead;
                     bitsToRead = 0;
                 }
                 // If we reach the end of the buffer, return what we currently have.
                 if (currentByteIndex == eofByteIndex) {
-                    eofFlag = true;
+                    eof = true;
                     return toStore;
                 }
             }
