@@ -110,6 +110,7 @@ public final class TiffMap {
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
             this.tileSamplesPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.equalBytesPerSample();
+            // - so, we allow only EQUAL number of bytes/sample (but number if bits/sample can be different)
             if ((long) numberOfChannels * (long) bytesPerSample > MAX_TOTAL_BYTES_PER_PIXEL) {
                 throw new FormatException("Very large number of bytes per pixel " + numberOfChannels + " * " +
                         bytesPerSample + " > " + MAX_TOTAL_BYTES_PER_PIXEL + " is not supported");

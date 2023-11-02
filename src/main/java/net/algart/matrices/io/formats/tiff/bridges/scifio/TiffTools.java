@@ -459,6 +459,11 @@ public class TiffTools {
         if (!isSimpleRearrangingBytesEnough(ifd, simpleLossless)) {
             return false;
         }
+        // We have equal number N of bits/sample for all samples,
+        // N % 8 == 0, N / 8 is 1, 2, 3, 4 or 8;
+        // for all other cases isSimpleRearrangingBytesEnough returns false.
+        // The only unusual case here is 3 bytes/sample: 24-bit float or 24-bit integer;
+        // these cases (as well as 16-bit float) will be processed later in unpackUnusualPrecisions.
         if (tile.getStoredDataLength() > tile.map().tileSizeInBytes() && !simpleLossless.get()) {
             // - Strange situation: JPEG or some extended codec has decoded to large tile.
             // But for "simple" compressions (uncompressed, Deflate) we enable this situation:
@@ -638,33 +643,42 @@ public class TiffTools {
             return false;
         }
         checkInterleaved(tile);
-        assert ifd.isStandardCompression() && !ifd.isJpeg() :
-                "non-standard/JPEG compression not checked by isSimpleRearrangingBytesEnough";
+        if (!ifd.isStandardCompression() || ifd.isJpeg()) {
+            throw new IllegalStateException("Corrupted IFD, probably by direct modifications (" +
+                    "non-standard/JPEG compression, though it was already checked)");
+            // - was checked in isSimpleRearrangingBytesEnough
+        }
+        final int bytesPerSample = tile.bytesPerSample();
+        if (bytesPerSample > 4) {
+            throw new IllegalStateException("Corrupted IFD, probably by direct modifications (" +
+                    bytesPerSample + " bytes/sample in tile, though it was already checked)");
+            // - was checked in isSimpleRearrangingBytesEnough
+        }
+        // The only non-standard bytesPerSample is 3: 17..24-bit integer (but not all bits/sample are 24);
+        // we must complete such samples to 24 bits, and they will be processed later in unpackUnusualPrecisions
+        final int[] bitsPerSample = ifd.getBitsPerSample();
+        final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
+        if (byteAligned) {
+            throw new IllegalStateException("Corrupted IFD, probably by a parallel thread " +
+                    "(BitsPerSample tag is byte-aligned, though it was already checked)");
+            // - was checked in isSimpleRearrangingBytesEnough; other case,
+            // when we have DIFFERENT number of bytes, must be checked while creating TiffMap
+        }
 
         final int samplesPerPixel = tile.samplesPerPixel();
+        if (samplesPerPixel > bitsPerSample.length)
+            throw new IllegalStateException("Corrupted IFD, probably by direct modifications (" +
+                    samplesPerPixel + " samples/pixel is greater than the length of BitsPerSample tag; " +
+                    "it is possible only for OLD_JPEG, that was already checked)");
+        // - but samplesPerPixel can be =1 for planar-separated tiles
+
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
         final long sizeX = tile.getSizeX();
         final long sizeY = tile.getSizeY();
         final int resultSamplesLength = tile.getSizeInBytes();
 
-        final int[] bitsPerSample = ifd.getBitsPerSample();
-        assert samplesPerPixel <= bitsPerSample.length :
-                "samplesPerPixel=" + samplesPerPixel + ">bitsPerSample.length, " +
-                        "but it is possible only for OLD_JPEG, that should be already checked";
-        // - but samplesPerPixel can be =1 for planar-separated tiles
-        final int bytesPerSample = tile.bytesPerSample();
-        if (bytesPerSample > 4) {
-            throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
-                    ifd.getCompression().getCodecName() + "\", " +
-                    "photometric interpretation \"" + photometricInterpretation.getName() +
-                    "\" and " + bytesPerSample + " bytes per sample (" +
-                    Arrays.toString(bitsPerSample) + " bits)");
-        }
-        // So, the only non-standard byte count is 3;
-        // 24-bit float and 17..24-bit integer cases will be processed later in unpackUnusualPrecisions
 
         final int numberOfPixels = tile.getSizeInPixels();
-        final boolean byteAligned = Arrays.stream(bitsPerSample).noneMatch(bits -> (bits & 7) != 0);
         final int alignedBitsPerSample = 8 * bytesPerSample;
 
         final int bps0 = bitsPerSample[0];
