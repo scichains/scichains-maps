@@ -1598,7 +1598,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
             // Note: we do not change SAMPLE_FORMAT tag here!
         }
-        final OptionalInt optionalBits = ifd.tryEqualBitsPerSample();
+        final OptionalInt optionalBits = ifd.tryEqualBitDepth();
         if (optionalBits.isEmpty()) {
             throw new UnsupportedTiffFormatException("Cannot write TIFF, because requested number of " +
                     "bits per samples is unequal for different channels: " +

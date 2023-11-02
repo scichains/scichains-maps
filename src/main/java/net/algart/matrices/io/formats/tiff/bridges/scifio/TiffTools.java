@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -454,16 +455,18 @@ public class TiffTools {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        int code = isAdditionalRepackNecessary(ifd);
-        if (code == 0) {
+        AtomicBoolean simpleLossless = new AtomicBoolean();
+        if (!isSimpleRearrangingBytesEnough(ifd, simpleLossless)) {
             return false;
         }
-        if (tile.getStoredDataLength() > tile.map().tileSizeInBytes() && code == 1) {
+        if (tile.getStoredDataLength() > tile.map().tileSizeInBytes() && !simpleLossless.get()) {
             // - Strange situation: JPEG or some extended codec has decoded to large tile.
-            // But for "simple" compressions (uncompressed, LZW, Deflate) we enable this situation:
-            // it helps to create special tests.
-            // Note that the further adjustNumberOfPixels throws IllegalArgumentException in this situation,
-            // when its argument is false.
+            // But for "simple" compressions (uncompressed, Deflate) we enable this situation:
+            // it helps to create special tests (for example, an image with "fake" too little dimensions).
+            // (Note: for LZW compression, in current version, this situation is impossible, because
+            // LZWCodec creates result array on the base of options.maxBytes field.)
+            // In comparison, further adjustNumberOfPixels throws IllegalArgumentException
+            // in the same situation, when its argument is false.
             throw new FormatException("Too large decoded TIFF data: " + tile.getStoredDataLength() +
                     " bytes, its is greater than one " +
                     (tile.map().isTiled() ? "tile" : "strip") + " (" + tile.map().tileSizeInBytes() + " bytes); "
@@ -505,7 +508,7 @@ public class TiffTools {
                     "in planar format (separated component planes: TIFF tag PlanarConfiguration=2)");
         }
 
-        final int bits = ifd.tryEqualBitsPerSample().orElse(-1);
+        final int bits = ifd.tryEqualBitDepth().orElse(-1);
         if (bits != 8) {
             throw new UnsupportedTiffFormatException("Cannot unpack YCbCr TIFF image with " +
                     Arrays.toString(ifd.getBitsPerSample()) +
@@ -628,7 +631,7 @@ public class TiffTools {
         Objects.requireNonNull(tile);
         final DetailedIFD ifd = tile.ifd();
 
-        if (isAdditionalRepackNecessary(ifd) != 0) {
+        if (isSimpleRearrangingBytesEnough(ifd, null)) {
             return false;
         }
         if (ifd.isStandardYCbCrNonJpeg()) {
@@ -636,7 +639,7 @@ public class TiffTools {
         }
         checkInterleaved(tile);
         assert ifd.isStandardCompression() && !ifd.isJpeg() :
-                "non-standard/JPEG compression not checked by isAdditionalRepackNecessary";
+                "non-standard/JPEG compression not checked by isSimpleRearrangingBytesEnough";
 
         final int samplesPerPixel = tile.samplesPerPixel();
         final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
@@ -762,7 +765,7 @@ public class TiffTools {
         final int pixelType = ifd.pixelType();
         final boolean fp = pixelType == FormatTools.FLOAT || pixelType == FormatTools.DOUBLE;
         // - actually DOUBLE is not used below
-        final int bitsPerSample = ifd.tryEqualBitsPerSample().orElse(-1);
+        final int bitsPerSample = ifd.tryEqualBitDepth().orElse(-1);
         final boolean float16 = bitsPerSample == 16 && fp;
         final boolean float24 = bitsPerSample == 24 && fp;
         final boolean int24 = packedBytesPerSample == 3 && !float24;
@@ -1165,18 +1168,33 @@ public class TiffTools {
         }
     }
 
-    private static int isAdditionalRepackNecessary(DetailedIFD ifd) throws FormatException {
+    private static boolean isSimpleRearrangingBytesEnough(DetailedIFD ifd, AtomicBoolean simpleLossless)
+            throws FormatException {
         TiffCompression compression = ifd.getCompression();
-        if (!DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression)) {
-            // - JPEG codec and all non-standard codecs like JPEG2000 should perform all necessary
+        final boolean advancedFormat = !DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression);
+        if (simpleLossless != null) {
+            simpleLossless.set(!advancedFormat);
+        }
+        if (advancedFormat) {
+            // JPEG codec and all non-standard codecs like JPEG2000 should perform all necessary
             // bits unpacking or color space corrections themselves
-            return 1;
+            return true;
+        }
+        int bits = ifd.tryEqualBitDepthAlignedByBytes().orElse(-1);
+        if (bits == -1) {
+            return false;
+        }
+        if (bits != 8 && bits != 16 && bits != 24 && bits != 32 && bits != 64) {
+            // - should not occur: the same check is performed inside DetailedIFD.pixelType(),
+            // called while creating TiffMap
+            throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
+                    ifd.getCompression().getCodecName() + "\", " + bits + " bits per every sample");
         }
         if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
             // - convertYCbCrToRGB function performs necessary repacking itself
-            return 0;
+            return false;
         }
-        return ifd.isOrdinaryBitDepth() && !ifd.isStandardInvertedCompression() ? 2 : 0;
+        return !ifd.isStandardInvertedCompression();
     }
 
     private static void checkInterleaved(TiffTile tile) throws FormatException {

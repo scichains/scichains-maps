@@ -464,7 +464,8 @@ public class DetailedIFD extends IFD {
                 if (result == -1 && requireSupportedDepth) {
                     throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
                             Arrays.toString(getBitsPerSample()) + " bits/sample, or " + bytesPerSample +
-                            " bytes/sample for unsigned integers (only 1..4 bytes/sample supported)");
+                            " bytes/sample for unsigned integers, " +
+                            "but only 1..4 bytes/sample are supported for integers");
 
                 }
             }
@@ -478,7 +479,8 @@ public class DetailedIFD extends IFD {
                 if (result == -1 && requireSupportedDepth) {
                     throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
                             Arrays.toString(getBitsPerSample()) + " bits/sample, or " + bytesPerSample +
-                            " bytes/sample for signed integers, but only 1..4 bytes/sample cases are supported");
+                            " bytes/sample for signed integers, " +
+                            "but only 1..4 bytes/sample are supported for integers");
                 }
             }
             case SAMPLE_FORMAT_IEEEFP -> {
@@ -962,7 +964,7 @@ public class DetailedIFD extends IFD {
      * @throws FormatException in a case of any problems while parsing IFD, in particular,
      *                         if <tt>BitsPerSample</tt> tag contains zero or negative values.
      */
-    public OptionalInt tryEqualBitsPerSample() throws FormatException {
+    public OptionalInt tryEqualBitDepth() throws FormatException {
         final int[] bitsPerSample = getBitsPerSample();
         final int bits0 = bitsPerSample[0];
         for (int i = 1; i < bitsPerSample.length; i++) {
@@ -971,6 +973,11 @@ public class DetailedIFD extends IFD {
             }
         }
         return OptionalInt.of(bits0);
+    }
+
+    public OptionalInt tryEqualBitDepthAlignedByBytes() throws FormatException {
+        OptionalInt result = tryEqualBitDepth();
+        return result.isPresent() && (result.getAsInt() & 7) == 0 ? result : OptionalInt.empty();
     }
 
     /**
@@ -1013,13 +1020,8 @@ public class DetailedIFD extends IFD {
     }
 
     public boolean isOrdinaryBitDepth() throws FormatException {
-        final int bits = tryEqualBitsPerSample().orElse(-1);
+        final int bits = tryEqualBitDepth().orElse(-1);
         return bits == 8 || bits == 16 || bits == 32 || bits == 64;
-    }
-
-    public boolean isByteAlignedBitDepth() throws FormatException {
-        final int bits = tryEqualBitsPerSample().orElse(-1);
-        return bits > 0 && (bits & 7) == 0;
     }
 
     public boolean isStandardYCbCrNonJpeg() throws FormatException {
