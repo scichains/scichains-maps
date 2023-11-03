@@ -29,7 +29,6 @@ import io.scif.SCIFIO;
 import net.algart.arrays.*;
 import net.algart.executors.api.data.SMat;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -136,7 +135,7 @@ public class TiffReaderTest {
                 final TiffMap map;
                 if (compatibility) {
                     //noinspection deprecation
-                    map = reader.newMap(DetailedIFD.extend(((TiffParser) reader).getIFDs().get(ifdIndex)));
+                    map = reader.newMap(TiffParser.extend(((TiffParser) reader).getIFDs().get(ifdIndex)));
                 } else {
                     map = maps.get(ifdIndex);
                 }

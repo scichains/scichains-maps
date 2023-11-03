@@ -33,7 +33,7 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
@@ -750,7 +750,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         }
         int numberOfLZW = 0;
         for (int ifdIndex = 0; ifdIndex < maps.size(); ifdIndex++) {
-            final DetailedIFD ifd = maps.get(ifdIndex).ifd();
+            final TiffIFD ifd = maps.get(ifdIndex).ifd();
             if (!SVSIFDClassifier.isSmallImage(ifd) || ifdIndex == SVS_IFD_THUMBNAIL_INDEX) {
                 continue;
             }

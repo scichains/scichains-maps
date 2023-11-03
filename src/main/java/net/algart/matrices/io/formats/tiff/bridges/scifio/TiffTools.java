@@ -362,19 +362,15 @@ public class TiffTools {
         }
     }
 
-    // Clone of the function DefaultTiffService.undifference
-    // The main reason to make this clone is removing usage of LogService class
-    // and to fix a bug: it was not work with tiles, only with strips.
+    // Analog of the function DefaultTiffService.undifference
     public static void subtractPredictionIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
-        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
-        if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
-            final int[] bitsPerSample = ifd.getBitsPerSample();
-            final boolean little = ifd.isLittleEndian();
-            final int bytes = ifd.getBytesPerSample()[0];
-            final int len = bytes * (ifd.isPlanarSeparated() ? 1 : bitsPerSample.length);
+        final int predictor = tile.ifd().getInt(IFD.PREDICTOR, TiffIFD.PREDICTOR_NONE);
+        if (predictor == TiffIFD.PREDICTOR_HORIZONTAL) {
+            final boolean little = tile.isLittleEndian();
+            final int bytes = tile.bytesPerSample();
+            final int len = tile.bytesPerPixel();
             final long xSize = tile.getSizeX();
             final long xSizeInBytes = xSize * len;
 
@@ -401,25 +397,20 @@ public class TiffTools {
                     Bytes.unpack(value, data, k, bytes, little);
                 }
             }
-        } else if (predictor != DetailedIFD.PREDICTOR_NONE) {
-            throw new FormatException("Unknown Predictor (" + predictor + ")");
+        } else if (predictor != TiffIFD.PREDICTOR_NONE) {
+            throw new FormatException("Unsupported TIFF Predictor tag: " + predictor);
         }
     }
 
-    // Clone of the function DefaultTiffService.difference
-    // The main reason to make this clone is removing usage of LogService class
-    // and to fix a bug: it was not work with tiles, only with strips.
-    public static void addPredictionIfRequested(TiffTile tile) throws FormatException {
+    // Analog of the function DefaultTiffService.difference
+    public static void unsubtractPredictionIfRequested(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile, "Null tile");
-        final DetailedIFD ifd = tile.ifd();
         final byte[] data = tile.getDecodedData();
-        final int predictor = ifd.getIFDIntValue(IFD.PREDICTOR, DetailedIFD.PREDICTOR_NONE);
-        if (predictor == DetailedIFD.PREDICTOR_HORIZONTAL) {
-            final int[] bitsPerSample = ifd.getBitsPerSample();
-            final boolean little = ifd.isLittleEndian();
-
-            final int bytes = ifd.getBytesPerSample()[0];
-            final int len = bytes * (ifd.isPlanarSeparated() ? 1 : bitsPerSample.length);
+        final int predictor = tile.ifd().getInt(IFD.PREDICTOR, TiffIFD.PREDICTOR_NONE);
+        if (predictor == TiffIFD.PREDICTOR_HORIZONTAL) {
+            final boolean little = tile.isLittleEndian();
+            final int bytes = tile.bytesPerSample();
+            final int len = tile.bytesPerPixel();
             final long xSize = tile.getSizeX();
             final long xSizeInBytes = xSize * len;
 
@@ -446,14 +437,14 @@ public class TiffTools {
                     Bytes.unpack(value, data, k, bytes, little);
                 }
             }
-        } else if (predictor != DetailedIFD.PREDICTOR_NONE) {
-            throw new FormatException("Unknown Predictor (" + predictor + ")");
+        } else if (predictor != TiffIFD.PREDICTOR_NONE) {
+            throw new FormatException("Unsupported TIFF Predictor tag: " + predictor);
         }
     }
 
     public static boolean rearrangeUnpackedSamples(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
-        final DetailedIFD ifd = tile.ifd();
+        final TiffIFD ifd = tile.ifd();
 
         AtomicBoolean simpleLossless = new AtomicBoolean();
         if (!isSimpleRearrangingBytesEnough(ifd, simpleLossless)) {
@@ -498,7 +489,7 @@ public class TiffTools {
 
     public static boolean separateYCbCrToRGB(TiffTile tile) throws FormatException {
         Objects.requireNonNull(tile);
-        final DetailedIFD ifd = tile.ifd();
+        final TiffIFD ifd = tile.ifd();
 
         if (!ifd.isStandardYCbCrNonJpeg()) {
             return false;
@@ -633,7 +624,7 @@ public class TiffTools {
     public static boolean separateBitsAndInvertValues(TiffTile tile, boolean suppressValueCorrection)
             throws FormatException {
         Objects.requireNonNull(tile);
-        final DetailedIFD ifd = tile.ifd();
+        final TiffIFD ifd = tile.ifd();
 
         if (isSimpleRearrangingBytesEnough(ifd, null)) {
             return false;
@@ -742,7 +733,7 @@ public class TiffTools {
     // Note: this method CHANGES the number of bytes/sample.
     public static byte[] unpackUnusualPrecisions(
             final byte[] samples,
-            final DetailedIFD ifd,
+            final TiffIFD ifd,
             final int numberOfChannels,
             final int numberOfPixels,
             boolean suppressScalingUnsignedInt24) throws FormatException {
@@ -1044,6 +1035,9 @@ public class TiffTools {
     static DataHandle<Location> getFileHandle(FileLocation fileLocation) {
         Objects.requireNonNull(fileLocation, "Null fileLocation");
         FileHandle fileHandle = new FileHandle(fileLocation);
+        fileHandle.setLittleEndian(false);
+        // - in current implementation it is an extra operator: BigEndian is default in SCIFIO;
+        // but we want to be sure that this behaviour will be the same in all future versions
         return (DataHandle) fileHandle;
     }
 
@@ -1161,10 +1155,10 @@ public class TiffTools {
         }
     }
 
-    private static boolean isSimpleRearrangingBytesEnough(DetailedIFD ifd, AtomicBoolean simpleLossless)
+    private static boolean isSimpleRearrangingBytesEnough(TiffIFD ifd, AtomicBoolean simpleLossless)
             throws FormatException {
         TiffCompression compression = ifd.getCompression();
-        final boolean advancedFormat = !DetailedIFD.isStandard(compression) || DetailedIFD.isJpeg(compression);
+        final boolean advancedFormat = !TiffIFD.isStandard(compression) || TiffIFD.isJpeg(compression);
         if (simpleLossless != null) {
             simpleLossless.set(!advancedFormat);
         }

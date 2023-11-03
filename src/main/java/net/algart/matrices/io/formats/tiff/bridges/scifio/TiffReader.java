@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
  *
  * <p>This object is internally synchronized and thread-safe when used in multi-threaded environment.
  * However, you should not modify objects, passed to the methods of this class from a parallel thread;
- * first of all, it concerns the {@link DetailedIFD} arguments of many methods.
+ * first of all, it concerns the {@link TiffIFD} arguments of many methods.
  * The same is true for the result of {@link #getStream()} method.</p>
  *
  * @author Curtis Rueden
@@ -143,12 +143,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Cached list of IFDs in the current file.
      */
-    private volatile List<DetailedIFD> ifds;
+    private volatile List<TiffIFD> ifds;
 
     /**
      * Cached first IFD in the current file.
      */
-    private volatile DetailedIFD firstIFD;
+    private volatile TiffIFD firstIFD;
     private final SCIFIO scifio;
 
     private final Object fileLock = new Object();
@@ -453,7 +453,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     public TiffMap map(int ifdIndex) throws IOException, FormatException {
-        List<DetailedIFD> ifdList = allIFDs();
+        List<TiffIFD> ifdList = allIFDs();
         if (ifdIndex < 0 || ifdIndex >= ifdList.size()) {
             throw new IndexOutOfBoundsException(
                     "IFD index " + ifdIndex + " is out of bounds 0 <= i < " + ifdList.size());
@@ -465,8 +465,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Reads 1st IFD (#0). If you really needs access only to 1st IFD,
      * this method may work faster than {@link #map(int)}.
      */
-    public DetailedIFD firstIFD() throws IOException, FormatException {
-        DetailedIFD firstIFD = this.firstIFD;
+    public TiffIFD firstIFD() throws IOException, FormatException {
+        TiffIFD firstIFD = this.firstIFD;
         if (cachingIFDs && firstIFD != null) {
             return this.firstIFD;
         }
@@ -489,9 +489,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <p>Note: if this TIFF file is not valid ({@link #isValid()} returns <tt>false</tt>), this method
      * returns an empty list and does not throw an exception. For valid TIFF, result cannot be empty.
      */
-    public List<DetailedIFD> allIFDs() throws IOException, FormatException {
+    public List<TiffIFD> allIFDs() throws IOException, FormatException {
         long t1 = debugTime();
-        List<DetailedIFD> ifds;
+        List<TiffIFD> ifds;
         synchronized (fileLock) {
             // - this synchronization is not necessary, but helps
             // to be sure that the client will not try to read TIFF images
@@ -505,7 +505,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             ifds = new ArrayList<>();
 
             for (final long offset : offsets) {
-                final DetailedIFD ifd = readIFDAt(offset);
+                final TiffIFD ifd = readIFDAt(offset);
                 assert ifd != null;
                 ifds.add(ifd);
                 long[] subOffsets = null;
@@ -519,7 +519,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
                 if (subOffsets != null) {
                     for (final long subOffset : subOffsets) {
-                        final DetailedIFD sub = readIFDAt(subOffset, IFD.SUB_IFD, false);
+                        final TiffIFD sub = readIFDAt(subOffset, IFD.SUB_IFD, false);
                         if (sub != null) {
                             ifds.add(sub);
                         }
@@ -543,11 +543,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns thumbnail IFDs.
      */
-    public List<DetailedIFD> allThumbnailIFDs() throws IOException, FormatException {
-        final List<DetailedIFD> ifds = allIFDs();
-        final List<DetailedIFD> thumbnails = new ArrayList<>();
-        for (final DetailedIFD ifd : ifds) {
-            final Number subfile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
+    public List<TiffIFD> allThumbnailIFDs() throws IOException, FormatException {
+        final List<TiffIFD> ifds = allIFDs();
+        final List<TiffIFD> thumbnails = new ArrayList<>();
+        for (final TiffIFD ifd : ifds) {
+            final Number subfile = (Number) ifd.getValue(IFD.NEW_SUBFILE_TYPE);
             final int subfileType = subfile == null ? 0 : subfile.intValue();
             if (subfileType == 1) {
                 thumbnails.add(ifd);
@@ -559,11 +559,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns non-thumbnail IFDs.
      */
-    public List<DetailedIFD> allNonThumbnailIFDs() throws IOException, FormatException {
-        final List<DetailedIFD> ifds = allIFDs();
-        final List<DetailedIFD> nonThumbs = new ArrayList<>();
-        for (final DetailedIFD ifd : ifds) {
-            final Number subFile = (Number) ifd.getIFDValue(IFD.NEW_SUBFILE_TYPE);
+    public List<TiffIFD> allNonThumbnailIFDs() throws IOException, FormatException {
+        final List<TiffIFD> ifds = allIFDs();
+        final List<TiffIFD> nonThumbs = new ArrayList<>();
+        for (final TiffIFD ifd : ifds) {
+            final Number subFile = (Number) ifd.getValue(IFD.NEW_SUBFILE_TYPE);
             final int subfileType = subFile == null ? 0 : subFile.intValue();
             if (subfileType != 1 || ifds.size() <= 1) {
                 nonThumbs.add(ifd);
@@ -575,13 +575,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
     /**
      * Returns EXIF IFDs.
      */
-    public List<DetailedIFD> allExifIFDs() throws FormatException, IOException {
-        final List<DetailedIFD> ifds = allIFDs();
-        final List<DetailedIFD> exif = new ArrayList<>();
-        for (final DetailedIFD ifd : ifds) {
+    public List<TiffIFD> allExifIFDs() throws FormatException, IOException {
+        final List<TiffIFD> ifds = allIFDs();
+        final List<TiffIFD> exif = new ArrayList<>();
+        for (final TiffIFD ifd : ifds) {
             final long offset = ifd.getLong(IFD.EXIF, 0);
             if (offset != 0) {
-                final DetailedIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
+                final TiffIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
                 if (exifIFD != null) {
                     exif.add(exifIFD);
                 }
@@ -664,7 +664,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
-    public DetailedIFD readSingleIFD(int ifdIndex) throws IOException, FormatException, NoSuchElementException {
+    public TiffIFD readSingleIFD(int ifdIndex) throws IOException, FormatException, NoSuchElementException {
         long startOffset = readSingleIFDOffset(ifdIndex);
         if (startOffset < 0) {
             throw new NoSuchElementException("No IFD #" + ifdIndex + " in TIFF" + prettyInName()
@@ -677,11 +677,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * Reads the IFD stored at the given offset.
      * Never returns <tt>null</tt>.
      */
-    public DetailedIFD readIFDAt(long startOffset) throws IOException, FormatException {
+    public TiffIFD readIFDAt(long startOffset) throws IOException, FormatException {
         return readIFDAt(startOffset, null, true);
     }
 
-    public DetailedIFD readIFDAt(final long startOffset, Integer subIFDType, boolean readNextOffset)
+    public TiffIFD readIFDAt(final long startOffset, Integer subIFDType, boolean readNextOffset)
             throws IOException, FormatException {
         if (startOffset < 0) {
             throw new IllegalArgumentException("Negative file offset = " + startOffset);
@@ -692,13 +692,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t1 = debugTime();
         long timeEntries = 0;
         long timeArrays = 0;
-        final DetailedIFD ifd;
+        final TiffIFD ifd;
         synchronized (fileLock) {
             if (startOffset >= in.length()) {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
-            ifd = new DetailedIFD(entries).setFileOffsetForReading(startOffset);
+            ifd = new TiffIFD(entries).setFileOffsetForReading(startOffset);
             ifd.setSubIFDType(subIFDType);
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -798,7 +798,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public TiffTile readEncodedTile(TiffTileIndex tileIndex) throws FormatException, IOException {
         Objects.requireNonNull(tileIndex, "Null tileIndex");
         long t1 = debugTime();
-        final DetailedIFD ifd = tileIndex.ifd();
+        final TiffIFD ifd = tileIndex.ifd();
         final int index = tileIndex.linearIndex();
         // - also checks that tile index is not out of image bounds
         final long offset = ifd.cachedTileOrStripOffset(index);
@@ -854,7 +854,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t1 = debugTime();
         prepareEncodedTileForDecoding(tile);
 
-        DetailedIFD ifd = tile.ifd();
+        TiffIFD ifd = tile.ifd();
         byte[] encodedData = tile.getEncodedData();
         final TiffCompression compression = ifd.getCompression();
 
@@ -897,11 +897,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
             return;
         }
         TiffTools.invertFillOrderIfRequested(tile);
-        DetailedIFD ifd = tile.ifd();
+        TiffIFD ifd = tile.ifd();
         final TiffCompression compression = ifd.getCompression();
-        if (DetailedIFD.isJpeg(compression)) {
+        if (TiffIFD.isJpeg(compression)) {
             final byte[] data = tile.getEncodedData();
-            final byte[] jpegTable = (byte[]) ifd.getIFDValue(IFD.JPEG_TABLES);
+            final byte[] jpegTable = (byte[]) ifd.getValue(IFD.JPEG_TABLES);
             // Structure of data:
             //      FF D8 (SOI, start of image)
             //      FF C0 (SOF0, start of frame, or some other marker)
@@ -1001,7 +1001,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <b>does not unpack 16- or 24-bit</b> floating-point formats. These cases
      * are processed after reading all tiles inside {@link #readSamples(TiffMap, int, int, int, int)}
      * method, if {@link #isAutoUnpackUnusualPrecisions()} flag is set, or may be performed by external
-     * code with help of {@link TiffTools#unpackUnusualPrecisions(byte[], DetailedIFD, int, int)} method.
+     * code with help of {@link TiffTools#unpackUnusualPrecisions(byte[], TiffIFD, int, int)} method.
      *
      * <p>This method does not allow 5, 6, 7 or greater than 8 bytes/sample
      * (but 8 bytes/sample is allowed: it is probably <tt>double</tt> precision).</p>
@@ -1012,7 +1012,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     public void completeDecoding(TiffTile tile) throws FormatException {
         // scifio.tiff().undifference(tile.getDecodedData(), tile.ifd());
         // - this solution requires using SCIFIO context class; it is better to avoid this
-        TiffTools.addPredictionIfRequested(tile);
+        TiffTools.unsubtractPredictionIfRequested(tile);
 
         if (USE_LEGACY_UNPACK_BYTES) {
             byte[] samples = new byte[tile.map().tileSizeInBytes()];
@@ -1070,7 +1070,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         */
     }
 
-    public TiffMap newMap(DetailedIFD ifd) {
+    public TiffMap newMap(TiffIFD ifd) {
         return new TiffMap(ifd).buildGrid();
         // - building grid is useful to perform loops on all tiles
     }
@@ -1103,7 +1103,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         // - note: we allow this area to be outside the image
         final int numberOfChannels = map.numberOfChannels();
-        final DetailedIFD ifd = map.ifd();
+        final TiffIFD ifd = map.ifd();
         final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
         // - note: it may differ from the size, calculated on the base of tile information (saved in the map),
         // in a case when unpackUnusualPrecisions performs unpacking
@@ -1266,7 +1266,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     private CodecOptions buildReadingOptions(TiffTile tile, Codec customCodec) throws FormatException {
-        DetailedIFD ifd = tile.ifd();
+        TiffIFD ifd = tile.ifd();
         CodecOptions codecOptions = customCodec instanceof ExtendedJPEGCodec ?
                 new ExtendedJPEGCodecOptions(this.codecOptions)
                         .setPhotometricInterpretation(ifd.getPhotometricInterpretation())
@@ -1390,7 +1390,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
     }
 
-    private static int cachedByteCountWithCompatibilityTrick(DetailedIFD ifd, int index) throws FormatException {
+    private static int cachedByteCountWithCompatibilityTrick(TiffIFD ifd, int index) throws FormatException {
         final boolean tiled = ifd.hasTileInformation();
         final int tag = tiled ? IFD.TILE_BYTE_COUNTS : IFD.STRIP_BYTE_COUNTS;
         Object value = ifd.get(tag);
@@ -1719,7 +1719,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         }
         final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
-                "Reading IFD entry: %s - %s", result, DetailedIFD.ifdTagName(result.getTag(), true)));
+                "Reading IFD entry: %s - %s", result, TiffIFD.ifdTagName(result.getTag(), true)));
         return result;
     }
 

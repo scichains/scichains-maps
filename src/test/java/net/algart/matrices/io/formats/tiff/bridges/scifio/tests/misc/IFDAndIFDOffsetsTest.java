@@ -25,7 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 import io.scif.FormatException;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 
 import java.io.IOException;
@@ -67,20 +67,20 @@ public class IFDAndIFDOffsetsTest {
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
-            List<DetailedIFD> ifds = reader.allIFDs();
+            List<TiffIFD> ifds = reader.allIFDs();
             t2 = System.nanoTime();
             System.out.printf("Number of IFDs: %d (%.6f mcs)%n", ifds.size(), (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
-            DetailedIFD firstIFD = reader.firstIFD();
+            TiffIFD firstIFD = reader.firstIFD();
             t2 = System.nanoTime();
 //        IFD firstIFD = new TiffParser(new SCIFIO().getContext(), new FileLocation(file.toFile())).getFirstIFD();
             System.out.printf("First IFD: %s (%.6f mcs)%n", firstIFD, (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());
 
             t1 = System.nanoTime();
-            DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
+            TiffIFD ifd = reader.readSingleIFD(ifdIndex);
             t2 = System.nanoTime();
             System.out.printf("IFD #%d: %s (%.6f mcs)%n", ifdIndex, ifd, (t2 - t1) * 1e-3);
             System.out.printf("  Position of last IFD offset: %d%n", reader.positionOfLastIFDOffset());

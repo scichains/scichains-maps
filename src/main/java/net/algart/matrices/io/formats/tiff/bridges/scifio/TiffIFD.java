@@ -34,16 +34,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Supplier;
 
-public class DetailedIFD extends IFD {
-    /**
-     * Maximal supported number of channels. Popular OpenCV library has the same limit.
-     *
-     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
-     */
-    public static final int MAX_NUMBER_OF_CHANNELS = 512;
-
-    public static final int LAST_IFD_OFFSET = 0;
-
+public class TiffIFD extends IFD {
     public enum StringFormat {
         BRIEF(true, false),
         NORMAL(true, false),
@@ -58,6 +49,158 @@ public class DetailedIFD extends IFD {
             this.sorted = sorted;
         }
     }
+
+    /**
+     * Maximal supported number of channels. Popular OpenCV library has the same limit.
+     *
+     * <p>This limit helps to avoid "crazy" or corrupted TIFF and also help to avoid arithmetic overflow.
+     */
+    public static final int MAX_NUMBER_OF_CHANNELS = 512;
+
+    public static final int LAST_IFD_OFFSET = 0;
+
+    public static final int LITTLE_ENDIAN = 0;
+    public static final int BIG_TIFF = 1;
+    /**
+     * TIFF tags are always greater than this value ({@value}).
+     * So, we may use fewer values for some internal needs.
+     */
+    public static final int MAX_PSEUDO_TIFF_TAG = 15;
+
+    public static final int NEW_SUBFILE_TYPE = 254;
+    public static final int SUBFILE_TYPE = 255;
+    public static final int IMAGE_WIDTH = 256;
+    public static final int IMAGE_LENGTH = 257;
+    public static final int BITS_PER_SAMPLE = 258;
+    public static final int COMPRESSION = 259;
+    public static final int PHOTOMETRIC_INTERPRETATION = 262;
+    public static final int THRESHHOLDING = 263;
+    public static final int CELL_WIDTH = 264;
+    public static final int CELL_LENGTH = 265;
+    public static final int FILL_ORDER = 266;
+    public static final int DOCUMENT_NAME = 269;
+    public static final int IMAGE_DESCRIPTION = 270;
+    public static final int MAKE = 271;
+    public static final int MODEL = 272;
+    public static final int STRIP_OFFSETS = 273;
+    public static final int ORIENTATION = 274;
+    public static final int SAMPLES_PER_PIXEL = 277;
+    public static final int ROWS_PER_STRIP = 278;
+    public static final int STRIP_BYTE_COUNTS = 279;
+    public static final int MIN_SAMPLE_VALUE = 280;
+    public static final int MAX_SAMPLE_VALUE = 281;
+    public static final int X_RESOLUTION = 282;
+    public static final int Y_RESOLUTION = 283;
+    public static final int PLANAR_CONFIGURATION = 284;
+    public static final int PAGE_NAME = 285;
+    public static final int X_POSITION = 286;
+    public static final int Y_POSITION = 287;
+    public static final int FREE_OFFSETS = 288;
+    public static final int FREE_BYTE_COUNTS = 289;
+    public static final int GRAY_RESPONSE_UNIT = 290;
+    public static final int GRAY_RESPONSE_CURVE = 291;
+    public static final int T4_OPTIONS = 292;
+    public static final int T6_OPTIONS = 293;
+    public static final int RESOLUTION_UNIT = 296;
+    public static final int PAGE_NUMBER = 297;
+    public static final int TRANSFER_FUNCTION = 301;
+    public static final int SOFTWARE = 305;
+    public static final int DATE_TIME = 306;
+    public static final int ARTIST = 315;
+    public static final int HOST_COMPUTER = 316;
+    public static final int PREDICTOR = 317;
+    public static final int WHITE_POINT = 318;
+    public static final int PRIMARY_CHROMATICITIES = 319;
+    public static final int COLOR_MAP = 320;
+    public static final int HALFTONE_HINTS = 321;
+    public static final int TILE_WIDTH = 322;
+    public static final int TILE_LENGTH = 323;
+    public static final int TILE_OFFSETS = 324;
+    public static final int TILE_BYTE_COUNTS = 325;
+    public static final int SUB_IFD = 330;
+    public static final int INK_SET = 332;
+    public static final int INK_NAMES = 333;
+    public static final int NUMBER_OF_INKS = 334;
+    public static final int DOT_RANGE = 336;
+    public static final int TARGET_PRINTER = 337;
+    public static final int EXTRA_SAMPLES = 338;
+    public static final int SAMPLE_FORMAT = 339;
+    public static final int S_MIN_SAMPLE_VALUE = 340;
+    public static final int S_MAX_SAMPLE_VALUE = 341;
+    public static final int TRANSFER_RANGE = 342;
+    public static final int JPEG_TABLES = 347;
+    public static final int JPEG_PROC = 512;
+    public static final int JPEG_INTERCHANGE_FORMAT = 513;
+    public static final int JPEG_INTERCHANGE_FORMAT_LENGTH = 514;
+    public static final int JPEG_RESTART_INTERVAL = 515;
+    public static final int JPEG_LOSSLESS_PREDICTORS = 517;
+    public static final int JPEG_POINT_TRANSFORMS = 518;
+    public static final int JPEG_Q_TABLES = 519;
+    public static final int JPEG_DC_TABLES = 520;
+    public static final int JPEG_AC_TABLES = 521;
+    public static final int Y_CB_CR_COEFFICIENTS = 529;
+    public static final int Y_CB_CR_SUB_SAMPLING = 530;
+    public static final int Y_CB_CR_POSITIONING = 531;
+    public static final int REFERENCE_BLACK_WHITE = 532;
+    public static final int COPYRIGHT = 33432;
+    public static final int EXIF = 34665;
+
+    /**
+     * EXIF tags.
+     */
+    public static final int EXPOSURE_TIME = 33434;
+    public static final int F_NUMBER = 33437;
+    public static final int EXPOSURE_PROGRAM = 34850;
+    public static final int SPECTRAL_SENSITIVITY = 34852;
+    public static final int ISO_SPEED_RATINGS = 34855;
+    public static final int OECF = 34856;
+    public static final int EXIF_VERSION = 36864;
+    public static final int DATE_TIME_ORIGINAL = 36867;
+    public static final int DATE_TIME_DIGITIZED = 36868;
+    public static final int COMPONENTS_CONFIGURATION = 37121;
+    public static final int COMPRESSED_BITS_PER_PIXEL = 37122;
+    public static final int SHUTTER_SPEED_VALUE = 37377;
+    public static final int APERTURE_VALUE = 37378;
+    public static final int BRIGHTNESS_VALUE = 37379;
+    public static final int EXPOSURE_BIAS_VALUE = 37380;
+    public static final int MAX_APERTURE_VALUE = 37381;
+    public static final int SUBJECT_DISTANCE = 37382;
+    public static final int METERING_MODE = 37383;
+    public static final int LIGHT_SOURCE = 37384;
+    public static final int FLASH = 37385;
+    public static final int FOCAL_LENGTH = 37386;
+    public static final int MAKER_NOTE = 37500;
+    public static final int USER_COMMENT = 37510;
+    public static final int SUB_SEC_TIME = 37520;
+    public static final int SUB_SEC_TIME_ORIGINAL = 37521;
+    public static final int SUB_SEC_TIME_DIGITIZED = 37522;
+    public static final int FLASH_PIX_VERSION = 40960;
+    public static final int COLOR_SPACE = 40961;
+    public static final int PIXEL_X_DIMENSION = 40962;
+    public static final int PIXEL_Y_DIMENSION = 40963;
+    public static final int RELATED_SOUND_FILE = 40964;
+    public static final int FLASH_ENERGY = 41483;
+    public static final int SPATIAL_FREQUENCY_RESPONSE = 41484;
+    public static final int FOCAL_PLANE_X_RESOLUTION = 41486;
+    public static final int FOCAL_PLANE_Y_RESOLUTION = 41487;
+    public static final int FOCAL_PLANE_RESOLUTION_UNIT = 41488;
+    public static final int SUBJECT_LOCATION = 41492;
+    public static final int EXPOSURE_INDEX = 41493;
+    public static final int SENSING_METHOD = 41495;
+    public static final int FILE_SOURCE = 41728;
+    public static final int SCENE_TYPE = 41729;
+    public static final int CFA_PATTERN = 41730;
+    public static final int CUSTOM_RENDERED = 41985;
+    public static final int EXPOSURE_MODE = 41986;
+    public static final int WHITE_BALANCE = 41987;
+    public static final int DIGITAL_ZOOM_RATIO = 41988;
+    public static final int FOCAL_LENGTH_35MM_FILM = 41989;
+    public static final int SCENE_CAPTURE_TYPE = 41990;
+    public static final int GAIN_CONTROL = 41991;
+    public static final int CONTRAST = 41992;
+    public static final int SATURATION = 41993;
+    public static final int SHARPNESS = 41994;
+    public static final int SUBJECT_DISTANCE_RANGE = 41996;
 
     public static final int ICC_PROFILE = 34675;
     public static final int MATTEING = 32995;
@@ -90,7 +233,7 @@ public class DetailedIFD extends IFD {
     public static final int PREDICTOR_FLOATING_POINT = 3;
     // - value 3 is not supported by TiffParser/TiffSaver
 
-    private static final System.Logger LOG = System.getLogger(DetailedIFD.class.getName());
+    private static final System.Logger LOG = System.getLogger(TiffIFD.class.getName());
 
     private final Map<Integer, TiffIFDEntry> entries;
     private long fileOffsetForReading = -1;
@@ -102,15 +245,15 @@ public class DetailedIFD extends IFD {
     private volatile long[] cachedTileOrStripByteCounts = null;
     private volatile long[] cachedTileOrStripOffsets = null;
 
-    public DetailedIFD(IFD ifd) {
+    public TiffIFD(IFD ifd) {
         super(ifd, null);
         // Note: log argument is never used in this class.
-        if (ifd instanceof DetailedIFD detailedIFD) {
-            fileOffsetForReading = detailedIFD.fileOffsetForReading;
-            fileOffsetForWriting = detailedIFD.fileOffsetForWriting;
-            nextIFDOffset = detailedIFD.nextIFDOffset;
-            entries = detailedIFD.entries == null ? null : new LinkedHashMap<>(detailedIFD.entries);
-            subIFDType = detailedIFD.subIFDType;
+        if (ifd instanceof TiffIFD tiffIFD) {
+            fileOffsetForReading = tiffIFD.fileOffsetForReading;
+            fileOffsetForWriting = tiffIFD.fileOffsetForWriting;
+            nextIFDOffset = tiffIFD.nextIFDOffset;
+            entries = tiffIFD.entries == null ? null : new LinkedHashMap<>(tiffIFD.entries);
+            subIFDType = tiffIFD.subIFDType;
             frozen = false;
             // - Important: a copy is not frozen!
             // And it is the only way to clear this flag.
@@ -120,23 +263,18 @@ public class DetailedIFD extends IFD {
     }
 
     @SuppressWarnings("CopyConstructorMissesField")
-    public DetailedIFD(DetailedIFD detailedIFD) {
-        this((IFD) detailedIFD);
+    public TiffIFD(TiffIFD tiffIFD) {
+        this((IFD) tiffIFD);
     }
 
-    public DetailedIFD() {
+    public TiffIFD() {
         this((Map<Integer, TiffIFDEntry>) null);
     }
 
-    public DetailedIFD(Map<Integer, TiffIFDEntry> entries) {
+    public TiffIFD(Map<Integer, TiffIFDEntry> entries) {
         super(null);
         // Note: log argument is never used in this class.
         this.entries = entries;
-    }
-
-    public static DetailedIFD extend(IFD ifd) {
-        Objects.requireNonNull(ifd, "Null IFD");
-        return ifd instanceof DetailedIFD detailedIFD ? detailedIFD : new DetailedIFD(ifd);
     }
 
     public boolean hasFileOffsetForReading() {
@@ -150,7 +288,7 @@ public class DetailedIFD extends IFD {
         return fileOffsetForReading;
     }
 
-    public DetailedIFD setFileOffsetForReading(long fileOffsetForReading) {
+    public TiffIFD setFileOffsetForReading(long fileOffsetForReading) {
         if (fileOffsetForReading < 0) {
             throw new IllegalArgumentException("Negative IFD offset in the file: " + fileOffsetForReading);
         }
@@ -158,7 +296,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD removeFileOffsetForReading() {
+    public TiffIFD removeFileOffsetForReading() {
         this.fileOffsetForReading = -1;
         return this;
     }
@@ -174,7 +312,7 @@ public class DetailedIFD extends IFD {
         return fileOffsetForWriting;
     }
 
-    public DetailedIFD setFileOffsetForWriting(long fileOffsetForWriting) {
+    public TiffIFD setFileOffsetForWriting(long fileOffsetForWriting) {
         if (fileOffsetForWriting < 0) {
             throw new IllegalArgumentException("Negative IFD file offset: " + fileOffsetForWriting);
         }
@@ -188,7 +326,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD removeFileOffsetForWriting() {
+    public TiffIFD removeFileOffsetForWriting() {
         this.fileOffsetForWriting = -1;
         return this;
     }
@@ -213,7 +351,7 @@ public class DetailedIFD extends IFD {
         return nextIFDOffset;
     }
 
-    public DetailedIFD setNextIFDOffset(long nextIFDOffset) {
+    public TiffIFD setNextIFDOffset(long nextIFDOffset) {
         if (nextIFDOffset < 0) {
             throw new IllegalArgumentException("Negative next IFD offset: " + nextIFDOffset);
         }
@@ -221,11 +359,11 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD setLastIFD() {
+    public TiffIFD setLastIFD() {
         return setNextIFDOffset(LAST_IFD_OFFSET);
     }
 
-    public DetailedIFD removeNextIFDOffset() {
+    public TiffIFD removeNextIFDOffset() {
         this.nextIFDOffset = -1;
         return this;
     }
@@ -238,7 +376,7 @@ public class DetailedIFD extends IFD {
         return subIFDType;
     }
 
-    public DetailedIFD setSubIFDType(Integer subIFDType) {
+    public TiffIFD setSubIFDType(Integer subIFDType) {
         this.subIFDType = subIFDType;
         return this;
     }
@@ -258,7 +396,7 @@ public class DetailedIFD extends IFD {
      *
      * @return a reference to this object.
      */
-    public DetailedIFD freeze() {
+    public TiffIFD freeze() {
         this.frozen = true;
         return this;
     }
@@ -267,7 +405,7 @@ public class DetailedIFD extends IFD {
         Objects.requireNonNull(mapFactory, "Null mapFactory");
         final M result = mapFactory.get();
         for (Map.Entry<Integer, Object> entry : entrySet()) {
-            if (!DetailedIFD.isPseudoTag(entry.getKey())) {
+            if (!isPseudoTag(entry.getKey())) {
                 result.put(entry.getKey(), entry.getValue());
             }
         }
@@ -275,7 +413,7 @@ public class DetailedIFD extends IFD {
     }
 
     public int numberOfEntries() {
-        return (int) keySet().stream().filter(key -> !DetailedIFD.isPseudoTag(key)).count();
+        return (int) keySet().stream().filter(key -> !isPseudoTag(key)).count();
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
@@ -357,6 +495,9 @@ public class DetailedIFD extends IFD {
         return optValue(tag, Number.class).orElse(defaultValue).longValue();
     }
 
+    public Object getValue(int tag) {
+        return get(tag);
+    }
 
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
     @Override
@@ -373,7 +514,7 @@ public class DetailedIFD extends IFD {
     // This method is overridden to check that result is positive and to avoid exception for illegal compression
     @Override
     public int getSamplesPerPixel() throws FormatException {
-        int compressionValue = getInt(IFD.COMPRESSION, 0);
+        int compressionValue = getInt(COMPRESSION, 0);
         if (compressionValue == TiffCompression.OLD_JPEG.getCode()) {
             return 3;
             // always 3 channels: RGB
@@ -695,7 +836,7 @@ public class DetailedIFD extends IFD {
             // - compatibility with old TiffParser behaviour (can be removed in future versions)
         }
         if (photometricInterpretation == null
-                && getInt(IFD.COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
+                && getInt(COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
             return PhotoInterp.RGB;
         }
         final int code = reqInt(PHOTOMETRIC_INTERPRETATION);
@@ -849,7 +990,7 @@ public class DetailedIFD extends IFD {
     public int getTileSizeX() throws FormatException {
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final int tileWidth = reqInt(IFD.TILE_WIDTH);
+            final int tileWidth = reqInt(TILE_WIDTH);
             // - TIFF allows to use values <= 2^32-1, but in any case we cannot allocate Java array for such tile
             if (tileWidth <= 0) {
                 throw new FormatException("Zero or negative tile width = " + tileWidth);
@@ -884,7 +1025,7 @@ public class DetailedIFD extends IFD {
     public int getTileSizeY() throws FormatException {
         if (hasTileInformation()) {
             // - Note: we refuse to handle situation, when TileLength presents, but TileWidth not, or vice versa
-            final int tileLength = reqInt(IFD.TILE_LENGTH);
+            final int tileLength = reqInt(TILE_LENGTH);
             if (tileLength <= 0) {
                 throw new FormatException("Zero or negative tile length (height) = " + tileLength);
                 // - impossible in a correct TIFF
@@ -1046,23 +1187,23 @@ public class DetailedIFD extends IFD {
                         photometricInterpretation == PhotoInterp.CMYK);
     }
 
-    public DetailedIFD putImageDimensions(int dimX, int dimY) {
+    public TiffIFD putImageDimensions(int dimX, int dimY) {
         checkImmutable();
         updateImageDimensions(dimX, dimY);
         return this;
     }
 
-    public DetailedIFD removeImageDimensions() {
-        remove(IFD.IMAGE_WIDTH);
-        remove(IFD.IMAGE_LENGTH);
+    public TiffIFD removeImageDimensions() {
+        remove(IMAGE_WIDTH);
+        remove(IMAGE_LENGTH);
         return this;
     }
 
-    public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType) {
+    public TiffIFD putPixelInformation(int numberOfChannels, Class<?> elementType) {
         return putPixelInformation(numberOfChannels, elementType, false);
     }
 
-    public DetailedIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
+    public TiffIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
         return putPixelInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
     }
 
@@ -1073,7 +1214,7 @@ public class DetailedIFD extends IFD {
      * @param pixelType        pixel type.
      * @return a reference to this object.
      */
-    public DetailedIFD putPixelInformation(int numberOfChannels, int pixelType) {
+    public TiffIFD putPixelInformation(int numberOfChannels, int pixelType) {
         putNumberOfChannels(numberOfChannels);
         // - note: actual number of channels will be 3 in a case of OLD_JPEG;
         // but it is not a recommended usage (we may set OLD_JPEG compression later)
@@ -1081,7 +1222,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD putNumberOfChannels(int numberOfChannels) {
+    public TiffIFD putNumberOfChannels(int numberOfChannels) {
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
@@ -1093,7 +1234,7 @@ public class DetailedIFD extends IFD {
         return this;
     }
 
-    public DetailedIFD putSamplesType(int pixelType) {
+    public TiffIFD putSamplesType(int pixelType) {
         final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
         final boolean signed = FormatTools.isSigned(pixelType);
         final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
@@ -1103,44 +1244,44 @@ public class DetailedIFD extends IFD {
         } catch (FormatException e) {
             throw new IllegalStateException("Cannot set TIFF samples type: SamplesPerPixel tag is invalid", e);
         }
-        put(IFD.BITS_PER_SAMPLE, nInts(samplesPerPixel, 8 * bytesPerSample));
+        put(BITS_PER_SAMPLE, nInts(samplesPerPixel, 8 * bytesPerSample));
         if (floatingPoint) {
-            put(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_IEEEFP));
+            put(SAMPLE_FORMAT, nInts(samplesPerPixel, SAMPLE_FORMAT_IEEEFP));
         } else if (signed) {
-            put(IFD.SAMPLE_FORMAT, nInts(samplesPerPixel, DetailedIFD.SAMPLE_FORMAT_INT));
+            put(SAMPLE_FORMAT, nInts(samplesPerPixel, SAMPLE_FORMAT_INT));
         } else {
-            remove(IFD.SAMPLE_FORMAT);
+            remove(SAMPLE_FORMAT);
         }
         return this;
     }
 
-    public DetailedIFD putCompression(TiffCompression compression) {
+    public TiffIFD putCompression(TiffCompression compression) {
         return putCompression(compression, false);
     }
 
-    public DetailedIFD putCompression(TiffCompression compression, boolean putAlsoDefaultUncompressed) {
+    public TiffIFD putCompression(TiffCompression compression, boolean putAlsoDefaultUncompressed) {
         if (compression == null && putAlsoDefaultUncompressed) {
             compression = TiffCompression.UNCOMPRESSED;
         }
         if (compression == null) {
-            remove(IFD.COMPRESSION);
+            remove(COMPRESSION);
         } else {
-            put(IFD.COMPRESSION, compression.getCode());
+            put(COMPRESSION, compression.getCode());
         }
         return this;
     }
 
-    public DetailedIFD putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+    public TiffIFD putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
         Objects.requireNonNull(photometricInterpretation, "Null photometricInterpretation");
         put(PHOTOMETRIC_INTERPRETATION, photometricInterpretation.getCode());
         return this;
     }
 
-    public DetailedIFD putPlanarSeparated(boolean planarSeparated) {
+    public TiffIFD putPlanarSeparated(boolean planarSeparated) {
         if (planarSeparated) {
-            put(IFD.PLANAR_CONFIGURATION, DetailedIFD.PLANAR_CONFIGURATION_SEPARATE);
+            put(PLANAR_CONFIGURATION, PLANAR_CONFIGURATION_SEPARATE);
         } else {
-            remove(IFD.PLANAR_CONFIGURATION);
+            remove(PLANAR_CONFIGURATION);
         }
         return this;
     }
@@ -1169,8 +1310,8 @@ public class DetailedIFD extends IFD {
      *                         but the second is absent.
      */
     public boolean hasTileInformation() throws FormatException {
-        final boolean hasWidth = containsKey(IFD.TILE_WIDTH);
-        final boolean hasLength = containsKey(IFD.TILE_LENGTH);
+        final boolean hasWidth = containsKey(TILE_WIDTH);
+        final boolean hasLength = containsKey(TILE_LENGTH);
         if (hasWidth != hasLength) {
             throw new FormatException("Inconsistent tiling information: tile width (TileWidth tag) is " +
                     (hasWidth ? "" : "NOT ") + "specified, but tile height (TileLength tag) is " +
@@ -1188,7 +1329,7 @@ public class DetailedIFD extends IFD {
         return super.isTiled();
     }
 
-    public DetailedIFD putTileSizes(int tileSizeX, int tileSizeY) {
+    public TiffIFD putTileSizes(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
             throw new IllegalArgumentException("Zero or negative tile x-size");
         }
@@ -1199,39 +1340,39 @@ public class DetailedIFD extends IFD {
             throw new IllegalArgumentException("Illegal tile sizes " + tileSizeX + "x" + tileSizeY
                     + ": they must be multiples of 16");
         }
-        put(IFD.TILE_WIDTH, tileSizeX);
-        put(IFD.TILE_LENGTH, tileSizeY);
+        put(TILE_WIDTH, tileSizeX);
+        put(TILE_LENGTH, tileSizeY);
         return this;
     }
 
-    public DetailedIFD removeTileInformation() {
-        remove(IFD.TILE_WIDTH);
-        remove(IFD.TILE_LENGTH);
+    public TiffIFD removeTileInformation() {
+        remove(TILE_WIDTH);
+        remove(TILE_LENGTH);
         return this;
     }
 
     public boolean hasStripInformation() {
-        return containsKey(IFD.ROWS_PER_STRIP);
+        return containsKey(ROWS_PER_STRIP);
     }
 
-    public DetailedIFD putStripSize(int stripSizeY) {
+    public TiffIFD putStripSize(int stripSizeY) {
         if (stripSizeY <= 0) {
             throw new IllegalArgumentException("Zero or negative strip y-size");
         }
-        put(IFD.ROWS_PER_STRIP, new long[]{stripSizeY});
+        put(ROWS_PER_STRIP, new long[]{stripSizeY});
         return this;
     }
 
-    public DetailedIFD removeStripInformation() {
-        remove(IFD.ROWS_PER_STRIP);
+    public TiffIFD removeStripInformation() {
+        remove(ROWS_PER_STRIP);
         return this;
     }
 
     public void removeDataPositioning() {
-        remove(IFD.STRIP_OFFSETS);
-        remove(IFD.STRIP_BYTE_COUNTS);
-        remove(IFD.TILE_OFFSETS);
-        remove(IFD.TILE_BYTE_COUNTS);
+        remove(STRIP_OFFSETS);
+        remove(STRIP_BYTE_COUNTS);
+        remove(TILE_OFFSETS);
+        remove(TILE_BYTE_COUNTS);
     }
 
     /**
@@ -1242,14 +1383,14 @@ public class DetailedIFD extends IFD {
      * @param dimX new TIFF image width (<tt>ImageWidth</tt> tag).
      * @param dimY new TIFF image height (<tt>ImageLength</tt> tag).
      */
-    public DetailedIFD updateImageDimensions(int dimX, int dimY) {
+    public TiffIFD updateImageDimensions(int dimX, int dimY) {
         if (dimX <= 0) {
             throw new IllegalArgumentException("Zero or negative image width (x-dimension): " + dimX);
         }
         if (dimY <= 0) {
             throw new IllegalArgumentException("Zero or negative image height (y-dimension): " + dimY);
         }
-        if (!containsKey(IFD.TILE_WIDTH) || !containsKey(IFD.TILE_LENGTH)) {
+        if (!containsKey(TILE_WIDTH) || !containsKey(TILE_LENGTH)) {
             // - we prefer not to throw FormatException here, like in hasTileInformation method
             checkImmutable("Image dimensions cannot be updated in non-tiled TIFF");
         }
@@ -1425,17 +1566,17 @@ public class DetailedIFD extends IFD {
         // - entries.keySet provides guaranteed order of keys
         for (Integer tag : keySequence) {
             final Object v = this.get(tag);
-            if (tag == IFD.LITTLE_ENDIAN || tag == IFD.BIG_TIFF) {
-                // - not actual tags (but we still show REUSE: it should not occur in normal IFDs)
+            if (tag == LITTLE_ENDIAN || tag == BIG_TIFF) {
+                // - not actual tags (but we still show other possible pseudo-tags: it should not occur in normal IFDs)
                 continue;
             }
             sb.append(String.format("%n"));
             Object additional = null;
             try {
                 switch (tag) {
-                    case IFD.PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
-                    case IFD.COMPRESSION -> additional = prettyCompression(getCompression());
-                    case IFD.PLANAR_CONFIGURATION -> {
+                    case PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
+                    case COMPRESSION -> additional = prettyCompression(getCompression());
+                    case PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case PLANAR_CONFIGURATION_CHUNKED -> additional = "chunky";
@@ -1443,7 +1584,7 @@ public class DetailedIFD extends IFD {
                             }
                         }
                     }
-                    case IFD.SAMPLE_FORMAT -> {
+                    case SAMPLE_FORMAT -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case SAMPLE_FORMAT_UINT -> additional = "unsigned integer";
@@ -1455,13 +1596,13 @@ public class DetailedIFD extends IFD {
                             }
                         }
                     }
-                    case IFD.FILL_ORDER -> {
+                    case FILL_ORDER -> {
                         additional = switch (getFillOrder()) {
                             case NORMAL -> "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)";
                             case REVERSED -> "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
                         };
                     }
-                    case IFD.PREDICTOR -> {
+                    case PREDICTOR -> {
                         if (v instanceof Number number) {
                             switch (number.intValue()) {
                                 case PREDICTOR_NONE -> additional = "none";
@@ -1561,7 +1702,7 @@ public class DetailedIFD extends IFD {
     }
 
     public static boolean isPseudoTag(int tag) {
-        return tag == LITTLE_ENDIAN || tag == BIG_TIFF || tag == REUSE;
+        return tag <= MAX_PSEUDO_TIFF_TAG;
     }
 
     private static int truncatedIntValue(Number value) {

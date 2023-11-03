@@ -58,7 +58,7 @@ import java.util.function.Consumer;
  *
  * <p>This object is internally synchronized and thread-safe when used in multi-threaded environment.
  * However, you should not modify objects, passed to the methods of this class, from a parallel thread;
- * in particular, it concerns the {@link DetailedIFD} arguments and Java-arrays with samples.
+ * in particular, it concerns the {@link TiffIFD} arguments and Java-arrays with samples.
  * The same is true for the result of {@link #getStream()} method.</p>
  *
  * @author Curtis Rueden
@@ -237,18 +237,18 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>If set, then the samples array in <tt>writeImage</tt> methods is always supposed to be unpacked.
      * For multichannel images it means the samples order like RRR..GGG..BBB...: standard form, supposed by
      * {@link io.scif.Plane} class and returned by {@link TiffReader}. If the desired IFD format is
-     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED}
+     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED}
      * (that is the typical usage), then the passes samples are automatically re-packed into chunked (interleaved)
      * form RGBRGBRGB...
      *
      * <p>If this mode is not set, as well as if {@link IFD#PLANAR_CONFIGURATION} is
-     * {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
-     * RRR...GGG..BBB...  for {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE} or as interleaved RGBRGBRGB...
-     * for {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED}.
+     * {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
+     * RRR...GGG..BBB...  for {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE} or as interleaved RGBRGBRGB...
+     * for {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED}.
      *
      * <p>Note that this flag is ignored if the result data in the file should not be interleaved,
      * i.e. for 1-channel images and if {@link IFD#PLANAR_CONFIGURATION} is
-     * {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE}.
+     * {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE}.
      *
      * @param autoInterleaveSource new auto-interleave mode. Default value is <tt>true</tt>.
      * @return a reference to this object.
@@ -407,7 +407,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     /**
      * Returns position in the file of the last IFD offset, written by methods of this object.
-     * It is updated by {@link #rewriteIFD(DetailedIFD, boolean)}.
+     * It is updated by {@link #rewriteIFD(TiffIFD, boolean)}.
      *
      * <p>Immediately after creating new object this position is <tt>-1</tt>.
      *
@@ -474,7 +474,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public void rewriteIFD(final DetailedIFD ifd, boolean updateIFDLinkages) throws IOException {
+    public void rewriteIFD(final TiffIFD ifd, boolean updateIFDLinkages) throws IOException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (!ifd.hasFileOffsetForWriting()) {
             throw new IllegalArgumentException("Offset for writing IFD is not specified");
@@ -485,7 +485,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         writeIFDAt(ifd, offset, updateIFDLinkages);
     }
 
-    public void writeIFDAtFileEnd(DetailedIFD ifd, boolean updateIFDLinkages) throws IOException {
+    public void writeIFDAtFileEnd(TiffIFD ifd, boolean updateIFDLinkages) throws IOException {
         writeIFDAt(ifd, null, updateIFDLinkages);
     }
 
@@ -494,7 +494,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * (aligned to nearest even length) if it is <tt>null</tt>.
      *
      * <p>Note: this IFD is automatically marked as last IFD in the file (next IFD offset is 0),
-     * unless you explicitly specified other next offset via {@link DetailedIFD#setNextIFDOffset(long)}.
+     * unless you explicitly specified other next offset via {@link TiffIFD#setNextIFDOffset(long)}.
      * You also may call {@link #rewritePreviousLastIFDOffset(long)} to correct
      * this mark inside the file in the previously written IFD, but usually there is no necessity to do this.</p>
      *
@@ -519,7 +519,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param updateIFDLinkages see comments above.
      * @throws IOException in a case of any I/O errors.
      */
-    public void writeIFDAt(DetailedIFD ifd, Long startOffset, boolean updateIFDLinkages) throws IOException {
+    public void writeIFDAt(TiffIFD ifd, Long startOffset, boolean updateIFDLinkages) throws IOException {
         synchronized (fileLock) {
             checkVirginFile();
             if (startOffset == null) {
@@ -878,13 +878,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    public TiffMap newMap(DetailedIFD ifd, int numberOfChannels, Class<?> elementType, boolean signedIntegers)
+    public TiffMap newMap(TiffIFD ifd, int numberOfChannels, Class<?> elementType, boolean signedIntegers)
             throws FormatException {
         return newMap(ifd, numberOfChannels, elementType, signedIntegers, false);
     }
 
     public TiffMap newMap(
-            DetailedIFD ifd,
+            TiffIFD ifd,
             int numberOfChannels,
             Class<?> elementType,
             boolean signedIntegers,
@@ -898,11 +898,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     /**
      * Starts writing new IFD image.
      *
-     * @param ifd newly created and probably customized IFD.
+     * @param ifd       newly created and probably customized IFD.
      * @param resizable if <tt>true</tt>, IFD dimensions may not be specified yet.
      * @return map for writing further data.
      */
-    public TiffMap newMap(DetailedIFD ifd, boolean resizable) throws FormatException {
+    public TiffMap newMap(TiffIFD ifd, boolean resizable) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         if (ifd.isFrozen()) {
             throw new IllegalStateException("IFD is already frozen for usage while writing TIFF; " +
@@ -922,7 +922,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return map;
     }
 
-    public TiffMap newMap(DetailedIFD ifd) throws FormatException {
+    public TiffMap newMap(TiffIFD ifd) throws FormatException {
         return newMap(ifd, false);
     }
 
@@ -941,7 +941,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * @param ifd IFD of some existing image, probably loaded from the current TIFF file.
      * @return map for writing further data.
      */
-    public TiffMap existingMap(DetailedIFD ifd) throws FormatException {
+    public TiffMap existingMap(TiffIFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
         prepareValidIFD(ifd);
         final TiffMap map = new TiffMap(ifd);
@@ -992,7 +992,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         final long[] byteCounts = new long[map.numberOfGridTiles()];
         // - zero-filled by Java
         map.ifd().updateDataPositioning(offsets, byteCounts);
-        final DetailedIFD ifd = map.ifd();
+        final TiffIFD ifd = map.ifd();
         if (!ifd.hasFileOffsetForWriting()) {
             writeIFDAtFileEnd(ifd, false);
         }
@@ -1006,7 +1006,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         encode(map);
         // - encode tiles, which are not encoded yet
 
-        final DetailedIFD ifd = map.ifd();
+        final TiffIFD ifd = map.ifd();
         if (resizable) {
             ifd.updateImageDimensions(map.dimX(), map.dimY());
         }
@@ -1188,7 +1188,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
 
             positionOfNextOffset = out.offset();
-            writeOffset(DetailedIFD.LAST_IFD_OFFSET);
+            writeOffset(TiffIFD.LAST_IFD_OFFSET);
             // - not too important: will be rewritten in writeIFDNextOffset
             final int extraLength = (int) extraHandle.offset();
             extraHandle.seek(0L);
@@ -1202,7 +1202,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * Writes the given IFD value to the {@link #getStream() main output stream}, excepting "extra" data,
      * which are written into the specified <tt>extraBuffer</tt>. After calling this method, you
      * should copy full content of <tt>extraBuffer</tt> into the main stream at the position,
-     * specified by the 2nd argument; {@link #rewriteIFD(DetailedIFD, boolean)} method does it automatically.
+     * specified by the 2nd argument; {@link #rewriteIFD(TiffIFD, boolean)} method does it automatically.
      *
      * <p>Here "extra" data means all data, for which IFD contains their offsets instead of data itself,
      * like arrays or text strings. The "main" data is 12-byte IFD record (20-byte for Big-TIFF),
@@ -1333,13 +1333,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     // - it is probable for the following tags, if they are added
                     // manually via DetailedIFD.put with "long" argument
                     switch (tag) {
-                        case IFD.IMAGE_WIDTH,
-                                IFD.IMAGE_LENGTH,
-                                IFD.TILE_WIDTH,
-                                IFD.TILE_LENGTH,
-                                DetailedIFD.IMAGE_DEPTH,
-                                IFD.ROWS_PER_STRIP,
-                                IFD.NEW_SUBFILE_TYPE -> {
+                        case TiffIFD.IMAGE_WIDTH,
+                                TiffIFD.IMAGE_LENGTH,
+                                TiffIFD.TILE_WIDTH,
+                                TiffIFD.TILE_LENGTH,
+                                TiffIFD.IMAGE_DEPTH,
+                                TiffIFD.ROWS_PER_STRIP,
+                                TiffIFD.NEW_SUBFILE_TYPE -> {
                             out.writeShort(IFDType.LONG.getCode());
                             writeIntOrLong(out, q.length);
                             out.writeInt((int) v);
@@ -1415,10 +1415,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
 
-    private void writeIFDNextOffsetAt(DetailedIFD ifd, long positionToWrite, boolean updatePositionOfLastIFDOffset)
+    private void writeIFDNextOffsetAt(TiffIFD ifd, long positionToWrite, boolean updatePositionOfLastIFDOffset)
             throws IOException {
         writeIFDOffsetAt(
-                ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : DetailedIFD.LAST_IFD_OFFSET,
+                ifd.hasNextIFDOffset() ? ifd.getNextIFDOffset() : TiffIFD.LAST_IFD_OFFSET,
                 positionToWrite,
                 updatePositionOfLastIFDOffset);
     }
@@ -1522,7 +1522,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         } else {
             if (offset > 0xFFFFFFF0L) {
                 throw new IOException("Attempt to write too large 64-bit offset as unsigned 32-bit: " + offset
-                    + " > 2^32-16; such large files should be written in Big-TIFF mode");
+                        + " > 2^32-16; such large files should be written in Big-TIFF mode");
             }
             out.writeInt((int) offset);
             // - masking by 0xFFFFFFFF is not needed: cast to (int) works properly also for 32-bit unsigned values
@@ -1537,7 +1537,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             try {
                 out.seek(positionToWrite);
                 writeOffset(offset);
-                if (updatePositionOfLastIFDOffset && offset == DetailedIFD.LAST_IFD_OFFSET) {
+                if (updatePositionOfLastIFDOffset && offset == TiffIFD.LAST_IFD_OFFSET) {
                     positionOfLastIFDOffset = positionToWrite;
                 }
             } finally {
@@ -1567,9 +1567,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
-        DetailedIFD ifd = tile.ifd();
+        TiffIFD ifd = tile.ifd();
         if (!ifd.hasImageDimensions()) {
-            ifd = new DetailedIFD(ifd);
+            ifd = new TiffIFD(ifd);
             // - do not change original IFD
             ifd.putImageDimensions(157, 157);
             // - Some "fake" dimensions: necessary for normal work of getCompressionCodecOptions;
@@ -1590,10 +1590,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void prepareValidIFD(final DetailedIFD ifd) throws FormatException {
+    private void prepareValidIFD(final TiffIFD ifd) throws FormatException {
         final int samplesPerPixel = ifd.getSamplesPerPixel();
         if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            ifd.put(IFD.BITS_PER_SAMPLE, new int[] {8});
+            ifd.put(IFD.BITS_PER_SAMPLE, new int[]{8});
             // - Default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
             // Note: we do not change SAMPLE_FORMAT tag here!

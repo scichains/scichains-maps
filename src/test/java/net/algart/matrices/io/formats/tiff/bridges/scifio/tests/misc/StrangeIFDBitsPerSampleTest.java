@@ -27,14 +27,14 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 
 import java.util.Arrays;
 
 public class StrangeIFDBitsPerSampleTest {
-    private static void showIFD(DetailedIFD ifd, String name, boolean exceptionExpected) throws FormatException {
+    private static void showIFD(TiffIFD ifd, String name, boolean exceptionExpected) throws FormatException {
         System.out.printf("%s%nBrief:%n----%n%s%n----%nNormal:%n----%n%s%n----%n%n",
-                name, ifd, ifd.toString(DetailedIFD.StringFormat.NORMAL_SORTED));
+                name, ifd, ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
         boolean exceptionOccurred = false;
         try {
             int pixelType = ifd.pixelType();
@@ -62,42 +62,42 @@ public class StrangeIFDBitsPerSampleTest {
     }
 
     public static void main(String[] args) throws FormatException {
-        DetailedIFD ifd = new DetailedIFD();
+        TiffIFD ifd = new TiffIFD();
         showIFD(ifd, "Empty", false);
 
 //        ifd.put(DetailedIFD.SAMPLES_PER_PIXEL, 3); // - should not be necessary for exception on -1
 
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {1, 8});
-        ifd.put(DetailedIFD.COMPRESSION, TiffCompression.OLD_JPEG.getCode());
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {1, 8});
+        ifd.put(TiffIFD.COMPRESSION, TiffCompression.OLD_JPEG.getCode());
         showIFD(ifd, "Old JPEG", false);
 
-        ifd.remove(DetailedIFD.COMPRESSION);
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {1, -1, 1, 2});
+        ifd.remove(TiffIFD.COMPRESSION);
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {1, -1, 1, 2});
         showIFD(ifd, "BitsPerSample (negative)", true);
 
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {1, 11, 1, 2});
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {1, 11, 1, 2});
         showIFD(ifd, "BitsPerSample (different)", true);
 
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {11, 11, 12, 15});
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {11, 11, 12, 15});
         showIFD(ifd, "BitsPerSample (normal)", false);
 
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {111, 111, 112});
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {111, 111, 112});
         showIFD(ifd, "BitsPerSample (large)", true);
 
-        ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {40});
+        ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[] {40});
         showIFD(ifd, "BitsPerSample (5 bytes)", true);
 
 
         ifd.putPixelInformation(1, byte.class);
         showIFD(ifd, "1-byte", false);
 
-        ifd.put(DetailedIFD.SAMPLE_FORMAT, new int[] {1, 3, 1});
+        ifd.put(TiffIFD.SAMPLE_FORMAT, new int[] {1, 3, 1});
         showIFD(ifd, "Different sample format", true);
 
-        ifd.put(DetailedIFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_COMPLEX_INT);
+        ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_COMPLEX_INT);
         showIFD(ifd, "Complex", true);
 
-        ifd.put(DetailedIFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_VOID);
+        ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_VOID);
         showIFD(ifd, "Void", false);
     }
 }

@@ -27,7 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 
@@ -67,11 +67,11 @@ public class TiffFalsifyJPEGColorSpace {
             writer.startNewFile();
 
             System.out.printf("Transforming to %s...%n", targetFile);
-            final List<DetailedIFD> ifds = reader.allIFDs();
+            final List<TiffIFD> ifds = reader.allIFDs();
             lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
             for (int i = firstIFDIndex; i <= lastIFDIndex; i++) {
-                final DetailedIFD readIFD = ifds.get(i);
-                final DetailedIFD writeIFD = new DetailedIFD(readIFD);
+                final TiffIFD readIFD = ifds.get(i);
+                final TiffIFD writeIFD = new TiffIFD(readIFD);
                 if (readIFD.getCompression() != TiffCompression.JPEG) {
                     System.out.printf("\rCopying #%d/%d: %s%n", i, ifds.size(), readIFD);
                     TiffCopyTest.copyImage(readIFD, writeIFD, reader, writer);
@@ -79,11 +79,11 @@ public class TiffFalsifyJPEGColorSpace {
                 }
                 System.out.printf("\rTransforming #%d/%d: %s%n", i, ifds.size(), readIFD);
                 writeIFD.putPhotometricInterpretation(before);
-                writeIFD.put(DetailedIFD.Y_CB_CR_SUB_SAMPLING,
+                writeIFD.put(TiffIFD.Y_CB_CR_SUB_SAMPLING,
                         before == PhotoInterp.RGB ? new int[] {1, 1} : new int[] {2, 2});
                 // - instruct Java AWT to store as RGB and disable sub-sampling (RGB are encoded without sub-sampling)
                 TiffCopyTest.copyImage(readIFD, writeIFD, reader, writer);
-                final DetailedIFD cloneIFD = new DetailedIFD(writeIFD);
+                final TiffIFD cloneIFD = new TiffIFD(writeIFD);
                 // - writeIFD is frozen and cannot be modified
                 cloneIFD.putPhotometricInterpretation(after);
                 writer.rewriteIFD(cloneIFD, false);

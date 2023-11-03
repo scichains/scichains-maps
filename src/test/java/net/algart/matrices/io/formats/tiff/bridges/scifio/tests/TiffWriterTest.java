@@ -31,7 +31,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
 import net.algart.math.IRectangularArea;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
@@ -85,6 +85,11 @@ public class TiffWriterTest {
         boolean preserveOldAccurately = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-preserveOldAccurately")) {
             preserveOldAccurately = preserveOld = true;
+            startArgIndex++;
+        }
+        boolean littleEndian = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-littleEndian")) {
+            littleEndian = true;
             startArgIndex++;
         }
         boolean bigTiff = false;
@@ -201,7 +206,9 @@ public class TiffWriterTest {
                 }
 //                writer.setWritingForwardAllowed(false);
                 writer.setBigTiff(bigTiff);
-//                writer.setLittleEndian(true);
+                if (littleEndian) {
+                    writer.setLittleEndian(true);
+                }
                 writer.setJpegInPhotometricRGB(jpegRGB);
 //                writer.setJpegQuality(0.8);
 //                writer.setPredefinedPhotoInterpretation(PhotoInterp.Y_CB_CR);
@@ -213,7 +220,7 @@ public class TiffWriterTest {
                         existingFile ? "writing to" : "creating", targetFile);
                 for (int k = 0; k < numberOfImages; k++) {
                     final int ifdIndex = firstIfdIndex + k;
-                    DetailedIFD ifd = new DetailedIFD();
+                    TiffIFD ifd = new TiffIFD();
                     if (!resizable) {
                         ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                     }
@@ -242,7 +249,7 @@ public class TiffWriterTest {
 //                    }
                     ifd.putPlanarSeparated(planarSeparated);
                     if (predict) {
-                        ifd.put(IFD.PREDICTOR, DetailedIFD.PREDICTOR_HORIZONTAL);
+                        ifd.put(IFD.PREDICTOR, TiffIFD.PREDICTOR_HORIZONTAL);
                         // - unusual mode: no special putXxx method;
                         // should not be used for compressions besides LZW/DEFLATE
                     }

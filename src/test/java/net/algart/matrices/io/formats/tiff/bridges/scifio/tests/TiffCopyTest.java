@@ -26,7 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -79,11 +79,11 @@ public class TiffCopyTest {
                 writer.startNewFile();
 
                 System.out.printf("Copying to %s...%n", targetFile);
-                final List<DetailedIFD> ifds = reader.allIFDs();
+                final List<TiffIFD> ifds = reader.allIFDs();
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final DetailedIFD readIFD = ifds.get(ifdIndex);
-                    final DetailedIFD writeIFD = new DetailedIFD(readIFD);
+                    final TiffIFD readIFD = ifds.get(ifdIndex);
+                    final TiffIFD writeIFD = new TiffIFD(readIFD);
                     System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
                     copyImage(readIFD, writeIFD, reader, writer);
                 }
@@ -94,7 +94,7 @@ public class TiffCopyTest {
         System.out.println("Done");
     }
 
-    static void copyImage(DetailedIFD readIFD, DetailedIFD writeIFD, TiffReader reader, TiffWriter writer)
+    static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)
             throws FormatException, IOException {
         final TiffMap readMap = reader.newMap(readIFD);
         final TiffMap writeMap = writer.newMap(writeIFD, false);

@@ -26,7 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
 import io.scif.FormatException;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
 import java.util.*;
@@ -46,7 +46,7 @@ public final class TiffMap {
      */
     public static final int MAX_TILE_INDEX = 1_000_000_000;
 
-    private final DetailedIFD ifd;
+    private final TiffIFD ifd;
     private final Map<TiffTileIndex, TiffTile> tileMap = new LinkedHashMap<>();
     private final boolean resizable;
     private final boolean planarSeparated;
@@ -73,7 +73,7 @@ public final class TiffMap {
     private volatile int gridTileCountY = 0;
     private volatile int numberOfGridTiles = 0;
 
-    public TiffMap(DetailedIFD ifd) {
+    public TiffMap(TiffIFD ifd) {
         this(ifd, false);
     }
 
@@ -88,7 +88,7 @@ public final class TiffMap {
      * @param resizable whether maximal dimensions of this set will grow while adding new tiles,
      *                  or they are fixed and must be specified in IFD.
      */
-    public TiffMap(DetailedIFD ifd, boolean resizable) {
+    public TiffMap(TiffIFD ifd, boolean resizable) {
         this.ifd = Objects.requireNonNull(ifd, "Null IFD");
         this.resizable = resizable;
         final boolean hasImageDimensions = ifd.hasImageDimensions();
@@ -106,7 +106,7 @@ public final class TiffMap {
             }
             this.planarSeparated = ifd.isPlanarSeparated();
             this.numberOfChannels = ifd.getSamplesPerPixel();
-            assert numberOfChannels <= DetailedIFD.MAX_NUMBER_OF_CHANNELS;
+            assert numberOfChannels <= TiffIFD.MAX_NUMBER_OF_CHANNELS;
             this.numberOfSeparatedPlanes = planarSeparated ? numberOfChannels : 1;
             this.tileSamplesPerPixel = planarSeparated ? 1 : numberOfChannels;
             this.bytesPerSample = ifd.equalBytesPerSample();
@@ -143,7 +143,7 @@ public final class TiffMap {
         }
     }
 
-    public DetailedIFD ifd() {
+    public TiffIFD ifd() {
         return ifd;
     }
 

@@ -25,7 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 
@@ -55,7 +55,7 @@ public class TiffFalsifyDimensions {
             writer.startExistingFile();
 
             System.out.printf("Transforming %s...%n", targetFile);
-            final DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
+            final TiffIFD ifd = reader.readSingleIFD(ifdIndex);
             ifd.setFileOffsetForWriting(ifd.getFileOffsetForReading());
             ifd.putImageDimensions(newDimX, newDimY);
             writer.rewriteIFD(ifd, false);

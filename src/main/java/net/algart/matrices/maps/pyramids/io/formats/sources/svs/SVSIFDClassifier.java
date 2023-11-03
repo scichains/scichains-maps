@@ -28,7 +28,7 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.Arrays;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
@@ -197,7 +197,7 @@ public final class SVSIFDClassifier {
         if (ifdCount <= THUMBNAIL_IFD_INDEX) {
             return;
         }
-        final DetailedIFD ifd = maps.get(THUMBNAIL_IFD_INDEX).ifd();
+        final TiffIFD ifd = maps.get(THUMBNAIL_IFD_INDEX).ifd();
         if (isSmallImage(ifd)) {
             this.thumbnailIndex = THUMBNAIL_IFD_INDEX;
         }
@@ -211,8 +211,8 @@ public final class SVSIFDClassifier {
         final int index2 = ifdCount - 1;
         final TiffMap map1 = maps.get(index1);
         final TiffMap map2 = maps.get(index2);
-        final DetailedIFD ifd1 = map1.ifd();
-        final DetailedIFD ifd2 = map2.ifd();
+        final TiffIFD ifd1 = map1.ifd();
+        final TiffIFD ifd2 = map2.ifd();
         if (!(isSmallImage(ifd1) && isSmallImage(ifd2))) {
             return false;
         }
@@ -271,7 +271,7 @@ public final class SVSIFDClassifier {
         }
         final int index = ifdCount - 1;
         final TiffMap map = maps.get(index);
-        final DetailedIFD ifd = map.ifd();
+        final TiffIFD ifd = map.ifd();
         if (!isSmallImage(ifd)) {
             return;
         }
@@ -299,7 +299,7 @@ public final class SVSIFDClassifier {
         }
     }
 
-    static boolean isSmallImage(DetailedIFD ifd) throws FormatException {
+    static boolean isSmallImage(TiffIFD ifd) throws FormatException {
         final long[] tileOffsets = ifd.getIFDLongArray(IFD.TILE_OFFSETS);
 //        System.out.println(tileOffsets == null ? "null" : tileOffsets.length);
         return tileOffsets == null &&

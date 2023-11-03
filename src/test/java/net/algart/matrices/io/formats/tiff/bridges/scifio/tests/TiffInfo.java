@@ -26,7 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 
 import java.io.File;
@@ -109,11 +109,11 @@ public class TiffInfo {
         }
     }
 
-    public String ifdInfo(DetailedIFD ifd, int ifdIndex, int ifdCount) {
+    public String ifdInfo(TiffIFD ifd, int ifdIndex, int ifdCount) {
         return "IFD #%d/%d: %s%n".formatted(
                 ifdIndex,
                 ifdCount,
-                ifd.toString(detailed ? DetailedIFD.StringFormat.DETAILED : DetailedIFD.StringFormat.NORMAL));
+                ifd.toString(detailed ? TiffIFD.StringFormat.DETAILED : TiffIFD.StringFormat.NORMAL));
     }
 
     public static String extension(String fileName, String defaultExtension) {

@@ -26,16 +26,16 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 
 public class CreatingIFDTest {
-    private static void showIFD(DetailedIFD ifd, String name) {
+    private static void showIFD(TiffIFD ifd, String name) {
         System.out.printf("%s%nBrief:%n----%n%s%n----%nNormal:%n----%n%s%n----%n%n",
-                name, ifd, ifd.toString(DetailedIFD.StringFormat.NORMAL_SORTED));
+                name, ifd, ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
     }
 
     public static void main(String[] args) throws FormatException {
-        DetailedIFD ifd = new DetailedIFD();
+        TiffIFD ifd = new TiffIFD();
         showIFD(ifd, "Empty");
 
         ifd.putPixelInformation(1, byte.class);

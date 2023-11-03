@@ -30,7 +30,7 @@ import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.TiffParser;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -143,12 +143,12 @@ public class TiffSaver extends TiffWriter {
     }
 
     /**
-     * Use instead {@link #rewriteIFD(DetailedIFD, boolean)} together with
-     * {@link DetailedIFD#setNextIFDOffset(long)} and {@link DetailedIFD#setFileOffsetForWriting(long)}.
+     * Use instead {@link #rewriteIFD(TiffIFD, boolean)} together with
+     * {@link TiffIFD#setNextIFDOffset(long)} and {@link TiffIFD#setFileOffsetForWriting(long)}.
      */
     @Deprecated
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
-        DetailedIFD extended = DetailedIFD.extend(ifd);
+        TiffIFD extended = net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser.extend(ifd);
         extended.setFileOffsetForWriting(getStream().offset());
         extended.setNextIFDOffset(nextOffset);
         rewriteIFD(extended, true);

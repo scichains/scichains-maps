@@ -25,7 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
 import net.algart.math.IRectangularArea;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 
@@ -42,6 +42,7 @@ public final class TiffTile {
     private final int samplesPerPixel;
     private final int bytesPerSample;
     private final int bytesPerPixel;
+    private final boolean littleEndian;
     private final TiffTileIndex index;
     private int sizeX;
     private int sizeY;
@@ -71,6 +72,7 @@ public final class TiffTile {
         this.samplesPerPixel = map.tileSamplesPerPixel();
         this.bytesPerSample = map.bytesPerSample();
         this.bytesPerPixel = samplesPerPixel * bytesPerSample;
+        this.littleEndian = map.ifd().isLittleEndian();
         assert bytesPerPixel <= TiffMap.MAX_TOTAL_BYTES_PER_PIXEL :
                 samplesPerPixel + "*" + bytesPerPixel + " were not checked in TiffMap!";
         assert index.ifd() == map.ifd() : "index retrieved ifd from its tile map!";
@@ -81,7 +83,7 @@ public final class TiffTile {
         return map;
     }
 
-    public DetailedIFD ifd() {
+    public TiffIFD ifd() {
         return map.ifd();
     }
 
@@ -103,6 +105,10 @@ public final class TiffTile {
 
     public int bytesPerPixel() {
         return bytesPerPixel;
+    }
+
+    public boolean isLittleEndian() {
+        return littleEndian;
     }
 
     public int pixelType() {

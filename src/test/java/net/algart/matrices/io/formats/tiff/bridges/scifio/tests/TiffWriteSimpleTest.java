@@ -25,7 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 
@@ -52,13 +52,13 @@ public class TiffWriteSimpleTest {
             writer.setByteFiller((byte) 0xB0);
             writer.startNewFile();
             // writer.startNewFile(); // - not a problem to call twice
-            DetailedIFD ifd = new DetailedIFD();
+            TiffIFD ifd = new TiffIFD();
             ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
 //            ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {5, 5, 5});
 //            ifd.put(DetailedIFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
             TiffMap map = writer.newMap(ifd);
             // map = writer.newMap(ifd); - will throw an exception
-            System.out.printf("Saved IFD:%n%s%n", ifd.toString(DetailedIFD.StringFormat.NORMAL));
+            System.out.printf("Saved IFD:%n%s%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
 
             final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
             Arrays.fill(samples, (byte) 40);

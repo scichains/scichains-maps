@@ -26,14 +26,14 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 
 import java.util.Optional;
 
 public class IFDGetValueTest {
-    static void showTag(DetailedIFD ifd, int tag, Class<?> requiredClass) {
+    static void showTag(TiffIFD ifd, int tag, Class<?> requiredClass) {
         System.out.printf("Tag %s, required class %s:%n",
-                DetailedIFD.ifdTagName(tag, true),
+                TiffIFD.ifdTagName(tag, true),
                 requiredClass.getSimpleName());
         Optional<?> opt = ifd.optValue(tag, requiredClass);
         System.out.printf("optValue: %s [%s]%n",
@@ -56,7 +56,7 @@ public class IFDGetValueTest {
     }
 
     public static void main(String[] args) {
-        DetailedIFD ifd = new DetailedIFD();
+        TiffIFD ifd = new TiffIFD();
         ifd.putPixelInformation(3, byte.class);
         showTag(ifd, IFD.SAMPLES_PER_PIXEL, Integer.class);
         showTag(ifd, IFD.BITS_PER_SAMPLE, Integer.class);

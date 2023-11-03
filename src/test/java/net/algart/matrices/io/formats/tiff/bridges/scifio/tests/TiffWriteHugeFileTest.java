@@ -26,7 +26,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 
@@ -63,7 +63,7 @@ public class TiffWriteHugeFileTest {
             writer.setLittleEndian(true);
             writer.startNewFile();
             for (int k = 1; k <= numberOfImages; k++) {
-                DetailedIFD ifd = new DetailedIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
+                TiffIFD ifd = new TiffIFD().putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
                 ifd.putTileSizes(1024, 1024);
                 ifd.putCompression(TiffCompression.UNCOMPRESSED);
                 final TiffMap map = writer.newMap(ifd, 3, byte.class, false);

@@ -27,7 +27,7 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import net.algart.arrays.JArrays;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 
 import java.io.IOException;
@@ -47,11 +47,11 @@ public class IFDTileOffsetsTest {
 
         TiffReader reader = new TiffReader(null, file, false);
         long t1 = System.nanoTime();
-        DetailedIFD ifd = reader.readSingleIFD(ifdIndex);
+        TiffIFD ifd = reader.readSingleIFD(ifdIndex);
         long t2 = System.nanoTime();
         System.out.printf("IFD #%d: %s (%.6f ms)%n%n",
                 ifdIndex,
-                ifd.toString(DetailedIFD.StringFormat.NORMAL_SORTED),
+                ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED),
                 (t2 - t1) * 1e-3);
         IFDGetValueTest.showTag(ifd, IFD.IMAGE_WIDTH, Number.class);
         IFDGetValueTest.showTag(ifd, IFD.IMAGE_LENGTH, Number.class);

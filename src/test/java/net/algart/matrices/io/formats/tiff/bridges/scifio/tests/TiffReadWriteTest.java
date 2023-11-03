@@ -30,7 +30,7 @@ import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.util.FormatTools;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
@@ -141,10 +141,10 @@ public class TiffReadWriteTest {
                     sequentialTiffSaver.writeHeader();
                 }
                 System.out.printf("Writing %s%s...%n", targetFile, bigTiff ? " (big TIFF)" : "");
-                final List<DetailedIFD> ifds = reader.allIFDs();
+                final List<TiffIFD> ifds = reader.allIFDs();
                 lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final DetailedIFD readerIFD = ifds.get(ifdIndex);
+                    final TiffIFD readerIFD = ifds.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
                     final int w = (int) Math.min((long) readerIFD.getImageDimX(), MAX_IMAGE_DIM);
                     final int h = (int) Math.min(readerIFD.getImageLength(), MAX_IMAGE_DIM);
@@ -155,7 +155,7 @@ public class TiffReadWriteTest {
                     long t1 = System.nanoTime();
                     byte[] bytes = reader.readSamples(reader.newMap(readerIFD), START_X, START_Y, w, h);
                     long t2 = System.nanoTime();
-                    DetailedIFD writerIFD = new DetailedIFD(readerIFD);
+                    TiffIFD writerIFD = new TiffIFD(readerIFD);
                     if (singleStrip) {
                         writerIFD.put(IFD.ROWS_PER_STRIP, h);
                         // - not remove! Removing means default value!
@@ -220,7 +220,7 @@ public class TiffReadWriteTest {
                             compareResults(buf2, bytes, "Old parser");
                             differ = true;
                         }
-                        writerIFD = new DetailedIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
+                        writerIFD = new TiffIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
                         if (singleStrip) {
                             writerIFD.putStripSize(h);
                             // - not remove! Removing means default value!
@@ -251,7 +251,7 @@ public class TiffReadWriteTest {
     // A clone of very old method, helped to use TiffSaver in 2014
     private static void writeSeveralTilesOrStrips(
             final io.scif.formats.tiff.TiffSaver saver,
-            final byte[] data, final DetailedIFD ifd,
+            final byte[] data, final TiffIFD ifd,
             final int pixelType, int bandCount,
             final int lefTopX, final int leftTopY,
             final int width, final int height,

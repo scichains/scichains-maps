@@ -24,7 +24,7 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
-import net.algart.matrices.io.formats.tiff.bridges.scifio.DetailedIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 
 import java.util.Objects;
 
@@ -39,7 +39,7 @@ import java.util.Objects;
  */
 public final class TiffTileIndex {
     private final TiffMap map;
-    private final DetailedIFD ifd;
+    private final TiffIFD ifd;
     private final int ifdIdentity;
     private final int channelPlane;
     private final int xIndex;
@@ -54,8 +54,8 @@ public final class TiffTileIndex {
      *
      * @param map          containing tile map.
      * @param channelPlane channel-plane index (used only in a case of
-     *                     {@link DetailedIFD#PLANAR_CONFIGURATION_SEPARATE},
-     *                     always 0 for usual case {@link DetailedIFD#PLANAR_CONFIGURATION_CHUNKED})
+     *                     {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE},
+     *                     always 0 for usual case {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED})
      * @param xIndex       x-index of the tile (0, 1, 2, ...).
      * @param yIndex       y-index of the tile (0, 1, 2, ...).
      */
@@ -114,7 +114,7 @@ public final class TiffTileIndex {
         return map;
     }
 
-    public DetailedIFD ifd() {
+    public TiffIFD ifd() {
         return ifd;
     }
 
