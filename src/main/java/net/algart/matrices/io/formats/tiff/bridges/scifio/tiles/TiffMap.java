@@ -58,6 +58,7 @@ public final class TiffMap {
     private final int tileBytesPerPixel;
     private final int totalBytesPerPixel;
     private final int pixelType;
+    private final boolean floatingPoint;
     private final Class<?> elementType;
     private final boolean tiled;
     private final int tileSizeX;
@@ -119,6 +120,7 @@ public final class TiffMap {
             this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
             this.pixelType = ifd.pixelType();
             this.bytesPerUnpackedSample = FormatTools.getBytesPerPixel(pixelType);
+            this.floatingPoint = pixelType == FormatTools.FLOAT || pixelType == FormatTools.DOUBLE;
             this.elementType = TiffTools.pixelTypeToElementType(pixelType);
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
@@ -231,6 +233,10 @@ public final class TiffMap {
 
     public int pixelType() {
         return pixelType;
+    }
+
+    public boolean isFloatingPoint() {
+        return floatingPoint;
     }
 
     public Class<?> elementType() {

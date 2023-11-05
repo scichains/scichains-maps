@@ -374,9 +374,9 @@ public class TiffWriterTest {
             case FormatTools.UINT8, FormatTools.INT8 -> {
                 byte[] channels = new byte[matrixSize * bandCount];
                 for (int y = 0; y < ySize; y++) {
-                    int c1 = (y / 32) % (bandCount + 1);
+                    int c1 = (y / 32) % (bandCount + 1) - 1;
                     int c2 = c1;
-                    if (c1 == bandCount) {
+                    if (c1 == -1) {
                         c1 = 0;
                         c2 = bandCount - 1;
                     }
@@ -390,10 +390,17 @@ public class TiffWriterTest {
             }
             case FormatTools.UINT16, FormatTools.INT16 -> {
                 short[] channels = new short[matrixSize * bandCount];
-                for (int y = 0, disp = 0; y < ySize; y++) {
-                    final int c = (y / 32) % bandCount;
-                    for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = (short) (256 * (50 * ifdIndex + x + y));
+                for (int y = 0; y < ySize; y++) {
+                    int c1 = (y / 32) % (bandCount + 1) - 1;
+                    int c2 = c1;
+                    if (c1 == -1) {
+                        c1 = 0;
+                        c2 = bandCount - 1;
+                    }
+                    for (int c = c1; c <= c2; c++) {
+                        for (int x = 0, disp = y * xSize; x < xSize; x++, disp++) {
+                            channels[disp + c * matrixSize] = (short) (157 * (50 * ifdIndex + x + y));
+                        }
                     }
                 }
                 return channels;
@@ -403,7 +410,7 @@ public class TiffWriterTest {
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
                     for (int x = 0; x < xSize; x++, disp++) {
-                        channels[disp + c * matrixSize] = 256 * 65536 * (50 * ifdIndex + x + y);
+                        channels[disp + c * matrixSize] = 157 * 65536 * (50 * ifdIndex + x + y);
                     }
                 }
                 return channels;

@@ -115,6 +115,14 @@ public final class TiffTile {
         return map.pixelType();
     }
 
+    public boolean isFloatingPoint() {
+        return map.isFloatingPoint();
+    }
+
+    public Class<?> elementType() {
+        return map.elementType();
+    }
+
     public int getSizeX() {
         return sizeX;
     }

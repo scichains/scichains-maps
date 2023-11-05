@@ -1020,7 +1020,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             tile.setDecodedData(samples);
             tile.setInterleaved(false);
         } else {
-            if (!TiffTools.rearrangeUnpackedSamples(tile)) {
+            if (!TiffTools.separateUnpackedSamples(tile)) {
                 if (!TiffTools.separateYCbCrToRGB(tile)) {
                     TiffTools.separateBitsAndInvertValues(tile, !autoCorrectUnusualColorRange);
                 }
