@@ -547,7 +547,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final List<TiffIFD> ifds = allIFDs();
         final List<TiffIFD> thumbnails = new ArrayList<>();
         for (final TiffIFD ifd : ifds) {
-            final Number subfile = (Number) ifd.getValue(IFD.NEW_SUBFILE_TYPE);
+            final Number subfile = (Number) ifd.get(IFD.NEW_SUBFILE_TYPE);
             final int subfileType = subfile == null ? 0 : subfile.intValue();
             if (subfileType == 1) {
                 thumbnails.add(ifd);
@@ -563,7 +563,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final List<TiffIFD> ifds = allIFDs();
         final List<TiffIFD> nonThumbs = new ArrayList<>();
         for (final TiffIFD ifd : ifds) {
-            final Number subFile = (Number) ifd.getValue(IFD.NEW_SUBFILE_TYPE);
+            final Number subFile = (Number) ifd.get(IFD.NEW_SUBFILE_TYPE);
             final int subfileType = subFile == null ? 0 : subFile.intValue();
             if (subfileType != 1 || ifds.size() <= 1) {
                 nonThumbs.add(ifd);
@@ -901,7 +901,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
         if (TiffIFD.isJpeg(compression)) {
             final byte[] data = tile.getEncodedData();
-            final byte[] jpegTable = (byte[]) ifd.getValue(IFD.JPEG_TABLES);
+            final byte[] jpegTable = (byte[]) ifd.get(IFD.JPEG_TABLES);
             // Structure of data:
             //      FF D8 (SOI, start of image)
             //      FF C0 (SOF0, start of frame, or some other marker)

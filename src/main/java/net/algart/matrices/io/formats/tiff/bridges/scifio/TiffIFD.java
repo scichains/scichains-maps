@@ -428,10 +428,6 @@ public class TiffIFD extends IFD {
                 () -> "Invalid requested area: ", () -> "");
     }
 
-    public Object getValue(int tag) {
-        return get(tag);
-    }
-
     public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
         Objects.requireNonNull(requiredClass, "Null requiredClass");
         Object value = get(tag);
@@ -500,7 +496,7 @@ public class TiffIFD extends IFD {
     }
 
     public long[] getLongArray(int tag) throws FormatException {
-        final Object value = getValue(tag);
+        final Object value = get(tag);
         long[] results = null;
         if (value instanceof long[]) {
             results = (long[]) value;
@@ -525,7 +521,7 @@ public class TiffIFD extends IFD {
     }
 
     public int[] getIntArray(int tag) throws FormatException {
-        final Object value = getValue(tag);
+        final Object value = get(tag);
         int[] results = null;
         if (value instanceof int[]) {
             results = (int[]) value;
