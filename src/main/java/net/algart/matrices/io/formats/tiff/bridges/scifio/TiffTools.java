@@ -535,7 +535,7 @@ public class TiffTools {
         double lumaRed = PhotoInterp.LUMA_RED;
         double lumaGreen = PhotoInterp.LUMA_GREEN;
         double lumaBlue = PhotoInterp.LUMA_BLUE;
-        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
+        int[] reference = ifd.getIntArray(IFD.REFERENCE_BLACK_WHITE);
         if (reference == null) {
             reference = new int[]{0, 255, 128, 255, 128, 255};
             // - original SCIFIO code used here zero-filled array, this is incorrect

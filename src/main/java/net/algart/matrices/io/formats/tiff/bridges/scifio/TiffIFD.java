@@ -428,6 +428,10 @@ public class TiffIFD extends IFD {
                 () -> "Invalid requested area: ", () -> "");
     }
 
+    public Object getValue(int tag) {
+        return get(tag);
+    }
+
     public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
         Objects.requireNonNull(requiredClass, "Null requiredClass");
         Object value = get(tag);
@@ -448,7 +452,7 @@ public class TiffIFD extends IFD {
         if (!valueClass.isInstance(value)) {
             if (requireCorrectClass) {
                 throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
-                        " has wrong type " + value.getClass().getSimpleName() +
+                        " has wrong type: " + value.getClass().getSimpleName() +
                         " instead of expected " + valueClass.getSimpleName());
             } else {
                 return Optional.empty();
@@ -495,8 +499,54 @@ public class TiffIFD extends IFD {
         return optValue(tag, Number.class).orElse(defaultValue).longValue();
     }
 
-    public Object getValue(int tag) {
-        return get(tag);
+    public long[] getLongArray(int tag) throws FormatException {
+        final Object value = getValue(tag);
+        long[] results = null;
+        if (value instanceof long[]) {
+            results = (long[]) value;
+        } else if (value instanceof Number) {
+            results = new long[] { ((Number) value).longValue() };
+        }  else if (value instanceof Number[] numbers) {
+            results = new long[numbers.length];
+            for (int i = 0; i < results.length; i++) {
+                results[i] = numbers[i].longValue();
+            }
+        } else if (value instanceof int[] integers) {
+            results = new long[integers.length];
+            for (int i = 0; i < integers.length; i++) {
+                results[i] = integers[i];
+            }
+        } else if (value != null) {
+            throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
+                    " has wrong type: " + value.getClass().getSimpleName() +
+                    " instead of expected Number, Number[], long[] or int[]");
+        }
+        return results;
+    }
+
+    public int[] getIntArray(int tag) throws FormatException {
+        final Object value = getValue(tag);
+        int[] results = null;
+        if (value instanceof int[]) {
+            results = (int[]) value;
+        } else if (value instanceof Number) {
+            results = new int[] { checkedIntValue(((Number) value).intValue(), tag) };
+        } else if (value instanceof long[] longs) {
+            results = new int[longs.length];
+            for (int i = 0; i < longs.length; i++) {
+                results[i] = checkedIntValue(longs[i], tag);
+            }
+        } else if (value instanceof Number[] numbers) {
+            results = new int[numbers.length];
+            for (int i = 0; i < results.length; i++) {
+                results[i] = checkedIntValue(numbers[i].longValue(), tag);
+            }
+        } else if (value != null) {
+            throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
+                    " has wrong type: " + value.getClass().getSimpleName() +
+                    " instead of expected Number, Number[], long[] or int[]");
+        }
+        return results;
     }
 
     // This method is overridden with change of behaviour: it never throws exception and returns false instead.
@@ -534,7 +584,7 @@ public class TiffIFD extends IFD {
     // This method is overridden for removing usage of log field
     @Override
     public int[] getBitsPerSample() throws FormatException {
-        int[] bitsPerSample = getIFDIntArray(BITS_PER_SAMPLE);
+        int[] bitsPerSample = getIntArray(BITS_PER_SAMPLE);
         if (bitsPerSample == null) {
             bitsPerSample = new int[]{1};
             // - In the following loop, this array will be appended to necessary length.
@@ -575,7 +625,7 @@ public class TiffIFD extends IFD {
                 return -1;
             }
         }
-        int[] sampleFormats = getIFDIntArray(SAMPLE_FORMAT);
+        int[] sampleFormats = getIntArray(SAMPLE_FORMAT);
         if (sampleFormats == null) {
             sampleFormats = new int[]{SAMPLE_FORMAT_UINT};
         }
@@ -672,9 +722,9 @@ public class TiffIFD extends IFD {
     public long[] getTileOrStripByteCounts() throws FormatException {
         final boolean tiled = hasTileInformation();
         final int tag = tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS;
-        long[] counts = getIFDLongArray(tag);
+        long[] counts = getLongArray(tag);
         if (tiled && counts == null) {
-            counts = getIFDLongArray(STRIP_BYTE_COUNTS);
+            counts = getLongArray(STRIP_BYTE_COUNTS);
             // - rare situation, when tile byte counts are actually stored in StripByteCounts
         }
         if (counts == null) {
@@ -745,11 +795,11 @@ public class TiffIFD extends IFD {
                 throw new FormatException("Failed to retrieve offset", e);
             }
         } else {
-            offsets = getIFDLongArray(tag);
+            offsets = getLongArray(tag);
         }
         if (tiled && offsets == null) {
             // - rare situation, when tile offsets are actually stored in StripOffsets
-            offsets = getIFDLongArray(STRIP_OFFSETS);
+            offsets = getLongArray(STRIP_OFFSETS);
         }
         if (offsets == null) {
             throw new FormatException("Invalid IFD: no required StripOffsets/TileOffsets tag");
@@ -943,7 +993,7 @@ public class TiffIFD extends IFD {
     }
 
     public int getStripRows() throws FormatException {
-        final long[] rowsPerStrip = getIFDLongArray(ROWS_PER_STRIP);
+        final long[] rowsPerStrip = getLongArray(ROWS_PER_STRIP);
         final int imageDimY = getImageDimY();
         if (rowsPerStrip == null || rowsPerStrip.length == 0) {
             // - zero rowsPerStrip.length is possible only as a result of manual modification of this IFD

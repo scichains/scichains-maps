@@ -514,7 +514,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     // if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
                     //     fillInIFD(ifd);
                     // }
-                    subOffsets = ifd.getIFDLongArray(IFD.SUB_IFD);
+                    subOffsets = ifd.getLongArray(IFD.SUB_IFD);
                 } catch (final FormatException ignored) {
                 }
                 if (subOffsets != null) {

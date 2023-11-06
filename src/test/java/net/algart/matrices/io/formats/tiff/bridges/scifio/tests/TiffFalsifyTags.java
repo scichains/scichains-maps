@@ -25,6 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
+import io.scif.formats.tiff.PhotoInterp;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
@@ -33,21 +34,25 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class TiffFalsifyDimensions {
+public class TiffFalsifyTags {
     public static void main(String[] args) throws IOException, FormatException {
         int startArgIndex = 0;
         if (args.length < startArgIndex + 4) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffFalsifyDimensions.class.getName()
-                    + " target.tif ifdIndex newWidth newLength");
-            System.out.println("where newWidth/newLength are new sizes of this IFD " +
-                    "(but you should not try to increase total number of pixels)");
+            System.out.println("    " + TiffFalsifyTags.class.getName()
+                    + " target.tif ifdIndex newWidth newLength [colorSpace]");
+            System.out.println("newWidth/newLength are (0,0) (to avoid changing) or " +
+                    "new sizes of this IFD (but you should not try to increase total number of pixels)");
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex++]);
         final int ifdIndex = Integer.parseInt(args[startArgIndex++]);
         final int newDimX = Integer.parseInt(args[startArgIndex++]);
-        final int newDimY = Integer.parseInt(args[startArgIndex]);
+        final int newDimY = Integer.parseInt(args[startArgIndex++]);
+        PhotoInterp photometricInterpretation = null;
+        if (startArgIndex < args.length) {
+            photometricInterpretation = PhotoInterp.valueOf(args[startArgIndex++]);
+        }
 
         try (TiffReader reader = new TiffReader(targetFile);
              TiffWriter writer = new TiffWriter(targetFile)) {
@@ -57,7 +62,12 @@ public class TiffFalsifyDimensions {
             System.out.printf("Transforming %s...%n", targetFile);
             final TiffIFD ifd = reader.readSingleIFD(ifdIndex);
             ifd.setFileOffsetForWriting(ifd.getFileOffsetForReading());
-            ifd.putImageDimensions(newDimX, newDimY);
+            if (newDimX > 0 && newDimY > 0) {
+                ifd.putImageDimensions(newDimX, newDimY);
+            }
+            if (photometricInterpretation != null) {
+                ifd.putPhotometricInterpretation(photometricInterpretation);
+            }
             writer.rewriteIFD(ifd, false);
             // - replacing dimensions
         }

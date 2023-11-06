@@ -300,7 +300,7 @@ public final class SVSIFDClassifier {
     }
 
     static boolean isSmallImage(TiffIFD ifd) throws FormatException {
-        final long[] tileOffsets = ifd.getIFDLongArray(IFD.TILE_OFFSETS);
+        final long[] tileOffsets = ifd.getLongArray(IFD.TILE_OFFSETS);
 //        System.out.println(tileOffsets == null ? "null" : tileOffsets.length);
         return tileOffsets == null &&
                 (long) ifd.getImageDimX() * (long) ifd.getImageDimY() < MAX_PIXEL_COUNT_IN_SPECIAL_IMAGES;

@@ -154,6 +154,7 @@ public class TiffReaderTest {
                                 w, h, bandCount, new TiffInfo().ifdInfo(map.ifd(), ifdIndex, maps.size()));
                     }
                     t1 = System.nanoTime();
+//                    map.ifd().put(258, new double[] {3});
                     array = reader.readImage(map, x, y, w, h);
                     t2 = System.nanoTime();
                     System.out.printf(Locale.US, "Test #%d: %dx%d loaded in %.3f ms%n",
