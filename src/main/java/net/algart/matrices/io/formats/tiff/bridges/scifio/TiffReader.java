@@ -697,7 +697,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (startOffset >= in.length()) {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
-            final Map<Integer, TiffIFDEntry> entries = new LinkedHashMap<>();
+            final Map<Integer, TiffIFD.IFDEntry> entries = new LinkedHashMap<>();
             ifd = new TiffIFD(entries).setFileOffsetForReading(startOffset);
             ifd.setSubIFDType(subIFDType);
 
@@ -722,8 +722,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 long tEntry1 = debugTime();
                 in.seek(startOffset + baseOffset + bytesPerEntry * i);
 
-                final TiffIFDEntry entry = readIFDEntry();
-                final int tag = entry.getTag();
+                final TiffIFD.IFDEntry entry = readIFDEntry();
+                final int tag = entry.tag();
                 long tEntry2 = debugTime();
                 timeEntries += tEntry2 - tEntry1;
 
@@ -1001,7 +1001,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
      * <b>does not unpack 16- or 24-bit</b> floating-point formats. These cases
      * are processed after reading all tiles inside {@link #readSamples(TiffMap, int, int, int, int)}
      * method, if {@link #isAutoUnpackUnusualPrecisions()} flag is set, or may be performed by external
-     * code with help of {@link TiffTools#unpackUnusualPrecisions(byte[], TiffIFD, int, int)} method.
+     * code with help of {@link TiffTools#unpackUnusualPrecisions(byte[], TiffIFD, int, int, boolean)} method.
      *
      * <p>This method does not allow 5, 6, 7 or greater than 8 bytes/sample
      * (but 8 bytes/sample is allowed: it is probably <tt>double</tt> precision).</p>
@@ -1509,14 +1509,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return offset;
     }
 
-    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFDEntry entry)
+    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFD.IFDEntry entry)
             throws IOException, FormatException {
-        final IFDType type = entry.getType();
-        final int count = entry.getValueCount();
-        final long offset = entry.getValueOffset();
+        final IFDType type = entry.type();
+        final int count = entry.valueCount();
+        final long offset = entry.valueOffset();
 
         LOG.log(System.Logger.Level.TRACE, () ->
-                "Reading entry " + entry.getTag() + " from " + offset + "; type=" + type + ", count=" + count);
+                "Reading entry " + entry.tag() + " from " + offset + "; type=" + type + ", count=" + count);
 
         in.seek(offset);
         if (type == IFDType.BYTE) {
@@ -1684,7 +1684,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return bytes;
     }
 
-    private TiffIFDEntry readIFDEntry() throws IOException, FormatException {
+    private TiffIFD.IFDEntry readIFDEntry() throws IOException, FormatException {
         final int entryTag = in.readUnsignedShort();
         final int entryTypeCode = in.readUnsignedShort();
 
@@ -1717,9 +1717,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     " + total lengths of values " + valueLength + " = " + valueCount + "*" + bytesPerElement +
                     " is outside the file length " + in.length());
         }
-        final TiffIFDEntry result = new TiffIFDEntry(entryTag, entryType, valueCount, valueOffset);
+        final TiffIFD.IFDEntry result = new TiffIFD.IFDEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
-                "Reading IFD entry: %s - %s", result, TiffIFD.ifdTagName(result.getTag(), true)));
+                "Reading IFD entry: %s - %s", result, TiffIFD.ifdTagName(result.tag(), true)));
         return result;
     }
 

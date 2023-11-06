@@ -235,7 +235,7 @@ public class TiffIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(TiffIFD.class.getName());
 
-    private final Map<Integer, TiffIFDEntry> entries;
+    private final Map<Integer, IFDEntry> entries;
     private long fileOffsetForReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
@@ -268,10 +268,10 @@ public class TiffIFD extends IFD {
     }
 
     public TiffIFD() {
-        this((Map<Integer, TiffIFDEntry>) null);
+        this((Map<Integer, IFDEntry>) null);
     }
 
-    public TiffIFD(Map<Integer, TiffIFDEntry> entries) {
+    TiffIFD(Map<Integer, IFDEntry> entries) {
         super(null);
         // Note: log argument is never used in this class.
         this.entries = entries;
@@ -467,8 +467,8 @@ public class TiffIFD extends IFD {
     }
 
     public Optional<IFDType> optType(int tag) {
-        TiffIFDEntry entry = entries == null ? null : entries.get(tag);
-        return entry == null ? Optional.empty() : Optional.ofNullable(entry.getType());
+        IFDEntry entry = entries == null ? null : entries.get(tag);
+        return entry == null ? Optional.empty() : Optional.ofNullable(entry.type());
     }
 
     public boolean optBoolean(int tag, boolean defaultValue) {
@@ -1609,7 +1609,7 @@ public class TiffIFD extends IFD {
             return sb.toString();
         }
         sb.append("; ").append(numberOfEntries()).append(" entries:");
-        final Map<Integer, TiffIFDEntry> entries = this.entries;
+        final Map<Integer, IFDEntry> entries = this.entries;
         final Collection<Integer> keySequence = format.sorted ?
                 new TreeSet<>(this.keySet()) : entries != null ?
                 entries.keySet() : this.keySet();
@@ -1677,15 +1677,15 @@ public class TiffIFD extends IFD {
                 sb.append(v);
             }
             if (entries != null) {
-                final TiffIFDEntry ifdEntry = entries.get(tag);
+                final IFDEntry ifdEntry = entries.get(tag);
                 if (ifdEntry != null) {
-                    sb.append(" : ").append(ifdEntry.getType());
-                    int valueCount = ifdEntry.getValueCount();
+                    sb.append(" : ").append(ifdEntry.type());
+                    int valueCount = ifdEntry.valueCount();
                     if (valueCount != 1) {
                         sb.append("[").append(valueCount).append("]");
                     }
                     if (manyValues) {
-                        sb.append(" at @").append(ifdEntry.getValueOffset());
+                        sb.append(" at @").append(ifdEntry.valueOffset());
                     }
                 }
             }
@@ -1851,5 +1851,9 @@ public class TiffIFD extends IFD {
             sb.append('0');
         }
         sb.append(Integer.toHexString(v));
+    }
+
+    // Helper class for internal needs, analog of SCIFIO TiffIFDEntry
+    record IFDEntry(int tag, IFDType type, int valueCount, long valueOffset) {
     }
 }

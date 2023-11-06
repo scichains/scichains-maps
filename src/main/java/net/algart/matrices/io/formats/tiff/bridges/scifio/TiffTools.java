@@ -886,10 +886,10 @@ public class TiffTools {
         }
     }
 
-    // Exact copy of old TiffParser.unpackBytes method
+    // Almost exact copy of old TiffParser.unpackBytes method
     static void unpackBytesLegacy(
             final byte[] samples, final int startIndex,
-            final byte[] bytes, final IFD ifd) throws FormatException {
+            final byte[] bytes, final TiffIFD ifd) throws FormatException {
         final boolean planar = ifd.getPlanarConfiguration() == 2;
 
         final TiffCompression compression = ifd.getCompression();
@@ -912,8 +912,8 @@ public class TiffTools {
 //                startIndex + "; totalBits=" + (nChannels * bitsPerSample[0]) +
 //                "; numBytes=" + bytes.length + ")");
 
-        final long imageWidth = ifd.getImageWidth();
-        final long imageHeight = ifd.getImageLength();
+        final long imageWidth = ifd.getImageDimX();
+        final long imageHeight = ifd.getImageDimY();
 
         final int bps0 = bitsPerSample[0];
         final int numBytes = ifd.getBytesPerSample()[0];
@@ -956,11 +956,11 @@ public class TiffTools {
         float lumaRed = PhotoInterp.LUMA_RED;
         float lumaGreen = PhotoInterp.LUMA_GREEN;
         float lumaBlue = PhotoInterp.LUMA_BLUE;
-        int[] reference = ifd.getIFDIntArray(IFD.REFERENCE_BLACK_WHITE);
+        int[] reference = ifd.getIntArray(IFD.REFERENCE_BLACK_WHITE);
         if (reference == null) {
             reference = new int[]{0, 0, 0, 0, 0, 0};
         }
-        final int[] subsampling = ifd.getIFDIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
+        final int[] subsampling = ifd.getIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
         final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(
                 IFD.Y_CB_CR_COEFFICIENTS);
         if (coefficients != null) {
