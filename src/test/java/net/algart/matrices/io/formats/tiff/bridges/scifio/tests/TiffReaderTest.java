@@ -27,19 +27,13 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.arrays.*;
-import net.algart.executors.api.data.SMat;
+import net.algart.external.ExternalAlgorithmCaller;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
-import net.algart.multimatrix.MultiMatrix;
-import net.algart.multimatrix.MultiMatrix2D;
 import org.scijava.Context;
 
-import javax.imageio.IIOException;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,11 +49,6 @@ public class TiffReaderTest {
         boolean noContext = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
             noContext = true;
-            startArgIndex++;
-        }
-        boolean contrast = false;
-        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-contrast")) {
-            contrast = true;
             startArgIndex++;
         }
         boolean cache = false;
@@ -163,32 +152,21 @@ public class TiffReaderTest {
                 }
 
                 System.out.printf("Saving result image into %s...%n", resultFile);
-                writeImageFile(array, w, h, bandCount, resultFile, contrast);
+                writeImageFile(array, w, h, bandCount, resultFile);
                 reader.close();
             }
             System.out.printf("Done repeat %d/%d%n%n", repeat, numberOfCompleteRepeats);
         }
     }
 
-    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile, boolean contrast)
-            throws IOException {
-        final BufferedImage image = unpackedArrayToImage(array, w, h, bandCount, contrast);
-        writeImageFile(image, resultFile.toFile());
+    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile) throws IOException {
+        List<Matrix<? extends PArray>> image = unpackedArrayToImage(array, w, h, bandCount);
+        ExternalAlgorithmCaller.writeImage(resultFile.toFile(), image);
     }
 
-    private static void writeImageFile(BufferedImage image, File resultFile) throws IOException {
-        if (image == null) {
-            System.err.printf("Warning: zero-sizes image cannot be written into %s%n", resultFile);
-            return;
-        }
-        if (!ImageIO.write(image, TiffInfo.extension(resultFile.getName(), "bmp"), resultFile)) {
-            throw new IIOException("Cannot write " + resultFile);
-        }
-    }
-
-    private static BufferedImage unpackedArrayToImage(
-            Object data, int sizeX, int sizeY, int bandCount, boolean contrast) {
-        if (data instanceof int[] ints && !contrast) {
+    private static List<Matrix<? extends PArray>> unpackedArrayToImage(
+            Object data, int sizeX, int sizeY, int bandCount) {
+        if (data instanceof int[] ints) {
             // - standard method SMat.toBufferedImage uses AlgART interpretation: 2^31 is white;
             // it is incorrect for TIFF files
             byte[] bytes = new byte[ints.length];
@@ -200,20 +178,16 @@ public class TiffReaderTest {
         Matrix<UpdatablePArray> matrix = Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
                 sizeX, sizeY, bandCount);
+        if (matrix.size() == 0) {
+            return null;
+            // - provided for testing only (BufferedImage cannot have zero sizes)
+        }
         List<Matrix<? extends PArray>> channels = new ArrayList<>();
         for (int k = 0; k < bandCount; k++) {
             UpdatablePArray array = matrix.subMatr(0, 0, k, sizeX, sizeY, 1).array();
             channels.add(Matrices.matrix(array, sizeX, sizeY));
         }
-        MultiMatrix2D multiMatrix = MultiMatrix.valueOf2DRGBA(channels);
-        if (multiMatrix.size() == 0) {
-            return null;
-            // - provided for testing only (BufferedImage cannot have zero sizes)
-        }
-        if (contrast) {
-            multiMatrix = multiMatrix.contrast();
-        }
-        return SMat.valueOf(multiMatrix).toBufferedImage();
+        return channels;
     }
 
 }

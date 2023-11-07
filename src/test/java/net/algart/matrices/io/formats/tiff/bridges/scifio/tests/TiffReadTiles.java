@@ -85,7 +85,7 @@ public class TiffReadTiles {
 
             final Path imageFile = resultFolder.resolve("result.bmp");
             System.out.printf("Saving result image into %s...%n", imageFile);
-            TiffReaderTest.writeImageFile(array, w, h, map.numberOfChannels(), imageFile, false);
+            TiffReaderTest.writeImageFile(array, w, h, map.numberOfChannels(), imageFile);
             for (TiffTile tile : map.tiles()) {
                 if (!tile.isEmpty()) {
                     final Path tileFile = tilePath(tile, resultFolder);
@@ -95,8 +95,7 @@ public class TiffReadTiles {
                     TiffReaderTest.writeImageFile(
                             tileArray,
                             tile.getSizeX(), tile.getSizeY(), tile.samplesPerPixel(),
-                            tileFile,
-                            false);
+                            tileFile);
                 }
             }
         }
