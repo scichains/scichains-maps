@@ -28,13 +28,14 @@ import io.scif.FormatException;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
+import org.scijava.log.LogService;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Supplier;
 
-public class TiffIFD extends IFD {
+public class TiffIFD {
     public enum StringFormat {
         BRIEF(true, false),
         NORMAL(true, false),
@@ -235,7 +236,8 @@ public class TiffIFD extends IFD {
 
     private static final System.Logger LOG = System.getLogger(TiffIFD.class.getName());
 
-    private final Map<Integer, IFDEntry> entries;
+    private final Map<Integer, Object> map;
+    private final Map<Integer, IFDEntry> detailedEntries;
     private long fileOffsetForReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
@@ -245,36 +247,37 @@ public class TiffIFD extends IFD {
     private volatile long[] cachedTileOrStripByteCounts = null;
     private volatile long[] cachedTileOrStripOffsets = null;
 
-    public TiffIFD(IFD ifd) {
-        super(ifd, null);
-        // Note: log argument is never used in this class.
-        if (ifd instanceof TiffIFD tiffIFD) {
-            fileOffsetForReading = tiffIFD.fileOffsetForReading;
-            fileOffsetForWriting = tiffIFD.fileOffsetForWriting;
-            nextIFDOffset = tiffIFD.nextIFDOffset;
-            entries = tiffIFD.entries == null ? null : new LinkedHashMap<>(tiffIFD.entries);
-            subIFDType = tiffIFD.subIFDType;
-            frozen = false;
-            // - Important: a copy is not frozen!
-            // And it is the only way to clear this flag.
-        } else {
-            entries = null;
-        }
+    public TiffIFD() {
+        this(new LinkedHashMap<>());
+    }
+
+    public TiffIFD(Map<Integer, Object> ifd) {
+        this(ifd, null);
     }
 
     @SuppressWarnings("CopyConstructorMissesField")
-    public TiffIFD(TiffIFD tiffIFD) {
-        this((IFD) tiffIFD);
+    public TiffIFD(TiffIFD ifd) {
+        fileOffsetForReading = ifd.fileOffsetForReading;
+        fileOffsetForWriting = ifd.fileOffsetForWriting;
+        nextIFDOffset = ifd.nextIFDOffset;
+        map = new LinkedHashMap<>(ifd.map);
+        detailedEntries = ifd.detailedEntries == null ? null : new LinkedHashMap<>(ifd.detailedEntries);
+        subIFDType = ifd.subIFDType;
+        frozen = false;
+        // - Important: a copy is not frozen!
+        // And it is the only way to clear this flag.
     }
 
-    public TiffIFD() {
-        this((Map<Integer, IFDEntry>) null);
+    TiffIFD(Map<Integer, Object> ifd, Map<Integer, IFDEntry> detailedEntries) {
+        Objects.requireNonNull(ifd);
+        this.map = new LinkedHashMap<>(ifd);
+        this.detailedEntries = detailedEntries;
     }
 
-    TiffIFD(Map<Integer, IFDEntry> entries) {
-        super(null);
-        // Note: log argument is never used in this class.
-        this.entries = entries;
+    public IFD toScifioIFD(LogService log) {
+        IFD result = new IFD(log);
+        result.putAll(map);
+        return result;
     }
 
     public boolean hasFileOffsetForReading() {
@@ -401,10 +404,14 @@ public class TiffIFD extends IFD {
         return this;
     }
 
+    public Map<Integer, Object> allTags() {
+        return Collections.unmodifiableMap(map);
+    }
+
     public <M extends Map<Integer, Object>> M removePseudoTags(Supplier<M> mapFactory) {
         Objects.requireNonNull(mapFactory, "Null mapFactory");
         final M result = mapFactory.get();
-        for (Map.Entry<Integer, Object> entry : entrySet()) {
+        for (Map.Entry<Integer, Object> entry : map.entrySet()) {
             if (!isPseudoTag(entry.getKey())) {
                 result.put(entry.getKey(), entry.getValue());
             }
@@ -413,7 +420,7 @@ public class TiffIFD extends IFD {
     }
 
     public int numberOfEntries() {
-        return (int) keySet().stream().filter(key -> !isPseudoTag(key)).count();
+        return (int) map.keySet().stream().filter(key -> !isPseudoTag(key)).count();
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
@@ -426,6 +433,14 @@ public class TiffIFD extends IFD {
         return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), equalBytesPerSample(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample",
                 () -> "Invalid requested area: ", () -> "");
+    }
+
+    public boolean containsKey(int key) {
+        return map.containsKey(key);
+    }
+
+    public Object get(int key) {
+        return map.get(key);
     }
 
     public <R> Optional<R> optValue(final int tag, final Class<? extends R> requiredClass) {
@@ -463,7 +478,7 @@ public class TiffIFD extends IFD {
     }
 
     public Optional<IFDType> optType(int tag) {
-        IFDEntry entry = entries == null ? null : entries.get(tag);
+        IFDEntry entry = detailedEntries == null ? null : detailedEntries.get(tag);
         return entry == null ? Optional.empty() : Optional.ofNullable(entry.type());
     }
 
@@ -545,20 +560,14 @@ public class TiffIFD extends IFD {
         return results;
     }
 
-    // This method is overridden with change of behaviour: it never throws exception and returns false instead.
-    @Override
     public boolean isBigTiff() {
         return optBoolean(BIG_TIFF, false);
     }
 
-    // This method is overridden with change of behaviour: it never throws exception and returns false instead.
-    @Override
     public boolean isLittleEndian() {
         return optBoolean(LITTLE_ENDIAN, false);
     }
 
-    // This method is overridden to check that result is positive and to avoid exception for illegal compression
-    @Override
     public int getSamplesPerPixel() throws FormatException {
         int compressionValue = getInt(COMPRESSION, 0);
         if (compressionValue == TiffCompression.OLD_JPEG.getCode()) {
@@ -577,8 +586,6 @@ public class TiffIFD extends IFD {
         return samplesPerPixel;
     }
 
-    // This method is overridden for removing usage of log field
-    @Override
     public int[] getBitsPerSample() throws FormatException {
         int[] bitsPerSample = getIntArray(BITS_PER_SAMPLE);
         if (bitsPerSample == null) {
@@ -604,6 +611,17 @@ public class TiffIFD extends IFD {
             bitsPerSample = newBitsPerSample;
         }
         return bitsPerSample;
+    }
+
+    public int[] getBytesPerSample() throws FormatException {
+        final int[] bitsPerSample = getBitsPerSample();
+        final int[] result = new int[bitsPerSample.length];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = (bitsPerSample[i] + 7) >>> 3;
+            // ">>>" for a case of integer overflow
+            assert result[i] >= 0;
+        }
+        return result;
     }
 
     public int pixelType() throws FormatException {
@@ -705,16 +723,6 @@ public class TiffIFD extends IFD {
         return result;
     }
 
-    /**
-     * Use {@link #pixelType()} instead, that does not permit unsupported number of bits.
-     */
-    @Deprecated
-    public int getPixelType() throws FormatException {
-        return super.getPixelType();
-    }
-
-    // This method replaces old getStripByteCounts to remove extra support of absence of StripByteCounts
-    // and to remove extra doubling result for LZW (may lead to a bug)
     public long[] getTileOrStripByteCounts() throws FormatException {
         final boolean tiled = hasTileInformation();
         final int tag = tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS;
@@ -732,15 +740,6 @@ public class TiffIFD extends IFD {
                     ") does not match expected number of strips/tiles (" + numberOfTiles + ")");
         }
         return counts;
-    }
-
-    /**
-     * Use {@link #getTileOrStripByteCounts()} instead.
-     */
-    @Deprecated
-    @Override
-    public long[] getStripByteCounts() throws FormatException {
-        return super.getStripByteCounts();
     }
 
     public long[] cachedTileOrStripByteCounts() throws FormatException {
@@ -774,7 +773,6 @@ public class TiffIFD extends IFD {
         return (int) result;
     }
 
-    // This method replaces old getStripOffsets()
     public long[] getTileOrStripOffsets() throws FormatException {
         final boolean tiled = hasTileInformation();
         final int tag = tiled ? TILE_OFFSETS : STRIP_OFFSETS;
@@ -812,15 +810,6 @@ public class TiffIFD extends IFD {
         // But it is not necessary with new TiffReader: if reads correct 32-bit unsigned values.
 
         return offsets;
-    }
-
-    /**
-     * Use {@link #getTileOrStripOffsets()} instead.
-     */
-    @Deprecated
-    @Override
-    public long[] getStripOffsets() throws FormatException {
-        return super.getStripOffsets();
     }
 
     public long[] cachedTileOrStripOffsets() throws FormatException {
@@ -864,7 +853,6 @@ public class TiffIFD extends IFD {
         }
     }
 
-    @Override
     public TiffCompression getCompression() throws FormatException {
         final int code = getInt(COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
         try {
@@ -874,7 +862,6 @@ public class TiffIFD extends IFD {
         }
     }
 
-    @Override
     public PhotoInterp getPhotometricInterpretation() throws FormatException {
         final Object photometricInterpretation = get(PHOTOMETRIC_INTERPRETATION);
         if (photometricInterpretation instanceof PhotoInterp) {
@@ -934,18 +921,30 @@ public class TiffIFD extends IFD {
     }
 
 
-    // Usually false: PlanarConfiguration=2 is not in widespread use
+    public int getPlanarConfiguration() throws FormatException {
+        final int result = getInt(PLANAR_CONFIGURATION, 1);
+        if (result != 1 && result != 2) {
+            throw new FormatException("TIFF tag PlanarConfiguration must contain only values 1 or 2, " +
+                    "but it is " + result);
+        }
+        return result;
+    }
+
     public boolean isPlanarSeparated() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_SEPARATE;
     }
 
-    // Usually true: PlanarConfiguration=2 is not in widespread use
     public boolean isChunked() throws FormatException {
         return getPlanarConfiguration() == PLANAR_CONFIGURATION_CHUNKED;
     }
 
     public boolean isReversedBits() throws FormatException {
-        return getFillOrder() == FillOrder.REVERSED;
+        final int result = getInt(FILL_ORDER, 1);
+        if (result != 1 && result != 2) {
+            throw new FormatException("TIFF tag FillOrder must contain only values 1 or 2, " +
+                    "but it is " + result);
+        }
+        return result == 2;
     }
 
     public boolean hasImageDimensions() {
@@ -968,24 +967,6 @@ public class TiffIFD extends IFD {
             // - impossible in a correct TIFF
         }
         return imageLength;
-    }
-
-    /**
-     * Use {@link #getImageDimX()} instead.
-     */
-    @Deprecated
-    @Override
-    public long getImageWidth() throws FormatException {
-        return getImageDimX();
-    }
-
-    /**
-     * Use {@link #getImageDimY()} instead.
-     */
-    @Deprecated
-    @Override
-    public long getImageLength() throws FormatException {
-        return getImageDimY();
     }
 
     public int getStripRows() throws FormatException {
@@ -1016,15 +997,6 @@ public class TiffIFD extends IFD {
     }
 
     /**
-     * Use {@link #getStripRows()} instead.
-     */
-    @Deprecated
-    @Override
-    public long[] getRowsPerStrip() throws FormatException {
-        return super.getRowsPerStrip();
-    }
-
-    /**
      * Returns the tile width in tiled image. If there are no tiles,
      * returns max(w,1), where w is the image width.
      *
@@ -1049,15 +1021,6 @@ public class TiffIFD extends IFD {
         // - imageDimX == 0 is checked to be on the safe side
     }
 
-
-    /**
-     * Use {@link #getTileSizeX()} instead.
-     */
-    @Deprecated
-    @Override
-    public long getTileWidth() throws FormatException {
-        return getTileSizeX();
-    }
 
     /**
      * Returns the tile height in tiled image, strip height in other images. If there are no tiles or strips,
@@ -1085,15 +1048,6 @@ public class TiffIFD extends IFD {
         // it allows to avoid additional checks in a calling code
     }
 
-    /**
-     * Use {@link #getTileSizeY()} instead.
-     */
-    @Deprecated
-    @Override
-    public long getTileLength() throws FormatException {
-        return getTileSizeY();
-    }
-
     public int getTileCountX() throws FormatException {
         int tileSizeX = getTileSizeX();
         if (tileSizeX <= 0) {
@@ -1105,16 +1059,6 @@ public class TiffIFD extends IFD {
         return (int) n;
     }
 
-    /**
-     * Use {@link #getTileCountX()} method or
-     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap} class instead.
-     */
-    @Deprecated
-    @Override
-    public long getTilesPerRow() throws FormatException {
-        return getTileCountX();
-    }
-
     public int getTileCountY() throws FormatException {
         int tileSizeY = getTileSizeY();
         if (tileSizeY <= 0) {
@@ -1124,16 +1068,6 @@ public class TiffIFD extends IFD {
         final long n = (imageLength + (long) tileSizeY - 1) / tileSizeY;
         assert n <= Integer.MAX_VALUE : "ceil(" + imageLength + "/" + tileSizeY + ") > Integer.MAX_VALUE";
         return (int) n;
-    }
-
-    /**
-     * Use {@link #getTileCountY()} method or
-     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap} class instead.
-     */
-    @Deprecated
-    @Override
-    public long getTilesPerColumn() throws FormatException {
-        return getTileCountY();
     }
 
     /**
@@ -1366,15 +1300,6 @@ public class TiffIFD extends IFD {
         return hasWidth;
     }
 
-    /**
-     * Use {@link #hasTileInformation()} instead.
-     */
-    @Deprecated
-    @Override
-    public boolean isTiled() {
-        return super.isTiled();
-    }
-
     public TiffIFD putTileSizes(int tileSizeX, int tileSizeY) {
         if (tileSizeX <= 0) {
             throw new IllegalArgumentException("Zero or negative tile x-size");
@@ -1442,8 +1367,8 @@ public class TiffIFD extends IFD {
         }
         removeEntries(IMAGE_WIDTH, IMAGE_LENGTH);
         // - to avoid illegal detection of the type
-        super.put(IMAGE_WIDTH, dimX);
-        super.put(IMAGE_LENGTH, dimY);
+        map.put(IMAGE_WIDTH, dimX);
+        map.put(IMAGE_LENGTH, dimY);
         return this;
     }
 
@@ -1484,47 +1409,32 @@ public class TiffIFD extends IFD {
         }
         removeEntries(TILE_OFFSETS, STRIP_OFFSETS, TILE_BYTE_COUNTS, STRIP_BYTE_COUNTS);
         // - to avoid illegal detection of the type
-        super.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
-        super.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
+        map.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
+        map.put(tiled ? TILE_BYTE_COUNTS : STRIP_BYTE_COUNTS, byteCounts);
         // Just in case, let's also remove extra tags:
-        super.remove(tiled ? STRIP_OFFSETS : TILE_OFFSETS);
-        super.remove(tiled ? STRIP_BYTE_COUNTS : TILE_BYTE_COUNTS);
+        map.remove(tiled ? STRIP_OFFSETS : TILE_OFFSETS);
+        map.remove(tiled ? STRIP_BYTE_COUNTS : TILE_BYTE_COUNTS);
     }
 
-    @Override
-    public Object put(Integer key, Object value) {
+    public Object put(int key, Object value) {
         checkImmutable();
         removeEntries(key);
         // - necessary to avoid possible bugs with detection of type
-        return super.put(key, value);
+        return map.put(key, value);
     }
 
-    @Override
-    public void putAll(Map<? extends Integer, ?> m) {
-        Objects.requireNonNull(m, "Null map");
+    public Object remove(int key) {
         checkImmutable();
-        for (Integer key : m.keySet()) {
-            removeEntries(key);
-        }
-        super.putAll(m);
+        removeEntries(key);
+        return map.remove(key);
     }
 
-    @Override
-    public Object remove(Object key) {
-        checkImmutable();
-        if (key instanceof Integer k) {
-            removeEntries(k);
-        }
-        return super.remove(key);
-    }
-
-    @Override
     public void clear() {
         checkImmutable();
-        if (entries != null) {
-            entries.clear();
+        if (detailedEntries != null) {
+            detailedEntries.clear();
         }
-        super.clear();
+        map.clear();
     }
 
 
@@ -1605,11 +1515,8 @@ public class TiffIFD extends IFD {
             return sb.toString();
         }
         sb.append("; ").append(numberOfEntries()).append(" entries:");
-        final Map<Integer, IFDEntry> entries = this.entries;
-        final Collection<Integer> keySequence = format.sorted ?
-                new TreeSet<>(this.keySet()) : entries != null ?
-                entries.keySet() : this.keySet();
-        // - entries.keySet provides guaranteed order of keys
+        final Map<Integer, IFDEntry> entries = this.detailedEntries;
+        final Collection<Integer> keySequence = format.sorted ? new TreeSet<>(map.keySet()) : map.keySet();
         for (Integer tag : keySequence) {
             final Object v = this.get(tag);
             if (tag == LITTLE_ENDIAN || tag == BIG_TIFF) {
@@ -1643,10 +1550,9 @@ public class TiffIFD extends IFD {
                         }
                     }
                     case FILL_ORDER -> {
-                        additional = switch (getFillOrder()) {
-                            case NORMAL -> "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)";
-                            case REVERSED -> "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
-                        };
+                        additional = !isReversedBits() ?
+                            "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)" :
+                            "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
                     }
                     case PREDICTOR -> {
                         if (v instanceof Number number) {
@@ -1692,12 +1598,6 @@ public class TiffIFD extends IFD {
         return sb.toString();
     }
 
-    // This method is overridden for removing usage of log field.
-    @Override
-    public void printIFD() {
-        LOG.log(System.Logger.Level.TRACE, this);
-    }
-
     public static boolean isStandard(TiffCompression compression) {
         Objects.requireNonNull(compression, "Null compression");
         return compression.getCode() <= 10 || compression == TiffCompression.PACK_BITS;
@@ -1723,11 +1623,21 @@ public class TiffIFD extends IFD {
     }
 
     private void removeEntries(int... tags) {
-        if (entries != null) {
+        if (detailedEntries != null) {
             for (int tag : tags) {
-                entries.remove(tag);
+                detailedEntries.remove(tag);
             }
         }
+    }
+
+    // - For compatibility with old TiffParser feature (can be removed in future versions)
+    private OnDemandLongArray getOnDemandStripOffsets() throws FormatException {
+        final int tag = hasTileInformation() ? TILE_OFFSETS : STRIP_OFFSETS;
+        final Object offsets = get(tag);
+        if (offsets instanceof OnDemandLongArray) {
+            return (OnDemandLongArray) offsets;
+        }
+        return null;
     }
 
 

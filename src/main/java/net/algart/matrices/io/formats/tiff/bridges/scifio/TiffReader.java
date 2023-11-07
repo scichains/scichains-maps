@@ -698,7 +698,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, TiffIFD.IFDEntry> entries = new LinkedHashMap<>();
-            ifd = new TiffIFD(entries).setFileOffsetForReading(startOffset);
+            ifd = new TiffIFD(new LinkedHashMap<>(), entries).setFileOffsetForReading(startOffset);
             ifd.setSubIFDType(subIFDType);
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
@@ -762,21 +762,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     (t2 - t1) * 1e-6, timeEntries * 1e-6, timeArrays * 1e-6));
         }
         return ifd;
-    }
-
-    /**
-     * Convenience method for obtaining a stream's first ImageDescription.
-     */
-    public String getComment() throws IOException, FormatException {
-        final IFD firstIFD = firstIFD();
-        if (firstIFD == null) {
-            return null;
-        }
-        // Deprecated solution: "fillInIFD" technique is no longer used
-        //
-        // fillInIFD(firstIFD);
-        //
-        return firstIFD.getComment();
     }
 
     /**

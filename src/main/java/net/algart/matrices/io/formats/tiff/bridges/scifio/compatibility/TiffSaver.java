@@ -148,7 +148,7 @@ public class TiffSaver extends TiffWriter {
      */
     @Deprecated
     public void writeIFD(final IFD ifd, final long nextOffset) throws FormatException, IOException {
-        TiffIFD extended = net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser.extend(ifd);
+        TiffIFD extended = net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser.toTiffIFD(ifd);
         extended.setFileOffsetForWriting(getStream().offset());
         extended.setNextIFDOffset(nextOffset);
         rewriteIFD(extended, true);

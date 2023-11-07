@@ -97,9 +97,9 @@ public class TiffParser extends TiffReader {
         // - This is an interesting undocumented feature: old TiffParser really supported missing tiles!
     }
 
-    public static TiffIFD extend(IFD ifd) {
+    public static TiffIFD toTiffIFD(IFD ifd) {
         Objects.requireNonNull(ifd, "Null IFD");
-        return ifd instanceof TiffIFD tiffIFD ? tiffIFD : new TiffIFD(ifd);
+        return new TiffIFD(ifd);
     }
 
     /**
@@ -628,7 +628,7 @@ public class TiffParser extends TiffReader {
     @Deprecated
     public byte[] getTile(final IFD ifd, byte[] buf, int row, final int col)
             throws FormatException, IOException {
-        TiffMap map = new TiffMap(extend(ifd));
+        TiffMap map = new TiffMap(toTiffIFD(ifd));
         int planeIndex = 0;
         if (map.isPlanarSeparated()) {
             planeIndex = row / map.gridTileCountY();
@@ -665,7 +665,7 @@ public class TiffParser extends TiffReader {
                              final int y, final long width, final long height) throws FormatException,
             IOException {
         TiffTools.checkRequestedArea(x, y, width, height);
-        byte[] result = readSamples(newMap(extend(ifd)), x, y, (int) width, (int) height);
+        byte[] result = readSamples(newMap(toTiffIFD(ifd)), x, y, (int) width, (int) height);
         if (result.length > buf.length) {
             throw new IllegalArgumentException(
                     "Insufficient length of the result buf array: " +
@@ -906,9 +906,10 @@ public class TiffParser extends TiffReader {
     @Override
     protected CodecOptions correctReadingOptions(CodecOptions codecOptions, TiffTile tile, Codec customCodec)
             throws FormatException {
-        TiffIFD ifd = tile.ifd();
+        IFD ifd = tile.ifd().toScifioIFD(null);
         codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR &&
                 ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING) == 1 &&
+                // - these methods do not use logger
                 ycbcrCorrection;
         return codecOptions;
     }
@@ -916,7 +917,7 @@ public class TiffParser extends TiffReader {
     @Deprecated
     private byte[] adjustFillOrder(final IFD ifd, final byte[] buf)
             throws FormatException {
-        TiffTools.invertFillOrderIfRequested(ifd, buf);
+        TiffTools.invertFillOrderIfRequested(toTiffIFD(ifd), buf);
         return buf;
     }
 

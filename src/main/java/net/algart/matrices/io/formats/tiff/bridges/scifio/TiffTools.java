@@ -354,9 +354,9 @@ public class TiffTools {
      * @param bytes bytes
      * @throws FormatException in a case of error in IFD
      */
-    public static void invertFillOrderIfRequested(final IFD ifd, final byte[] bytes) throws FormatException {
+    public static void invertFillOrderIfRequested(TiffIFD ifd, final byte[] bytes) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        if (ifd.getFillOrder() == FillOrder.REVERSED) {
+        if (ifd.isReversedBits()) {
             // swap bits order of all bytes
             for (int i = 0; i < bytes.length; i++) {
                 bytes[i] = REVERSE[bytes[i] & 0xFF];
@@ -961,8 +961,8 @@ public class TiffTools {
             reference = new int[]{0, 0, 0, 0, 0, 0};
         }
         final int[] subsampling = ifd.getIntArray(IFD.Y_CB_CR_SUB_SAMPLING);
-        final TiffRational[] coefficients = (TiffRational[]) ifd.getIFDValue(
-                IFD.Y_CB_CR_COEFFICIENTS);
+        final TiffRational[] coefficients = ifd.optValue(
+                IFD.Y_CB_CR_COEFFICIENTS, TiffRational[].class).orElse(null);
         if (coefficients != null) {
             lumaRed = coefficients[0].floatValue();
             lumaGreen = coefficients[1].floatValue();

@@ -72,7 +72,7 @@ public class PureScifioTiffParserTest {
         final int bandCount = ifd.getSamplesPerPixel();
 
         System.out.printf("Reading data %dx%dx%d from IFD #%d/%d:%n%s%n",
-                w, h, bandCount, ifdIndex, ifDs.size(), net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser.extend(ifd));
+                w, h, bandCount, ifdIndex, ifDs.size(), net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility.TiffParser.toTiffIFD(ifd));
         final int pixelType = ifd.getPixelType();
         final int bytesPerBand = Math.max(1, FormatTools.getBytesPerPixel(pixelType));
         byte[] bytes = null;

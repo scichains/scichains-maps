@@ -320,15 +320,15 @@ public final class SVSIFDClassifier {
         }
     }
 
-    private static double area(IFD ifd) throws FormatException {
-        final long dimX = ifd.getImageWidth();
-        final long dimY = ifd.getImageLength();
+    private static double area(TiffIFD ifd) throws FormatException {
+        final long dimX = ifd.getImageDimX();
+        final long dimY = ifd.getImageDimY();
         return (double) dimX * (double) dimY;
     }
 
-    private static double ratio(IFD ifd) throws FormatException {
-        final long dimX = ifd.getImageWidth();
-        final long dimY = ifd.getImageLength();
+    private static double ratio(TiffIFD ifd) throws FormatException {
+        final long dimX = ifd.getImageDimX();
+        final long dimY = ifd.getImageDimY();
         assert dimX > 0 && dimY > 0;
         // - was checked in checkThatIfdSizesArePositiveIntegers in the SVSPlanePyramidSource constructor
         return (double) Math.max(dimX, dimY) / (double) Math.min(dimX, dimY);

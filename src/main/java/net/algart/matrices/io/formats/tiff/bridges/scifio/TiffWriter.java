@@ -1576,7 +1576,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // this will work even if the original IFD is frozen for writing
             // See https://github.com/scifio/scifio/issues/516
         }
-        CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(ifd, this.codecOptions);
+        CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(
+                ifd.toScifioIFD(null), this.codecOptions);
+        // - logger should not be necessary for correct TiffIFD
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
                     .setQuality(jpegQuality);

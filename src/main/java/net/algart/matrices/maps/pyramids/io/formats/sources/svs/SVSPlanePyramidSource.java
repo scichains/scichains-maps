@@ -556,12 +556,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             final int i = ifdIndex.getAsInt();
             LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                     "SVS reading special image %s (IFD #%d)", kind, i));
-            final IFD ifd = largeData.maps.get(i).ifd();
-            final long width = ifd.getImageWidth();
-            final long height = ifd.getImageLength();
+            final TiffIFD ifd = largeData.maps.get(i).ifd();
+            final int width = ifd.getImageDimX();
+            final int height = ifd.getImageDimY();
             assert width > 0 && height > 0;
-            assert width <= Integer.MAX_VALUE;
-            assert height <= Integer.MAX_VALUE;
             // - already checked in the constructor
             return Optional.of(readData(i, 0, 0, (int) width, (int) height));
         } catch (IOException e) {

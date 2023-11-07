@@ -146,8 +146,8 @@ public class TiffReadWriteTest {
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final TiffIFD readerIFD = ifds.get(ifdIndex);
                     System.out.printf("Copying #%d/%d:%n%s%n", ifdIndex, ifds.size(), readerIFD);
-                    final int w = (int) Math.min((long) readerIFD.getImageDimX(), MAX_IMAGE_DIM);
-                    final int h = (int) Math.min(readerIFD.getImageLength(), MAX_IMAGE_DIM);
+                    final int w = Math.min(readerIFD.getImageDimX(), MAX_IMAGE_DIM);
+                    final int h = Math.min(readerIFD.getImageDimY(), MAX_IMAGE_DIM);
                     final int tileSizeX = readerIFD.getTileSizeX();
                     final int tileSizeY = readerIFD.getTileSizeY();
 
@@ -178,21 +178,22 @@ public class TiffReadWriteTest {
                         if (singleStrip) {
                             paddedH = h;
                         }
+                        final IFD scifioIFD = readerIFD.toScifioIFD(null);
                         final int samplesPerPixel = readerIFD.getSamplesPerPixel();
                         final int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.pixelType());
                         bytes = new byte[paddedW * paddedH * samplesPerPixel * bytesPerSample];
                         @SuppressWarnings("deprecation")
-                        byte[] buf1 = parser.getSamples(readerIFD, bytes, START_X, START_Y, paddedW, paddedH);
+                        byte[] buf1 = parser.getSamples(scifioIFD, bytes, START_X, START_Y, paddedW, paddedH);
                         // - this deprecated method is implemented via new methods
                         // and actually equivalent to TiffReader.readSamples
                         assert buf1 == bytes;
                         buf1 = new byte[bytes.length];
                         byte[] buf2 = new byte[bytes.length];
                         //noinspection deprecation
-                        parser.getSamples(readerIFD, buf1, START_X, START_Y, paddedW, paddedH,
+                        parser.getSamples(scifioIFD, buf1, START_X, START_Y, paddedW, paddedH,
                                 0, 0);
                         // - this deprecated method is a legacy code from old class
-                        originalParser.getSamples(readerIFD, buf2, START_X, START_Y, paddedW, paddedH);
+                        originalParser.getSamples(scifioIFD, buf2, START_X, START_Y, paddedW, paddedH);
                         // - this is absolute old TiffParser
                         if (!planar) {
                             bytes = TiffTools.toInterleavedSamples(
@@ -220,7 +221,7 @@ public class TiffReadWriteTest {
                             compareResults(buf2, bytes, "Old parser");
                             differ = true;
                         }
-                        writerIFD = new TiffIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(readerIFD));
+                        writerIFD = new TiffIFD(PureScifioTiffReadWriteTest.removeUndesirableTags(scifioIFD));
                         if (singleStrip) {
                             writerIFD.putStripSize(h);
                             // - not remove! Removing means default value!
@@ -229,7 +230,7 @@ public class TiffReadWriteTest {
                         // Note: as a result, last strip in this file will be too large!
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
-                                writerIFD, readerIFD.pixelType(), bandCount,
+                                writerIFD.toScifioIFD(null), readerIFD.pixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                         if (differ) {
@@ -251,7 +252,7 @@ public class TiffReadWriteTest {
     // A clone of very old method, helped to use TiffSaver in 2014
     private static void writeSeveralTilesOrStrips(
             final io.scif.formats.tiff.TiffSaver saver,
-            final byte[] data, final TiffIFD ifd,
+            final byte[] data, final IFD ifd,
             final int pixelType, int bandCount,
             final int lefTopX, final int leftTopY,
             final int width, final int height,

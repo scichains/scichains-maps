@@ -124,7 +124,7 @@ public class TiffReaderTest {
                 final TiffMap map;
                 if (compatibility) {
                     //noinspection deprecation
-                    map = reader.newMap(TiffParser.extend(((TiffParser) reader).getIFDs().get(ifdIndex)));
+                    map = reader.newMap(TiffParser.toTiffIFD(((TiffParser) reader).getIFDs().get(ifdIndex)));
                 } else {
                     map = maps.get(ifdIndex);
                 }
