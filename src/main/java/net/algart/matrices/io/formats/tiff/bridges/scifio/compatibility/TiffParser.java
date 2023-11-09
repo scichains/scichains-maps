@@ -48,8 +48,10 @@ import org.scijava.util.IntRect;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Vector;
+import java.util.stream.Collectors;
 
 /**
  * Legacy version of {@link TiffReader} with some deprecated method.
@@ -185,7 +187,21 @@ public class TiffParser extends TiffReader {
     }
 
     /**
-     * Use {@link #allThumbnailIFDs()} ()} instead.
+     * Returns thumbnail IFDs.
+     */
+    public List<TiffIFD> allThumbnailIFDs() throws IOException, FormatException {
+        return allIFDs().stream().filter(TiffIFD::isThumbnail).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns non-thumbnail IFDs.
+     */
+    public List<TiffIFD> allNonThumbnailIFDs() throws IOException, FormatException {
+        return allIFDs().stream().filter(ifd -> !ifd.isThumbnail()).collect(Collectors.toList());
+    }
+
+    /**
+     * Use {@link #allThumbnailIFDs()} instead.
      */
     @Deprecated
     public IFDList getThumbnailIFDs() throws IOException {
@@ -202,7 +218,7 @@ public class TiffParser extends TiffReader {
     }
 
     /**
-     * Use {@link #allNonThumbnailIFDs()} ()} instead.
+     * Use {@link #allNonThumbnailIFDs()} instead.
      */
     @Deprecated
     public IFDList getNonThumbnailIFDs() throws IOException {
@@ -219,7 +235,7 @@ public class TiffParser extends TiffReader {
     }
 
     /**
-     * Use {@link #allExifIFDs()} instead.
+     * Use {@link #exifIFDs()} instead.
      */
     @Deprecated
     public IFDList getExifIFDs() throws FormatException, IOException {

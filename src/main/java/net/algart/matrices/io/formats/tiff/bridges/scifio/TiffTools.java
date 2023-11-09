@@ -541,8 +541,7 @@ public class TiffTools {
             // - original SCIFIO code used here zero-filled array, this is incorrect
         }
         final int[] subsamplingLog = ifd.getYCbCrSubsamplingLogarithms();
-        final TiffRational[] coefficients = ifd.getValue(
-                        IFD.Y_CB_CR_COEFFICIENTS, TiffRational[].class, true)
+        final TiffRational[] coefficients = ifd.getValue(IFD.Y_CB_CR_COEFFICIENTS, TiffRational[].class)
                 .orElse(new TiffRational[0]);
         if (coefficients.length >= 3) {
             lumaRed = coefficients[0].doubleValue();

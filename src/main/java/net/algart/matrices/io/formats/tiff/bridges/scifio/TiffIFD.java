@@ -233,6 +233,8 @@ public class TiffIFD {
     public static final int PREDICTOR_FLOATING_POINT = 3;
     // - value 3 is not supported by TiffParser/TiffSaver
 
+    public static final int FILETYPE_REDUCED_IMAGE = 1;
+
     private static final System.Logger LOG = System.getLogger(TiffIFD.class.getName());
 
     private final Map<Integer, Object> map;
@@ -446,27 +448,22 @@ public class TiffIFD {
         return Optional.of(requiredClass.cast(value));
     }
 
-    public <R> Optional<R> getValue(int tag, Class<? extends R> valueClass, boolean requireCorrectClass)
-            throws FormatException {
-        Objects.requireNonNull(valueClass, "Null valueClass");
+    public <R> Optional<R> getValue(int tag, Class<? extends R> requiredClass) throws FormatException {
+        Objects.requireNonNull(requiredClass, "Null requiredClass");
         Object value = get(tag);
         if (value == null) {
             return Optional.empty();
         }
-        if (!valueClass.isInstance(value)) {
-            if (requireCorrectClass) {
-                throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
-                        " has wrong type: " + value.getClass().getSimpleName() +
-                        " instead of expected " + valueClass.getSimpleName());
-            } else {
-                return Optional.empty();
-            }
+        if (!requiredClass.isInstance(value)) {
+            throw new FormatException("TIFF tag " + ifdTagName(tag, true) +
+                    " has wrong type: " + value.getClass().getSimpleName() +
+                    " instead of expected " + requiredClass.getSimpleName());
         }
-        return Optional.of(valueClass.cast(value));
+        return Optional.of(requiredClass.cast(value));
     }
 
     public <R> R reqValue(int tag, Class<? extends R> requiredClass) throws FormatException {
-        return getValue(tag, requiredClass, true).orElseThrow(() -> new FormatException(
+        return getValue(tag, requiredClass).orElseThrow(() -> new FormatException(
                 "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
     }
 
@@ -484,7 +481,7 @@ public class TiffIFD {
     }
 
     public int getInt(int tag, int defaultValue) throws FormatException {
-        return checkedIntValue(getValue(tag, Number.class, true).orElse(defaultValue), tag);
+        return checkedIntValue(getValue(tag, Number.class).orElse(defaultValue), tag);
     }
 
     public int optInt(int tag, int defaultValue) {
@@ -496,7 +493,7 @@ public class TiffIFD {
     }
 
     public long getLong(int tag, int defaultValue) throws FormatException {
-        return getValue(tag, Number.class, true).orElse(defaultValue).longValue();
+        return getValue(tag, Number.class).orElse(defaultValue).longValue();
     }
 
     public long optLong(int tag, int defaultValue) {
@@ -1158,6 +1155,10 @@ public class TiffIFD {
         return isStandard(compression) && !isJpeg(compression) &&
                 (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
                         photometricInterpretation == PhotoInterp.CMYK);
+    }
+
+    public boolean isThumbnail() {
+        return (optInt(NEW_SUBFILE_TYPE, 0) & FILETYPE_REDUCED_IMAGE) != 0;
     }
 
     public TiffIFD putImageDimensions(int dimX, int dimY) {

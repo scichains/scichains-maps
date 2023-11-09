@@ -541,53 +541,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
     }
 
     /**
-     * Returns thumbnail IFDs.
-     */
-    public List<TiffIFD> allThumbnailIFDs() throws IOException, FormatException {
-        final List<TiffIFD> ifds = allIFDs();
-        final List<TiffIFD> thumbnails = new ArrayList<>();
-        for (final TiffIFD ifd : ifds) {
-            final Number subfile = (Number) ifd.get(IFD.NEW_SUBFILE_TYPE);
-            final int subfileType = subfile == null ? 0 : subfile.intValue();
-            if (subfileType == 1) {
-                thumbnails.add(ifd);
-            }
-        }
-        return thumbnails;
-    }
-
-    /**
-     * Returns non-thumbnail IFDs.
-     */
-    public List<TiffIFD> allNonThumbnailIFDs() throws IOException, FormatException {
-        final List<TiffIFD> ifds = allIFDs();
-        final List<TiffIFD> nonThumbs = new ArrayList<>();
-        for (final TiffIFD ifd : ifds) {
-            final Number subFile = (Number) ifd.get(IFD.NEW_SUBFILE_TYPE);
-            final int subfileType = subFile == null ? 0 : subFile.intValue();
-            if (subfileType != 1 || ifds.size() <= 1) {
-                nonThumbs.add(ifd);
-            }
-        }
-        return nonThumbs;
-    }
-
-    /**
      * Returns EXIF IFDs.
      */
-    public List<TiffIFD> allExifIFDs() throws FormatException, IOException {
+    public List<TiffIFD> exifIFDs() throws FormatException, IOException {
         final List<TiffIFD> ifds = allIFDs();
-        final List<TiffIFD> exif = new ArrayList<>();
+        final List<TiffIFD> result = new ArrayList<>();
         for (final TiffIFD ifd : ifds) {
             final long offset = ifd.getLong(IFD.EXIF, 0);
             if (offset != 0) {
                 final TiffIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
                 if (exifIFD != null) {
-                    exif.add(exifIFD);
+                    result.add(exifIFD);
                 }
             }
         }
-        return exif;
+        return result;
     }
 
     /**
@@ -886,7 +854,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
         if (TiffIFD.isJpeg(compression)) {
             final byte[] data = tile.getEncodedData();
-            final byte[] jpegTable = (byte[]) ifd.get(IFD.JPEG_TABLES);
+            final byte[] jpegTable = ifd.getValue(IFD.JPEG_TABLES, byte[].class).orElse(null);
             // Structure of data:
             //      FF D8 (SOI, start of image)
             //      FF C0 (SOF0, start of frame, or some other marker)
@@ -1597,9 +1565,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 return longs;
             }
         } else if (type == IFDType.RATIONAL || type == IFDType.SRATIONAL) {
-            // Two LONGs or SLONGs: the first represents the numerator
-            // of a fraction; the second, the denominator
-            if (count == 1) return new TiffRational(in.readInt(), in.readInt());
+            // Two LONGs or SLONGs: the first represents the numerator of a fraction; the second, the denominator
+            if (count == 1) {
+                return new TiffRational(in.readInt(), in.readInt());
+            }
             final TiffRational[] rationals = new TiffRational[count];
             for (int j = 0; j < count; j++) {
                 rationals[j] = new TiffRational(in.readInt(), in.readInt());

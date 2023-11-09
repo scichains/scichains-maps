@@ -39,7 +39,7 @@ public class IFDGetValueTest {
         System.out.printf("optValue: %s [%s]%n",
                 opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         try {
-            opt = ifd.getValue(tag, requiredClass, true);
+            opt = ifd.getValue(tag, requiredClass);
             System.out.printf("optValue(..., true): %s [%s]%n",
                     opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         } catch (FormatException e) {
