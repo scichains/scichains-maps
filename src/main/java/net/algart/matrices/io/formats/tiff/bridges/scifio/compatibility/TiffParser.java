@@ -107,12 +107,12 @@ public class TiffParser extends TiffReader {
 
     public static TiffIFD toTiffIFD(IFD ifd) {
         Objects.requireNonNull(ifd, "Null IFD");
-        return new TiffIFD(ifd);
+        return TiffIFD.valueOf(ifd);
     }
 
     public IFD toScifioIFD(TiffIFD ifd) {
         IFD result = new IFD(log);
-        result.putAll(ifd.all());
+        result.putAll(ifd.map());
         return result;
     }
 

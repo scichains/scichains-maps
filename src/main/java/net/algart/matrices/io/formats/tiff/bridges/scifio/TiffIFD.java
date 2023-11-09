@@ -252,10 +252,6 @@ public class TiffIFD {
         this(new LinkedHashMap<>());
     }
 
-    public TiffIFD(Map<Integer, Object> ifd) {
-        this(ifd, null);
-    }
-
     @SuppressWarnings("CopyConstructorMissesField")
     public TiffIFD(TiffIFD ifd) {
         fileOffsetForReading = ifd.fileOffsetForReading;
@@ -269,9 +265,17 @@ public class TiffIFD {
         // And it is the only way to clear this flag.
     }
 
-    TiffIFD(Map<Integer, Object> ifd, Map<Integer, IFDEntry> detailedEntries) {
-        Objects.requireNonNull(ifd);
-        this.map = new LinkedHashMap<>(ifd);
+    public static TiffIFD valueOf(Map<Integer, Object> ifdEntries) {
+        return new TiffIFD(ifdEntries);
+    }
+
+    private TiffIFD(Map<Integer, Object> ifdEntries) {
+        this(ifdEntries, null);
+    }
+
+    TiffIFD(Map<Integer, Object> ifdEntries, Map<Integer, IFDEntry> detailedEntries) {
+        Objects.requireNonNull(ifdEntries);
+        this.map = new LinkedHashMap<>(ifdEntries);
         this.detailedEntries = detailedEntries;
     }
 
@@ -399,7 +403,7 @@ public class TiffIFD {
         return this;
     }
 
-    public Map<Integer, Object> all() {
+    public Map<Integer, Object> map() {
         return Collections.unmodifiableMap(map);
     }
 

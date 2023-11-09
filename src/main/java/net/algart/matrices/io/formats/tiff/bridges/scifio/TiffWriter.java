@@ -1592,7 +1592,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
 
         IFD result = new IFD(null);
-        result.putAll(ifd.all());
+        result.putAll(ifd.map());
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(
                 result, this.codecOptions);
         // - logger should not be necessary for correct TiffIFD
