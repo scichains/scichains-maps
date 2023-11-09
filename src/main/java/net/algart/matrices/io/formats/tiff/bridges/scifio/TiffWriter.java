@@ -834,7 +834,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         tile.checkStoredNumberOfPixels();
 
         TiffCompression compression = tile.ifd().getCompression();
-        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
+        final KnownCompression known = KnownCompression.valueOfOrNull(compression);
         if (known == null) {
             throw new UnsupportedCompressionException("Compression \"" + compression.getCodecName() +
                     "\" (TIFF code " + compression.getCode() + ") is not supported");
@@ -849,7 +849,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             codec = known.noContextCodec();
             // - if there is no SCIFIO context, let's create codec directly: it's better than do nothing
         }
-        final CodecOptions codecOptions = buildWritingOptions(tile, codec);
+        CodecOptions codecOptions = buildWritingOptions(known, tile, codec);
         long t3 = debugTime();
         byte[] data = tile.getDecodedData();
         if (codec != null) {
@@ -1566,6 +1566,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    private CodecOptions buildWritingOptions(KnownCompression known, TiffTile tile, Codec customCodec) {
+        CodecOptions result = known.writeOptions(tile, this.codecOptions);
+        if (customCodec instanceof ExtendedJPEGCodec) {
+            ExtendedJPEGCodecOptions jpegOptions = new ExtendedJPEGCodecOptions(result);
+            jpegOptions.setQuality(jpegQuality);
+            if (tile.ifd().optInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode()) {
+                jpegOptions.setPhotometricInterpretation(PhotoInterp.RGB);
+            }
+            result = jpegOptions;
+        }
+        return result;
+    }
+
+    // Old deprecated solution
     private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
         TiffIFD ifd = tile.ifd();
         if (!ifd.hasImageDimensions()) {
@@ -1576,8 +1590,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // this will work even if the original IFD is frozen for writing
             // See https://github.com/scifio/scifio/issues/516
         }
+
+        IFD result = new IFD(null);
+        result.putAll(ifd.all());
         CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(
-                ifd.toScifioIFD(null), this.codecOptions);
+                result, this.codecOptions);
         // - logger should not be necessary for correct TiffIFD
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)

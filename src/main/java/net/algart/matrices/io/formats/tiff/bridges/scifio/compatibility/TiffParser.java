@@ -25,6 +25,7 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.compatibility;
 
 import io.scif.FormatException;
+import io.scif.SCIFIO;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.common.Constants;
@@ -41,6 +42,7 @@ import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleService;
 import org.scijava.io.location.FileLocation;
 import org.scijava.io.location.Location;
+import org.scijava.log.LogService;
 import org.scijava.util.IntRect;
 
 import java.io.IOException;
@@ -55,8 +57,6 @@ import java.util.Vector;
  */
 
 public class TiffParser extends TiffReader {
-    private static final System.Logger LOG = System.getLogger(TiffParser.class.getName());
-
     /**
      * Whether 64-bit offsets are used for non-BigTIFF files.
      */
@@ -70,6 +70,10 @@ public class TiffParser extends TiffReader {
 
     private IFDList ifdList;
     private IFD firstIFD;
+
+    private final SCIFIO scifio;
+    private final LogService log;
+
 
     // This constructor is new for TiffParser: it is added for more convenience and
     // compatibility with TiffReader constructor
@@ -95,11 +99,19 @@ public class TiffParser extends TiffReader {
         this.setExtendedCodec(false);
         this.setMissingTilesAllowed(true);
         // - This is an interesting undocumented feature: old TiffParser really supported missing tiles!
+        this.scifio = new SCIFIO(context);
+        this.log = scifio.log();
     }
 
     public static TiffIFD toTiffIFD(IFD ifd) {
         Objects.requireNonNull(ifd, "Null IFD");
         return new TiffIFD(ifd);
+    }
+
+    public IFD toScifioIFD(TiffIFD ifd) {
+        IFD result = new IFD(log);
+        result.putAll(ifd.all());
+        return result;
     }
 
     /**
@@ -333,6 +345,7 @@ public class TiffParser extends TiffReader {
     /**
      * Use {@link #readIFDAt(long)} instead.
      */
+    @SuppressWarnings("removal")
     @Deprecated
     public IFD getIFD(long offset) throws IOException {
         final DataHandle<Location> in = getStream();
@@ -342,18 +355,18 @@ public class TiffParser extends TiffReader {
         if (offset < 0 || offset >= in.length()) return null;
         //?? offset == -1 may be a signal about invalid file,
         //?? but why we ignore too large offset??
-        final IFD ifd = new IFD(null);
+        final IFD ifd = new IFD(log);
 
         // save little-endian flag to internal LITTLE_ENDIAN tag
-        ifd.put(IFD.LITTLE_ENDIAN, in
-                .isLittleEndian());
-        ifd.put(IFD.BIG_TIFF, bigTiff);
+        ifd.put(new Integer(IFD.LITTLE_ENDIAN), Boolean.valueOf(in
+                .isLittleEndian()));
+        ifd.put(new Integer(IFD.BIG_TIFF), Boolean.valueOf(bigTiff));
 
         // read in directory entries for this IFD
-//        log.trace("getIFDs: seeking IFD at " + offset);
+        log.trace("getIFDs: seeking IFD at " + offset);
         in.seek(offset);
         final long numEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-//        log.trace("getIFDs: " + numEntries + " directory entries to read");
+        log.trace("getIFDs: " + numEntries + " directory entries to read");
         if (numEntries == 0 || numEntries == 1) return ifd;
         //?? Why numEntries == 1 should lead to EMPTY IFD?
 
@@ -367,8 +380,9 @@ public class TiffParser extends TiffReader {
             TiffIFDEntry entry = null;
             try {
                 entry = readTiffIFDEntry();
-            } catch (final EnumException e) {
-//                log.debug("", e);
+            }
+            catch (final EnumException e) {
+                log.debug("", e);
             }
             if (entry == null) break;
             //?? What does mean this solution? If we found ONE unknown tag,
@@ -391,8 +405,8 @@ public class TiffParser extends TiffReader {
             if (count * bpe + pointer > inputLen) {
                 final int oldCount = count;
                 count = (int) ((inputLen - pointer) / bpe);
-//                log.trace("getIFDs: truncated " + (oldCount - count) +
-//                        " array elements for tag " + tag);
+                log.trace("getIFDs: truncated " + (oldCount - count) +
+                        " array elements for tag " + tag);
                 if (count < 0) count = oldCount;
                 entry = new TiffIFDEntry(entry.getTag(), entry.getType(), count, entry
                         .getValueOffset());
@@ -407,10 +421,11 @@ public class TiffParser extends TiffReader {
 
             if (pointer != in.offset() && !doCaching) {
                 value = entry;
-            } else value = getIFDValue(entry);
+            }
+            else value = getIFDValue(entry);
 
-            if (value != null && !ifd.containsKey(tag)) {
-                ifd.put(tag, value);
+            if (value != null && !ifd.containsKey(new Integer(tag))) {
+                ifd.put(new Integer(tag), value);
             }
         }
 
@@ -906,10 +921,9 @@ public class TiffParser extends TiffReader {
     @Override
     protected CodecOptions correctReadingOptions(CodecOptions codecOptions, TiffTile tile, Codec customCodec)
             throws FormatException {
-        IFD ifd = tile.ifd().toScifioIFD(null);
+        IFD ifd = toScifioIFD(tile.ifd());
         codecOptions.ycbcr = ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR &&
                 ifd.getIFDIntValue(IFD.Y_CB_CR_SUB_SAMPLING) == 1 &&
-                // - these methods do not use logger
                 ycbcrCorrection;
         return codecOptions;
     }

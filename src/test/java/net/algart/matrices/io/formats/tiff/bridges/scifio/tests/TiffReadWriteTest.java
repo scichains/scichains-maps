@@ -178,7 +178,7 @@ public class TiffReadWriteTest {
                         if (singleStrip) {
                             paddedH = h;
                         }
-                        final IFD scifioIFD = readerIFD.toScifioIFD(null);
+                        final IFD scifioIFD = parser.toScifioIFD(readerIFD);
                         final int samplesPerPixel = readerIFD.getSamplesPerPixel();
                         final int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.pixelType());
                         bytes = new byte[paddedW * paddedH * samplesPerPixel * bytesPerSample];
@@ -230,7 +230,7 @@ public class TiffReadWriteTest {
                         // Note: as a result, last strip in this file will be too large!
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
-                                writerIFD.toScifioIFD(null), readerIFD.pixelType(), bandCount,
+                                parser.toScifioIFD(writerIFD), readerIFD.pixelType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                         if (differ) {

@@ -843,7 +843,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         byte[] encodedData = tile.getEncodedData();
         final TiffCompression compression = ifd.getCompression();
 
-        final KnownTiffCompression known = KnownTiffCompression.valueOfOrNull(compression);
+        final KnownCompression known = KnownCompression.valueOfOrNull(compression);
         Codec codec = null;
         if (extendedCodec && known != null) {
             codec = known.extendedCodec(scifio == null ? null : scifio.getContext());
@@ -1513,8 +1513,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             in.readFully(bytes);
             // bytes are unsigned, so use shorts
             final short[] shorts = new short[count];
-            for (int j = 0; j < count; j++)
+            for (int j = 0; j < count; j++) {
                 shorts[j] = (short) (bytes[j] & 0xff);
+            }
             return shorts;
         } else if (type == IFDType.ASCII) {
             // 8-bit byte that contain a 7-bit ASCII code;
@@ -1527,7 +1528,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
             for (int j = 0; j < count; j++) {
                 if (ascii[j] == 0 || j == count - 1) nullCount++;
             }
-
             // convert character array to array of strings
             final String[] strings = nullCount == 1 ? null : new String[nullCount];
             String s = null;

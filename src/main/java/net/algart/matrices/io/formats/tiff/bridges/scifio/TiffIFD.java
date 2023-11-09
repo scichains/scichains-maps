@@ -28,7 +28,6 @@ import io.scif.FormatException;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
 import io.scif.util.FormatTools;
-import org.scijava.log.LogService;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -274,12 +273,6 @@ public class TiffIFD {
         this.detailedEntries = detailedEntries;
     }
 
-    public IFD toScifioIFD(LogService log) {
-        IFD result = new IFD(log);
-        result.putAll(map);
-        return result;
-    }
-
     public boolean hasFileOffsetForReading() {
         return fileOffsetForReading >= 0;
     }
@@ -404,7 +397,7 @@ public class TiffIFD {
         return this;
     }
 
-    public Map<Integer, Object> allTags() {
+    public Map<Integer, Object> all() {
         return Collections.unmodifiableMap(map);
     }
 
