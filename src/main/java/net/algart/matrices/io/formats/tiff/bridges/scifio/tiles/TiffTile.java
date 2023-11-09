@@ -484,7 +484,8 @@ public final class TiffTile {
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are not decoded, number of pixels is unknown: " + this);
         }
-        checkAlignedStoredNumberOfPixels();
+        // checkAlignedStoredNumberOfPixels();
+        // - This check can lead to exception in some really existing TIFF files!
         return storedNumberOfPixels;
     }
 
