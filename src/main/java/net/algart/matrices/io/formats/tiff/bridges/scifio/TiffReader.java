@@ -665,22 +665,21 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (startOffset >= in.length()) {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
-            final Map<Integer, TiffIFD.IFDEntry> entries = new LinkedHashMap<>();
-            ifd = new TiffIFD(new LinkedHashMap<>(), entries).setFileOffsetForReading(startOffset);
-            ifd.setSubIFDType(subIFDType);
+            final Map<Integer, Object> map = new LinkedHashMap<>();
+            final Map<Integer, TiffIFD.IFDEntry> detailedEntries = new LinkedHashMap<>();
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
-            ifd.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
-            ifd.put(IFD.BIG_TIFF, bigTiff);
+            map.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
+            map.put(IFD.BIG_TIFF, bigTiff);
 
             // read in directory entries for this IFD
             in.seek(startOffset);
             final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
             if (numberOfEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
-                throw new FormatException("Too many number of IFD entries: " + numberOfEntries +
+                throw new FormatException("Too many number of IFD detailedEntries: " + numberOfEntries +
                         " > " + MAX_NUMBER_OF_IFD_ENTRIES);
                 // - theoretically BigTIFF allows to have more entries, but we prefer to make some restriction;
-                // in any case, billions if entries will probably lead to OutOfMemoryError or integer overflow
+                // in any case, billions if detailedEntries will probably lead to OutOfMemoryError or integer overflow
             }
 
             final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY : TiffConstants.BYTES_PER_ENTRY;
@@ -700,19 +699,20 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 timeArrays += tEntry3 - tEntry2;
 //            System.err.printf("%d values from %d: %.6f ms%n", valueCount, valueOffset, (tEntry3 - tEntry2) * 1e-6);
 
-                if (value != null && !ifd.containsKey(tag)) {
+                if (value != null && !map.containsKey(tag)) {
                     // - null value should not occur in current version, but theoretically
                     // it means that this IFDType is not supported and should not be stored;
                     // if this tag is present twice (strange mistake if TIFF file),
                     // we do not throw exception and just use the 1st entry
-                    ifd.put(tag, value);
-                    entries.put(tag, entry);
-                    // - note that .put is overridden and removes entries[tag]
+                    map.put(tag, value);
+                    detailedEntries.put(tag, entry);
                 }
             }
             final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numberOfEntries;
             in.seek(positionOfNextOffset);
 
+            ifd = new TiffIFD(map, detailedEntries).setFileOffsetForReading(startOffset);
+            ifd.setSubIFDType(subIFDType);
             if (readNextOffset) {
                 final long nextOffset = readNextOffset(false);
                 ifd.setNextIFDOffset(nextOffset);

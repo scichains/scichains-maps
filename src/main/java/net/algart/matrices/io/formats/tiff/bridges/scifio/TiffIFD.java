@@ -273,6 +273,7 @@ public class TiffIFD {
         this(ifdEntries, null);
     }
 
+    // Note: detailedEntries is not cloned by this constructor.
     TiffIFD(Map<Integer, Object> ifdEntries, Map<Integer, IFDEntry> detailedEntries) {
         Objects.requireNonNull(ifdEntries);
         this.map = new LinkedHashMap<>(ifdEntries);
@@ -508,7 +509,7 @@ public class TiffIFD {
         final Object value = get(tag);
         long[] results = null;
         if (value instanceof long[]) {
-            results = (long[]) value;
+            results = ((long[]) value).clone();
         } else if (value instanceof Number) {
             results = new long[] { ((Number) value).longValue() };
         }  else if (value instanceof Number[] numbers) {
@@ -533,7 +534,7 @@ public class TiffIFD {
         final Object value = get(tag);
         int[] results = null;
         if (value instanceof int[]) {
-            results = (int[]) value;
+            results = ((int[]) value).clone();
         } else if (value instanceof Number) {
             results = new int[] { checkedIntValue(((Number) value).intValue(), tag) };
         } else if (value instanceof long[] longs) {

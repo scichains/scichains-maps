@@ -97,6 +97,8 @@ public class TiffCopyTest {
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)
             throws FormatException, IOException {
         final TiffMap readMap = reader.newMap(readIFD);
+        writeIFD.putSamplesType(readMap.pixelType());
+        // - increase precision to nearest supported one
         final TiffMap writeMap = writer.newMap(writeIFD, false);
         writer.writeForward(writeMap);
         int k = 0, n = readMap.size();
