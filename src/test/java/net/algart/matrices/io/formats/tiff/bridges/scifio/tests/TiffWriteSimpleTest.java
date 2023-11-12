@@ -63,7 +63,7 @@ public class TiffWriteSimpleTest {
             ifd.putPhotometricInterpretation(PhotoInterp.RGB);
             ifd.put(TiffIFD.BITS_PER_SAMPLE, bitsPerSample);
             ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_INT);
-            // - you can comment or change the options above for thorought testing
+            // - you can comment or change the options above for thorough testing
 
             System.out.printf("Desired IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
 

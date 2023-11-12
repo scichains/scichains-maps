@@ -979,6 +979,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
             }
         }
+        tile.checkDataLengthAlignment();
+        // - Fully unpacked and separated data must be correctly aligned
 
         /*
         // The following code is equivalent to the analogous code from SCIFIO 0.46.0 and earlier version,

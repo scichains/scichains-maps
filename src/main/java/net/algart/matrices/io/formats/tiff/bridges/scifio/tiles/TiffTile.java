@@ -488,9 +488,14 @@ public final class TiffTile {
      * If the tile is {@link #isEmpty() empty} (no data),
      * the exception is not thrown, though usually there is no sense to call this method in this situation.</p>
      *
-     * <p>If the data are not {@link #isEncoded() encoded}, the following equality is always true:</p>
+     * <p>If the data are not {@link #isEncoded() encoded}, the following equality is <i>usually</i> true:</p>
      *
      * <pre>{@link #getStoredDataLength()} == {@link #getStoredNumberOfPixels()} * {@link #bytesPerPixel()}</pre>
+     *
+     * <p>The only possible exception is when you sets the data with help of
+     * {@link #setPartiallyDecodedData(byte[])} (when data are almost decoded, but, maybe, some additional
+     * unpacking is necessary). This condition is always checked inside {@link #setDecodedData(byte[])}
+     * method. You may also check this directly by {@link #checkDataLengthAlignment()} method.</p>
      *
      * <p><b>Warning:</b> the stored number of pixels, returned by this method, may <b>differ</b> from the tile
      * size {@link #getSizeX()} * {@link #getSizeY()}! Usually it occurs after decoding encoded tile, when the
@@ -507,10 +512,18 @@ public final class TiffTile {
         if (isEncoded()) {
             throw new IllegalStateException("TIFF tile data are not decoded, number of pixels is unknown: " + this);
         }
-        // checkAlignedStoredNumberOfPixels();
-        // - This check can lead to exception in some really existing TIFF files!
         return storedNumberOfPixels;
     }
+
+    public void checkDataLengthAlignment() {
+        if (!encoded && storedNumberOfPixels * bytesPerPixel != data.length) {
+            throw new IllegalStateException("Unaligned length of decoded data " + data.length +
+                    ": it must be a multiple of the pixel length " +
+                    bytesPerPixel + " = " + samplesPerPixel + " * " + bytesPerSample +
+                    " (channels per pixel * bytes per channel sample)");
+        }
+    }
+
 
     public TiffTile checkStoredNumberOfPixels() throws IllegalStateException {
         checkEmpty();
@@ -661,15 +674,6 @@ public final class TiffTile {
             // - data file offset has no sense for decoded data
         }
         return this;
-    }
-
-    private void checkAlignedStoredNumberOfPixels() {
-        if (!encoded && storedNumberOfPixels * bytesPerPixel != data.length) {
-            throw new IllegalStateException("Unaligned length of decoded data " + data.length +
-                    ": it must be a multiple of the pixel length " +
-                    bytesPerPixel + " = " + samplesPerPixel + " * " + bytesPerSample +
-                    " (channels per pixel * bytes per channel sample)");
-        }
     }
 
     private void initializeEmptyArea() {
