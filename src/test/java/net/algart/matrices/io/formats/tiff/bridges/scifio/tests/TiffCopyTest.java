@@ -97,15 +97,15 @@ public class TiffCopyTest {
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)
             throws FormatException, IOException {
         final TiffMap readMap = reader.newMap(readIFD);
-        writeIFD.putSamplesType(readMap.pixelType());
-        // - increase precision to nearest supported one
+        writer.correctIFDForWriting(writeIFD, false);
         final TiffMap writeMap = writer.newMap(writeIFD, false);
         writer.writeForward(writeMap);
         int k = 0, n = readMap.size();
         for (TiffTileIndex index : readMap.indexes()) {
             TiffTile sourceTile = reader.readTile(index);
             TiffTile targetTile = writeMap.getOrNew(writeMap.copyIndex(index));
-            targetTile.setDecodedData(sourceTile.getDecodedData());
+            byte[] data = sourceTile.unpackUnusualDecodedData();
+            targetTile.setDecodedData(data);
             writeMap.put(targetTile);
             writer.writeTile(targetTile);
             System.out.printf("\rCopying tile %d/%d...\r", ++k, n);

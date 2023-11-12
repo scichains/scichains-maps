@@ -24,8 +24,10 @@
 
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
+import io.scif.FormatException;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 
@@ -377,6 +379,27 @@ public final class TiffTile {
             throw new IllegalStateException("TIFF tile data are not decoded and cannot be retrieved: " + this);
         }
         return data;
+    }
+
+    /**
+     * Gets the decoded data with unpacking non-usual precisions: 16/24-bit floating points data
+     * and any 3-byte/sample integer data. The same operations are performed by
+     * {@link net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader} automatically
+     * if the {@link TiffReader#isAutoUnpackUnusualPrecisions()} mode is set.
+     *
+     * <p>This method is necessary rarely: {@link #getDecodedData()} is enough for most needs.
+     *
+     * @return unpacked data.
+     */
+    public byte[] unpackUnusualDecodedData() {
+        byte[] samples = getDecodedData();
+        try {
+            samples = TiffTools.unpackUnusualPrecisions(
+                    samples, ifd(), samplesPerPixel, sizeX * sizeY, true);
+        } catch (FormatException e) {
+            throw new IllegalStateException("Illegal IFD inside the tile map", e);
+        }
+        return samples;
     }
 
     public TiffTile setDecodedData(byte[] data) {

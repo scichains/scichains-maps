@@ -53,9 +53,12 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             return data;
         }
 
+        if (options.channels != 1 && options.channels != 3) {
+            throw new FormatException("JPEG compression for " + options.channels + " channels is not supported");
+        }
         if (options.bitsPerSample != 8) {
-            throw new FormatException("Cannot compress " + options.bitsPerSample + "-bit data in JPEG format " +
-                    "(only 8-bit samples allowed)");
+            throw new FormatException("JPEG compression for " + options.bitsPerSample +
+                    "-bit data is not supported (only 8-bit samples allowed)");
         }
         final PhotoInterp colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
                 extended.getPhotometricInterpretation() :

@@ -52,6 +52,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Writes TIFF format.
@@ -123,7 +124,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private boolean extendedCodec = true;
     private boolean jpegInPhotometricRGB = false;
     private double jpegQuality = 1.0;
-    private PhotoInterp predefinedPhotoInterpretation = null;
     private boolean missingTilesAllowed = false;
     private byte byteFiller = 0;
     private Consumer<TiffTile> tileInitializer = this::fillEmptyTile;
@@ -339,26 +339,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throw new IllegalStateException("Codec options was not set yet");
         }
         return setJpegQuality(codecOptions.quality);
-    }
-
-    public PhotoInterp getPredefinedPhotoInterpretation() {
-        return predefinedPhotoInterpretation;
-    }
-
-    /**
-     * Specifies custom photo interpretation, which will be saved in IFD instead of the automatically chosen
-     * value. If the argument is <tt>null</tt>, this feature is disabled.
-     *
-     * <p>Such custom predefined photo interpretation allows to save unusual TIFF, for example, YCbCr LZW format.
-     * However, this class does not perform any data processing in this case: you should prepare correct
-     * pixel data yourself.
-     *
-     * @param predefinedPhotoInterpretation custom photo inrerpretation, overriding the value, chosen by default.
-     * @return a reference to this object.
-     */
-    public TiffWriter setPredefinedPhotoInterpretation(PhotoInterp predefinedPhotoInterpretation) {
-        this.predefinedPhotoInterpretation = predefinedPhotoInterpretation;
-        return this;
     }
 
     public boolean isMissingTilesAllowed() {
@@ -878,6 +858,112 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
+    public void correctIFDForWriting(TiffIFD ifd) throws FormatException {
+        correctIFDForWriting(ifd, true);
+    }
+
+    public void correctIFDForWriting(TiffIFD ifd, boolean strictCheck) throws FormatException {
+        final int samplesPerPixel = ifd.getSamplesPerPixel();
+        if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
+            ifd.put(IFD.BITS_PER_SAMPLE, new int[]{8});
+            // - Default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
+            // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
+            // Note: we do not change SAMPLE_FORMAT tag here!
+        }
+        final int samplesType;
+        try {
+            samplesType = ifd.pixelType();
+        } catch (FormatException e) {
+            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
+                    "requested combination of number of bits per sample and sample format is not supported: " +
+                    e.getMessage());
+        }
+        if (strictCheck) {
+            final OptionalInt optionalBits = ifd.tryEqualBitDepth();
+            if (optionalBits.isEmpty()) {
+                throw new UnsupportedTiffFormatException("Cannot write TIFF, because requested number of " +
+                        "bits per samples is unequal for different channels: " +
+                        Arrays.toString(ifd.getBitsPerSample()) + " (this variant is not supported)");
+            }
+            final int bits = optionalBits.getAsInt();
+            final boolean usualPrecision = bits == 8 || bits == 16 || bits == 32 || bits == 64;
+            if (!usualPrecision) {
+                throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
+                        "requested number of bits per sample is not supported: " + bits + " bits");
+            }
+            if (samplesType == FormatTools.FLOAT && bits != 32) {
+                throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
+                        "requested number of bits per sample is not supported: " +
+                        bits + " bits for floating-point precision");
+            }
+        } else {
+            ifd.putSamplesType(samplesType);
+        }
+
+        if (!ifd.containsKey(IFD.COMPRESSION)) {
+            ifd.put(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+            // - We prefer explicitly specify this case
+        }
+        final TiffCompression compression = ifd.getCompression();
+        // - UnsupportedTiffFormatException for unknown compression
+
+        final boolean jpeg = compression == TiffCompression.JPEG;
+        PhotoInterp photometric = ifd.containsKey(IFD.PHOTOMETRIC_INTERPRETATION) ?
+                ifd.getPhotometricInterpretation() :
+                null;
+        if (jpeg) {
+            if (samplesPerPixel != 1 && samplesPerPixel != 3) {
+                throw new FormatException("JPEG compression for " + samplesPerPixel + " channels is not supported");
+            }
+            if (samplesType != FormatTools.UINT8) {
+                throw new FormatException("JPEG compression is supported for 8-bit unsigned samples only, but " +
+                        (samplesType == FormatTools.INT8 ? "signed 8-bit samples requested" :
+                                "requested number of bits/samples is " + Arrays.toString(ifd.getBitsPerSample())));
+            }
+            if (photometric == null) {
+                photometric = samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO :
+                        (jpegInPhotometricRGB || !ifd.isChunked()) ? PhotoInterp.RGB : PhotoInterp.Y_CB_CR;
+            } else {
+                checkPhotometricInterpretation(photometric,
+                        samplesPerPixel == 1 ? EnumSet.of(PhotoInterp.BLACK_IS_ZERO) :
+                                extendedCodec ?
+                                        EnumSet.of(PhotoInterp.Y_CB_CR, PhotoInterp.RGB) :
+                                        EnumSet.of(PhotoInterp.Y_CB_CR),
+                        "JPEG " + samplesPerPixel + "-channel image");
+            }
+        } else if (samplesPerPixel == 1) {
+            final boolean hasColorMap = ifd.containsKey(IFD.COLOR_MAP);
+            if (photometric == null) {
+                photometric = hasColorMap ? PhotoInterp.RGB_PALETTE : PhotoInterp.BLACK_IS_ZERO;
+            } else {
+                if (photometric == PhotoInterp.RGB_PALETTE && !hasColorMap) {
+                    throw new FormatException("Cannot write TIFF image: photometric interpretation \"" +
+                            photometric.getName() + "\" requires also \"ColorMap\" tag");
+                }
+                checkPhotometricInterpretation(photometric, EnumSet.of(
+                                PhotoInterp.WHITE_IS_ZERO, PhotoInterp.BLACK_IS_ZERO,
+                                PhotoInterp.RGB_PALETTE, PhotoInterp.CFA_ARRAY,
+                                PhotoInterp.TRANSPARENCY_MASK),
+                        "single-channel image (1 sample/pixel)");
+            }
+        } else if (samplesPerPixel == 3) {
+            if (photometric == null) {
+                photometric = PhotoInterp.RGB;
+            }
+        } else {
+            if (photometric == null) {
+                throw new IllegalArgumentException("Cannot write TIFF image: photometric interpretation " +
+                        "is not specified in IFD and cannot be determined automatically");
+            }
+        }
+        ifd.putPhotometricInterpretation(photometric);
+
+        ifd.put(IFD.LITTLE_ENDIAN, out.isLittleEndian());
+        // - will be used, for example, in getCompressionCodecOptions
+        ifd.put(IFD.BIG_TIFF, bigTiff);
+        // - not used, but helps to provide good DetailedIFD.toString
+    }
+
     public TiffMap newMap(TiffIFD ifd, int numberOfChannels, Class<?> elementType, boolean signedIntegers)
             throws FormatException {
         return newMap(ifd, numberOfChannels, elementType, signedIntegers, false);
@@ -908,7 +994,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             throw new IllegalStateException("IFD is already frozen for usage while writing TIFF; " +
                     "probably you called this method twice");
         }
-        prepareValidIFD(ifd);
+        correctIFDForWriting(ifd);
         final TiffMap map = new TiffMap(ifd, resizable);
         map.buildGrid();
         // - useful to perform loops on all tiles, especially in non-resizable case
@@ -943,7 +1029,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public TiffMap existingMap(TiffIFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        prepareValidIFD(ifd);
+        correctIFDForWriting(ifd);
         final TiffMap map = new TiffMap(ifd);
         final long[] offsets = ifd.cachedTileOrStripOffsets();
         final long[] byteCounts = ifd.cachedTileOrStripByteCounts();
@@ -1609,83 +1695,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void prepareValidIFD(final TiffIFD ifd) throws FormatException {
-        final int samplesPerPixel = ifd.getSamplesPerPixel();
-        if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            ifd.put(IFD.BITS_PER_SAMPLE, new int[]{8});
-            // - Default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
-            // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
-            // Note: we do not change SAMPLE_FORMAT tag here!
+    private static void checkPhotometricInterpretation(
+            PhotoInterp photometricInterpretation,
+            EnumSet<PhotoInterp> allowed,
+            String whatToWrite)
+            throws FormatException {
+        if (photometricInterpretation != null) {
+            if (!allowed.contains(photometricInterpretation)) {
+                throw new FormatException("Writing " + whatToWrite + " with photometric interpretation \"" +
+                        photometricInterpretation + "\" is not supported (only " +
+                        allowed.stream().map(photometric -> "\"" + photometric.getName() + "\"")
+                                .collect(Collectors.joining(", ")) +
+                        " allowed)");
+            }
         }
-        final OptionalInt optionalBits = ifd.tryEqualBitDepth();
-        if (optionalBits.isEmpty()) {
-            throw new UnsupportedTiffFormatException("Cannot write TIFF, because requested number of " +
-                    "bits per samples is unequal for different channels: " +
-                    Arrays.toString(ifd.getBitsPerSample()) + " (this variant is not supported)");
-        }
-        final int bits = optionalBits.getAsInt();
-        final boolean usualPrecision = bits == 8 || bits == 16 || bits == 32 || bits == 64;
-        if (!usualPrecision) {
-            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
-                    "requested number of bits per sample is not supported: " + bits + " bits");
-        }
-        final int pixelType;
-        try {
-            pixelType = ifd.pixelType();
-        } catch (FormatException e) {
-            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
-                    "requested combination of number of bits per sample and sample format is not supported: " +
-                    e.getMessage());
-        }
-        if (pixelType == FormatTools.FLOAT && bits != 32) {
-            throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
-                    "requested number of bits per sample is not supported: " +
-                    bits + " bits for floating-point precision");
-        }
-
-        // The following solution seems to be unnecessary: we do not specify default tile size,
-        // why to do this with rarely used strips? Single strip is also well!
-        //
-        // if (!ifd.hasTileInformation() && !ifd.hasStripInformation()) {
-        //     if (!isDefaultSingleStrip()) {
-        //         ifd.putStripInformation(getDefaultStripHeight());
-        //     }
-        // }
-
-        if (!ifd.containsKey(IFD.COMPRESSION)) {
-            ifd.put(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
-            // - We prefer explicitly specify this case
-        }
-        final TiffCompression compression = ifd.getCompression();
-        // - UnsupportedTiffFormatException for unknown compression
-
-        final boolean palette = samplesPerPixel == 1 && ifd.containsKey(IFD.COLOR_MAP);
-        // - getIFDIntValue method returns the element #0, i.e. for channel #0
-        final boolean jpeg = compression == TiffCompression.JPEG;
-        if (jpeg && (pixelType != FormatTools.UINT8)) {
-            throw new FormatException("JPEG compression is not supported for %d-bit%s samples%s".formatted(
-                    bits,
-                    pixelType == FormatTools.INT8 ? " signed" : "",
-                    bits == 8 ? " (samples must be unsigned)" : ""));
-        }
-        final boolean rgbRequested = extendedCodec && (jpegInPhotometricRGB ?
-                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) != PhotoInterp.Y_CB_CR.getCode() :
-                ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode());
-        // - for extended codec, you may specify set some photometric interpretation in IFD;
-        // if it is RGB or YCbCr, it will override recommendation of jpegInPhotometricRGB
-        PhotoInterp photometricInterpretation = predefinedPhotoInterpretation != null ? predefinedPhotoInterpretation
-                : palette ? PhotoInterp.RGB_PALETTE
-                : samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO
-                : jpeg && ifd.isChunked() && !rgbRequested ? PhotoInterp.Y_CB_CR
-                : PhotoInterp.RGB;
-        ifd.putPhotometricInterpretation(photometricInterpretation);
-        // - if separated (not chunked), we can write RGB only: we simply do not perform any conversion of
-        // the source 3-channel matrix into YCbCr form, we just write it as 3 separated planes
-
-        ifd.put(IFD.LITTLE_ENDIAN, out.isLittleEndian());
-        // - will be used, for example, in getCompressionCodecOptions
-        ifd.put(IFD.BIG_TIFF, bigTiff);
-        // - not used, but helps to provide good DetailedIFD.toString
     }
 
     private static long debugTime() {

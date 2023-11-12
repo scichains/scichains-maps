@@ -25,11 +25,14 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tests;
 
 import io.scif.FormatException;
+import io.scif.formats.tiff.PhotoInterp;
+import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffWriter;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -53,15 +56,27 @@ public class TiffWriteSimpleTest {
             writer.startNewFile();
             // writer.startNewFile(); // - not a problem to call twice
             TiffIFD ifd = new TiffIFD();
+            final int[] bitsPerSample = {8, 8, 8};
             ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
-//            ifd.put(DetailedIFD.BITS_PER_SAMPLE, new int[] {5, 5, 5});
-//            ifd.put(DetailedIFD.SAMPLE_FORMAT, DetailedIFD.SAMPLE_FORMAT_IEEEFP);
+            ifd.putNumberOfChannels(bitsPerSample.length);
+            ifd.putCompression(TiffCompression.LZW);
+            ifd.putPhotometricInterpretation(PhotoInterp.RGB);
+            ifd.put(TiffIFD.BITS_PER_SAMPLE, bitsPerSample);
+            ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_INT);
+            // - you can comment or change the options above for thorought testing
+
+            System.out.printf("Desired IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
+
+            writer.correctIFDForWriting(ifd, false);
             TiffMap map = writer.newMap(ifd);
             // map = writer.newMap(ifd); - will throw an exception
-            System.out.printf("Saved IFD:%n%s%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
+            System.out.printf("Saved IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
 
-            final byte[] samples = new byte[IMAGE_WIDTH * IMAGE_HEIGHT];
-            Arrays.fill(samples, (byte) 40);
+            final Object samples = Array.newInstance(map.elementType(),
+                    IMAGE_WIDTH * IMAGE_HEIGHT * bitsPerSample.length);
+            if (samples instanceof byte[] bytes) {
+                Arrays.fill(bytes, (byte) 70);
+            }
             writer.updateImage(map, samples);
             // writer.writeForward(map); // - uncomment to write IFD BEFORE image
             writer.complete(map);
