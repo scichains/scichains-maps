@@ -27,7 +27,6 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio;
 import io.scif.FormatException;
 import io.scif.enumeration.EnumException;
 import io.scif.formats.tiff.*;
-import io.scif.util.FormatTools;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -235,6 +234,15 @@ public class TiffIFD {
 
     public static final int FILETYPE_REDUCED_IMAGE = 1;
 
+    public static final int INT8 = 0;
+    public static final int UINT8 = 1;
+    public static final int INT16 = 2;
+    public static final int UINT16 = 3;
+    public static final int INT32 = 4;
+    public static final int UINT32 = 5;
+    public static final int FLOAT = 6;
+    public static final int DOUBLE = 7;
+
     private static final System.Logger LOG = System.getLogger(TiffIFD.class.getName());
 
     private final Map<Integer, Object> map;
@@ -424,7 +432,7 @@ public class TiffIFD {
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
-        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerUnpackedSample(),
+        return TiffTools.checkedMul(sizeX, sizeY, getSamplesPerPixel(), bytesPerSampleType(),
                 "sizeX", "sizeY", "samples per pixel", "bytes per sample (type-based)",
                 () -> "Invalid requested area: ", () -> "");
     }
@@ -511,8 +519,8 @@ public class TiffIFD {
         if (value instanceof long[]) {
             results = ((long[]) value).clone();
         } else if (value instanceof Number) {
-            results = new long[] { ((Number) value).longValue() };
-        }  else if (value instanceof Number[] numbers) {
+            results = new long[]{((Number) value).longValue()};
+        } else if (value instanceof Number[] numbers) {
             results = new long[numbers.length];
             for (int i = 0; i < results.length; i++) {
                 results[i] = numbers[i].longValue();
@@ -536,7 +544,7 @@ public class TiffIFD {
         if (value instanceof int[]) {
             results = ((int[]) value).clone();
         } else if (value instanceof Number) {
-            results = new int[] { checkedIntValue(((Number) value).intValue(), tag) };
+            results = new int[]{checkedIntValue(((Number) value).intValue(), tag)};
         } else if (value instanceof long[] longs) {
             results = new int[longs.length];
             for (int i = 0; i < longs.length; i++) {
@@ -619,11 +627,11 @@ public class TiffIFD {
         return result;
     }
 
-    public int pixelType() throws FormatException {
-        return pixelType(true);
+    public int sampleType() throws FormatException {
+        return sampleType(true);
     }
 
-    public int pixelType(boolean requireSupportedDepth) throws FormatException {
+    public int sampleType(boolean requireSupportedDepth) throws FormatException {
         final int bytesPerSample;
         if (requireSupportedDepth) {
             bytesPerSample = equalBytesPerSample();
@@ -656,9 +664,9 @@ public class TiffIFD {
         switch (sampleFormats[0]) {
             case SAMPLE_FORMAT_UINT -> {
                 switch (bytesPerSample) {
-                    case 1 -> result = FormatTools.UINT8;
-                    case 2 -> result = FormatTools.UINT16;
-                    case 3, 4 -> result = FormatTools.UINT32;
+                    case 1 -> result = UINT8;
+                    case 2 -> result = UINT16;
+                    case 3, 4 -> result = UINT32;
                     // - note: 3-byte format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
                 }
                 if (result == -1 && requireSupportedDepth) {
@@ -671,9 +679,9 @@ public class TiffIFD {
             }
             case SAMPLE_FORMAT_INT -> {
                 switch (bytesPerSample) {
-                    case 1 -> result = FormatTools.INT8;
-                    case 2 -> result = FormatTools.INT16;
-                    case 3, 4 -> result = FormatTools.INT32;
+                    case 1 -> result = INT8;
+                    case 2 -> result = INT16;
+                    case 3, 4 -> result = INT32;
                     // - note: 3-byte format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
                 }
                 if (result == -1 && requireSupportedDepth) {
@@ -685,8 +693,8 @@ public class TiffIFD {
             }
             case SAMPLE_FORMAT_IEEEFP -> {
                 switch (bytesPerSample) {
-                    case 2, 3, 4 -> result = FormatTools.FLOAT;
-                    case 8 -> result = FormatTools.DOUBLE;
+                    case 2, 3, 4 -> result = FLOAT;
+                    case 8 -> result = DOUBLE;
                     // - note: 2/3-byte float format should be converted to 4-byte (TiffTools.unpackUnusualPrecisions)
                 }
                 if (result == -1 && requireSupportedDepth) {
@@ -698,7 +706,7 @@ public class TiffIFD {
             }
             case SAMPLE_FORMAT_VOID -> {
                 if (bytesPerSample == 1) {
-                    result = FormatTools.UINT8;
+                    result = UINT8;
                 } else {
                     if (requireSupportedDepth) {
                         throw new UnsupportedTiffFormatException("Unsupported TIFF bit depth: " +
@@ -1130,9 +1138,8 @@ public class TiffIFD {
         return bytes0;
     }
 
-    public int bytesPerUnpackedSample() throws FormatException {
-        final int pixelType = pixelType();
-        return FormatTools.getBytesPerPixel(pixelType);
+    public int bytesPerSampleType() throws FormatException {
+        return bytesPerSampleType(sampleType());
     }
 
     public boolean isOrdinaryBitDepth() throws FormatException {
@@ -1183,21 +1190,21 @@ public class TiffIFD {
     }
 
     public TiffIFD putPixelInformation(int numberOfChannels, Class<?> elementType, boolean signedIntegers) {
-        return putPixelInformation(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
+        return putPixelInformation(numberOfChannels, TiffTools.elementTypeToSampleType(elementType, signedIntegers));
     }
 
     /**
-     * Puts base pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel
+     * Puts base pixel type and channels information: BitsPerSample, SampleFormat, SamplesPerPixel.
      *
      * @param numberOfChannels number of channels (in other words, number of samples per every pixel).
-     * @param pixelType        pixel type.
+     * @param sampleType       type of pixel samples.
      * @return a reference to this object.
      */
-    public TiffIFD putPixelInformation(int numberOfChannels, int pixelType) {
+    public TiffIFD putPixelInformation(int numberOfChannels, int sampleType) {
         putNumberOfChannels(numberOfChannels);
         // - note: actual number of channels will be 3 in a case of OLD_JPEG;
         // but it is not a recommended usage (we may set OLD_JPEG compression later)
-        putSamplesType(pixelType);
+        putSampleType(sampleType);
         return this;
     }
 
@@ -1213,10 +1220,10 @@ public class TiffIFD {
         return this;
     }
 
-    public TiffIFD putSamplesType(int pixelType) {
-        final int bytesPerSample = FormatTools.getBytesPerPixel(pixelType);
-        final boolean signed = FormatTools.isSigned(pixelType);
-        final boolean floatingPoint = FormatTools.isFloatingPoint(pixelType);
+    public TiffIFD putSampleType(int sampleType) {
+        final int bytesPerSample = bytesPerSampleType(sampleType);
+        final boolean signed = isSignedSampleType(sampleType);
+        final boolean floatingPoint = isFloatingPointSampleType(sampleType);
         final int samplesPerPixel;
         try {
             samplesPerPixel = getSamplesPerPixel();
@@ -1452,9 +1459,9 @@ public class TiffIFD {
         int tileSizeX = 1;
         int tileSizeY = 1;
         try {
-            final int pixelType = pixelType(false);
+            final int sampleType = sampleType(false);
             sb.append(" ");
-            sb.append(pixelType == -1 ? "???" : TiffTools.pixelTypeToElementType(pixelType).getSimpleName());
+            sb.append(sampleType == -1 ? "???" : TiffTools.sampleTypeToElementType(sampleType).getSimpleName());
             channels = getSamplesPerPixel();
             if (hasImageDimensions()) {
                 dimX = getImageDimX();
@@ -1469,12 +1476,12 @@ public class TiffIFD {
             sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("] ");
         }
         try {
-            final int pixelType = pixelType(false);
+            final int sampleType = sampleType(false);
             final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
             final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
             sb.append("%s, precision %s%s, ".formatted(
                     isLittleEndian() ? "little-endian" : "big-endian",
-                    pixelType == -1 ? "???" : FormatTools.getPixelTypeString(pixelType),
+                    sampleType == -1 ? "???" : TiffTools.sampleTypeToString(sampleType),
                     isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -1550,8 +1557,8 @@ public class TiffIFD {
                     }
                     case FILL_ORDER -> {
                         additional = !isReversedBits() ?
-                            "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)" :
-                            "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
+                                "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)" :
+                                "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
                     }
                     case PREDICTOR -> {
                         if (v instanceof Number number) {
@@ -1595,6 +1602,56 @@ public class TiffIFD {
             }
         }
         return sb.toString();
+    }
+
+    public static int bytesPerSampleType(final int sampleType) {
+        switch (sampleType) {
+            case INT8:
+            case UINT8:
+                return 1;
+            case INT16:
+            case UINT16:
+                return 2;
+            case INT32:
+            case UINT32:
+            case FLOAT:
+                return 4;
+            case DOUBLE:
+                return 8;
+        }
+        throw new IllegalArgumentException("Unknown sample type: " + sampleType);
+    }
+
+    public static boolean isFloatingPointSampleType(int sampleType) {
+        switch (sampleType) {
+            case INT8:
+            case UINT8:
+            case INT16:
+            case UINT16:
+            case INT32:
+            case UINT32:
+                return false;
+            case FLOAT:
+            case DOUBLE:
+                return true;
+        }
+        throw new IllegalArgumentException("Unknown sample type: " + sampleType);
+    }
+
+    public static boolean isSignedSampleType(int sampleType) {
+        switch (sampleType) {
+            case INT8:
+            case INT16:
+            case INT32:
+            case FLOAT:
+            case DOUBLE:
+                return true;
+            case UINT8:
+            case UINT16:
+            case UINT32:
+                return false;
+        }
+        throw new IllegalArgumentException("Unknown sample type: " + sampleType);
     }
 
     public static boolean isStandard(TiffCompression compression) {

@@ -26,8 +26,8 @@ package net.algart.matrices.io.formats.tiff.bridges.scifio.tests.misc;
 
 import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
-import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
+import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
 import java.util.Arrays;
 
@@ -37,8 +37,8 @@ public class StrangeIFDBitsPerSampleTest {
                 name, ifd, ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
         boolean exceptionOccurred = false;
         try {
-            int pixelType = ifd.pixelType();
-            System.out.printf("Pixel type: %d, %s%n", pixelType, FormatTools.getPixelTypeString(pixelType));
+            int sampleType = ifd.sampleType();
+            System.out.printf("Sample type: %d, %s%n", sampleType, TiffTools.sampleTypeToString(sampleType));
         } catch (FormatException e) {
             if (!exceptionExpected) {
                 throw e;

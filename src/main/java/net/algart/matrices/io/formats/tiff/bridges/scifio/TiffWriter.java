@@ -31,7 +31,6 @@ import io.scif.UnsupportedCompressionException;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.*;
-import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
@@ -870,9 +869,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
             // Note: we do not change SAMPLE_FORMAT tag here!
         }
-        final int samplesType;
+        final int sampleType;
         try {
-            samplesType = ifd.pixelType();
+            sampleType = ifd.sampleType();
         } catch (FormatException e) {
             throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                     "requested combination of number of bits per sample and sample format is not supported: " +
@@ -891,13 +890,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                         "requested number of bits per sample is not supported: " + bits + " bits");
             }
-            if (samplesType == FormatTools.FLOAT && bits != 32) {
+            if (sampleType == TiffIFD.FLOAT && bits != 32) {
                 throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                         "requested number of bits per sample is not supported: " +
                         bits + " bits for floating-point precision");
             }
         } else {
-            ifd.putSamplesType(samplesType);
+            ifd.putSampleType(sampleType);
         }
 
         if (!ifd.containsKey(IFD.COMPRESSION)) {
@@ -915,9 +914,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             if (samplesPerPixel != 1 && samplesPerPixel != 3) {
                 throw new FormatException("JPEG compression for " + samplesPerPixel + " channels is not supported");
             }
-            if (samplesType != FormatTools.UINT8) {
+            if (sampleType != TiffIFD.UINT8) {
                 throw new FormatException("JPEG compression is supported for 8-bit unsigned samples only, but " +
-                        (samplesType == FormatTools.INT8 ? "signed 8-bit samples requested" :
+                        (sampleType == TiffIFD.INT8 ? "signed 8-bit samples requested" :
                                 "requested number of bits/samples is " + Arrays.toString(ifd.getBitsPerSample())));
             }
             if (photometric == null) {

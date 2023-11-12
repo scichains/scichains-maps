@@ -74,9 +74,8 @@ public class BugInGetSamplesTest {
         byte[] bytes = new byte[w * h * bytesPerBand * bandCount];
         reader.getSamples(ifd, bytes, START_X, START_Y, w, h);
         int pixelType = ifd.getPixelType();
-        int bytesPerBand1 = FormatTools.getBytesPerPixel(pixelType);
 
-        bytes = interleaveSamples(bytes, w * h, bandCount, bytesPerBand1);
+        bytes = interleaveSamples(bytes, w * h, bandCount, bytesPerBand);
 
         System.out.printf("Saving result image into %s...%n", resultFile);
         BufferedImage image = bytesToImage(bytes, w, h, bandCount);

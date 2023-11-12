@@ -29,7 +29,6 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
-import io.scif.util.FormatTools;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
@@ -157,15 +156,15 @@ public class TiffWriterTest {
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex++]);
-        final int pixelType = switch (args[startArgIndex]) {
-            case "uint8" -> FormatTools.UINT8;
-            case "int8" -> FormatTools.INT8;
-            case "uint16" -> FormatTools.UINT16;
-            case "int16" -> FormatTools.INT16;
-            case "uint32" -> FormatTools.UINT32;
-            case "int32" -> FormatTools.INT32;
-            case "float" -> FormatTools.FLOAT;
-            case "double" -> FormatTools.DOUBLE;
+        final int sampleType = switch (args[startArgIndex]) {
+            case "uint8" -> TiffIFD.UINT8;
+            case "int8" -> TiffIFD.INT8;
+            case "uint16" -> TiffIFD.UINT16;
+            case "int16" -> TiffIFD.INT16;
+            case "uint32" -> TiffIFD.UINT32;
+            case "int32" -> TiffIFD.INT32;
+            case "float" -> TiffIFD.FLOAT;
+            case "double" -> TiffIFD.DOUBLE;
             default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex]);
         };
 
@@ -201,7 +200,7 @@ public class TiffWriterTest {
                  final TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
-                if (interleaveOutside && FormatTools.getBytesPerPixel(pixelType) == 1) {
+                if (interleaveOutside && TiffIFD.bytesPerSampleType(sampleType) == 1) {
                     writer.setAutoInterleaveSource(false);
                 }
 //                writer.setWritingForwardAllowed(false);
@@ -257,7 +256,7 @@ public class TiffWriterTest {
                         ifd.put(IFD.FILL_ORDER, FillOrder.REVERSED.getCode());
                         // - unusual mode: no special putXxx method
                     }
-                    ifd.putPixelInformation(numberOfChannels, pixelType);
+                    ifd.putPixelInformation(numberOfChannels, sampleType);
                     if (k == 0) {
                         if (existingFile) {
                             writer.startExistingFile();
@@ -296,7 +295,7 @@ public class TiffWriterTest {
                         map = writer.newMap(ifd, resizable);
                     }
 
-                    Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.pixelType(), w, h);
+                    Object samplesArray = makeSamples(ifdIndex, map.numberOfChannels(), map.sampleType(), w, h);
                     if (interleaveOutside && map.bytesPerSample() == 1) {
                         samplesArray = TiffTools.toInterleavedSamples(
                                 (byte[]) samplesArray, map.numberOfChannels(), 1, w * h);
@@ -368,10 +367,10 @@ public class TiffWriterTest {
         tiffTile.separateSamples();
     }
 
-    private static Object makeSamples(int ifdIndex, int bandCount, int pixelType, int xSize, int ySize) {
+    private static Object makeSamples(int ifdIndex, int bandCount, int sampleType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
-        switch (pixelType) {
-            case FormatTools.UINT8, FormatTools.INT8 -> {
+        switch (sampleType) {
+            case TiffIFD.UINT8, TiffIFD.INT8 -> {
                 byte[] channels = new byte[matrixSize * bandCount];
                 for (int y = 0; y < ySize; y++) {
                     int c1 = (y / 32) % (bandCount + 1) - 1;
@@ -388,7 +387,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case FormatTools.UINT16, FormatTools.INT16 -> {
+            case TiffIFD.UINT16, TiffIFD.INT16 -> {
                 short[] channels = new short[matrixSize * bandCount];
                 for (int y = 0; y < ySize; y++) {
                     int c1 = (y / 32) % (bandCount + 1) - 1;
@@ -405,7 +404,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case FormatTools.INT32, FormatTools.UINT32 -> {
+            case TiffIFD.INT32, TiffIFD.UINT32 -> {
                 int[] channels = new int[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -415,7 +414,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case FormatTools.FLOAT -> {
+            case TiffIFD.FLOAT -> {
                 float[] channels = new float[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -426,7 +425,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case FormatTools.DOUBLE -> {
+            case TiffIFD.DOUBLE -> {
                 double[] channels = new double[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -438,6 +437,6 @@ public class TiffWriterTest {
                 return channels;
             }
         }
-        throw new UnsupportedOperationException("Unsupported pixelType = " + pixelType);
+        throw new UnsupportedOperationException("Unsupported sampleType = " + sampleType);
     }
 }

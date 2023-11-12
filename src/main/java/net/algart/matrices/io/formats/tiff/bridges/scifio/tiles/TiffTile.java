@@ -113,8 +113,8 @@ public final class TiffTile {
         return littleEndian;
     }
 
-    public int pixelType() {
-        return map.pixelType();
+    public int sampleType() {
+        return map.sampleType();
     }
 
     public boolean isFloatingPoint() {

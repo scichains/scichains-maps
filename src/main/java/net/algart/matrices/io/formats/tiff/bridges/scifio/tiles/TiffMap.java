@@ -25,7 +25,6 @@
 package net.algart.matrices.io.formats.tiff.bridges.scifio.tiles;
 
 import io.scif.FormatException;
-import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
 
@@ -57,7 +56,7 @@ public final class TiffMap {
     private final int bytesPerUnpackedSample;
     private final int tileBytesPerPixel;
     private final int totalBytesPerPixel;
-    private final int pixelType;
+    private final int sampleType;
     private final boolean floatingPoint;
     private final Class<?> elementType;
     private final boolean tiled;
@@ -81,7 +80,7 @@ public final class TiffMap {
     /**
      * Creates new tile map.
      *
-     * <p>Note: you should not change the tags of the passed IFD, describing pixel type, number of samples
+     * <p>Note: you should not change the tags of the passed IFD, describing sample type, number of samples
      * and tile sizes, after creating this object. The constructor saves this information in this object
      * (it is available via access methods) and will not be renewed automatically.
      *
@@ -118,10 +117,10 @@ public final class TiffMap {
             }
             this.tileBytesPerPixel = tileSamplesPerPixel * bytesPerSample;
             this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
-            this.pixelType = ifd.pixelType();
-            this.bytesPerUnpackedSample = FormatTools.getBytesPerPixel(pixelType);
-            this.floatingPoint = pixelType == FormatTools.FLOAT || pixelType == FormatTools.DOUBLE;
-            this.elementType = TiffTools.pixelTypeToElementType(pixelType);
+            this.sampleType = ifd.sampleType();
+            this.bytesPerUnpackedSample = TiffIFD.bytesPerSampleType(sampleType);
+            this.floatingPoint = TiffIFD.isFloatingPointSampleType(sampleType);
+            this.elementType = TiffTools.sampleTypeToElementType(sampleType);
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
@@ -231,8 +230,8 @@ public final class TiffMap {
         return totalBytesPerPixel;
     }
 
-    public int pixelType() {
-        return pixelType;
+    public int sampleType() {
+        return sampleType;
     }
 
     public boolean isFloatingPoint() {
@@ -353,21 +352,21 @@ public final class TiffMap {
 
     public void checkPixelCompatibility(int numberOfChannels, Class<?> elementType, boolean signedIntegers)
             throws FormatException {
-        checkPixelCompatibility(numberOfChannels, TiffTools.elementTypeToPixelType(elementType, signedIntegers));
+        checkPixelCompatibility(numberOfChannels, TiffTools.elementTypeToSampleType(elementType, signedIntegers));
     }
 
-    public void checkPixelCompatibility(int numberOfChannels,  int pixelType) throws FormatException {
+    public void checkPixelCompatibility(int numberOfChannels, int sampleType) throws FormatException {
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
         if (numberOfChannels != this.numberOfChannels) {
             throw new FormatException("Number of channel mismatch: expected " + numberOfChannels +
-                            " channels, but TIFF image contains " + this.numberOfChannels + " channels");
+                    " channels, but TIFF image contains " + this.numberOfChannels + " channels");
         }
-        if (pixelType != this.pixelType) {
+        if (sampleType != this.sampleType) {
             throw new FormatException(
-                    "Pixel type mismatch: expected elements are " + FormatTools.getPixelTypeString(pixelType)
-                            + ", but TIFF image contains elements "+ FormatTools.getPixelTypeString(this.pixelType));
+                    "Sample type mismatch: expected elements are " + TiffTools.sampleTypeToString(sampleType)
+                            + ", but TIFF image contains elements " + TiffTools.sampleTypeToString(this.sampleType));
         }
     }
 
@@ -462,7 +461,7 @@ public final class TiffMap {
         for (int p = 0; p < numberOfSeparatedPlanes; p++) {
             for (int y = 0; y < gridTileCountY; y++) {
                 for (int x = 0; x < gridTileCountX; x++) {
-                   getOrNewMultiplane(p, x, y).cropToMap(true);
+                    getOrNewMultiplane(p, x, y).cropToMap(true);
                 }
             }
         }

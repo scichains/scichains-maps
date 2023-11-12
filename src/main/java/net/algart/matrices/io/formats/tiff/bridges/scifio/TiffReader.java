@@ -1083,7 +1083,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t4 = debugTime();
         if (interleaveResults) {
             samples = TiffTools.toInterleavedSamples(
-                    samples, numberOfChannels, ifd.bytesPerUnpackedSample(), sizeX * sizeY);
+                    samples, numberOfChannels, ifd.bytesPerSampleType(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
@@ -1122,7 +1122,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(map, "Null TIFF map");
         final byte[] samples = readSamples(map, fromX, fromY, sizeX, sizeY, storeTilesInMap);
         long t1 = debugTime();
-        final Object samplesArray = TiffTools.bytesToArray(samples, map.pixelType(), isLittleEndian());
+        final Object samplesArray = TiffTools.bytesToArray(samples, map.sampleType(), isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,

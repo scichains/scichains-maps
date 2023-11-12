@@ -29,7 +29,6 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
-import io.scif.util.FormatTools;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
 import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffTools;
@@ -180,7 +179,7 @@ public class TiffReadWriteTest {
                         }
                         final IFD scifioIFD = parser.toScifioIFD(readerIFD);
                         final int samplesPerPixel = readerIFD.getSamplesPerPixel();
-                        final int bytesPerSample = FormatTools.getBytesPerPixel(readerIFD.pixelType());
+                        final int bytesPerSample = TiffIFD.bytesPerSampleType(readerIFD.sampleType());
                         bytes = new byte[paddedW * paddedH * samplesPerPixel * bytesPerSample];
                         @SuppressWarnings("deprecation")
                         byte[] buf1 = parser.getSamples(scifioIFD, bytes, START_X, START_Y, paddedW, paddedH);
@@ -230,7 +229,7 @@ public class TiffReadWriteTest {
                         // Note: as a result, last strip in this file will be too large!
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
-                                parser.toScifioIFD(writerIFD), readerIFD.pixelType(), bandCount,
+                                parser.toScifioIFD(writerIFD), readerIFD.sampleType(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                         if (differ) {
@@ -253,7 +252,7 @@ public class TiffReadWriteTest {
     private static void writeSeveralTilesOrStrips(
             final io.scif.formats.tiff.TiffSaver saver,
             final byte[] data, final IFD ifd,
-            final int pixelType, int bandCount,
+            final int sampleType, int bandCount,
             final int lefTopX, final int leftTopY,
             final int width, final int height,
             final boolean lastImageInTiff) throws FormatException, IOException {
@@ -272,7 +271,7 @@ public class TiffReadWriteTest {
                 null;
         saver.writeImage(
                 data, ifd,
-                -1, pixelType, lefTopX, leftTopY, width, height, lastImageInTiff, bandCount,
+                -1, sampleType, lefTopX, leftTopY, width, height, lastImageInTiff, bandCount,
                 false);
         // - copyDirectly = true is a BUG for PLANAR_CONFIG_SEPARATE
         // - planeIndex = -1 is not used in Writing-Sequentially mode
