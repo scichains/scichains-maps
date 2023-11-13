@@ -63,35 +63,50 @@ public class TiffCopyTest {
                 Integer.MAX_VALUE;
         final int numberOfTests = startArgIndex + 2 < args.length ? Integer.parseInt(args[startArgIndex + 2]) : 1;
 
-        System.out.printf("Opening %s...%n", sourceFile);
-
         final SCIFIO scifio = new SCIFIO();
         for (int test = 1; test <= numberOfTests; test++) {
             System.out.printf("Test #%d%n", test);
             try (Context context = noContext ? null : scifio.getContext()) {
-                TiffReader reader = new TiffReader(context, sourceFile);
-                reader.setByteFiller((byte) 0xC0);
-                TiffWriter writer = new TiffWriter(context, targetFile);
-                writer.setBigTiff(reader.isBigTiff());
-                writer.setLittleEndian(reader.isLittleEndian());
-                writer.setJpegInPhotometricRGB(true);
-                // - should not be important for copying, when PhotometricInterpretation is already specified
-                writer.startNewFile();
-
-                System.out.printf("Copying to %s...%n", targetFile);
-                final List<TiffIFD> ifds = reader.allIFDs();
-                lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
-                for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-                    final TiffIFD readIFD = ifds.get(ifdIndex);
-                    final TiffIFD writeIFD = new TiffIFD(readIFD);
-                    System.out.printf("\rCopying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
-                    copyImage(readIFD, writeIFD, reader, writer);
-                }
-                reader.close();
-                writer.close();
+                copyTiff(context, sourceFile, targetFile, firstIFDIndex, lastIFDIndex);
             }
         }
         System.out.println("Done");
+    }
+
+    private static void copyTiff(
+            Context context,
+            Path sourceFile, Path targetFile,
+            int firstIFDIndex, int lastIFDIndex)
+            throws IOException, FormatException {
+        TiffReader reader = new TiffReader(context, sourceFile, false);
+        if (!reader.isValid()) {
+            System.out.printf("Skipping %s: not a TIFF%n", sourceFile);
+            return;
+        }
+        System.out.printf("Copying %s to %s...%n", sourceFile, targetFile);
+        reader.setByteFiller((byte) 0xC0);
+        TiffWriter writer = new TiffWriter(context, targetFile);
+        writer.setBigTiff(reader.isBigTiff());
+        writer.setLittleEndian(reader.isLittleEndian());
+        // writer.setJpegInPhotometricRGB(true);
+        // - should not be important for copying, when PhotometricInterpretation is already specified
+        writer.startNewFile();
+
+        final List<TiffIFD> ifds = reader.allIFDs();
+        lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
+        for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
+            final TiffIFD readIFD = ifds.get(ifdIndex);
+            final TiffIFD writeIFD = new TiffIFD(readIFD);
+            System.out.printf("\r  Copying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
+            copyImage(readIFD, writeIFD, reader, writer);
+        }
+        reader.close();
+        writer.close();
+    }
+
+    static void copyTiff(Context context, Path sourceFile, Path targetFile)
+            throws IOException, FormatException {
+        copyTiff(context, sourceFile, targetFile, 0, Integer.MAX_VALUE);
     }
 
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)

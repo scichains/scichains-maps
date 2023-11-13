@@ -674,7 +674,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 in.seek(offset);
                 final boolean wasNotPresent = ifdOffsets.add(offset);
                 if (!wasNotPresent) {
-                    throw new IOException("TIFF file is broken - infinite loop of IFD offsets is detected " +
+                    throw new FormatException("TIFF file is broken - infinite loop of IFD offsets is detected " +
                             "for offset " + offset + " (the stored ifdOffsets sequence is " +
                             ifdOffsets.stream().map(Object::toString).collect(Collectors.joining(", ")) +
                             ", " + offset + ", ...)");
@@ -929,10 +929,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
             if (data.length < 2 || data[0] != (byte) 0xFF || data[1] != (byte) 0xD8) {
                 // - the same check is performed inside Java API ImageIO (JPEGImageReaderSpi),
                 // and we prefer to repeat it here for better diagnostics
-                throw new FormatException(
-                        (compression == TiffCompression.JPEG ? "Invalid" : "Unsupported format of") +
-                                " TIFF content: it is declared as \"" + compression.getCodecName() +
-                                "\", but the data are not actually JPEG");
+                if (compression == TiffCompression.JPEG) {
+                    throw new FormatException(
+                            "Invalid TIFF image: it is declared as JPEG, but the data are not actually JPEG");
+                } else {
+                    throw new UnsupportedTiffFormatException(
+                            "Unsupported format of TIFF image: it is declared as \"" + compression.getCodecName() +
+                                    "\", but the data are not actually JPEG");
+                }
             }
             if (jpegTable != null) {
                 if (jpegTable.length <= 4) {
@@ -1708,7 +1712,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         try {
             entryType = IFDType.get(entryTypeCode);
         } catch (EnumException e) {
-            throw new FormatException("Invalid TIFF: unknown IFD entry type " + entryTypeCode);
+            throw new FormatException("Invalid TIFF: IFD " + entryTag + " has unknown entry type " + entryTypeCode);
         }
 
         // Parse the entry's "ValueCount"
