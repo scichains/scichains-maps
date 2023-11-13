@@ -29,12 +29,9 @@ import io.scif.SCIFIO;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffReader;
-import net.algart.matrices.tiff.TiffTools;
-import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.*;
 import net.algart.matrices.tiff.compatibility.TiffParser;
-import net.algart.matrices.tiff.tests.nobridge.PureScifioTiffReadWriteTest;
+import net.algart.matrices.tiff.tests.scifio.PureScifioTiffReadWriteTest;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import org.scijava.Context;
 import org.scijava.io.handle.DataHandle;
@@ -179,7 +176,7 @@ public class TiffReadWriteTest {
                         }
                         final IFD scifioIFD = parser.toScifioIFD(readerIFD);
                         final int samplesPerPixel = readerIFD.getSamplesPerPixel();
-                        final int bytesPerSample = TiffIFD.bytesPerSampleType(readerIFD.sampleType());
+                        final int bytesPerSample = readerIFD.sampleType().bytesPerSample();
                         bytes = new byte[paddedW * paddedH * samplesPerPixel * bytesPerSample];
                         @SuppressWarnings("deprecation")
                         byte[] buf1 = parser.getSamples(scifioIFD, bytes, START_X, START_Y, paddedW, paddedH);
@@ -229,7 +226,7 @@ public class TiffReadWriteTest {
                         // Note: as a result, last strip in this file will be too large!
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
-                                parser.toScifioIFD(writerIFD), readerIFD.sampleType(), bandCount,
+                                parser.toScifioIFD(writerIFD), readerIFD.sampleType().typeCode(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                         if (differ) {
@@ -252,7 +249,7 @@ public class TiffReadWriteTest {
     private static void writeSeveralTilesOrStrips(
             final io.scif.formats.tiff.TiffSaver saver,
             final byte[] data, final IFD ifd,
-            final int sampleType, int bandCount,
+            final int pixelType, int bandCount,
             final int lefTopX, final int leftTopY,
             final int width, final int height,
             final boolean lastImageInTiff) throws FormatException, IOException {
@@ -271,7 +268,7 @@ public class TiffReadWriteTest {
                 null;
         saver.writeImage(
                 data, ifd,
-                -1, sampleType, lefTopX, leftTopY, width, height, lastImageInTiff, bandCount,
+                -1, pixelType, lefTopX, leftTopY, width, height, lastImageInTiff, bandCount,
                 false);
         // - copyDirectly = true is a BUG for PLANAR_CONFIG_SEPARATE
         // - planeIndex = -1 is not used in Writing-Sequentially mode

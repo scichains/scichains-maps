@@ -25,10 +25,7 @@
 package net.algart.matrices.tiff.tiles;
 
 import io.scif.FormatException;
-import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffTools;
-import net.algart.matrices.tiff.TiffReader;
-import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.*;
 
 import java.util.*;
 
@@ -58,7 +55,7 @@ public final class TiffMap {
     private final int bytesPerUnpackedSample;
     private final int tileBytesPerPixel;
     private final int totalBytesPerPixel;
-    private final int sampleType;
+    private final TiffSampleType sampleType;
     private final boolean floatingPoint;
     private final Class<?> elementType;
     private final boolean tiled;
@@ -120,9 +117,9 @@ public final class TiffMap {
             this.tileBytesPerPixel = tileSamplesPerPixel * bytesPerSample;
             this.totalBytesPerPixel = numberOfChannels * bytesPerSample;
             this.sampleType = ifd.sampleType();
-            this.bytesPerUnpackedSample = TiffIFD.bytesPerSampleType(sampleType);
-            this.floatingPoint = TiffIFD.isFloatingPointSampleType(sampleType);
-            this.elementType = TiffTools.sampleTypeToElementType(sampleType);
+            this.bytesPerUnpackedSample = sampleType.bytesPerSample();
+            this.floatingPoint = sampleType.isFloatingPoint();
+            this.elementType = sampleType.elementType();
             this.tileSizeX = ifd.getTileSizeX();
             this.tileSizeY = ifd.getTileSizeY();
             assert tileSizeX > 0 && tileSizeY > 0 : "non-positive tile sizes are not checked in IFD methods";
@@ -232,7 +229,7 @@ public final class TiffMap {
         return totalBytesPerPixel;
     }
 
-    public int sampleType() {
+    public TiffSampleType sampleType() {
         return sampleType;
     }
 
@@ -354,10 +351,11 @@ public final class TiffMap {
 
     public void checkPixelCompatibility(int numberOfChannels, Class<?> elementType, boolean signedIntegers)
             throws FormatException {
-        checkPixelCompatibility(numberOfChannels, TiffTools.elementTypeToSampleType(elementType, signedIntegers));
+        checkPixelCompatibility(numberOfChannels, TiffSampleType.valueOf(elementType, signedIntegers));
     }
 
-    public void checkPixelCompatibility(int numberOfChannels, int sampleType) throws FormatException {
+    public void checkPixelCompatibility(int numberOfChannels, TiffSampleType sampleType) throws FormatException {
+        Objects.requireNonNull(sampleType, "Null sampleType");
         if (numberOfChannels <= 0) {
             throw new IllegalArgumentException("Zero or negative numberOfChannels = " + numberOfChannels);
         }
@@ -367,8 +365,8 @@ public final class TiffMap {
         }
         if (sampleType != this.sampleType) {
             throw new FormatException(
-                    "Sample type mismatch: expected elements are " + TiffTools.sampleTypeToString(sampleType)
-                            + ", but TIFF image contains elements " + TiffTools.sampleTypeToString(this.sampleType));
+                    "Sample type mismatch: expected elements are " + sampleType.typeName()
+                            + ", but TIFF image contains elements " + this.sampleType.typeName());
         }
     }
 

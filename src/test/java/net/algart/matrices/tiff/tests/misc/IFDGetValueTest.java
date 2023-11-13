@@ -40,7 +40,7 @@ public class IFDGetValueTest {
                 opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         try {
             opt = ifd.getValue(tag, requiredClass);
-            System.out.printf("optValue(..., true): %s [%s]%n",
+            System.out.printf("getValue: %s [%s]%n",
                     opt, opt.map(o -> o.getClass().getSimpleName()).orElse("n/a"));
         } catch (FormatException e) {
             System.out.printf("getValue: %s%n", e);
@@ -62,8 +62,9 @@ public class IFDGetValueTest {
         showTag(ifd, IFD.BITS_PER_SAMPLE, Integer.class);
         showTag(ifd, IFD.BITS_PER_SAMPLE, int[].class);
 
+        System.out.println();
         ifd.putImageDimensions(3000, 3000);
-        showTag(ifd, IFD.IMAGE_WIDTH, Integer.class);
+        showTag(ifd, IFD.IMAGE_WIDTH, Number.class);
         showTag(ifd, IFD.IMAGE_WIDTH, Long.class);
     }
 }

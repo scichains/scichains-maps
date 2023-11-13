@@ -869,7 +869,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
             // Note: we do not change SAMPLE_FORMAT tag here!
         }
-        final int sampleType;
+        final TiffSampleType sampleType;
         try {
             sampleType = ifd.sampleType();
         } catch (FormatException e) {
@@ -890,7 +890,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                         "requested number of bits per sample is not supported: " + bits + " bits");
             }
-            if (sampleType == TiffIFD.FLOAT && bits != 32) {
+            if (sampleType == TiffSampleType.FLOAT && bits != 32) {
                 throw new UnsupportedTiffFormatException("Cannot write TIFF, because " +
                         "requested number of bits per sample is not supported: " +
                         bits + " bits for floating-point precision");
@@ -914,9 +914,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             if (samplesPerPixel != 1 && samplesPerPixel != 3) {
                 throw new FormatException("JPEG compression for " + samplesPerPixel + " channels is not supported");
             }
-            if (sampleType != TiffIFD.UINT8) {
+            if (sampleType != TiffSampleType.UINT8) {
                 throw new FormatException("JPEG compression is supported for 8-bit unsigned samples only, but " +
-                        (sampleType == TiffIFD.INT8 ? "signed 8-bit samples requested" :
+                        (sampleType == TiffSampleType.INT8 ? "signed 8-bit samples requested" :
                                 "requested number of bits/samples is " + Arrays.toString(ifd.getBitsPerSample())));
             }
             if (photometric == null) {

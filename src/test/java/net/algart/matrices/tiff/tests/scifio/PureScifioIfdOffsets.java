@@ -22,17 +22,34 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.tiff.tests.misc;
+package net.algart.matrices.tiff.tests.scifio;
 
 import io.scif.SCIFIO;
-import org.scijava.Context;
+import io.scif.formats.tiff.TiffParser;
+import org.scijava.io.location.FileLocation;
 
-public class SimplestSCIFIO {
-    private static final int MAX_IMAGE_SIZE = 6000;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 
-    public static void main(String[] args) throws Exception {
-        SCIFIO scifio = new SCIFIO();
-        Context context = scifio.getContext();
-        // - prevents closing program in SCIFIO versions before 0.46
+public class PureScifioIfdOffsets {
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.out.println("Usage:");
+            System.out.println("    " + PureScifioIfdOffsets.class.getName() + " tiff_file.tiff");
+            return;
+        }
+
+        final Path file = Paths.get(args[0]);
+
+        TiffParser parser = new TiffParser(new SCIFIO().getContext(), new FileLocation(file.toFile()));
+        parser.setUse64BitOffsets(false);
+        long[] ifdOffsets = parser.getIFDOffsets();
+        System.out.printf("Usual offset: %d, %s%n", ifdOffsets.length, Arrays.toString(ifdOffsets));
+
+        parser.setUse64BitOffsets(true);
+        ifdOffsets = parser.getIFDOffsets();
+        System.out.printf("fakeBigTiff: %d, %s%n", ifdOffsets.length, Arrays.toString(ifdOffsets));
     }
 }

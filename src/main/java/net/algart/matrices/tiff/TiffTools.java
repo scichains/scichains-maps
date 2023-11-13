@@ -90,75 +90,33 @@ public class TiffTools {
     private TiffTools() {
     }
 
-    public static Class<?> sampleTypeToElementType(int sampleType) {
-        return switch (sampleType) {
-            case TiffIFD.INT8, TiffIFD.UINT8 -> byte.class;
-            case TiffIFD.INT16, TiffIFD.UINT16 -> short.class;
-            case TiffIFD.INT32, TiffIFD.UINT32 -> int.class;
-            case TiffIFD.FLOAT -> float.class;
-            case TiffIFD.DOUBLE -> double.class;
-            default -> throw new IllegalArgumentException("Unknown sample type: " + sampleType);
-        };
-    }
-
-    public static int arrayToSampleType(Object javaArray, boolean signedIntegers) {
+    public static TiffSampleType arrayToSampleType(Object javaArray, boolean signedIntegers) {
         Objects.requireNonNull(javaArray, "Null Java array");
         Class<?> elementType = javaArray.getClass().getComponentType();
         if (elementType == null) {
             throw new IllegalArgumentException("The specified javaArray is not actual an array: " +
                     "it is " + javaArray.getClass());
         }
-        return elementTypeToSampleType(elementType, signedIntegers);
+        return TiffSampleType.valueOf(elementType, signedIntegers);
     }
 
-    public static int elementTypeToSampleType(Class<?> elementType, boolean signedIntegers) {
-        Objects.requireNonNull(elementType, "Null elementType");
-        if (elementType == byte.class) {
-            return signedIntegers ? TiffIFD.INT8 : TiffIFD.UINT8;
-        } else if (elementType == short.class) {
-            return signedIntegers ? TiffIFD.INT16 : TiffIFD.UINT16;
-        } else if (elementType == int.class) {
-            return signedIntegers ? TiffIFD.INT32 : TiffIFD.UINT32;
-        } else if (elementType == float.class) {
-            return TiffIFD.FLOAT;
-        } else if (elementType == double.class) {
-            return TiffIFD.DOUBLE;
-        } else {
-            throw new IllegalArgumentException("Element type " + elementType +
-                    " is unsupported: it cannot be converted to sample type");
-        }
-    }
-
-    public static String sampleTypeToString(int sampleType) {
-        return switch (sampleType) {
-            case TiffIFD.INT8 -> "int8";
-            case TiffIFD.UINT8 -> "uint8";
-            case TiffIFD.INT16 -> "int16";
-            case TiffIFD.UINT16 -> "uint16";
-            case TiffIFD.INT32 -> "int32";
-            case TiffIFD.UINT32 -> "uint32";
-            case TiffIFD.FLOAT -> "float";
-            case TiffIFD.DOUBLE -> "double";
-            default -> throw new IllegalArgumentException("Unknown sample type: " + sampleType);
-        };
-    }
-
-    public static Object bytesToArray(byte[] bytes, int sampleType, boolean littleEndian) {
+    public static Object bytesToArray(byte[] bytes, TiffSampleType sampleType, boolean littleEndian) {
         Objects.requireNonNull(bytes, "Null bytes");
+        Objects.requireNonNull(sampleType, "Null sampleType");
         switch (sampleType) {
-            case TiffIFD.INT8, TiffIFD.UINT8 -> {
+            case INT8, UINT8 -> {
                 return bytes;
             }
-            case TiffIFD.INT16, TiffIFD.UINT16 -> {
+            case INT16, UINT16 -> {
                 return bytesToShortArray(bytes, littleEndian);
             }
-            case TiffIFD.INT32, TiffIFD.UINT32 -> {
+            case INT32, UINT32 -> {
                 return bytesToIntArray(bytes, littleEndian);
             }
-            case TiffIFD.FLOAT -> {
+            case FLOAT -> {
                 return bytesToFloatArray(bytes, littleEndian);
             }
-            case TiffIFD.DOUBLE -> {
+            case DOUBLE -> {
                 return bytesToDoubleArray(bytes, littleEndian);
             }
         }
@@ -206,13 +164,13 @@ public class TiffTools {
     }
 
     public static byte[] arrayToBytes(Object javaArray, boolean littleEndian) {
-        final int sampleType = arrayToSampleType(javaArray, false);
+        final TiffSampleType sampleType = arrayToSampleType(javaArray, false);
         // - note: signed and unsigned values correspond to the same element types
         switch (sampleType) {
-            case TiffIFD.INT8, TiffIFD.UINT8 -> {
+            case INT8, UINT8 -> {
                 return (byte[]) javaArray;
             }
-            case TiffIFD.INT16, TiffIFD.UINT16 -> {
+            case INT16, UINT16 -> {
                 final short[] shortValues = (short[]) javaArray;
                 final byte[] v = new byte[shortValues.length * 2];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
@@ -220,7 +178,7 @@ public class TiffTools {
                 bb.asShortBuffer().put(shortValues);
                 return v;
             }
-            case TiffIFD.INT32, TiffIFD.UINT32 -> {
+            case INT32, UINT32 -> {
                 final int[] intValues = (int[]) javaArray;
                 final byte[] v = new byte[intValues.length * 4];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
@@ -228,7 +186,7 @@ public class TiffTools {
                 bb.asIntBuffer().put(intValues);
                 return v;
             }
-            case TiffIFD.FLOAT -> {
+            case FLOAT -> {
                 final float[] floatValues = (float[]) javaArray;
                 final byte[] v = new byte[floatValues.length * 4];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
@@ -236,7 +194,7 @@ public class TiffTools {
                 bb.asFloatBuffer().put(floatValues);
                 return v;
             }
-            case TiffIFD.DOUBLE -> {
+            case DOUBLE -> {
                 final double[] doubleValue = (double[]) javaArray;
                 final byte[] v = new byte[doubleValue.length * 8];
                 final ByteBuffer bb = ByteBuffer.wrap(v);
@@ -787,8 +745,8 @@ public class TiffTools {
             throw new IllegalArgumentException("Negative numberOfPixels = " + numberOfPixels);
         }
         final int packedBytesPerSample = ifd.equalBytesPerSample();
-        final int sampleType = ifd.sampleType();
-        final boolean floatingPoint = TiffIFD.isFloatingPointSampleType(sampleType);
+        final TiffSampleType sampleType = ifd.sampleType();
+        final boolean floatingPoint = sampleType.isFloatingPoint();
         // - actually DOUBLE is not used below
         final int bitsPerSample = ifd.tryEqualBitDepth().orElse(-1);
         final boolean float16 = bitsPerSample == 16 && floatingPoint;

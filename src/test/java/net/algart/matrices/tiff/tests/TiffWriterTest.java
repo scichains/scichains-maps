@@ -30,10 +30,7 @@ import io.scif.formats.tiff.FillOrder;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.math.IRectangularArea;
-import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffReader;
-import net.algart.matrices.tiff.TiffTools;
-import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.*;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.tiff.tiles.TiffTile;
 import org.scijava.Context;
@@ -156,17 +153,7 @@ public class TiffWriterTest {
             return;
         }
         final Path targetFile = Paths.get(args[startArgIndex++]);
-        final int sampleType = switch (args[startArgIndex]) {
-            case "uint8" -> TiffIFD.UINT8;
-            case "int8" -> TiffIFD.INT8;
-            case "uint16" -> TiffIFD.UINT16;
-            case "int16" -> TiffIFD.INT16;
-            case "uint32" -> TiffIFD.UINT32;
-            case "int32" -> TiffIFD.INT32;
-            case "float" -> TiffIFD.FLOAT;
-            case "double" -> TiffIFD.DOUBLE;
-            default -> throw new IllegalArgumentException("Unknown element type " + args[startArgIndex]);
-        };
+        final TiffSampleType sampleType = TiffSampleType.valueOf(args[startArgIndex].toUpperCase());
 
         final int numberOfImages = ++startArgIndex < args.length ? Integer.parseInt(args[startArgIndex]) : 1;
         final String compression = ++startArgIndex < args.length ? args[startArgIndex] : null;
@@ -200,7 +187,7 @@ public class TiffWriterTest {
                  final TiffWriter writer = new TiffWriter(context, targetFile, !existingFile)) {
 //                 TiffWriter writer = new TiffSaver(context, targetFile.toString())) {
 //                writer.setExtendedCodec(false);
-                if (interleaveOutside && TiffIFD.bytesPerSampleType(sampleType) == 1) {
+                if (interleaveOutside && sampleType.bytesPerSample() == 1) {
                     writer.setAutoInterleaveSource(false);
                 }
 //                writer.setWritingForwardAllowed(false);
@@ -367,10 +354,10 @@ public class TiffWriterTest {
         tiffTile.separateSamples();
     }
 
-    private static Object makeSamples(int ifdIndex, int bandCount, int sampleType, int xSize, int ySize) {
+    private static Object makeSamples(int ifdIndex, int bandCount, TiffSampleType sampleType, int xSize, int ySize) {
         final int matrixSize = xSize * ySize;
         switch (sampleType) {
-            case TiffIFD.UINT8, TiffIFD.INT8 -> {
+            case UINT8, INT8 -> {
                 byte[] channels = new byte[matrixSize * bandCount];
                 for (int y = 0; y < ySize; y++) {
                     int c1 = (y / 32) % (bandCount + 1) - 1;
@@ -387,7 +374,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case TiffIFD.UINT16, TiffIFD.INT16 -> {
+            case UINT16, INT16 -> {
                 short[] channels = new short[matrixSize * bandCount];
                 for (int y = 0; y < ySize; y++) {
                     int c1 = (y / 32) % (bandCount + 1) - 1;
@@ -404,7 +391,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case TiffIFD.INT32, TiffIFD.UINT32 -> {
+            case INT32, UINT32 -> {
                 int[] channels = new int[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -414,7 +401,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case TiffIFD.FLOAT -> {
+            case FLOAT -> {
                 float[] channels = new float[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;
@@ -425,7 +412,7 @@ public class TiffWriterTest {
                 }
                 return channels;
             }
-            case TiffIFD.DOUBLE -> {
+            case DOUBLE -> {
                 double[] channels = new double[matrixSize * bandCount];
                 for (int y = 0, disp = 0; y < ySize; y++) {
                     final int c = (y / 32) % bandCount;

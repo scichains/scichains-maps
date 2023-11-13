@@ -27,7 +27,7 @@ package net.algart.matrices.tiff.tests.misc;
 import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffTools;
+import net.algart.matrices.tiff.TiffSampleType;
 
 import java.util.Arrays;
 
@@ -37,8 +37,8 @@ public class StrangeIFDBitsPerSampleTest {
                 name, ifd, ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
         boolean exceptionOccurred = false;
         try {
-            int sampleType = ifd.sampleType();
-            System.out.printf("Sample type: %d, %s%n", sampleType, TiffTools.sampleTypeToString(sampleType));
+            TiffSampleType sampleType = ifd.sampleType();
+            System.out.printf("Sample type: %s, %s%n", sampleType, sampleType.typeName());
         } catch (FormatException e) {
             if (!exceptionExpected) {
                 throw e;

@@ -1142,7 +1142,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t4 = debugTime();
         if (interleaveResults) {
             samples = TiffTools.toInterleavedSamples(
-                    samples, numberOfChannels, ifd.bytesPerSampleType(), sizeX * sizeY);
+                    samples, numberOfChannels, ifd.sampleType().bytesPerSample(), sizeX * sizeY);
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();

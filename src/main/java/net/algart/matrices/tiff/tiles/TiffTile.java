@@ -26,10 +26,7 @@ package net.algart.matrices.tiff.tiles;
 
 import io.scif.FormatException;
 import net.algart.math.IRectangularArea;
-import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffReader;
-import net.algart.matrices.tiff.TiffTools;
-import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.*;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -113,7 +110,7 @@ public final class TiffTile {
         return littleEndian;
     }
 
-    public int sampleType() {
+    public TiffSampleType sampleType() {
         return map.sampleType();
     }
 
