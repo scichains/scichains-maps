@@ -98,7 +98,8 @@ public class TiffReaderTest {
 //                reader.setExtendedCodec(false);
 //                reader.setCachingIFDs(false);
 //                reader.setAutoUnpackUnusualPrecisions(false);
-//                reader.setAutoCorrectUnusualColorRange(false);
+//                reader.setAutoScaleWhenIncreasingBitDepth(true);
+                reader.setAutoCorrectInvertedBrightness(true);
                 reader.setMissingTilesAllowed(true);
                 reader.setByteFiller((byte) 0x80);
 //                ((TiffParser) reader).setAssumeEqualStrips(true);

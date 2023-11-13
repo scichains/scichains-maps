@@ -128,7 +128,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private boolean requireValidTiff;
     private boolean interleaveResults = false;
     private boolean autoUnpackUnusualPrecisions = true;
-    private boolean autoCorrectUnusualColorRange = true;
+    private boolean autoScaleWhenIncreasingBitDepth = true;
+    private boolean autoCorrectInvertedBrightness = false;
     private boolean extendedCodec = true;
     private boolean cropTilesToImageBoundaries = true;
     private boolean cachingIFDs = true;
@@ -300,12 +301,68 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return this;
     }
 
-    public boolean isAutoCorrectUnusualColorRange() {
-        return autoCorrectUnusualColorRange;
+    public boolean isAutoScaleWhenIncreasingBitDepth() {
+        return autoScaleWhenIncreasingBitDepth;
     }
 
-    public TiffReader setAutoCorrectUnusualColorRange(boolean autoCorrectUnusualColorRange) {
-        this.autoCorrectUnusualColorRange = autoCorrectUnusualColorRange;
+    /**
+     * Sets the flag, whether do we need to scale pixel sample values when automatic increasing bit depths,
+     * for example, when we decode 12-bit grayscale image into 16-bit result.
+     *
+     * <p>This class can successfully read TIFF with bit depths not divided by 8, such as 4-bit, 12-bit images or
+     * 5+5+5 "HiRes" RGB images. But the data returned by this class is always represented by 8-bit, 16-bit,
+     * 32-bit integer values (signed or unsigned) or by 32- or 64-bit floating-point values
+     * (these bit depths correspond to Java primitive types). If the source pixel values have another bit depth,
+     * they are automatically converted to the nearest "larger" type, for example, 4-bit integer is converted
+     * to 8-bit, 12-bit integer is converted to 16-bit, 24-bit to 32-bit.</p>
+     *
+     * <p>If this flag is <tt>false</tt>, this conversion is performed "as-is", so, values 0..15 in 4-bit source data
+     * will be converted to the same values 0..15 with 8-bit precision.
+     * This is good if you need to process these values using some kind of algorithm.
+     * However, if you need to show the real picture to the end user, then values 0..15 with 8-bit
+     * precisions (or 0..4095 with 16-bit precision) will look almost black. To avoid this, you may use <tt>true</tt>
+     * value of this flag, which causes automatic scaling returned values: multiplying by
+     * (2<sup><i>n</i></sup>&minus;1)/(2<sup><i>k</i></sup>&minus;1), where <i>n</i> is the result bit depth
+     * and <i>k</i> is the source one (for example, for 12-bit image <i>k</i>=12 and <i>n</i>=16).
+     * As the result, the returned picture will look alike the source one.</p>
+     *
+     * <p>Default value is <tt>true</tt>. However, the scaling is still not performed if
+     * PhotometricInterpretation TIFF tag is "Palette" (3) or "Transparency Mask" (4): in these cases
+     * scaling has no sense.
+     *
+     * @param autoScaleWhenIncreasingBitDepth whether do we need to scale pixel samples, represented with <i>k</i>
+     *                                       bits/sample, <i>k</i>%8&nbsp;&ne;&nbsp;0, when increasing bit depth
+     *                                        to nearest <i>n</i> bits/sample, where
+     *                                        <i>n</i>&nbsp;&gt;&nbsp;<i>k</i> and <i>n</i> is divided by 8.
+     * @return a reference to this object.
+     */
+    public TiffReader setAutoScaleWhenIncreasingBitDepth(boolean autoScaleWhenIncreasingBitDepth) {
+        this.autoScaleWhenIncreasingBitDepth = autoScaleWhenIncreasingBitDepth;
+        return this;
+    }
+
+    public boolean isAutoCorrectInvertedBrightness() {
+        return autoCorrectInvertedBrightness;
+    }
+
+    /**
+     * Sets the flag, whether do we need to automatically correct (invert) pixel sample values in color space
+     * with inverted sense of pixel brightness, i.e. when PhotometricInterpretation TIFF tag is "WhiteIsZero" (0)
+     * or "Separated" (CMYK, 5). (In these color spaces, white color is encoded as zero, and black color is encoded
+     * as maximal allowed value like 255 for 8-bit samples.)
+     * Note that this flag <b>do not provide</b> correct processing CMYK color model
+     * and absolutely useless for more complex color spaces like CIELAB, but for PhotometricInterpretation=0 or 5
+     * it helps to provide RGB results more similar to the correct picture.
+     *
+     * <p>Default value is <tt>false</tt>. You may set it to <tt>true</tt> if the only goal of reading TIFF
+     * is to show the image to a user.
+     *
+     * @param autoCorrectInvertedBrightness whether do we need to invert samples for "WhiteIsZero" and "CMYK"
+     *                                      photometric interpretations.
+     * @return a reference to this object.
+     */
+    public TiffReader setAutoCorrectInvertedBrightness(boolean autoCorrectInvertedBrightness) {
+        this.autoCorrectInvertedBrightness = autoCorrectInvertedBrightness;
         return this;
     }
 
@@ -975,7 +1032,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         } else {
             if (!TiffTools.separateUnpackedSamples(tile)) {
                 if (!TiffTools.separateYCbCrToRGB(tile)) {
-                    TiffTools.separateBitsAndInvertValues(tile, !autoCorrectUnusualColorRange);
+                    TiffTools.separateBitsAndInvertValues(tile,
+                            autoScaleWhenIncreasingBitDepth,
+                            autoCorrectInvertedBrightness);
                 }
             }
         }
@@ -1078,7 +1137,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         long t3 = debugTime();
         if (autoUnpackUnusualPrecisions) {
             samples = TiffTools.unpackUnusualPrecisions(
-                    samples, ifd, numberOfChannels, sizeX * sizeY, !autoCorrectUnusualColorRange);
+                    samples, ifd, numberOfChannels, sizeX * sizeY, autoScaleWhenIncreasingBitDepth);
         }
         long t4 = debugTime();
         if (interleaveResults) {

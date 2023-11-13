@@ -641,7 +641,10 @@ public class TiffTools {
         return true;
     }
 
-    public static boolean separateBitsAndInvertValues(TiffTile tile, boolean suppressValueCorrection)
+    public static boolean separateBitsAndInvertValues(
+            TiffTile tile,
+            boolean scaleWhenIncreasingBitDepth,
+            boolean correctInvertedBrightness)
             throws FormatException {
         Objects.requireNonNull(tile);
         final TiffIFD ifd = tile.ifd();
@@ -662,7 +665,7 @@ public class TiffTools {
         if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
                 photometricInterpretation == PhotoInterp.CFA_ARRAY ||
                 photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
-            suppressValueCorrection = true;
+            scaleWhenIncreasingBitDepth = false;
         }
         final boolean invertedBrightness =
                 photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
@@ -748,10 +751,10 @@ public class TiffTools {
                         value = bitsUnpacker.getBits(bits) & 0xFFFFFFFFL;
                         // - unsigned 32-bit value
                     }
-                    if (!suppressValueCorrection) {
-                        if (invertedBrightness) {
-                            value = maxValue - value;
-                        }
+                    if (correctInvertedBrightness && invertedBrightness) {
+                        value = maxValue - value;
+                    }
+                    if (scaleWhenIncreasingBitDepth) {
                         value *= multipliers[s];
                     }
                     assert outputIndex + bytesPerSample <= unpacked.length;
@@ -774,7 +777,7 @@ public class TiffTools {
             final TiffIFD ifd,
             final int numberOfChannels,
             final int numberOfPixels,
-            boolean suppressScalingUnsignedInt24) throws FormatException {
+            boolean scaleUnsignedInt24) throws FormatException {
         Objects.requireNonNull(samples, "Null samples");
         Objects.requireNonNull(ifd, "Null IFD");
         if (numberOfChannels <= 0) {
@@ -815,44 +818,24 @@ public class TiffTools {
             for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
                 // - very rare case, no sense to optimize
                 final int value = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-                final long newValue = suppressScalingUnsignedInt24 ? value : (long) value << 8;
+                final long newValue = scaleUnsignedInt24 ? (long) value << 8 : value;
                 Bytes.unpack(newValue, unpacked, i * 4, 4, littleEndian);
             }
             return unpacked;
         }
 
-        final int mantissaBits = float16 ? 10 : 16;
-        final int exponentBits = float16 ? 5 : 7;
-        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
-        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
-        final int power2MantissaBits = pow2(mantissaBits);
-        final int power2MantissaBitsMinus1 = pow2(mantissaBits) - 1;
-        final int packedBitsPerSampleMinus1 = (packedBytesPerSample * 8) - 1;
+//        final int mantissaBits = float16 ? 10 : 16;
+//        final int exponentBits = float16 ? 5 : 7;
+//        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
+//        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
+//        final int packedBitsPerSampleMinus1 = (packedBytesPerSample * 8) - 1;
         for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
-            final int v = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-            final int sign = v >> packedBitsPerSampleMinus1;
-            int exponent = (v >> mantissaBits) & power2ExponentBitsMinus1;
-            int mantissa = v & power2MantissaBitsMinus1;
-
-            if (exponent == 0) {
-                if (mantissa != 0) {
-                    while ((mantissa & power2MantissaBits) == 0) {
-                        mantissa <<= 1;
-                        exponent--;
-                    }
-                    exponent++;
-                    mantissa &= power2MantissaBitsMinus1;
-                    exponent += exponentIncrement;
-                }
-            } else if (exponent == power2ExponentBitsMinus1) {
-                exponent = 255;
-            } else {
-                exponent += exponentIncrement;
-            }
-
-            mantissa <<= (23 - mantissaBits);
-
-            final int value = (sign << 31) | (exponent << 23) | mantissa;
+            final int packedValue = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
+//            final int valueToCompare = unpackFloatBits(packedValue,
+//                    packedBitsPerSampleMinus1, mantissaBits, power2ExponentBitsMinus1, exponentIncrement);
+            final int value = float16 ?
+                    unpack16BitFloat((short) packedValue) :
+                    unpack24BitFloat(packedValue);
             Bytes.unpack(value, unpacked, i * 4, 4, littleEndian);
         }
         return unpacked;
@@ -1245,6 +1228,98 @@ public class TiffTools {
             return false;
         }
         return !ifd.isStandardInvertedCompression();
+    }
+
+    // Common prototype, based on SCIFIO code
+    private static int unpackFloatBits(
+            int bits,
+            int packedBitsPerSampleMinus1,
+            int mantissaBits,
+            int power2ExponentBitsMinus1,
+            int exponentIncrement) {
+        final int sign = bits >> packedBitsPerSampleMinus1;
+        final int power2MantissaBits = pow2(mantissaBits);
+        int exponent = (bits >> mantissaBits) & power2ExponentBitsMinus1;
+        int mantissa = bits & (power2MantissaBits - 1);
+
+        if (exponent == 0) {
+            if (mantissa != 0) {
+                while ((mantissa & power2MantissaBits) == 0) {
+                    mantissa <<= 1;
+                    exponent--;
+                }
+                exponent++;
+                mantissa &= power2MantissaBits - 1;
+                exponent += exponentIncrement;
+            }
+        } else if (exponent == power2ExponentBitsMinus1) {
+            exponent = 255;
+        } else {
+            exponent += exponentIncrement;
+        }
+
+        mantissa <<= (23 - mantissaBits);
+
+        return (sign << 31) | (exponent << 23) | mantissa;
+    }
+
+    private static int unpack24BitFloat(int bits) {
+        final int mantissaBits = 16;
+        final int exponentIncrement = 64;
+        final int power2ExponentBitsMinus1 = 127;
+
+        final int sign = bits >> 23;
+        final int power2MantissaBits = 1 << 16;
+        int exponent = (bits >> 16) & 127;
+        int mantissa = bits & 65535;
+
+        if (exponent == 0) {
+            if (mantissa != 0) {
+                while ((mantissa & power2MantissaBits) == 0) {
+                    mantissa <<= 1;
+                    exponent--;
+                }
+                exponent++;
+                mantissa &= 65535;
+                exponent += exponentIncrement;
+            }
+        } else if (exponent == power2ExponentBitsMinus1) {
+            exponent = 255;
+        } else {
+            exponent += exponentIncrement;
+        }
+        mantissa <<= 23 - mantissaBits;
+
+        return (sign << 31) | (exponent << 23) | mantissa;
+    }
+
+    // From TwelveMonkey: little better code (special branch for mantissa == 0)
+    private static int unpack16BitFloat(short bits) {
+        int mantissa = bits & 0x03ff;           // 10 bits mantissa
+        int exponent = bits & 0x7c00;           //  5 bits exponent
+
+        if (exponent == 0x7c00) {               // NaN/Inf
+            exponent = 0x3fc00;                 // -> NaN/Inf
+        } else if (exponent != 0) {             // Normalized value
+            exponent += 0x1c000;                // exp - 15 + 127
+
+            // Smooth transition
+            if (mantissa == 0 && exponent > 0x1c400) {
+                return (bits & 0x8000) << 16 | exponent << 13 | 0x3ff;
+            }
+        } else if (mantissa != 0) {             // && exp == 0 -> subnormal
+            exponent = 0x1c400;                 // Make it normal
+
+            do {
+                mantissa <<= 1;                 // mantissa * 2
+                exponent -= 0x400;              // Decrease exp by 1
+            } while ((mantissa & 0x400) == 0);  // while not normal
+
+            mantissa &= 0x3ff;                  // Discard subnormal bit
+        }                                       // else +/-0 -> +/-0
+
+        // Combine all parts,  sign << (31 - 15), value << (23 - 10)
+        return (bits & 0x8000) << 16 | (exponent | mantissa) << 13;
     }
 
     private static void checkInterleaved(TiffTile tile) throws FormatException {
