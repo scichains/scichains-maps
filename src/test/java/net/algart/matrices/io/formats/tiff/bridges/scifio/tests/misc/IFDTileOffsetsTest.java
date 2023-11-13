@@ -74,6 +74,8 @@ public class IFDTileOffsetsTest {
 
             t1 = System.nanoTime();
             offsets = ifd.cachedTileOrStripOffsets();
+            // ifd.put(TiffIFD.TILE_OFFSETS, new long[ifd.getTileCountX() * ifd.getTileCountY()]);
+            // - should clear cache
             t2 = System.nanoTime();
             System.out.printf("Tile/strip offsets with caching, %d values: %s (%.3f mcs)%n",
                     offsets.length, JArrays.toString(offsets,", ", 100), (t2 - t1) * 1e-3);

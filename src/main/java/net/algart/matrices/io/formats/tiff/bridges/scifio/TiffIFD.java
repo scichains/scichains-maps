@@ -1371,6 +1371,7 @@ public class TiffIFD {
             // - we prefer not to throw FormatException here, like in hasTileInformation method
             checkImmutable("Image dimensions cannot be updated in non-tiled TIFF");
         }
+        clearCache();
         removeEntries(IMAGE_WIDTH, IMAGE_LENGTH);
         // - to avoid illegal detection of the type
         map.put(IMAGE_WIDTH, dimX);
@@ -1413,6 +1414,7 @@ public class TiffIFD {
                             "strips, " + tileCountY) +
                     (numberOfSeparatedPlanes == 1 ? "" : " x " + numberOfSeparatedPlanes + " separated channels"));
         }
+        clearCache();
         removeEntries(TILE_OFFSETS, STRIP_OFFSETS, TILE_BYTE_COUNTS, STRIP_BYTE_COUNTS);
         // - to avoid illegal detection of the type
         map.put(tiled ? TILE_OFFSETS : STRIP_OFFSETS, offsets);
@@ -1426,17 +1428,20 @@ public class TiffIFD {
         checkImmutable();
         removeEntries(key);
         // - necessary to avoid possible bugs with detection of type
+        clearCache();
         return map.put(key, value);
     }
 
     public Object remove(int key) {
         checkImmutable();
         removeEntries(key);
+        clearCache();
         return map.remove(key);
     }
 
     public void clear() {
         checkImmutable();
+        clearCache();
         if (detailedEntries != null) {
             detailedEntries.clear();
         }
@@ -1666,6 +1671,11 @@ public class TiffIFD {
                 || compression == TiffCompression.OLD_JPEG
                 || compression == TiffCompression.ALT_JPEG;
         // - actually only TiffCompression.JPEG is surely supported
+    }
+
+    private void clearCache() {
+        cachedTileOrStripByteCounts = null;
+        cachedTileOrStripOffsets = null;
     }
 
     private void checkImmutable() {
