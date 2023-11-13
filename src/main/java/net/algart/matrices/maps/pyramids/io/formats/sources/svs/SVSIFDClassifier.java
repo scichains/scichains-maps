@@ -28,9 +28,9 @@ import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.Arrays;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
+import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 
 import java.io.IOException;

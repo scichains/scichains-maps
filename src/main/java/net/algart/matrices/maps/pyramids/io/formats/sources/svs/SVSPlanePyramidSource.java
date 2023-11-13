@@ -25,17 +25,16 @@
 package net.algart.matrices.maps.pyramids.io.formats.sources.svs;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.*;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.CachingTiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffIFD;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.TiffReader;
-import net.algart.matrices.io.formats.tiff.bridges.scifio.tiles.TiffMap;
+import net.algart.matrices.tiff.CachingTiffReader;
+import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.maps.pyramids.io.api.AbstractPlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidTools;
