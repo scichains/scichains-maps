@@ -365,8 +365,8 @@ public final class TiffMap {
         }
         if (sampleType != this.sampleType) {
             throw new FormatException(
-                    "Sample type mismatch: expected elements are " + sampleType.typeName()
-                            + ", but TIFF image contains elements " + this.sampleType.typeName());
+                    "Sample type mismatch: expected elements are " + sampleType.prettyName()
+                            + ", but TIFF image contains elements " + this.sampleType.prettyName());
         }
     }
 

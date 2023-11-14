@@ -25,8 +25,8 @@
 package net.algart.matrices.tiff.tests;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.PhotoInterp;
 import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
 
@@ -49,9 +49,9 @@ public class TiffFalsifyTags {
         final int ifdIndex = Integer.parseInt(args[startArgIndex++]);
         final int newDimX = Integer.parseInt(args[startArgIndex++]);
         final int newDimY = Integer.parseInt(args[startArgIndex++]);
-        PhotoInterp photometricInterpretation = null;
+        TiffPhotometricInterpretation photometricInterpretation = null;
         if (startArgIndex < args.length) {
-            photometricInterpretation = PhotoInterp.valueOf(args[startArgIndex++]);
+            photometricInterpretation = TiffPhotometricInterpretation.valueOf(args[startArgIndex++]);
         }
 
         try (TiffReader reader = new TiffReader(targetFile);

@@ -907,7 +907,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - UnsupportedTiffFormatException for unknown compression
 
         final boolean jpeg = compression == TiffCompression.JPEG;
-        PhotoInterp photometric = ifd.containsKey(IFD.PHOTOMETRIC_INTERPRETATION) ?
+        TiffPhotometricInterpretation photometric = ifd.containsKey(IFD.PHOTOMETRIC_INTERPRETATION) ?
                 ifd.getPhotometricInterpretation() :
                 null;
         if (jpeg) {
@@ -920,34 +920,40 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                                 "requested number of bits/samples is " + Arrays.toString(ifd.getBitsPerSample())));
             }
             if (photometric == null) {
-                photometric = samplesPerPixel == 1 ? PhotoInterp.BLACK_IS_ZERO :
-                        (jpegInPhotometricRGB || !ifd.isChunked()) ? PhotoInterp.RGB : PhotoInterp.Y_CB_CR;
+                photometric = samplesPerPixel == 1 ? TiffPhotometricInterpretation.BLACK_IS_ZERO :
+                        (jpegInPhotometricRGB || !ifd.isChunked()) ?
+                                TiffPhotometricInterpretation.RGB : TiffPhotometricInterpretation.Y_CB_CR;
             } else {
                 checkPhotometricInterpretation(photometric,
-                        samplesPerPixel == 1 ? EnumSet.of(PhotoInterp.BLACK_IS_ZERO) :
+                        samplesPerPixel == 1 ? EnumSet.of(TiffPhotometricInterpretation.BLACK_IS_ZERO) :
                                 extendedCodec ?
-                                        EnumSet.of(PhotoInterp.Y_CB_CR, PhotoInterp.RGB) :
-                                        EnumSet.of(PhotoInterp.Y_CB_CR),
+                                        EnumSet.of(TiffPhotometricInterpretation.Y_CB_CR,
+                                                TiffPhotometricInterpretation.RGB) :
+                                        EnumSet.of(TiffPhotometricInterpretation.Y_CB_CR),
                         "JPEG " + samplesPerPixel + "-channel image");
             }
         } else if (samplesPerPixel == 1) {
             final boolean hasColorMap = ifd.containsKey(IFD.COLOR_MAP);
             if (photometric == null) {
-                photometric = hasColorMap ? PhotoInterp.RGB_PALETTE : PhotoInterp.BLACK_IS_ZERO;
+                photometric = hasColorMap ?
+                        TiffPhotometricInterpretation.RGB_PALETTE :
+                        TiffPhotometricInterpretation.BLACK_IS_ZERO;
             } else {
-                if (photometric == PhotoInterp.RGB_PALETTE && !hasColorMap) {
+                if (photometric == TiffPhotometricInterpretation.RGB_PALETTE && !hasColorMap) {
                     throw new FormatException("Cannot write TIFF image: photometric interpretation \"" +
-                            photometric.getName() + "\" requires also \"ColorMap\" tag");
+                            photometric.prettyName() + "\" requires also \"ColorMap\" tag");
                 }
                 checkPhotometricInterpretation(photometric, EnumSet.of(
-                                PhotoInterp.WHITE_IS_ZERO, PhotoInterp.BLACK_IS_ZERO,
-                                PhotoInterp.RGB_PALETTE, PhotoInterp.CFA_ARRAY,
-                                PhotoInterp.TRANSPARENCY_MASK),
+                                TiffPhotometricInterpretation.WHITE_IS_ZERO,
+                                TiffPhotometricInterpretation.BLACK_IS_ZERO,
+                                TiffPhotometricInterpretation.RGB_PALETTE,
+                                TiffPhotometricInterpretation.CFA_ARRAY,
+                                TiffPhotometricInterpretation.TRANSPARENCY_MASK),
                         "single-channel image (1 sample/pixel)");
             }
         } else if (samplesPerPixel == 3) {
             if (photometric == null) {
-                photometric = PhotoInterp.RGB;
+                photometric = TiffPhotometricInterpretation.RGB;
             }
         } else {
             if (photometric == null) {
@@ -1656,8 +1662,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (customCodec instanceof ExtendedJPEGCodec) {
             ExtendedJPEGCodecOptions jpegOptions = new ExtendedJPEGCodecOptions(result);
             jpegOptions.setQuality(jpegQuality);
-            if (tile.ifd().optInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode()) {
-                jpegOptions.setPhotometricInterpretation(PhotoInterp.RGB);
+            if (tile.ifd().optInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) ==
+                    TiffPhotometricInterpretation.RGB.code()) {
+                jpegOptions.setPhotometricInterpretation(TiffPhotometricInterpretation.RGB);
             }
             result = jpegOptions;
         }
@@ -1684,8 +1691,9 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (customCodec instanceof ExtendedJPEGCodec) {
             codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
                     .setQuality(jpegQuality);
-            if (ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == PhotoInterp.RGB.getCode()) {
-                ((ExtendedJPEGCodecOptions) codecOptions).setPhotometricInterpretation(PhotoInterp.RGB);
+            if (ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == TiffPhotometricInterpretation.RGB.code()) {
+                ((ExtendedJPEGCodecOptions) codecOptions).setPhotometricInterpretation(
+                        TiffPhotometricInterpretation.RGB);
             }
         }
         codecOptions.width = tile.getSizeX();
@@ -1695,15 +1703,15 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     private static void checkPhotometricInterpretation(
-            PhotoInterp photometricInterpretation,
-            EnumSet<PhotoInterp> allowed,
+            TiffPhotometricInterpretation photometricInterpretation,
+            EnumSet<TiffPhotometricInterpretation> allowed,
             String whatToWrite)
             throws FormatException {
         if (photometricInterpretation != null) {
             if (!allowed.contains(photometricInterpretation)) {
                 throw new FormatException("Writing " + whatToWrite + " with photometric interpretation \"" +
                         photometricInterpretation + "\" is not supported (only " +
-                        allowed.stream().map(photometric -> "\"" + photometric.getName() + "\"")
+                        allowed.stream().map(photometric -> "\"" + photometric.prettyName() + "\"")
                                 .collect(Collectors.joining(", ")) +
                         " allowed)");
             }

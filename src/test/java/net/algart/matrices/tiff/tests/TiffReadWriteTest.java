@@ -226,7 +226,7 @@ public class TiffReadWriteTest {
                         // Note: as a result, last strip in this file will be too large!
                         // It is a minor inconsistency, but detected by GIMP and other programs.
                         writeSeveralTilesOrStrips(sequentialTiffSaver, buf2,
-                                parser.toScifioIFD(writerIFD), readerIFD.sampleType().typeCode(), bandCount,
+                                parser.toScifioIFD(writerIFD), readerIFD.sampleType().code(), bandCount,
                                 START_X, START_Y, paddedW, paddedH, ifdIndex == lastIFDIndex);
                         System.out.printf("Effective IFD (compatibility):%n%s%n", writerIFD);
                         if (differ) {
@@ -259,7 +259,7 @@ public class TiffReadWriteTest {
         ifd.remove(IFD.TILE_BYTE_COUNTS);
         // - enforces TiffSaver to recalculate these fields
         if (ifd.getCompression() == TiffCompression.JPEG) {
-            ifd.put(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.Y_CB_CR);
+            ifd.put(IFD.PHOTOMETRIC_INTERPRETATION, PhotoInterp.Y_CB_CR.getCode());
         }
         DataHandle<Location> out = saver.getStream();
         final long fp = out.offset();

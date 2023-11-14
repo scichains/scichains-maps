@@ -25,7 +25,7 @@
 package net.algart.matrices.tiff.codecs;
 
 import io.scif.codec.CodecOptions;
-import io.scif.formats.tiff.PhotoInterp;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 
 import java.util.Objects;
 
@@ -33,7 +33,7 @@ public class ExtendedJPEGCodecOptions extends CodecOptions {
     /**
      * Value of TIFF tag PhotometricInterpretation (READ/WRITE).
      */
-    private PhotoInterp photometricInterpretation = PhotoInterp.Y_CB_CR;
+    private TiffPhotometricInterpretation photometricInterpretation = TiffPhotometricInterpretation.Y_CB_CR;
     /**
      * Value of TIFF tag YCbCrSubSampling (READ).
      */
@@ -47,11 +47,12 @@ public class ExtendedJPEGCodecOptions extends CodecOptions {
         }
     }
 
-    public PhotoInterp getPhotometricInterpretation() {
+    public TiffPhotometricInterpretation getPhotometricInterpretation() {
         return photometricInterpretation;
     }
 
-    public ExtendedJPEGCodecOptions setPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+    public ExtendedJPEGCodecOptions setPhotometricInterpretation(
+            TiffPhotometricInterpretation photometricInterpretation) {
         this.photometricInterpretation = Objects.requireNonNull(photometricInterpretation,
                 "Null photometricInterpretation");
         return this;

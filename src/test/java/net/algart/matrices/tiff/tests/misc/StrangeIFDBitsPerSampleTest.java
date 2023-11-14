@@ -38,7 +38,7 @@ public class StrangeIFDBitsPerSampleTest {
         boolean exceptionOccurred = false;
         try {
             TiffSampleType sampleType = ifd.sampleType();
-            System.out.printf("Sample type: %s, %s%n", sampleType, sampleType.typeName());
+            System.out.printf("Sample type: %s, %s%n", sampleType, sampleType.prettyName());
         } catch (FormatException e) {
             if (!exceptionExpected) {
                 throw e;

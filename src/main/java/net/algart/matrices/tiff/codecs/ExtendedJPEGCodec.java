@@ -26,8 +26,8 @@ package net.algart.matrices.tiff.codecs;
 
 import io.scif.FormatException;
 import io.scif.codec.*;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.gui.AWTImageTools;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 import org.scijava.io.handle.DataHandle;
 import org.scijava.io.handle.DataHandleInputStream;
 import org.scijava.io.location.Location;
@@ -60,9 +60,9 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new FormatException("JPEG compression for " + options.bitsPerSample +
                     "-bit data is not supported (only 8-bit samples allowed)");
         }
-        final PhotoInterp colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
+        final TiffPhotometricInterpretation colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
                 extended.getPhotometricInterpretation() :
-                PhotoInterp.Y_CB_CR;
+                TiffPhotometricInterpretation.Y_CB_CR;
 
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final BufferedImage image = AWTImageTools.makeImage(data, options.width,

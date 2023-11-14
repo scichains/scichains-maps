@@ -876,22 +876,18 @@ public class TiffIFD {
         }
     }
 
-    public PhotoInterp getPhotometricInterpretation() throws FormatException {
+    public TiffPhotometricInterpretation getPhotometricInterpretation() throws FormatException {
         final Object photometricInterpretation = get(PHOTOMETRIC_INTERPRETATION);
-        if (photometricInterpretation instanceof PhotoInterp) {
-            return (PhotoInterp) photometricInterpretation;
-            // - compatibility with old TiffParser behaviour (can be removed in future versions)
-        }
         if (photometricInterpretation == null
                 && getInt(COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
-            return PhotoInterp.RGB;
+            return TiffPhotometricInterpretation.RGB;
         }
         final int code = reqInt(PHOTOMETRIC_INTERPRETATION);
-        try {
-            return PhotoInterp.get(code);
-        } catch (EnumException e) {
+        final TiffPhotometricInterpretation result = TiffPhotometricInterpretation.valueOfCodeOrNull(code);
+        if (result == null) {
             throw new UnsupportedTiffFormatException("Unsupported TIFF photometric interpretation code: " + code);
         }
+        return result;
     }
 
     public int[] getYCbCrSubsampling() throws FormatException {
@@ -1157,7 +1153,7 @@ public class TiffIFD {
     public boolean isStandardYCbCrNonJpeg() throws FormatException {
         TiffCompression compression = getCompression();
         return isStandard(compression) && !isJpeg(compression) &&
-                getPhotometricInterpretation() == PhotoInterp.Y_CB_CR;
+                getPhotometricInterpretation() == TiffPhotometricInterpretation.Y_CB_CR;
     }
 
     public boolean isStandardCompression() throws FormatException {
@@ -1170,10 +1166,10 @@ public class TiffIFD {
 
     public boolean isStandardInvertedCompression() throws FormatException {
         TiffCompression compression = getCompression();
-        PhotoInterp photometricInterpretation = getPhotometricInterpretation();
+        TiffPhotometricInterpretation photometricInterpretation = getPhotometricInterpretation();
         return isStandard(compression) && !isJpeg(compression) &&
-                (photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                        photometricInterpretation == PhotoInterp.CMYK);
+                (photometricInterpretation == TiffPhotometricInterpretation.WHITE_IS_ZERO ||
+                        photometricInterpretation == TiffPhotometricInterpretation.CMYK);
     }
 
     public boolean isThumbnail() {
@@ -1266,9 +1262,9 @@ public class TiffIFD {
         return this;
     }
 
-    public TiffIFD putPhotometricInterpretation(PhotoInterp photometricInterpretation) {
+    public TiffIFD putPhotometricInterpretation(TiffPhotometricInterpretation photometricInterpretation) {
         Objects.requireNonNull(photometricInterpretation, "Null photometricInterpretation");
-        put(PHOTOMETRIC_INTERPRETATION, photometricInterpretation.getCode());
+        put(PHOTOMETRIC_INTERPRETATION, photometricInterpretation.code());
         return this;
     }
 
@@ -1495,7 +1491,7 @@ public class TiffIFD {
             final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
             sb.append("%s, precision %s%s, ".formatted(
                     isLittleEndian() ? "little-endian" : "big-endian",
-                    sampleType == null ? "???" : sampleType.typeName(),
+                    sampleType == null ? "???" : sampleType.prettyName(),
                     isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
                 sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -1547,7 +1543,7 @@ public class TiffIFD {
             Object additional = null;
             try {
                 switch (tag) {
-                    case PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().getName();
+                    case PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().prettyName();
                     case COMPRESSION -> additional = prettyCompression(getCompression());
                     case PLANAR_CONFIGURATION -> {
                         if (v instanceof Number number) {

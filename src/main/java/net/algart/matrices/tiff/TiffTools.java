@@ -503,9 +503,9 @@ public class TiffTools {
 
         // unpack pixels
         // set up YCbCr-specific values
-        double lumaRed = PhotoInterp.LUMA_RED;
-        double lumaGreen = PhotoInterp.LUMA_GREEN;
-        double lumaBlue = PhotoInterp.LUMA_BLUE;
+        double lumaRed = 0.299;
+        double lumaGreen = 0.587;
+        double lumaBlue = 0.114;
         int[] reference = ifd.getIntArray(IFD.REFERENCE_BLACK_WHITE);
         if (reference == null) {
             reference = new int[]{0, 255, 128, 255, 128, 255};
@@ -619,20 +619,20 @@ public class TiffTools {
                     "non-standard/JPEG compression, though it was already checked)");
             // - was checked in isSimpleRearrangingBytesEnough
         }
-        final PhotoInterp photometricInterpretation = ifd.getPhotometricInterpretation();
-        if (photometricInterpretation == PhotoInterp.RGB_PALETTE ||
-                photometricInterpretation == PhotoInterp.CFA_ARRAY ||
-                photometricInterpretation == PhotoInterp.TRANSPARENCY_MASK) {
+        final TiffPhotometricInterpretation photometricInterpretation = ifd.getPhotometricInterpretation();
+        if (photometricInterpretation == TiffPhotometricInterpretation.RGB_PALETTE ||
+                photometricInterpretation == TiffPhotometricInterpretation.CFA_ARRAY ||
+                photometricInterpretation == TiffPhotometricInterpretation.TRANSPARENCY_MASK) {
             scaleWhenIncreasingBitDepth = false;
         }
         final boolean invertedBrightness =
-                photometricInterpretation == PhotoInterp.WHITE_IS_ZERO ||
-                        photometricInterpretation == PhotoInterp.CMYK;
+                photometricInterpretation == TiffPhotometricInterpretation.WHITE_IS_ZERO ||
+                        photometricInterpretation == TiffPhotometricInterpretation.CMYK;
         if (tile.isFloatingPoint() && OPTIMIZE_SEPARATING_WHOLE_BYTES) {
             // - TIFF with float/double samples must not require bit unpacking or inverting brightness
             throw new FormatException("Invalid TIFF image: floating-point values, compression \"" +
                     ifd.getCompression().getCodecName() + "\", photometric interpretation \"" +
-                    photometricInterpretation.getName() + "\", " +
+                    photometricInterpretation.prettyName() + "\", " +
                     Arrays.toString(ifd.getBitsPerSample()) + " bits per sample");
         }
 
@@ -846,15 +846,17 @@ public class TiffTools {
         final boolean planar = ifd.getPlanarConfiguration() == 2;
 
         final TiffCompression compression = ifd.getCompression();
-        PhotoInterp photoInterp = ifd.getPhotometricInterpretation();
-        if (compression == TiffCompression.JPEG) photoInterp = PhotoInterp.RGB;
+        TiffPhotometricInterpretation photometricInterpretation = ifd.getPhotometricInterpretation();
+        if (compression == TiffCompression.JPEG) {
+            photometricInterpretation = TiffPhotometricInterpretation.RGB;
+        }
 
         final int[] bitsPerSample = ifd.getBitsPerSample();
         int nChannels = bitsPerSample.length;
 
         int sampleCount = (int) (((long) 8 * bytes.length) / bitsPerSample[0]);
         //!! It is a bug! This formula is invalid in the case skipBits!=0
-        if (photoInterp == PhotoInterp.Y_CB_CR) sampleCount *= 3;
+        if (photometricInterpretation == TiffPhotometricInterpretation.Y_CB_CR) sampleCount *= 3;
         if (planar) {
             nChannels = 1;
         } else {
@@ -890,14 +892,15 @@ public class TiffTools {
         // Wed Aug 5 19:04:59 BST 2009
         // Chris Allan <callan@glencoesoftware.com>
         if ((bps8 || bps16) && bytes.length <= samples.length && nChannels == 1 &&
-                photoInterp != PhotoInterp.WHITE_IS_ZERO &&
-                photoInterp != PhotoInterp.CMYK && photoInterp != PhotoInterp.Y_CB_CR) {
+                photometricInterpretation != TiffPhotometricInterpretation.WHITE_IS_ZERO &&
+                photometricInterpretation != TiffPhotometricInterpretation.CMYK &&
+                photometricInterpretation != TiffPhotometricInterpretation.Y_CB_CR) {
             System.arraycopy(bytes, 0, samples, 0, bytes.length);
             return;
         }
 
         long maxValue = (long) Math.pow(2, bps0) - 1;
-        if (photoInterp == PhotoInterp.CMYK) maxValue = Integer.MAX_VALUE;
+        if (photometricInterpretation == TiffPhotometricInterpretation.CMYK) maxValue = Integer.MAX_VALUE;
 
         int skipBits = (int) (8 - ((imageWidth * bps0 * nChannels) % 8));
         if (skipBits == 8 || (bytes.length * 8L < bps0 * (nChannels * imageWidth +
@@ -936,15 +939,15 @@ public class TiffTools {
                 final int outputIndex = (channel * nSamples + ndx) * numBytes;
 
                 // unpack non-YCbCr samples
-                if (photoInterp != PhotoInterp.Y_CB_CR) {
+                if (photometricInterpretation != TiffPhotometricInterpretation.Y_CB_CR) {
                     long value = 0;
 
                     if (noDiv8) {
                         // bits per sample is not a multiple of 8
 
-                        if ((channel == 0 && photoInterp == PhotoInterp.RGB_PALETTE) ||
-                                (photoInterp != PhotoInterp.CFA_ARRAY &&
-                                        photoInterp != PhotoInterp.RGB_PALETTE)) {
+                        if ((channel == 0 && photometricInterpretation == TiffPhotometricInterpretation.RGB_PALETTE) ||
+                                (photometricInterpretation != TiffPhotometricInterpretation.CFA_ARRAY &&
+                                        photometricInterpretation != TiffPhotometricInterpretation.RGB_PALETTE)) {
 //                            System.out.println((count++) + "/" + nSamples * nChannels);
                             value = bb.getBits(bps0) & 0xffff;
                             if ((ndx % imageWidth) == imageWidth - 1) {
@@ -955,8 +958,8 @@ public class TiffTools {
                         value = Bytes.toLong(bytes, index, numBytes, littleEndian);
                     }
 
-                    if (photoInterp == PhotoInterp.WHITE_IS_ZERO ||
-                            photoInterp == PhotoInterp.CMYK) {
+                    if (photometricInterpretation == TiffPhotometricInterpretation.WHITE_IS_ZERO ||
+                            photometricInterpretation == TiffPhotometricInterpretation.CMYK) {
                         value = maxValue - value;
                     }
 
@@ -1181,7 +1184,7 @@ public class TiffTools {
             throw new UnsupportedTiffFormatException("Not supported TIFF format: compression \"" +
                     ifd.getCompression().getCodecName() + "\", " + bits + " bits per every sample");
         }
-        if (ifd.getPhotometricInterpretation() == PhotoInterp.Y_CB_CR) {
+        if (ifd.getPhotometricInterpretation() == TiffPhotometricInterpretation.Y_CB_CR) {
             // - convertYCbCrToRGB function performs necessary repacking itself
             return false;
         }

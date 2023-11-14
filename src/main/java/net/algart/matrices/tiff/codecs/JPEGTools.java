@@ -25,7 +25,7 @@
 package net.algart.matrices.tiff.codecs;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.PhotoInterp;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 import org.scijava.util.Bytes;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -82,15 +82,15 @@ public class JPEGTools {
     public static void writeJPEG(
             BufferedImage image,
             OutputStream out,
-            PhotoInterp colorSpace,
+            TiffPhotometricInterpretation colorSpace,
             double quality) throws IOException {
         Objects.requireNonNull(image, "Null image");
         Objects.requireNonNull(out, "Null output stream");
         Objects.requireNonNull(colorSpace, "Null color space");
-        if (colorSpace != PhotoInterp.Y_CB_CR && colorSpace != PhotoInterp.RGB) {
+        if (colorSpace != TiffPhotometricInterpretation.Y_CB_CR && colorSpace != TiffPhotometricInterpretation.RGB) {
             throw new IllegalArgumentException("Unsupported color space: " + colorSpace);
         }
-        final boolean enforceRGB = colorSpace == PhotoInterp.RGB;
+        final boolean enforceRGB = colorSpace == TiffPhotometricInterpretation.RGB;
 
         final ImageOutputStream ios = ImageIO.createImageOutputStream(out);
         final ImageWriter jpegWriter = getJPEGWriter();
@@ -146,7 +146,7 @@ public class JPEGTools {
     public static void completeReadingJPEG(
             ImageInformation imageInformation,
             byte[][] data,
-            PhotoInterp declaredColorSpace,
+            TiffPhotometricInterpretation declaredColorSpace,
             int[] declaredSubsampling)
             throws FormatException {
         Objects.requireNonNull(imageInformation, "Null image information");
@@ -158,7 +158,7 @@ public class JPEGTools {
         String colorSpace = tryToFindColorSpace(imageInformation.metadata);
         final boolean correctionNecessary =
                 "RGB".equalsIgnoreCase(colorSpace)
-                        && declaredColorSpace == PhotoInterp.Y_CB_CR
+                        && declaredColorSpace == TiffPhotometricInterpretation.Y_CB_CR
                         && declaredSubsampling.length >= 2
                         && declaredSubsampling[0] == 1 && declaredSubsampling[1] == 1
                         && data.length == 3;

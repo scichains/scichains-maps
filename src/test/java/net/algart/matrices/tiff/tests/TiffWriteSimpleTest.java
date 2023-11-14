@@ -25,9 +25,9 @@
 package net.algart.matrices.tiff.tests;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tiles.TiffMap;
 
@@ -60,7 +60,7 @@ public class TiffWriteSimpleTest {
             ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
             ifd.putNumberOfChannels(bitsPerSample.length);
             ifd.putCompression(TiffCompression.LZW);
-            ifd.putPhotometricInterpretation(PhotoInterp.RGB);
+            ifd.putPhotometricInterpretation(TiffPhotometricInterpretation.RGB);
             ifd.put(TiffIFD.BITS_PER_SAMPLE, bitsPerSample);
             ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_INT);
             // - you can comment or change the options above for thorough testing

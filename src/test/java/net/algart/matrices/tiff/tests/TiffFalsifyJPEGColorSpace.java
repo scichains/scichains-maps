@@ -25,9 +25,9 @@
 package net.algart.matrices.tiff.tests;
 
 import io.scif.FormatException;
-import io.scif.formats.tiff.PhotoInterp;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffPhotometricInterpretation;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
 
@@ -48,8 +48,8 @@ public class TiffFalsifyJPEGColorSpace {
         }
         final Path sourceFile = Paths.get(args[startArgIndex++]);
         final Path targetFile = Paths.get(args[startArgIndex++]);
-        final PhotoInterp before = PhotoInterp.valueOf(args[startArgIndex++]);
-        final PhotoInterp after = PhotoInterp.valueOf(args[startArgIndex++]);
+        final TiffPhotometricInterpretation before = TiffPhotometricInterpretation.valueOf(args[startArgIndex++]);
+        final TiffPhotometricInterpretation after = TiffPhotometricInterpretation.valueOf(args[startArgIndex++]);
         final int firstIFDIndex = startArgIndex < args.length ?
                 Integer.parseInt(args[startArgIndex]) :
                 0;
@@ -80,7 +80,7 @@ public class TiffFalsifyJPEGColorSpace {
                 System.out.printf("\rTransforming #%d/%d: %s%n", i, ifds.size(), readIFD);
                 writeIFD.putPhotometricInterpretation(before);
                 writeIFD.put(TiffIFD.Y_CB_CR_SUB_SAMPLING,
-                        before == PhotoInterp.RGB ? new int[] {1, 1} : new int[] {2, 2});
+                        before == TiffPhotometricInterpretation.RGB ? new int[] {1, 1} : new int[] {2, 2});
                 // - instruct Java AWT to store as RGB and disable sub-sampling (RGB are encoded without sub-sampling)
                 TiffCopyTest.copyImage(readIFD, writeIFD, reader, writer);
                 final TiffIFD cloneIFD = new TiffIFD(writeIFD);

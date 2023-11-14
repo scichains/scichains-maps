@@ -37,14 +37,14 @@ public enum TiffSampleType {
     DOUBLE(7, "double", 8, double.class, true);
 
     private final int code;
-    private final String typeName;
+    private final String prettyName;
     private final int bytesPerSample;
     private final Class<?> elementType;
     private final boolean signed;
 
-    TiffSampleType(int code, String typeName, int bytesPerSample, Class<?> elementType, boolean signed) {
+    TiffSampleType(int code, String prettyName, int bytesPerSample, Class<?> elementType, boolean signed) {
         this.code = code;
-        this.typeName = typeName;
+        this.prettyName = prettyName;
         this.bytesPerSample = bytesPerSample;
         this.elementType = elementType;
         this.signed = signed;
@@ -56,12 +56,12 @@ public enum TiffSampleType {
      *
      * @return integer code of this sample type.
      */
-    public int typeCode() {
+    public int code() {
         return code;
     }
 
-    public String typeName() {
-        return typeName;
+    public String prettyName() {
+        return prettyName;
     }
 
     public int bytesPerSample() {
