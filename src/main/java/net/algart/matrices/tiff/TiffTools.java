@@ -784,16 +784,16 @@ public class TiffTools {
 
 //        final int mantissaBits = float16 ? 10 : 16;
 //        final int exponentBits = float16 ? 5 : 7;
-//        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
-//        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
-//        final int packedBitsPerSampleMinus1 = (packedBytesPerSample * 8) - 1;
         for (int i = 0, disp = 0; i < numberOfSamples; i++, disp += packedBytesPerSample) {
             final int packedValue = Bytes.toInt(samples, disp, packedBytesPerSample, littleEndian);
-//            final int valueToCompare = unpackFloatBits(packedValue,
-//                    packedBitsPerSampleMinus1, mantissaBits, power2ExponentBitsMinus1, exponentIncrement);
+//            final int valueToCompare = unpackFloatBits(packedValue, mantissaBits, exponentBits);
             final int value = float16 ?
                     unpack16BitFloat((short) packedValue) :
                     unpack24BitFloat(packedValue);
+//            if (value != valueToCompare) {
+//                System.out.printf("%h %f != %h %f%n", value, Float.intBitsToFloat(value),
+//                        valueToCompare, Float.intBitsToFloat(valueToCompare));
+//            }
             Bytes.unpack(value, unpacked, i * 4, 4, littleEndian);
         }
         return unpacked;
@@ -1189,16 +1189,14 @@ public class TiffTools {
     }
 
     // Common prototype, based on SCIFIO code
-    private static int unpackFloatBits(
-            int bits,
-            int packedBitsPerSampleMinus1,
-            int mantissaBits,
-            int power2ExponentBitsMinus1,
-            int exponentIncrement) {
-        final int sign = bits >> packedBitsPerSampleMinus1;
+    private static int unpackFloatBits(int value, int mantissaBits, int exponentBits) {
+        final int exponentIncrement = 127 - (pow2(exponentBits - 1) - 1);
+        final int power2ExponentBitsMinus1 = pow2(exponentBits) - 1;
+        final int packedBitsPerSampleMinus1 = mantissaBits + exponentBits;
+        final int sign = value >> packedBitsPerSampleMinus1;
         final int power2MantissaBits = pow2(mantissaBits);
-        int exponent = (bits >> mantissaBits) & power2ExponentBitsMinus1;
-        int mantissa = bits & (power2MantissaBits - 1);
+        int exponent = (value >> mantissaBits) & power2ExponentBitsMinus1;
+        int mantissa = value & (power2MantissaBits - 1);
 
         if (exponent == 0) {
             if (mantissa != 0) {
@@ -1221,15 +1219,15 @@ public class TiffTools {
         return (sign << 31) | (exponent << 23) | mantissa;
     }
 
-    private static int unpack24BitFloat(int bits) {
+    private static int unpack24BitFloat(int value) {
         final int mantissaBits = 16;
         final int exponentIncrement = 64;
         final int power2ExponentBitsMinus1 = 127;
 
-        final int sign = bits >> 23;
+        final int sign = value >> 23;
         final int power2MantissaBits = 1 << 16;
-        int exponent = (bits >> 16) & 127;
-        int mantissa = bits & 65535;
+        int exponent = (value >> 16) & 127;
+        int mantissa = value & 65535;
 
         if (exponent == 0) {
             if (mantissa != 0) {
@@ -1251,20 +1249,20 @@ public class TiffTools {
         return (sign << 31) | (exponent << 23) | mantissa;
     }
 
-    // From TwelveMonkey: little better code (special branch for mantissa == 0)
-    private static int unpack16BitFloat(short bits) {
-        int mantissa = bits & 0x03ff;           // 10 bits mantissa
-        int exponent = bits & 0x7c00;           //  5 bits exponent
+    // From TwelveMonkey: equivalent code
+    private static int unpack16BitFloat(short value) {
+        int mantissa = value & 0x03ff;           // 10 bits mantissa
+        int exponent = value & 0x7c00;           //  5 bits exponent
 
         if (exponent == 0x7c00) {               // NaN/Inf
             exponent = 0x3fc00;                 // -> NaN/Inf
         } else if (exponent != 0) {             // Normalized value
             exponent += 0x1c000;                // exp - 15 + 127
 
-            // Smooth transition
-            if (mantissa == 0 && exponent > 0x1c400) {
-                return (bits & 0x8000) << 16 | exponent << 13 | 0x3ff;
-            }
+            // Smooth transition [strange addition from TwelveMonkey, that sometimes leads to incorrect results]
+//            if (mantissa == 0 && exponent > 0x1c400) {
+//                return (value & 0x8000) << 16 | exponent << 13 | 0x3ff;
+//            }
         } else if (mantissa != 0) {             // && exp == 0 -> subnormal
             exponent = 0x1c400;                 // Make it normal
 
@@ -1277,7 +1275,7 @@ public class TiffTools {
         }                                       // else +/-0 -> +/-0
 
         // Combine all parts,  sign << (31 - 15), value << (23 - 10)
-        return (bits & 0x8000) << 16 | (exponent | mantissa) << 13;
+        return (value & 0x8000) << 16 | (exponent | mantissa) << 13;
     }
 
     private static void checkInterleaved(TiffTile tile) throws FormatException {
