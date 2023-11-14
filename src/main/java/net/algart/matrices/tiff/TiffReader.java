@@ -1122,9 +1122,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         // - note: we allow this area to be outside the image
         final int numberOfChannels = map.numberOfChannels();
         final TiffIFD ifd = map.ifd();
-        final int size = ifd.sizeOfRegionBasedOnType(sizeX, sizeY);
-        // - note: it may differ from the size, calculated on the base of tile information (saved in the map),
-        // in a case when unpackUnusualPrecisions performs unpacking
+        final int size = ifd.sizeOfRegion(sizeX, sizeY);
         assert sizeX >= 0 && sizeY >= 0 : "sizeOfIFDRegion didn't check sizes accurately: " + sizeX + "fromX" + sizeY;
         byte[] samples = new byte[size];
 
@@ -1139,22 +1137,29 @@ public class TiffReader extends AbstractContextual implements Closeable {
         readTiles(map, samples, fromX, fromY, sizeX, sizeY, storeTilesInMap);
 
         long t3 = debugTime();
+        boolean unusualPrecision = false;
         if (autoUnpackUnusualPrecisions) {
-            samples = TiffTools.unpackUnusualPrecisions(
+            byte[] newSamples = TiffTools.unpackUnusualPrecisions(
                     samples, ifd, numberOfChannels, sizeX * sizeY, autoScaleWhenIncreasingBitDepth);
+            unusualPrecision = newSamples != samples;
+            samples = newSamples;
+            // - note: the size of sample array can be increased here!
         }
         long t4 = debugTime();
+        boolean interleave = false;
         if (interleaveResults) {
-            samples = TiffTools.toInterleavedSamples(
+            byte[] newSamples = TiffTools.toInterleavedSamples(
                     samples, numberOfChannels, ifd.sampleType().bytesPerSample(), sizeX * sizeY);
+            interleave = newSamples != samples;
+            samples = newSamples;
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f initializing + %.3f read/decode " +
-                            "(%.3f read + %.3f customize/bit-order + %.3f decode + %.3f complete) + " +
-                            "%.3f unusual + %.3f interleave, %.3f MB/s",
+                            "(%.3f read + %.3f customize/bit-order + %.3f decode + %.3f complete)" +
+                            "%s%s, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, size / 1048576.0,
                     (t5 - t1) * 1e-6,
@@ -1164,7 +1169,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     timeCustomizingDecoding * 1e-6,
                     timeDecoding * 1e-6,
                     timeCompleteDecoding * 1e-6,
-                    (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
+                    unusualPrecision ?
+                            String.format(Locale.US, " + %.3f unusual precisions", (t4 - t3) * 1e-6) : "",
+                    interleave ?
+                            String.format(Locale.US, " + %.3f interleave", (t5 - t4) * 1e-6) : "",
                     size / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
         return samples;

@@ -28,6 +28,7 @@ import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.arrays.*;
 import net.algart.external.ExternalAlgorithmCaller;
+import net.algart.external.ImageConversions;
 import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.compatibility.TiffParser;
@@ -49,6 +50,11 @@ public class TiffReaderTest {
         boolean noContext = false;
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-noContext")) {
             noContext = true;
+            startArgIndex++;
+        }
+        boolean interleave = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-interleave")) {
+            interleave = true;
             startArgIndex++;
         }
         boolean cache = false;
@@ -99,6 +105,7 @@ public class TiffReaderTest {
 //                reader.setCachingIFDs(false);
 //                reader.setAutoUnpackUnusualPrecisions(false);
 //                reader.setAutoScaleWhenIncreasingBitDepth(true);
+                reader.setInterleaveResults(interleave);
                 reader.setAutoCorrectInvertedBrightness(true);
                 reader.setMissingTilesAllowed(true);
                 reader.setByteFiller((byte) 0x80);
@@ -153,29 +160,30 @@ public class TiffReaderTest {
                 }
 
                 System.out.printf("Saving result image into %s...%n", resultFile);
-                writeImageFile(array, w, h, bandCount, resultFile);
+                writeImageFile(resultFile, array, w, h, bandCount, interleave);
                 reader.close();
             }
             System.out.printf("Done repeat %d/%d%n%n", repeat, numberOfCompleteRepeats);
         }
     }
 
-    static void writeImageFile(Object array, int w, int h, int bandCount, Path resultFile) throws IOException {
-        List<Matrix<? extends PArray>> image = unpackedArrayToImage(array, w, h, bandCount);
-        ExternalAlgorithmCaller.writeImage(resultFile.toFile(), image);
+    static void writeImageFile(Path resultFile, Object array, int w, int h, int bandCount) throws IOException {
+        writeImageFile(resultFile, array, w, h, bandCount, false);
     }
 
-    private static List<Matrix<? extends PArray>> unpackedArrayToImage(
-            Object data, int sizeX, int sizeY, int bandCount) {
-        if (data instanceof int[] ints) {
-            // - standard method SMat.toBufferedImage uses AlgART interpretation: 2^31 is white;
-            // it is incorrect for TIFF files
-            byte[] bytes = new byte[ints.length];
-            for (int k = 0; k < bytes.length; k++) {
-                bytes[k] = (byte) (ints[k] >>> 24);
-            }
-            data = bytes;
+    private static void writeImageFile(
+            Path resultFile, Object array, int w, int h, int bandCount, boolean interleaved) throws IOException {
+        List<Matrix<? extends PArray>> image = interleaved ?
+                interleavedArrayToImage(array, w, h, bandCount) :
+                separatedArrayToImage(array, w, h, bandCount);
+        if (image != null) {
+            ExternalAlgorithmCaller.writeImage(resultFile.toFile(), image);
         }
+    }
+
+    private static List<Matrix<? extends PArray>> separatedArrayToImage(
+            Object data, int sizeX, int sizeY, int bandCount) {
+        data = intsToBytes(data);
         Matrix<UpdatablePArray> matrix = Matrices.matrix(
                 (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
                 sizeX, sizeY, bandCount);
@@ -189,6 +197,32 @@ public class TiffReaderTest {
             channels.add(Matrices.matrix(array, sizeX, sizeY));
         }
         return channels;
+    }
+
+    private static List<Matrix<? extends PArray>>  interleavedArrayToImage(
+            Object data, int sizeX, int sizeY, int bandCount) {
+        data = intsToBytes(data);
+        Matrix<UpdatablePArray> matrix = Matrices.matrix(
+                (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
+                bandCount, sizeX, sizeY);
+        if (matrix.size() == 0) {
+            return null;
+            // - provided for testing only (BufferedImage cannot have zero sizes)
+        }
+        return ImageConversions.unpack2DBandsFromSequentialSamples(null, matrix);
+    }
+
+    private static Object intsToBytes(Object data) {
+        if (data instanceof int[] ints) {
+            // - standard method SMat.toBufferedImage uses AlgART interpretation: 2^31 is white;
+            // it is incorrect for TIFF files
+            byte[] bytes = new byte[ints.length];
+            for (int k = 0; k < bytes.length; k++) {
+                bytes[k] = (byte) (ints[k] >>> 24);
+            }
+            data = bytes;
+        }
+        return data;
     }
 
 }
