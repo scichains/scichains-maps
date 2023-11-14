@@ -723,7 +723,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 throw new FormatException("TIFF IFD offset " + startOffset + " is outside the file");
             }
             final Map<Integer, Object> map = new LinkedHashMap<>();
-            final Map<Integer, TiffIFD.IFDEntry> detailedEntries = new LinkedHashMap<>();
+            final Map<Integer, TiffIFD.TiffEntry> detailedEntries = new LinkedHashMap<>();
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
             map.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
@@ -746,7 +746,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 long tEntry1 = debugTime();
                 in.seek(startOffset + baseOffset + bytesPerEntry * i);
 
-                final TiffIFD.IFDEntry entry = readIFDEntry();
+                final TiffIFD.TiffEntry entry = readIFDEntry();
                 final int tag = entry.tag();
                 long tEntry2 = debugTime();
                 timeEntries += tEntry2 - tEntry1;
@@ -1541,9 +1541,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return offset;
     }
 
-    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFD.IFDEntry entry)
+    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFD.TiffEntry entry)
             throws IOException, FormatException {
-        final IFDType type = entry.type();
+        final int type = entry.type();
         final int count = entry.valueCount();
         final long offset = entry.valueOffset();
 
@@ -1551,158 +1551,170 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 "Reading entry " + entry.tag() + " from " + offset + "; type=" + type + ", count=" + count);
 
         in.seek(offset);
-        if (type == IFDType.BYTE) {
-            // 8-bit unsigned integer
-            if (count == 1) {
-                return (short) in.readByte();
-            }
-            final byte[] bytes = new byte[count];
-            in.readFully(bytes);
-            // bytes are unsigned, so use shorts
-            final short[] shorts = new short[count];
-            for (int j = 0; j < count; j++) {
-                shorts[j] = (short) (bytes[j] & 0xff);
-            }
-            return shorts;
-        } else if (type == IFDType.ASCII) {
-            // 8-bit byte that contain a 7-bit ASCII code;
-            // the last byte must be NUL (binary zero)
-            final byte[] ascii = new byte[count];
-            in.read(ascii);
-
-            // count number of null terminators
-            int nullCount = 0;
-            for (int j = 0; j < count; j++) {
-                if (ascii[j] == 0 || j == count - 1) nullCount++;
-            }
-            // convert character array to array of strings
-            final String[] strings = nullCount == 1 ? null : new String[nullCount];
-            String s = null;
-            int c = 0, ndx = -1;
-            for (int j = 0; j < count; j++) {
-                if (ascii[j] == 0) {
-                    s = new String(ascii, ndx + 1, j - ndx - 1, Constants.ENCODING);
-                    ndx = j;
-                } else if (j == count - 1) {
-                    // handle non-null-terminated strings
-                    s = new String(ascii, ndx + 1, j - ndx, Constants.ENCODING);
-                } else s = null;
-                if (strings != null && s != null) {
-                    strings[c++] = s;
+        switch (type) {
+            case TiffIFD.TIFF_BYTE -> {
+                // 8-bit unsigned integer
+                if (count == 1) {
+                    return (short) in.readByte();
                 }
-            }
-            return strings == null ? s : strings;
-        } else if (type == IFDType.SHORT) {
-            // 16-bit (2-byte) unsigned integer
-            if (count == 1) {
-                return in.readUnsignedShort();
-            }
-            if (OPTIMIZE_READING_IFD_ARRAYS) {
-                final byte[] bytes = readIFDBytes(in, 2 * (long) count);
-                final short[] shorts = TiffTools.bytesToShortArray(bytes, in.isLittleEndian());
-                final int[] result = new int[count];
+                final byte[] bytes = new byte[count];
+                in.readFully(bytes);
+                // bytes are unsigned, so use shorts
+                final short[] shorts = new short[count];
                 for (int j = 0; j < count; j++) {
-                    result[j] = shorts[j] & 0xFFFF;
-                }
-                return result;
-            } else {
-                final int[] shorts = new int[count];
-                for (int j = 0; j < count; j++) {
-                    shorts[j] = in.readUnsignedShort();
+                    shorts[j] = (short) (bytes[j] & 0xff);
                 }
                 return shorts;
             }
-        } else if (type == IFDType.LONG || type == IFDType.IFD) {
-            // 32-bit (4-byte) unsigned integer
-            if (count == 1) {
-                return in.readInt() & 0xFFFFFFFFL;
-            }
-            if (OPTIMIZE_READING_IFD_ARRAYS) {
-                final byte[] bytes = readIFDBytes(in, 4 * (long) count);
-                final int[] ints = TiffTools.bytesToIntArray(bytes, in.isLittleEndian());
-                return Arrays.stream(ints).mapToLong(anInt -> anInt & 0xFFFFFFFFL).toArray();
-                // note: IFDType.LONG is UNSIGNED long
-            } else {
-                final long[] longs = new long[count];
+            case TiffIFD.TIFF_ASCII -> {
+                // 8-bit byte that contain a 7-bit ASCII code;
+                // the last byte must be NUL (binary zero)
+                final byte[] ascii = new byte[count];
+                in.read(ascii);
+
+                // count number of null terminators
+                int nullCount = 0;
                 for (int j = 0; j < count; j++) {
-                    longs[j] = in.readInt() & 0xFFFFFFFFL;
+                    if (ascii[j] == 0 || j == count - 1) nullCount++;
                 }
-                return longs;
-            }
-        } else if (type == IFDType.LONG8 || type == IFDType.SLONG8 || type == IFDType.IFD8) {
-            if (count == 1) {
-                return in.readLong();
-            }
-            if (OPTIMIZE_READING_IFD_ARRAYS) {
-                final byte[] bytes = readIFDBytes(in, 8 * (long) count);
-                return TiffTools.bytesToLongArray(bytes, in.isLittleEndian());
-            } else {
-                long[] longs = new long[count];
+                // convert character array to array of strings
+                final String[] strings = nullCount == 1 ? null : new String[nullCount];
+                String s = null;
+                int c = 0, ndx = -1;
                 for (int j = 0; j < count; j++) {
-                    longs[j] = in.readLong();
+                    if (ascii[j] == 0) {
+                        s = new String(ascii, ndx + 1, j - ndx - 1, Constants.ENCODING);
+                        ndx = j;
+                    } else if (j == count - 1) {
+                        // handle non-null-terminated strings
+                        s = new String(ascii, ndx + 1, j - ndx, Constants.ENCODING);
+                    } else s = null;
+                    if (strings != null && s != null) {
+                        strings[c++] = s;
+                    }
                 }
-                return longs;
+                return strings == null ? s : strings;
             }
-        } else if (type == IFDType.RATIONAL || type == IFDType.SRATIONAL) {
-            // Two LONGs or SLONGs: the first represents the numerator of a fraction; the second, the denominator
-            if (count == 1) {
-                return new TiffRational(in.readInt(), in.readInt());
+            case TiffIFD.TIFF_SHORT -> {
+                // 16-bit (2-byte) unsigned integer
+                if (count == 1) {
+                    return in.readUnsignedShort();
+                }
+                if (OPTIMIZE_READING_IFD_ARRAYS) {
+                    final byte[] bytes = readIFDBytes(in, 2 * (long) count);
+                    final short[] shorts = TiffTools.bytesToShortArray(bytes, in.isLittleEndian());
+                    final int[] result = new int[count];
+                    for (int j = 0; j < count; j++) {
+                        result[j] = shorts[j] & 0xFFFF;
+                    }
+                    return result;
+                } else {
+                    final int[] shorts = new int[count];
+                    for (int j = 0; j < count; j++) {
+                        shorts[j] = in.readUnsignedShort();
+                    }
+                    return shorts;
+                }
             }
-            final TiffRational[] rationals = new TiffRational[count];
-            for (int j = 0; j < count; j++) {
-                rationals[j] = new TiffRational(in.readInt(), in.readInt());
+            case TiffIFD.TIFF_LONG, TiffIFD.TIFF_IFD -> {
+                // 32-bit (4-byte) unsigned integer
+                if (count == 1) {
+                    return in.readInt() & 0xFFFFFFFFL;
+                }
+                if (OPTIMIZE_READING_IFD_ARRAYS) {
+                    final byte[] bytes = readIFDBytes(in, 4 * (long) count);
+                    final int[] ints = TiffTools.bytesToIntArray(bytes, in.isLittleEndian());
+                    return Arrays.stream(ints).mapToLong(anInt -> anInt & 0xFFFFFFFFL).toArray();
+                    // note: TIFF_LONG is UNSIGNED long
+                } else {
+                    final long[] longs = new long[count];
+                    for (int j = 0; j < count; j++) {
+                        longs[j] = in.readInt() & 0xFFFFFFFFL;
+                    }
+                    return longs;
+                }
             }
-            return rationals;
-        } else if (type == IFDType.SBYTE || type == IFDType.UNDEFINED) {
-            // SBYTE: An 8-bit signed (twos-complement) integer
-            // UNDEFINED: An 8-bit byte that may contain anything,
-            // depending on the definition of the field
-            if (count == 1) {
-                return in.readByte();
+            case TiffIFD.TIFF_LONG8, TiffIFD.TIFF_SLONG8, TiffIFD.TIFF_IFD8 -> {
+                if (count == 1) {
+                    return in.readLong();
+                }
+                if (OPTIMIZE_READING_IFD_ARRAYS) {
+                    final byte[] bytes = readIFDBytes(in, 8 * (long) count);
+                    return TiffTools.bytesToLongArray(bytes, in.isLittleEndian());
+                } else {
+                    long[] longs = new long[count];
+                    for (int j = 0; j < count; j++) {
+                        longs[j] = in.readLong();
+                    }
+                    return longs;
+                }
             }
-            final byte[] sbytes = new byte[count];
-            in.read(sbytes);
-            return sbytes;
-        } else if (type == IFDType.SSHORT) {
-            // A 16-bit (2-byte) signed (twos-complement) integer
-            if (count == 1) {
-                return in.readShort();
+            case TiffIFD.TIFF_RATIONAL, TiffIFD.TIFF_SRATIONAL -> {
+                // Two LONGs or SLONGs: the first represents the numerator of a fraction; the second, the denominator
+                if (count == 1) {
+                    return new TiffRational(in.readInt(), in.readInt());
+                }
+                final TiffRational[] rationals = new TiffRational[count];
+                for (int j = 0; j < count; j++) {
+                    rationals[j] = new TiffRational(in.readInt(), in.readInt());
+                }
+                return rationals;
             }
-            final short[] sshorts = new short[count];
-            for (int j = 0; j < count; j++) {
-                sshorts[j] = in.readShort();
+            case TiffIFD.TIFF_SBYTE, TiffIFD.TIFF_UNDEFINED -> {
+                // SBYTE: An 8-bit signed (twos-complement) integer
+                // UNDEFINED: An 8-bit byte that may contain anything,
+                // depending on the definition of the field
+                if (count == 1) {
+                    return in.readByte();
+                }
+                final byte[] sbytes = new byte[count];
+                in.read(sbytes);
+                return sbytes;
             }
-            return sshorts;
-        } else if (type == IFDType.SLONG) {
-            // A 32-bit (4-byte) signed (twos-complement) integer
-            if (count == 1) {
-                return in.readInt();
+            case TiffIFD.TIFF_SSHORT -> {
+                // A 16-bit (2-byte) signed (twos-complement) integer
+                if (count == 1) {
+                    return in.readShort();
+                }
+                final short[] sshorts = new short[count];
+                for (int j = 0; j < count; j++) {
+                    sshorts[j] = in.readShort();
+                }
+                return sshorts;
             }
-            final int[] slongs = new int[count];
-            for (int j = 0; j < count; j++) {
-                slongs[j] = in.readInt();
+            case TiffIFD.TIFF_SLONG -> {
+                // A 32-bit (4-byte) signed (twos-complement) integer
+                if (count == 1) {
+                    return in.readInt();
+                }
+                final int[] slongs = new int[count];
+                for (int j = 0; j < count; j++) {
+                    slongs[j] = in.readInt();
+                }
+                return slongs;
             }
-            return slongs;
-        } else if (type == IFDType.FLOAT) {
-            // Single precision (4-byte) IEEE format
-            if (count == 1) {
-                return in.readFloat();
+            case TiffIFD.TIFF_FLOAT -> {
+                // Single precision (4-byte) IEEE format
+                if (count == 1) {
+                    return in.readFloat();
+                }
+                final float[] floats = new float[count];
+                for (int j = 0; j < count; j++) {
+                    floats[j] = in.readFloat();
+                }
+                return floats;
             }
-            final float[] floats = new float[count];
-            for (int j = 0; j < count; j++) {
-                floats[j] = in.readFloat();
+            case TiffIFD.TIFF_DOUBLE -> {
+                // Double precision (8-byte) IEEE format
+                if (count == 1) {
+                    return in.readDouble();
+                }
+                final double[] doubles = new double[count];
+                for (int j = 0; j < count; j++) {
+                    doubles[j] = in.readDouble();
+                }
+                return doubles;
             }
-            return floats;
-        } else if (type == IFDType.DOUBLE) {
-            // Double precision (8-byte) IEEE format
-            if (count == 1) {
-                return in.readDouble();
-            }
-            final double[] doubles = new double[count];
-            for (int j = 0; j < count; j++) {
-                doubles[j] = in.readDouble();
-            }
-            return doubles;
         }
 
         return null;
@@ -1717,17 +1729,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return bytes;
     }
 
-    private TiffIFD.IFDEntry readIFDEntry() throws IOException, FormatException {
+    private TiffIFD.TiffEntry readIFDEntry() throws IOException, FormatException {
         final int entryTag = in.readUnsignedShort();
-        final int entryTypeCode = in.readUnsignedShort();
-
-        // Parse the entry's "Type"
-        final IFDType entryType;
-        try {
-            entryType = IFDType.get(entryTypeCode);
-        } catch (EnumException e) {
-            throw new FormatException("Invalid TIFF: IFD " + entryTag + " has unknown entry type " + entryTypeCode);
-        }
+        final int entryType = in.readUnsignedShort();
 
         // Parse the entry's "ValueCount"
         final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
@@ -1735,8 +1739,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throw new FormatException("Invalid TIFF: negative number of IFD values " + valueCount);
         }
 
-        final int bytesPerElement = entryType.getBytesPerElement();
-        assert bytesPerElement > 0 : "non-positive bytes per element in IFDType";
+        final int bytesPerElement = TiffIFD.entryTypeSize(entryType);
+        if (bytesPerElement <= 0) {
+            //TODO!! allow to store this
+            throw new FormatException("Invalid TIFF: IFD " + entryTag + " has unknown entry type " + entryType);
+        }
         final long valueLength = (long) valueCount * (long) bytesPerElement;
         final int threshold = bigTiff ? 8 : 4;
         final long valueOffset = valueLength > threshold ?
@@ -1750,7 +1757,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     " + total lengths of values " + valueLength + " = " + valueCount + "*" + bytesPerElement +
                     " is outside the file length " + in.length());
         }
-        final TiffIFD.IFDEntry result = new TiffIFD.IFDEntry(entryTag, entryType, valueCount, valueOffset);
+        final TiffIFD.TiffEntry result = new TiffIFD.TiffEntry(entryTag, entryType, valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
                 "Reading IFD entry: %s - %s", result, TiffIFD.ifdTagName(result.tag(), true)));
         return result;

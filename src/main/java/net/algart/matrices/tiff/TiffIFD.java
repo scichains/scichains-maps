@@ -58,6 +58,26 @@ public class TiffIFD {
 
     public static final int LAST_IFD_OFFSET = 0;
 
+    /*
+     * TIFF entry data types:
+     */
+    public static final int TIFF_BYTE = 1;
+    public static final int TIFF_ASCII = 2;
+    public static final int TIFF_SHORT = 3;
+    public static final int TIFF_LONG = 4;
+    public static final int TIFF_RATIONAL = 5;
+    public static final int TIFF_SBYTE = 6;
+    public static final int TIFF_UNDEFINED = 7;
+    public static final int TIFF_SSHORT = 8;
+    public static final int TIFF_SLONG = 9;
+    public static final int TIFF_SRATIONAL = 10;
+    public static final int TIFF_FLOAT = 11;
+    public static final int TIFF_DOUBLE = 12;
+    public static final int TIFF_IFD = 13;
+    public static final int TIFF_LONG8 = 16;
+    public static final int TIFF_SLONG8 = 17;
+    public static final int TIFF_IFD8 = 18;
+
     public static final int LITTLE_ENDIAN = 0;
     public static final int BIG_TIFF = 1;
     /**
@@ -144,7 +164,7 @@ public class TiffIFD {
     public static final int COPYRIGHT = 33432;
     public static final int EXIF = 34665;
 
-    /**
+    /*
      * EXIF tags.
      */
     public static final int EXPOSURE_TIME = 33434;
@@ -235,7 +255,7 @@ public class TiffIFD {
     public static final int FILETYPE_REDUCED_IMAGE = 1;
 
     private final Map<Integer, Object> map;
-    private final Map<Integer, IFDEntry> detailedEntries;
+    private final Map<Integer, TiffEntry> detailedEntries;
     private long fileOffsetForReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
@@ -271,7 +291,7 @@ public class TiffIFD {
     }
 
     // Note: detailedEntries is not cloned by this constructor.
-    TiffIFD(Map<Integer, Object> ifdEntries, Map<Integer, IFDEntry> detailedEntries) {
+    TiffIFD(Map<Integer, Object> ifdEntries, Map<Integer, TiffEntry> detailedEntries) {
         Objects.requireNonNull(ifdEntries);
         this.map = new LinkedHashMap<>(ifdEntries);
         this.detailedEntries = detailedEntries;
@@ -469,9 +489,9 @@ public class TiffIFD {
                 "TIFF tag " + ifdTagName(tag, true) + " is required, but it is absent"));
     }
 
-    public Optional<IFDType> optType(int tag) {
-        IFDEntry entry = detailedEntries == null ? null : detailedEntries.get(tag);
-        return entry == null ? Optional.empty() : Optional.ofNullable(entry.type());
+    public OptionalInt optType(int tag) {
+        TiffEntry entry = detailedEntries == null ? null : detailedEntries.get(tag);
+        return entry == null ? OptionalInt.empty() : OptionalInt.of(entry.type());
     }
 
     public boolean optBoolean(int tag, boolean defaultValue) {
@@ -1515,7 +1535,7 @@ public class TiffIFD {
             return sb.toString();
         }
         sb.append("; ").append(numberOfEntries()).append(" entries:");
-        final Map<Integer, IFDEntry> entries = this.detailedEntries;
+        final Map<Integer, TiffEntry> entries = this.detailedEntries;
         final Collection<Integer> keySequence = format.sorted ? new TreeSet<>(map.keySet()) : map.keySet();
         for (Integer tag : keySequence) {
             final Object v = this.get(tag);
@@ -1579,15 +1599,15 @@ public class TiffIFD {
                 sb.append(v);
             }
             if (entries != null) {
-                final IFDEntry ifdEntry = entries.get(tag);
-                if (ifdEntry != null) {
-                    sb.append(" : ").append(ifdEntry.type());
-                    int valueCount = ifdEntry.valueCount();
+                final TiffEntry tiffEntry = entries.get(tag);
+                if (tiffEntry != null) {
+                    sb.append(" : ").append(entryTypeToString(tiffEntry.type()));
+                    int valueCount = tiffEntry.valueCount();
                     if (valueCount != 1) {
                         sb.append("[").append(valueCount).append("]");
                     }
                     if (manyValues) {
-                        sb.append(" at @").append(ifdEntry.valueOffset());
+                        sb.append(" at @").append(tiffEntry.valueOffset());
                     }
                 }
             }
@@ -1596,6 +1616,50 @@ public class TiffIFD {
             }
         }
         return sb.toString();
+    }
+
+    public static String entryTypeToString(int ifdEntryType) {
+        return switch (ifdEntryType) {
+            case TIFF_BYTE -> "BYTE";
+            case TIFF_ASCII -> "ASCII";
+            case TIFF_SHORT -> "SHORT";
+            case TIFF_LONG -> "LONG";
+            case TIFF_RATIONAL -> "RATIONAL";
+            case TIFF_SBYTE -> "SBYTE";
+            case TIFF_UNDEFINED -> "UNDEFINED";
+            case TIFF_SSHORT -> "SSHORT";
+            case TIFF_SLONG -> "SLONG";
+            case TIFF_SRATIONAL -> "SRATIONAL";
+            case TIFF_FLOAT -> "FLOAT";
+            case TIFF_DOUBLE -> "DOUBLE";
+            case TIFF_IFD -> "IFD";
+            case TIFF_LONG8 -> "LONG8";
+            case TIFF_SLONG8 -> "SLONG8";
+            case TIFF_IFD8 -> "IFD8";
+            default -> "Unknown type";
+        };
+    }
+
+    public static int entryTypeSize(int ifdEntryType) {
+        return switch (ifdEntryType) {
+            case TIFF_BYTE -> 1;
+            case TIFF_ASCII -> 1;
+            case TIFF_SHORT -> 2;
+            case TIFF_LONG -> 4;
+            case TIFF_RATIONAL -> 8;
+            case TIFF_SBYTE -> 1;
+            case TIFF_UNDEFINED -> 1;
+            case TIFF_SSHORT -> 2;
+            case TIFF_SLONG -> 4;
+            case TIFF_SRATIONAL -> 8;
+            case TIFF_FLOAT -> 4;
+            case TIFF_DOUBLE -> 8;
+            case TIFF_IFD -> 4;
+            case TIFF_LONG8 -> 8;
+            case TIFF_SLONG8 -> 8;
+            case TIFF_IFD8 -> 8;
+            default -> -1;
+        };
     }
 
     public static boolean isStandard(TiffCompression compression) {
@@ -1765,6 +1829,6 @@ public class TiffIFD {
     }
 
     // Helper class for internal needs, analog of SCIFIO TiffIFDEntry
-    record IFDEntry(int tag, IFDType type, int valueCount, long valueOffset) {
+    record TiffEntry(int tag, int type, int valueCount, long valueOffset) {
     }
 }
