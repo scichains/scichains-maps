@@ -31,6 +31,9 @@ import net.algart.matrices.tiff.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.tiff.tiles.TiffTile;
 import org.scijava.Context;
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -61,6 +64,11 @@ enum KnownCompression {
     //TODO!! - check JPEG 2000 compressions after fixing https://github.com/scifio/scifio/issues/495
     NIKON(TiffCompression.NIKON, null, null, KnownCompression::writeOptionsStandard),
     LURAWAVE(TiffCompression.LURAWAVE, null, null, KnownCompression::writeOptionsStandard);
+
+    private static final Map<Integer, TiffCompression> tiffCompressionMap = new HashMap<>();
+    static {
+        EnumSet.allOf(TiffCompression.class).forEach(v -> tiffCompressionMap.put(v.getCode(), v));
+    }
 
     private final TiffCompression compression;
     private final Supplier<Codec> noContext;
@@ -106,6 +114,10 @@ enum KnownCompression {
 
     public CodecOptions writeOptions(TiffTile tile, CodecOptions defaultOptions) {
         return writeOptions.apply(tile, defaultOptions);
+    }
+
+    public static TiffCompression compressionOfCodeOrNull(int code) {
+        return tiffCompressionMap.get(code);
     }
 
     public static KnownCompression valueOfOrNull(TiffCompression compression) {

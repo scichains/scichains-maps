@@ -25,8 +25,8 @@
 package net.algart.matrices.tiff;
 
 import io.scif.FormatException;
-import io.scif.enumeration.EnumException;
-import io.scif.formats.tiff.*;
+import io.scif.formats.tiff.OnDemandLongArray;
+import io.scif.formats.tiff.TiffCompression;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -860,20 +860,16 @@ public class TiffIFD {
 
     public Optional<TiffCompression> optCompression() {
         final int code = optInt(COMPRESSION, -1);
-        try {
-            return code == -1 ? Optional.empty() : Optional.of(TiffCompression.get(code));
-        } catch (EnumException e) {
-            return Optional.empty();
-        }
+        return code == -1 ? Optional.empty() : Optional.ofNullable(KnownCompression.compressionOfCodeOrNull(code));
     }
 
     public TiffCompression getCompression() throws FormatException {
         final int code = getInt(COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
-        try {
-            return TiffCompression.get(code);
-        } catch (EnumException e) {
+        final TiffCompression result = KnownCompression.compressionOfCodeOrNull(code);
+        if (result == null) {
             throw new UnsupportedTiffFormatException("Unknown TIFF compression code: " + code);
         }
+        return result;
     }
 
     public TiffPhotometricInterpretation getPhotometricInterpretation() throws FormatException {

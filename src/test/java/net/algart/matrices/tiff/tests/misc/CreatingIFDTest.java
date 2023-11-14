@@ -41,6 +41,7 @@ public class CreatingIFDTest {
         ifd.putPixelInformation(1, byte.class);
         showIFD(ifd, "Pixel information");
 
+//        ifd.put(TiffIFD.COMPRESSION, 22222);
         ifd.putCompression(TiffCompression.OLD_JPEG);
         // - 3 channels, not 1
         showIFD(ifd, "Compression");
