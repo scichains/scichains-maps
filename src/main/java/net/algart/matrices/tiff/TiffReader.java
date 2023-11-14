@@ -1137,6 +1137,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
         readTiles(map, samples, fromX, fromY, sizeX, sizeY, storeTilesInMap);
 
         long t3 = debugTime();
+        boolean interleave = false;
+        if (interleaveResults) {
+            byte[] newSamples = TiffTools.toInterleavedSamples(
+                    samples, numberOfChannels, map.bytesPerSample(), sizeX * sizeY);
+            interleave = newSamples != samples;
+            samples = newSamples;
+        }
+        long t4 = debugTime();
         boolean unusualPrecision = false;
         if (autoUnpackUnusualPrecisions) {
             byte[] newSamples = TiffTools.unpackUnusualPrecisions(
@@ -1144,14 +1152,6 @@ public class TiffReader extends AbstractContextual implements Closeable {
             unusualPrecision = newSamples != samples;
             samples = newSamples;
             // - note: the size of sample array can be increased here!
-        }
-        long t4 = debugTime();
-        boolean interleave = false;
-        if (interleaveResults) {
-            byte[] newSamples = TiffTools.toInterleavedSamples(
-                    samples, numberOfChannels, ifd.sampleType().bytesPerSample(), sizeX * sizeY);
-            interleave = newSamples != samples;
-            samples = newSamples;
         }
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t5 = debugTime();
@@ -1169,10 +1169,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     timeCustomizingDecoding * 1e-6,
                     timeDecoding * 1e-6,
                     timeCompleteDecoding * 1e-6,
-                    unusualPrecision ?
-                            String.format(Locale.US, " + %.3f unusual precisions", (t4 - t3) * 1e-6) : "",
                     interleave ?
-                            String.format(Locale.US, " + %.3f interleave", (t5 - t4) * 1e-6) : "",
+                            String.format(Locale.US, " + %.3f interleave", (t4 - t3) * 1e-6) : "",
+                    unusualPrecision ?
+                            String.format(Locale.US, " + %.3f unusual precisions", (t5 - t4) * 1e-6) : "",
                     size / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
         return samples;
@@ -1193,7 +1193,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         Objects.requireNonNull(map, "Null TIFF map");
         final byte[] samples = readSamples(map, fromX, fromY, sizeX, sizeY, storeTilesInMap);
         long t1 = debugTime();
-        final Object samplesArray = TiffTools.bytesToArray(samples, map.sampleType(), isLittleEndian());
+        final TiffSampleType sampleType = map.sampleType();
+        if (!autoUnpackUnusualPrecisions && map.bytesPerSample() != sampleType.bytesPerSample()) {
+            throw new IllegalStateException("Cannot convert TIFF pixels, " + map.bytesPerSample() +
+                    " bytes/sample, to \"" + sampleType.elementType() + "\" " + sampleType.bytesPerSample() +
+                    "-byte Java type: unpacking unusual prevision mode is disabled");
+        }
+        final Object samplesArray = TiffTools.bytesToArray(samples, sampleType, isLittleEndian());
         if (TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG) {
             long t2 = debugTime();
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
