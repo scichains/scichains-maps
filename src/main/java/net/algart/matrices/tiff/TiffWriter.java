@@ -30,7 +30,9 @@ import io.scif.SCIFIO;
 import io.scif.UnsupportedCompressionException;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
-import io.scif.formats.tiff.*;
+import io.scif.formats.tiff.TiffCompression;
+import io.scif.formats.tiff.TiffConstants;
+import io.scif.formats.tiff.TiffRational;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.tiff.tiles.TiffMap;
@@ -236,17 +238,17 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      * <p>If set, then the samples array in <tt>writeImage</tt> methods is always supposed to be unpacked.
      * For multichannel images it means the samples order like RRR..GGG..BBB...: standard form, supposed by
      * {@link io.scif.Plane} class and returned by {@link TiffReader}. If the desired IFD format is
-     * chunked, i.e. {@link IFD#PLANAR_CONFIGURATION} is {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED}
+     * chunked, i.e. {@link TiffIFD#PLANAR_CONFIGURATION} is {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED}
      * (that is the typical usage), then the passes samples are automatically re-packed into chunked (interleaved)
      * form RGBRGBRGB...
      *
-     * <p>If this mode is not set, as well as if {@link IFD#PLANAR_CONFIGURATION} is
+     * <p>If this mode is not set, as well as if {@link TiffIFD#PLANAR_CONFIGURATION} is
      * {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE}, the passed data are encoded as-as, i.e. as unpacked
      * RRR...GGG..BBB...  for {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE} or as interleaved RGBRGBRGB...
      * for {@link TiffIFD#PLANAR_CONFIGURATION_CHUNKED}.
      *
      * <p>Note that this flag is ignored if the result data in the file should not be interleaved,
-     * i.e. for 1-channel images and if {@link IFD#PLANAR_CONFIGURATION} is
+     * i.e. for 1-channel images and if {@link TiffIFD#PLANAR_CONFIGURATION} is
      * {@link TiffIFD#PLANAR_CONFIGURATION_SEPARATE}.
      *
      * @param autoInterleaveSource new auto-interleave mode. Default value is <tt>true</tt>.
@@ -863,8 +865,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
 
     public void correctIFDForWriting(TiffIFD ifd, boolean strictCheck) throws FormatException {
         final int samplesPerPixel = ifd.getSamplesPerPixel();
-        if (!ifd.containsKey(IFD.BITS_PER_SAMPLE)) {
-            ifd.put(IFD.BITS_PER_SAMPLE, new int[]{8});
+        if (!ifd.containsKey(TiffIFD.BITS_PER_SAMPLE)) {
+            ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[]{8});
             // - Default value of BitsPerSample is 1 bit/pixel, but it is a rare case,
             // not supported at all by SCIFIO library FormatTools; so, we set another default 8 bits/pixel
             // Note: we do not change SAMPLE_FORMAT tag here!
@@ -899,17 +901,19 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             ifd.putSampleType(sampleType);
         }
 
-        if (!ifd.containsKey(IFD.COMPRESSION)) {
-            ifd.put(IFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
+        if (!ifd.containsKey(TiffIFD.COMPRESSION)) {
+            ifd.put(TiffIFD.COMPRESSION, TiffCompression.UNCOMPRESSED.getCode());
             // - We prefer explicitly specify this case
         }
         final TiffCompression compression = ifd.getCompression();
         // - UnsupportedTiffFormatException for unknown compression
 
         final boolean jpeg = compression == TiffCompression.JPEG;
-        TiffPhotometricInterpretation photometric = ifd.containsKey(IFD.PHOTOMETRIC_INTERPRETATION) ?
-                ifd.getPhotometricInterpretation() :
-                null;
+        final boolean hasPhotometric = ifd.containsKey(TiffIFD.PHOTOMETRIC_INTERPRETATION);
+        TiffPhotometricInterpretation photometric = hasPhotometric ? ifd.getPhotometricInterpretation() : null;
+        // - note: it is possible, that we DO NOT KNOW this photometric interpretation;
+        // in this case, photometric will be UNKNOWN, but we should not prevent writing such image
+        // in simple formats like UNCOMPRESSED or LZW: maybe, the client knows how to process it
         if (jpeg) {
             if (samplesPerPixel != 1 && samplesPerPixel != 3) {
                 throw new FormatException("JPEG compression for " + samplesPerPixel + " channels is not supported");
@@ -933,7 +937,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         "JPEG " + samplesPerPixel + "-channel image");
             }
         } else if (samplesPerPixel == 1) {
-            final boolean hasColorMap = ifd.containsKey(IFD.COLOR_MAP);
+            final boolean hasColorMap = ifd.containsKey(TiffIFD.COLOR_MAP);
             if (photometric == null) {
                 photometric = hasColorMap ?
                         TiffPhotometricInterpretation.RGB_PALETTE :
@@ -943,13 +947,6 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     throw new FormatException("Cannot write TIFF image: photometric interpretation \"" +
                             photometric.prettyName() + "\" requires also \"ColorMap\" tag");
                 }
-                checkPhotometricInterpretation(photometric, EnumSet.of(
-                                TiffPhotometricInterpretation.WHITE_IS_ZERO,
-                                TiffPhotometricInterpretation.BLACK_IS_ZERO,
-                                TiffPhotometricInterpretation.RGB_PALETTE,
-                                TiffPhotometricInterpretation.CFA_ARRAY,
-                                TiffPhotometricInterpretation.TRANSPARENCY_MASK),
-                        "single-channel image (1 sample/pixel)");
             }
         } else if (samplesPerPixel == 3) {
             if (photometric == null) {
@@ -958,14 +955,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         } else {
             if (photometric == null) {
                 throw new IllegalArgumentException("Cannot write TIFF image: photometric interpretation " +
-                        "is not specified in IFD and cannot be determined automatically");
+                        "is not specified in 3 and cannot be determined automatically");
             }
         }
-        ifd.putPhotometricInterpretation(photometric);
+        if (!hasPhotometric) {
+            ifd.putPhotometricInterpretation(photometric);
+        }
 
-        ifd.put(IFD.LITTLE_ENDIAN, out.isLittleEndian());
+        ifd.put(TiffIFD.LITTLE_ENDIAN, out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
-        ifd.put(IFD.BIG_TIFF, bigTiff);
+        ifd.put(TiffIFD.BIG_TIFF, bigTiff);
         // - not used, but helps to provide good DetailedIFD.toString
     }
 
@@ -1662,44 +1661,13 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         if (customCodec instanceof ExtendedJPEGCodec) {
             ExtendedJPEGCodecOptions jpegOptions = new ExtendedJPEGCodecOptions(result);
             jpegOptions.setQuality(jpegQuality);
-            if (tile.ifd().optInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) ==
+            if (tile.ifd().optInt(TiffIFD.PHOTOMETRIC_INTERPRETATION, -1) ==
                     TiffPhotometricInterpretation.RGB.code()) {
                 jpegOptions.setPhotometricInterpretation(TiffPhotometricInterpretation.RGB);
             }
             result = jpegOptions;
         }
         return result;
-    }
-
-    // Old deprecated solution
-    private CodecOptions buildWritingOptions(TiffTile tile, Codec customCodec) throws FormatException {
-        TiffIFD ifd = tile.ifd();
-        if (!ifd.hasImageDimensions()) {
-            ifd = new TiffIFD(ifd);
-            // - do not change original IFD
-            ifd.putImageDimensions(157, 157);
-            // - Some "fake" dimensions: necessary for normal work of getCompressionCodecOptions;
-            // this will work even if the original IFD is frozen for writing
-            // See https://github.com/scifio/scifio/issues/516
-        }
-
-        IFD result = new IFD(null);
-        result.putAll(ifd.map());
-        CodecOptions codecOptions = ifd.getCompression().getCompressionCodecOptions(
-                result, this.codecOptions);
-        // - logger should not be necessary for correct TiffIFD
-        if (customCodec instanceof ExtendedJPEGCodec) {
-            codecOptions = new ExtendedJPEGCodecOptions(codecOptions)
-                    .setQuality(jpegQuality);
-            if (ifd.getInt(IFD.PHOTOMETRIC_INTERPRETATION, -1) == TiffPhotometricInterpretation.RGB.code()) {
-                ((ExtendedJPEGCodecOptions) codecOptions).setPhotometricInterpretation(
-                        TiffPhotometricInterpretation.RGB);
-            }
-        }
-        codecOptions.width = tile.getSizeX();
-        codecOptions.height = tile.getSizeY();
-        codecOptions.channels = tile.samplesPerPixel();
-        return codecOptions;
     }
 
     private static void checkPhotometricInterpretation(

@@ -24,7 +24,6 @@
 
 package net.algart.matrices.tiff;
 
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,14 +38,19 @@ public enum TiffPhotometricInterpretation {
 	Y_CB_CR(6, "YCbCr"),
 	CIE_LAB(8, "CIELAB"),
 	ICC_LAB(9, "ICCLAB"),
-	CFA_ARRAY(32803, "Color filter array");
+	CFA_ARRAY(32803, "Color filter array"),
+    UNKNOWN(-1, "unknown");
 
     private int code;
     private String name;
 
     private static final Map<Integer, TiffPhotometricInterpretation> lookup = new HashMap<>();
     static {
-        EnumSet.allOf(TiffPhotometricInterpretation.class).forEach(v -> lookup.put(v.code(), v));
+        for (TiffPhotometricInterpretation v : TiffPhotometricInterpretation.values()) {
+            if (v.code >= 0) {
+                lookup.put(v.code, v);
+            }
+        }
     }
 
     TiffPhotometricInterpretation(int code, String name) {
@@ -54,15 +58,35 @@ public enum TiffPhotometricInterpretation {
         this.name = name;
     }
 
-    public static TiffPhotometricInterpretation valueOfCodeOrNull(int code) {
-        return lookup.get(code);
+    public static TiffPhotometricInterpretation valueOfCodeOrUnknown(int code) {
+        return lookup.getOrDefault(code, UNKNOWN);
     }
 
     public int code() {
+        checkUnknown();
         return code;
     }
 
     public String prettyName() {
         return name;
+    }
+
+    public boolean isInvertedBrightness() {
+        return this == WHITE_IS_ZERO || this == CMYK;
+    }
+
+    public boolean isIndexed() {
+        return this == RGB_PALETTE || this == CFA_ARRAY;
+    }
+
+    public boolean isUnknown() {
+        return this == UNKNOWN;
+    }
+
+    public TiffPhotometricInterpretation checkUnknown() {
+        if (this == UNKNOWN) {
+            throw new IllegalArgumentException("Unknown TIFF photometric interpretation is not allowed");
+        }
+        return this;
     }
 }

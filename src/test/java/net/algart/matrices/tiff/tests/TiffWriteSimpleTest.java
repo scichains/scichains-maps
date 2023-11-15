@@ -56,14 +56,15 @@ public class TiffWriteSimpleTest {
             writer.startNewFile();
             // writer.startNewFile(); // - not a problem to call twice
             TiffIFD ifd = new TiffIFD();
-            final int[] bitsPerSample = {8, 8, 8};
+            final int[] bitsPerSample = {8};
             ifd.putImageDimensions(IMAGE_WIDTH, IMAGE_HEIGHT);
             ifd.putNumberOfChannels(bitsPerSample.length);
             ifd.putCompression(TiffCompression.LZW);
-            ifd.putPhotometricInterpretation(TiffPhotometricInterpretation.RGB);
+            ifd.putPhotometricInterpretation(TiffPhotometricInterpretation.WHITE_IS_ZERO);
             ifd.put(TiffIFD.BITS_PER_SAMPLE, bitsPerSample);
             ifd.put(TiffIFD.SAMPLE_FORMAT, TiffIFD.SAMPLE_FORMAT_INT);
             // - you can comment or change the options above for thorough testing
+//            ifd.put(TiffIFD.PHOTOMETRIC_INTERPRETATION, 8);
 
             System.out.printf("Desired IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
 

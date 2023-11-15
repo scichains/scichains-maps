@@ -872,18 +872,14 @@ public class TiffIFD {
         return result;
     }
 
-    public TiffPhotometricInterpretation getPhotometricInterpretation() throws FormatException {
-        final Object photometricInterpretation = get(PHOTOMETRIC_INTERPRETATION);
-        if (photometricInterpretation == null
+    public TiffPhotometricInterpretation getPhotometricInterpretation()
+            throws FormatException {
+        if (!containsKey(PHOTOMETRIC_INTERPRETATION)
                 && getInt(COMPRESSION, 0) == TiffCompression.OLD_JPEG.getCode()) {
             return TiffPhotometricInterpretation.RGB;
         }
         final int code = reqInt(PHOTOMETRIC_INTERPRETATION);
-        final TiffPhotometricInterpretation result = TiffPhotometricInterpretation.valueOfCodeOrNull(code);
-        if (result == null) {
-            throw new UnsupportedTiffFormatException("Unsupported TIFF photometric interpretation code: " + code);
-        }
-        return result;
+        return TiffPhotometricInterpretation.valueOfCodeOrUnknown(code);
     }
 
     public int[] getYCbCrSubsampling() throws FormatException {
@@ -1162,10 +1158,7 @@ public class TiffIFD {
 
     public boolean isStandardInvertedCompression() throws FormatException {
         TiffCompression compression = getCompression();
-        TiffPhotometricInterpretation photometricInterpretation = getPhotometricInterpretation();
-        return isStandard(compression) && !isJpeg(compression) &&
-                (photometricInterpretation == TiffPhotometricInterpretation.WHITE_IS_ZERO ||
-                        photometricInterpretation == TiffPhotometricInterpretation.CMYK);
+        return isStandard(compression) && !isJpeg(compression) && getPhotometricInterpretation().isInvertedBrightness();
     }
 
     public boolean isThumbnail() {

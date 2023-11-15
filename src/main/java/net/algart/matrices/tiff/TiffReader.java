@@ -30,7 +30,6 @@ import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.codec.PassthroughCodec;
 import io.scif.common.Constants;
-import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.formats.tiff.TiffConstants;
 import io.scif.formats.tiff.TiffRational;
@@ -573,12 +572,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     // if (!cachingIFDs && ifd.containsKey(IFD.SUB_IFD)) {
                     //     fillInIFD(ifd);
                     // }
-                    subOffsets = ifd.getLongArray(IFD.SUB_IFD);
+                    subOffsets = ifd.getLongArray(TiffIFD.SUB_IFD);
                 } catch (final FormatException ignored) {
                 }
                 if (subOffsets != null) {
                     for (final long subOffset : subOffsets) {
-                        final TiffIFD sub = readIFDAt(subOffset, IFD.SUB_IFD, false);
+                        final TiffIFD sub = readIFDAt(subOffset, TiffIFD.SUB_IFD, false);
                         if (sub != null) {
                             ifds.add(sub);
                         }
@@ -606,9 +605,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final List<TiffIFD> ifds = allIFDs();
         final List<TiffIFD> result = new ArrayList<>();
         for (final TiffIFD ifd : ifds) {
-            final long offset = ifd.getLong(IFD.EXIF, 0);
+            final long offset = ifd.getLong(TiffIFD.EXIF, 0);
             if (offset != 0) {
-                final TiffIFD exifIFD = readIFDAt(offset, IFD.EXIF, false);
+                final TiffIFD exifIFD = readIFDAt(offset, TiffIFD.EXIF, false);
                 if (exifIFD != null) {
                     result.add(exifIFD);
                 }
@@ -728,8 +727,8 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final Map<Integer, TiffIFD.TiffEntry> detailedEntries = new LinkedHashMap<>();
 
             // save little-endian flag to internal LITTLE_ENDIAN tag
-            map.put(IFD.LITTLE_ENDIAN, in.isLittleEndian());
-            map.put(IFD.BIG_TIFF, bigTiff);
+            map.put(TiffIFD.LITTLE_ENDIAN, in.isLittleEndian());
+            map.put(TiffIFD.BIG_TIFF, bigTiff);
 
             // read in directory entries for this IFD
             in.seek(startOffset);
@@ -913,7 +912,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final TiffCompression compression = ifd.getCompression();
         if (TiffIFD.isJpeg(compression)) {
             final byte[] data = tile.getEncodedData();
-            final byte[] jpegTable = ifd.getValue(IFD.JPEG_TABLES, byte[].class).orElse(null);
+            final byte[] jpegTable = ifd.getValue(TiffIFD.JPEG_TABLES, byte[].class).orElse(null);
             // Structure of data:
             //      FF D8 (SOI, start of image)
             //      FF C0 (SOF0, start of frame, or some other marker)
@@ -1426,7 +1425,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
     private static int cachedByteCountWithCompatibilityTrick(TiffIFD ifd, int index) throws FormatException {
         final boolean tiled = ifd.hasTileInformation();
-        final int tag = tiled ? IFD.TILE_BYTE_COUNTS : IFD.STRIP_BYTE_COUNTS;
+        final int tag = tiled ? TiffIFD.TILE_BYTE_COUNTS : TiffIFD.STRIP_BYTE_COUNTS;
         Object value = ifd.get(tag);
         if (value instanceof long[] byteCounts &&
                 byteCounts.length == 1 &&

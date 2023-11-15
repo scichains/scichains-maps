@@ -2,7 +2,7 @@
   <configuration default="false" name="TiffReaderTest" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="net.algart.matrices.tiff.tests.TiffReaderTest" />
     <module name="scichains-maps" />
-    <option name="PROGRAM_PARAMETERS" value="\tmp\newtiff.tiff  \tmp\optimized.png  0 0 0 -1 -1 10" />
+    <option name="PROGRAM_PARAMETERS" value="C:\computer-vision\scichains-maps\build\java\resources\demo\images\tiff\algart\colorspace\big-endian\test-cmyk-12.tif  /tmp/optimized.png  0 0 0 -1 -1 10" />
     <option name="VM_PARAMETERS" value="-ea -esa -Dnet.algart.matrices.io.formats.tiff.timing=true -Djava.util.logging.config.file=\SciChains\conf\logging.properties" />
     <extension name="coverage">
       <pattern>

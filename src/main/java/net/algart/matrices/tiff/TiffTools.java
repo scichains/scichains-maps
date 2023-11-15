@@ -620,15 +620,11 @@ public class TiffTools {
             // - was checked in isSimpleRearrangingBytesEnough
         }
         final TiffPhotometricInterpretation photometricInterpretation = ifd.getPhotometricInterpretation();
-        //TODO!! use some unusual as default
-        if (photometricInterpretation == TiffPhotometricInterpretation.RGB_PALETTE ||
-                photometricInterpretation == TiffPhotometricInterpretation.CFA_ARRAY ||
+        if (photometricInterpretation.isIndexed() ||
                 photometricInterpretation == TiffPhotometricInterpretation.TRANSPARENCY_MASK) {
             scaleWhenIncreasingBitDepth = false;
         }
-        final boolean invertedBrightness =
-                photometricInterpretation == TiffPhotometricInterpretation.WHITE_IS_ZERO ||
-                        photometricInterpretation == TiffPhotometricInterpretation.CMYK;
+        final boolean invertedBrightness = photometricInterpretation.isInvertedBrightness();
         if (tile.isFloatingPoint() && OPTIMIZE_SEPARATING_WHOLE_BYTES) {
             // - TIFF with float/double samples must not require bit unpacking or inverting brightness
             throw new FormatException("Invalid TIFF image: floating-point values, compression \"" +
