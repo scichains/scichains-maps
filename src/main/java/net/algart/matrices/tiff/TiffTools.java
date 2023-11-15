@@ -620,6 +620,7 @@ public class TiffTools {
             // - was checked in isSimpleRearrangingBytesEnough
         }
         final TiffPhotometricInterpretation photometricInterpretation = ifd.getPhotometricInterpretation();
+        //TODO!! use some unusual as default
         if (photometricInterpretation == TiffPhotometricInterpretation.RGB_PALETTE ||
                 photometricInterpretation == TiffPhotometricInterpretation.CFA_ARRAY ||
                 photometricInterpretation == TiffPhotometricInterpretation.TRANSPARENCY_MASK) {
@@ -1262,7 +1263,9 @@ public class TiffTools {
         } else if (exponent != 0) {             // Normalized value
             exponent += 0x1c000;                // exp - 15 + 127
 
-            // Smooth transition [strange addition from TwelveMonkey, that sometimes leads to incorrect results]
+            // [ Below is commented addition from TwelveMonkey, that sometimes leads to incorrect results;
+            // fixed in https://github.com/haraldk/TwelveMonkeys/issues/865 ]
+            // Smooth transition
 //            if (mantissa == 0 && exponent > 0x1c400) {
 //                return (value & 0x8000) << 16 | exponent << 13 | 0x3ff;
 //            }

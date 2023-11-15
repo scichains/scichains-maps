@@ -39,8 +39,7 @@ public enum TiffPhotometricInterpretation {
 	Y_CB_CR(6, "YCbCr"),
 	CIE_LAB(8, "CIELAB"),
 	ICC_LAB(9, "ICCLAB"),
-	CFA_ARRAY(32803, "Color filter array"),
-	UNSUPPORTED(-1, "Unsupported photometric interpretation");
+	CFA_ARRAY(32803, "Color filter array");
 
     private int code;
     private String name;
