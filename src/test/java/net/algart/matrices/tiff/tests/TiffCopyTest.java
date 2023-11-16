@@ -35,6 +35,7 @@ import net.algart.matrices.tiff.tiles.TiffTileIndex;
 import org.scijava.Context;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -78,30 +79,36 @@ public class TiffCopyTest {
             Path sourceFile, Path targetFile,
             int firstIFDIndex, int lastIFDIndex)
             throws IOException, FormatException {
-        TiffReader reader = new TiffReader(context, sourceFile, false);
-        if (!reader.isValid()) {
-            System.out.printf("Skipping %s: not a TIFF%n", sourceFile);
-            return;
-        }
-        System.out.printf("Copying %s to %s...%n", sourceFile, targetFile);
-        reader.setByteFiller((byte) 0xC0);
-        TiffWriter writer = new TiffWriter(context, targetFile);
-        writer.setBigTiff(reader.isBigTiff());
-        writer.setLittleEndian(reader.isLittleEndian());
-        // writer.setJpegInPhotometricRGB(true);
-        // - should not be important for copying, when PhotometricInterpretation is already specified
-        writer.startNewFile();
+        try (TiffReader reader = new TiffReader(context, sourceFile, false)) {
+            if (!reader.isValid()) {
+                System.out.printf("Skipping %s: not a TIFF%n", sourceFile);
+                return;
+            }
+            System.out.printf("Copying %s to %s...%n", sourceFile, targetFile);
+            reader.setByteFiller((byte) 0xC0);
+            boolean ok = false;
+            try (TiffWriter writer = new TiffWriter(context, targetFile)) {
+                writer.setBigTiff(reader.isBigTiff());
+                writer.setLittleEndian(reader.isLittleEndian());
+                // writer.setJpegInPhotometricRGB(true);
+                // - should not be important for copying, when PhotometricInterpretation is already specified
+                writer.startNewFile();
 
-        final List<TiffIFD> ifds = reader.allIFDs();
-        lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
-        for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
-            final TiffIFD readIFD = ifds.get(ifdIndex);
-            final TiffIFD writeIFD = new TiffIFD(readIFD);
-            System.out.printf("\r  Copying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
-            copyImage(readIFD, writeIFD, reader, writer);
+                final List<TiffIFD> ifds = reader.allIFDs();
+                lastIFDIndex = Math.min(lastIFDIndex, ifds.size() - 1);
+                for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
+                    final TiffIFD readIFD = ifds.get(ifdIndex);
+                    final TiffIFD writeIFD = new TiffIFD(readIFD);
+                    System.out.printf("\r  Copying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
+                    copyImage(readIFD, writeIFD, reader, writer);
+                }
+                ok = true;
+            } finally {
+                if (!ok) {
+                    Files.deleteIfExists(targetFile);
+                }
+            }
         }
-        reader.close();
-        writer.close();
     }
 
     static void copyTiff(Context context, Path sourceFile, Path targetFile)

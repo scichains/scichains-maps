@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="TiffFalsifyTags" type="Application" factoryName="Application" nameIsGenerated="true">
-    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.TiffFalsifyTags" />
+  <configuration default="false" name="TiffFalsifyTags" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="net.algart.matrices.tiff.tests.TiffFalsifyTags" />
     <module name="scichains-maps" />
-    <option name="PROGRAM_PARAMETERS" value="/tmp/newtiff.tiff 0 0 0 WHITE_IS_ZERO" />
+    <option name="PROGRAM_PARAMETERS" value="/tmp/copy.tiff 0 0 0 RGB" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="net.algart.matrices.io.formats.tiff.bridges.scifio.tests.*" />

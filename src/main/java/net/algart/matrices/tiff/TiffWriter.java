@@ -909,10 +909,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         // - UnsupportedTiffFormatException for unknown compression
 
         final boolean jpeg = compression == TiffCompression.JPEG;
-        final boolean hasPhotometric = ifd.containsKey(TiffIFD.PHOTOMETRIC_INTERPRETATION);
-        TiffPhotometricInterpretation photometric = hasPhotometric ? ifd.getPhotometricInterpretation() : null;
-        // - note: it is possible, that we DO NOT KNOW this photometric interpretation;
-        // in this case, photometric will be UNKNOWN, but we should not prevent writing such image
+        final TiffPhotometricInterpretation suggestedPhotometric =
+                ifd.containsKey(TiffIFD.PHOTOMETRIC_INTERPRETATION) ? ifd.getPhotometricInterpretation() : null;
+        TiffPhotometricInterpretation newPhotometric = suggestedPhotometric;
+        // - note: it is possible, that we DO NOT KNOW this newPhotometric interpretation;
+        // in this case, newPhotometric will be UNKNOWN, but we should not prevent writing such image
         // in simple formats like UNCOMPRESSED or LZW: maybe, the client knows how to process it
         if (jpeg) {
             if (samplesPerPixel != 1 && samplesPerPixel != 3) {
@@ -923,12 +924,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                         (sampleType == TiffSampleType.INT8 ? "signed 8-bit samples requested" :
                                 "requested number of bits/samples is " + Arrays.toString(ifd.getBitsPerSample())));
             }
-            if (photometric == null) {
-                photometric = samplesPerPixel == 1 ? TiffPhotometricInterpretation.BLACK_IS_ZERO :
+            if (newPhotometric == null) {
+                newPhotometric = samplesPerPixel == 1 ? TiffPhotometricInterpretation.BLACK_IS_ZERO :
                         (jpegInPhotometricRGB || !ifd.isChunked()) ?
                                 TiffPhotometricInterpretation.RGB : TiffPhotometricInterpretation.Y_CB_CR;
             } else {
-                checkPhotometricInterpretation(photometric,
+                checkPhotometricInterpretation(newPhotometric,
                         samplesPerPixel == 1 ? EnumSet.of(TiffPhotometricInterpretation.BLACK_IS_ZERO) :
                                 extendedCodec ?
                                         EnumSet.of(TiffPhotometricInterpretation.Y_CB_CR,
@@ -938,28 +939,38 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             }
         } else if (samplesPerPixel == 1) {
             final boolean hasColorMap = ifd.containsKey(TiffIFD.COLOR_MAP);
-            if (photometric == null) {
-                photometric = hasColorMap ?
+            if (newPhotometric == null) {
+                newPhotometric = hasColorMap ?
                         TiffPhotometricInterpretation.RGB_PALETTE :
                         TiffPhotometricInterpretation.BLACK_IS_ZERO;
             } else {
-                if (photometric == TiffPhotometricInterpretation.RGB_PALETTE && !hasColorMap) {
-                    throw new FormatException("Cannot write TIFF image: photometric interpretation \"" +
-                            photometric.prettyName() + "\" requires also \"ColorMap\" tag");
+                if (newPhotometric == TiffPhotometricInterpretation.RGB_PALETTE && !hasColorMap) {
+                    throw new FormatException("Cannot write TIFF image: newPhotometric interpretation \"" +
+                            newPhotometric.prettyName() + "\" requires also \"ColorMap\" tag");
                 }
             }
         } else if (samplesPerPixel == 3) {
-            if (photometric == null) {
-                photometric = TiffPhotometricInterpretation.RGB;
+            if (newPhotometric == null) {
+                newPhotometric = TiffPhotometricInterpretation.RGB;
+            } else {
+                if (ifd.isStandardYCbCrNonJpeg()) {
+                    // - In this case, we automatically decode YCbCr into RGB while reading;
+                    // we cannot encode pixels back to YCbCr,
+                    // so, it would be better to change newPhotometric interpretation to RGB.
+                    // Note that for JPEG we have no this problem: we CAN encode JPEG as YCbCr.
+                    // For other models (like CMYK or CIE Lab), we ignore newPhotometric interpretation
+                    // and suppose that the user herself prepared channels in the necessary model.
+                    newPhotometric = TiffPhotometricInterpretation.RGB;
+                }
             }
         } else {
-            if (photometric == null) {
-                throw new IllegalArgumentException("Cannot write TIFF image: photometric interpretation " +
+            if (newPhotometric == null) {
+                throw new IllegalArgumentException("Cannot write TIFF image: newPhotometric interpretation " +
                         "is not specified in 3 and cannot be determined automatically");
             }
         }
-        if (!hasPhotometric) {
-            ifd.putPhotometricInterpretation(photometric);
+        if (newPhotometric != suggestedPhotometric) {
+            ifd.putPhotometricInterpretation(newPhotometric);
         }
 
         ifd.setLittleEndian(out.isLittleEndian());
