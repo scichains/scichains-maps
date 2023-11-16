@@ -75,10 +75,6 @@ class IFDFriendlyNames {
         private static final Pattern NAME_REQUIREMENT_PATTERN = Pattern.compile("\\w+");
         // Below is the string constant, containing the tag names and the corresponding decimal values
         private static final String[] SOURCE_CODE_WITH_IFD_TAG_NAMES = """
-                LITTLE_ENDIAN = 0
-                BIG_TIFF = 1
-                // - not actual TIFF tags, but IFD class stored useful information for these indexes  
-                                
                 NewSubfileType = 254;
                 SubfileType = 255
                 ImageWidth = 256

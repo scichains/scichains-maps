@@ -515,7 +515,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             // - checks that startOffset is even and >= 0
 
             out.seek(startOffset);
-            final Map<Integer, Object> sortedIFD = ifd.removePseudoTags(TreeMap::new);
+            final Map<Integer, Object> sortedIFD = new TreeMap<>(ifd.map());
             final int numberOfEntries = sortedIFD.size();
             final int mainIFDLength = mainIFDLength(numberOfEntries);
             writeIFDNumberOfEntries(numberOfEntries);
@@ -817,8 +817,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         TiffCompression compression = tile.ifd().getCompression();
         final KnownCompression known = KnownCompression.valueOfOrNull(compression);
         if (known == null) {
-            throw new UnsupportedCompressionException("Compression \"" + compression.getCodecName() +
-                    "\" (TIFF code " + compression.getCode() + ") is not supported");
+            throw new UnsupportedCompressionException("Writing TIFF with compression \"" +
+                    compression.getCodecName() + "\" (TIFF code " + compression.getCode() + ") is not supported");
         }
         // - don't try to write unknown compressions: they may require additional processing
 
@@ -962,10 +962,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             ifd.putPhotometricInterpretation(photometric);
         }
 
-        ifd.put(TiffIFD.LITTLE_ENDIAN, out.isLittleEndian());
+        ifd.setLittleEndian(out.isLittleEndian());
         // - will be used, for example, in getCompressionCodecOptions
-        ifd.put(TiffIFD.BIG_TIFF, bigTiff);
-        // - not used, but helps to provide good DetailedIFD.toString
+        ifd.setBigTiff(bigTiff);
+        // - not used, but helps to provide better TiffIFD.toString
     }
 
     public TiffMap newMap(TiffIFD ifd, int numberOfChannels, Class<?> elementType, boolean signedIntegers)
@@ -1498,7 +1498,8 @@ public class TiffWriter extends AbstractContextual implements Closeable {
             for (final double doubleValue : q) {
                 extraBuffer.writeDouble(doubleValue);
             }
-        } else {
+        } else if (!(value instanceof TiffIFD.UnsupportedTypeValue)) {
+            // - for unsupported type, we don't know the sense of its valueOrOffset field; it is better to skip it
             throw new UnsupportedOperationException("Unknown IFD value type ("
                     + value.getClass().getSimpleName() + "): " + value);
         }
@@ -1589,14 +1590,14 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         }
     }
 
-    private void writeUnsignedShort(DataHandle<Location> handle, int value) throws IOException {
+    private static void writeUnsignedShort(DataHandle<Location> handle, int value) throws IOException {
         if (value < 0 || value > 0xFFFF) {
             throw new IOException("Attempt to write 32-bit value as 16-bit: " + value);
         }
         handle.writeShort(value);
     }
 
-    private void writeUnsignedByte(DataHandle<Location> handle, int value) throws IOException {
+    private static void writeUnsignedByte(DataHandle<Location> handle, int value) throws IOException {
         if (value < 0 || value > 0xFF) {
             throw new IOException("Attempt to write 16/32-bit value as 8-bit: " + value);
         }

@@ -105,14 +105,16 @@ public class TiffParser extends TiffReader {
         this.log = scifio.log();
     }
 
-    public static TiffIFD toTiffIFD(IFD ifd) {
+    public static TiffIFD toTiffIFD(IFD ifd) throws FormatException {
         Objects.requireNonNull(ifd, "Null IFD");
-        return TiffIFD.valueOf(ifd);
+        return TiffIFD.valueOf(ifd).setBigTiff(ifd.isBigTiff()).setLittleEndian(ifd.isLittleEndian());
     }
 
     public IFD toScifioIFD(TiffIFD ifd) {
         IFD result = new IFD(log);
         result.putAll(ifd.map());
+        result.put(IFD.LITTLE_ENDIAN, ifd.isLittleEndian());
+        result.put(IFD.BIG_TIFF, ifd.isBigTiff());
         return result;
     }
 

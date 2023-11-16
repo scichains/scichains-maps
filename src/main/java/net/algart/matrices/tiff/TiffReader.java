@@ -29,7 +29,6 @@ import io.scif.SCIFIO;
 import io.scif.codec.Codec;
 import io.scif.codec.CodecOptions;
 import io.scif.codec.PassthroughCodec;
-import io.scif.common.Constants;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.formats.tiff.TiffConstants;
 import io.scif.formats.tiff.TiffRational;
@@ -50,6 +49,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -726,16 +726,12 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final Map<Integer, Object> map = new LinkedHashMap<>();
             final Map<Integer, TiffIFD.TiffEntry> detailedEntries = new LinkedHashMap<>();
 
-            // save little-endian flag to internal LITTLE_ENDIAN tag
-            map.put(TiffIFD.LITTLE_ENDIAN, in.isLittleEndian());
-            map.put(TiffIFD.BIG_TIFF, bigTiff);
-
             // read in directory entries for this IFD
             in.seek(startOffset);
             final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-            if (numberOfEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
-                throw new FormatException("Too many number of IFD detailedEntries: " + numberOfEntries +
-                        " > " + MAX_NUMBER_OF_IFD_ENTRIES);
+            if (numberOfEntries < 0 || numberOfEntries > MAX_NUMBER_OF_IFD_ENTRIES) {
+                throw new FormatException("Too large number of IFD entries: " +
+                        (numberOfEntries < 0 ? ">= 2^63" : numberOfEntries + " > " + MAX_NUMBER_OF_IFD_ENTRIES));
                 // - theoretically BigTIFF allows to have more entries, but we prefer to make some restriction;
                 // in any case, billions if detailedEntries will probably lead to OutOfMemoryError or integer overflow
             }
@@ -752,14 +748,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 long tEntry2 = debugTime();
                 timeEntries += tEntry2 - tEntry1;
 
-                final Object value = readIFDValueAtCurrentPosition(in, entry);
+                final Object value = readIFDValueAtEntryOffset(in, entry);
                 long tEntry3 = debugTime();
                 timeArrays += tEntry3 - tEntry2;
 //            System.err.printf("%d values from %d: %.6f ms%n", valueCount, valueOffset, (tEntry3 - tEntry2) * 1e-6);
 
                 if (value != null && !map.containsKey(tag)) {
-                    // - null value should not occur in current version, but theoretically
-                    // it means that this IFDType is not supported and should not be stored;
+                    // - null value should not occur in current version;
                     // if this tag is present twice (strange mistake if TIFF file),
                     // we do not throw exception and just use the 1st entry
                     map.put(tag, value);
@@ -769,7 +764,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
             final long positionOfNextOffset = startOffset + baseOffset + bytesPerEntry * numberOfEntries;
             in.seek(positionOfNextOffset);
 
-            ifd = new TiffIFD(map, detailedEntries).setFileOffsetForReading(startOffset);
+            ifd = new TiffIFD(map, detailedEntries);
+            ifd.setLittleEndian(in.isLittleEndian());
+            ifd.setBigTiff(bigTiff);
+            ifd.setFileOffsetForReading(startOffset);
             ifd.setSubIFDType(subIFDType);
             if (readNextOffset) {
                 final long nextOffset = readNextOffset(false);
@@ -1473,12 +1471,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final long offset = in.offset();
         final int bytesPerEntry = bigTiff ? TiffConstants.BIG_TIFF_BYTES_PER_ENTRY : TiffConstants.BYTES_PER_ENTRY;
         final long numberOfEntries = bigTiff ? in.readLong() : in.readUnsignedShort();
-        if (numberOfEntries > Integer.MAX_VALUE / bytesPerEntry) {
+        if (numberOfEntries < 0 || numberOfEntries > Integer.MAX_VALUE / bytesPerEntry) {
             throw new FormatException(
-                    "Too many number of IFD entries in Big TIFF: " + numberOfEntries +
+                    "Too large number of IFD entries in Big TIFF: " +
+                            (numberOfEntries < 0 ? ">= 2^63" : numberOfEntries + "") +
                             " (it is not supported, probably file is broken)");
         }
-        long skippedIFDBytes = numberOfEntries * bytesPerEntry;
+        final long skippedIFDBytes = numberOfEntries * bytesPerEntry;
         if (offset + skippedIFDBytes >= fileLength) {
             throw new FormatException(
                     "Invalid TIFF" + prettyInName() + ": position of next IFD offset " +
@@ -1542,7 +1541,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return offset;
     }
 
-    private static Object readIFDValueAtCurrentPosition(DataHandle<?> in, TiffIFD.TiffEntry entry)
+    private static Object readIFDValueAtEntryOffset(DataHandle<?> in, TiffIFD.TiffEntry entry)
             throws IOException, FormatException {
         final int type = entry.type();
         final int count = entry.valueCount();
@@ -1574,27 +1573,31 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 in.read(ascii);
 
                 // count number of null terminators
-                int nullCount = 0;
+                int zeroCount = 0;
                 for (int j = 0; j < count; j++) {
-                    if (ascii[j] == 0 || j == count - 1) nullCount++;
+                    if (ascii[j] == 0 || j == count - 1) {
+                        zeroCount++;
+                    }
                 }
                 // convert character array to array of strings
-                final String[] strings = nullCount == 1 ? null : new String[nullCount];
+                final String[] strings = zeroCount == 1 ? null : new String[zeroCount];
                 String s = null;
-                int c = 0, ndx = -1;
+                int c = 0, index = -1;
                 for (int j = 0; j < count; j++) {
                     if (ascii[j] == 0) {
-                        s = new String(ascii, ndx + 1, j - ndx - 1, Constants.ENCODING);
-                        ndx = j;
+                        s = new String(ascii, index + 1, j - index - 1, StandardCharsets.UTF_8);
+                        index = j;
                     } else if (j == count - 1) {
                         // handle non-null-terminated strings
-                        s = new String(ascii, ndx + 1, j - ndx, Constants.ENCODING);
-                    } else s = null;
+                        s = new String(ascii, index + 1, j - index, StandardCharsets.UTF_8);
+                    } else {
+                        s = null;
+                    }
                     if (strings != null && s != null) {
                         strings[c++] = s;
                     }
                 }
-                return strings == null ? s : strings;
+                return strings != null ? strings : s != null ? s : "";
             }
             case TiffIFD.TIFF_SHORT -> {
                 // 16-bit (2-byte) unsigned integer
@@ -1716,9 +1719,11 @@ public class TiffReader extends AbstractContextual implements Closeable {
                 }
                 return doubles;
             }
+            default -> {
+                final long valueOrOffset = in.readLong();
+                return new TiffIFD.UnsupportedTypeValue(type, count, valueOrOffset);
+            }
         }
-
-        return null;
     }
 
     private static byte[] readIFDBytes(DataHandle<?> in, long length) throws IOException, FormatException {
@@ -1734,18 +1739,14 @@ public class TiffReader extends AbstractContextual implements Closeable {
         final int entryTag = in.readUnsignedShort();
         final int entryType = in.readUnsignedShort();
 
-        // Parse the entry's "ValueCount"
-        final int valueCount = bigTiff ? (int) in.readLong() : in.readInt();
-        if (valueCount < 0) {
-            throw new FormatException("Invalid TIFF: negative number of IFD values " + valueCount);
+        final long valueCount = bigTiff ? in.readLong() : ((long) in.readInt()) & 0xFFFFFFFFL;
+        if (valueCount < 0 || valueCount > Integer.MAX_VALUE) {
+            throw new FormatException("Invalid TIFF: very large number of IFD values in array " +
+                    (valueCount < 0 ? " >= 2^63" : valueCount + " >= 2^31") + " is not supported");
         }
-
         final int bytesPerElement = TiffIFD.entryTypeSize(entryType);
-        if (bytesPerElement <= 0) {
-            //TODO!! allow to store this
-            throw new FormatException("Invalid TIFF: IFD " + entryTag + " has unknown entry type " + entryType);
-        }
-        final long valueLength = (long) valueCount * (long) bytesPerElement;
+        // - will be zero for unknown type; in this case we will set valueOffset=in.offset() below
+        final long valueLength = valueCount * (long) bytesPerElement;
         final int threshold = bigTiff ? 8 : 4;
         final long valueOffset = valueLength > threshold ?
                 readNextOffset(false) :
@@ -1758,7 +1759,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     " + total lengths of values " + valueLength + " = " + valueCount + "*" + bytesPerElement +
                     " is outside the file length " + in.length());
         }
-        final TiffIFD.TiffEntry result = new TiffIFD.TiffEntry(entryTag, entryType, valueCount, valueOffset);
+        final TiffIFD.TiffEntry result = new TiffIFD.TiffEntry(entryTag, entryType, (int) valueCount, valueOffset);
         LOG.log(System.Logger.Level.TRACE, () -> String.format(
                 "Reading IFD entry: %s - %s", result, TiffIFD.ifdTagName(result.tag(), true)));
         return result;

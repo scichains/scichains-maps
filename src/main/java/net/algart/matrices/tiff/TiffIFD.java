@@ -34,6 +34,22 @@ import java.util.*;
 import java.util.function.Supplier;
 
 public class TiffIFD {
+    public record UnsupportedTypeValue(int type, int count, long valueOrOffset) {
+        public UnsupportedTypeValue(int type, int count, long valueOrOffset) {
+            if (count < 0) {
+                throw new IllegalArgumentException("Negative count of values");
+            }
+            this.type = type;
+            this.count = count;
+            this.valueOrOffset = valueOrOffset;
+        }
+
+        @Override
+        public String toString() {
+            return "Unsupported TIFF value (unknown type code " + type + ", " + count + " elements)";
+        }
+    }
+
     public enum StringFormat {
         BRIEF(true, false),
         NORMAL(true, false),
@@ -77,14 +93,6 @@ public class TiffIFD {
     public static final int TIFF_LONG8 = 16;
     public static final int TIFF_SLONG8 = 17;
     public static final int TIFF_IFD8 = 18;
-
-    public static final int LITTLE_ENDIAN = 0;
-    public static final int BIG_TIFF = 1;
-    /**
-     * TIFF tags are always greater than this value ({@value}).
-     * So, we may use fewer values for some internal needs.
-     */
-    public static final int MAX_PSEUDO_TIFF_TAG = 15;
 
     public static final int NEW_SUBFILE_TYPE = 254;
     public static final int SUBFILE_TYPE = 255;
@@ -256,6 +264,8 @@ public class TiffIFD {
 
     private final Map<Integer, Object> map;
     private final Map<Integer, TiffEntry> detailedEntries;
+    private boolean littleEndian = false;
+    private boolean bigTiff = false;
     private long fileOffsetForReading = -1;
     private long fileOffsetForWriting = -1;
     private long nextIFDOffset = -1;
@@ -295,6 +305,24 @@ public class TiffIFD {
         Objects.requireNonNull(ifdEntries);
         this.map = new LinkedHashMap<>(ifdEntries);
         this.detailedEntries = detailedEntries;
+    }
+
+    public boolean isLittleEndian() {
+        return littleEndian;
+    }
+
+    public TiffIFD setLittleEndian(boolean littleEndian) {
+        this.littleEndian = littleEndian;
+        return this;
+    }
+
+    public boolean isBigTiff() {
+        return bigTiff;
+    }
+
+    public TiffIFD setBigTiff(boolean bigTiff) {
+        this.bigTiff = bigTiff;
+        return this;
     }
 
     public boolean hasFileOffsetForReading() {
@@ -425,19 +453,8 @@ public class TiffIFD {
         return Collections.unmodifiableMap(map);
     }
 
-    public <M extends Map<Integer, Object>> M removePseudoTags(Supplier<M> mapFactory) {
-        Objects.requireNonNull(mapFactory, "Null mapFactory");
-        final M result = mapFactory.get();
-        for (Map.Entry<Integer, Object> entry : map.entrySet()) {
-            if (!isPseudoTag(entry.getKey())) {
-                result.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return result;
-    }
-
     public int numberOfEntries() {
-        return (int) map.keySet().stream().filter(key -> !isPseudoTag(key)).count();
+        return map.size();
     }
 
     public int sizeOfRegionBasedOnType(long sizeX, long sizeY) throws FormatException {
@@ -570,14 +587,6 @@ public class TiffIFD {
                     " instead of expected Number, Number[], long[] or int[]");
         }
         return results;
-    }
-
-    public boolean isBigTiff() {
-        return optBoolean(BIG_TIFF, false);
-    }
-
-    public boolean isLittleEndian() {
-        return optBoolean(LITTLE_ENDIAN, false);
     }
 
     public int getSamplesPerPixel() throws FormatException {
@@ -1524,10 +1533,6 @@ public class TiffIFD {
         final Collection<Integer> keySequence = format.sorted ? new TreeSet<>(map.keySet()) : map.keySet();
         for (Integer tag : keySequence) {
             final Object v = this.get(tag);
-            if (tag == LITTLE_ENDIAN || tag == BIG_TIFF) {
-                // - not actual tags (but we still show other possible pseudo-tags: it should not occur in normal IFDs)
-                continue;
-            }
             sb.append(String.format("%n"));
             Object additional = null;
             try {
@@ -1643,7 +1648,7 @@ public class TiffIFD {
             case TIFF_LONG8 -> 8;
             case TIFF_SLONG8 -> 8;
             case TIFF_IFD8 -> 8;
-            default -> -1;
+            default -> 0;
         };
     }
 
@@ -1709,10 +1714,6 @@ public class TiffIFD {
             return name;
         }
         return "%s (%d or 0x%X)".formatted(name, tag, tag);
-    }
-
-    public static boolean isPseudoTag(int tag) {
-        return tag <= MAX_PSEUDO_TIFF_TAG;
     }
 
     private static int truncatedIntValue(Number value) {
