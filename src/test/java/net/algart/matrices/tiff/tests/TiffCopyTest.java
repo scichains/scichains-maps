@@ -88,6 +88,7 @@ public class TiffCopyTest {
             reader.setByteFiller((byte) 0xC0);
             boolean ok = false;
             try (TiffWriter writer = new TiffWriter(context, targetFile)) {
+                writer.setSmartIFDCorrection(true);
                 writer.setBigTiff(reader.isBigTiff());
                 writer.setLittleEndian(reader.isLittleEndian());
                 // writer.setJpegInPhotometricRGB(true);
@@ -119,7 +120,6 @@ public class TiffCopyTest {
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)
             throws FormatException, IOException {
         final TiffMap readMap = reader.newMap(readIFD);
-        writer.correctIFDForWriting(writeIFD, false);
         final TiffMap writeMap = writer.newMap(writeIFD, false);
         writer.writeForward(writeMap);
         int k = 0, n = readMap.size();

@@ -121,6 +121,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private boolean writingForwardAllowed = true;
     private boolean bigTiff = false;
     private boolean autoInterleaveSource = true;
+    private boolean smartIFDCorrection = false;
     private CodecOptions codecOptions;
     private boolean extendedCodec = true;
     private boolean jpegInPhotometricRGB = false;
@@ -256,6 +257,51 @@ public class TiffWriter extends AbstractContextual implements Closeable {
      */
     public TiffWriter setAutoInterleaveSource(boolean autoInterleaveSource) {
         this.autoInterleaveSource = autoInterleaveSource;
+        return this;
+    }
+
+    public boolean isSmartIFDCorrection() {
+        return smartIFDCorrection;
+    }
+
+    /**
+     * Sets smart IFD correction mode.
+     *
+     * <p>IFD, offered by the user for writing TIFF image (usually with help of {@link #newMap(TiffIFD)} method),
+     * may contain specification, which are incorrect or not supported by this class. For example,
+     * the user may specify {@link TiffIFD#putPhotometricInterpretation(TiffPhotometricInterpretation)
+     * photometric interpretation} {@link TiffPhotometricInterpretation#RGB_PALETTE}, but not provide actual
+     * palette via the corresponding TIFF entry, or may specify 1000000 bits/pixel etc.</p>
+     *
+     * <p>If the settings in the specified IFD are absolutely incorrect, this class always throws
+     * {@link FormatException}. If the settings look possible in principle, but this class does not support
+     * writing in this mode, the behaviour depends on the flag, setting by this method.</p>
+     *
+     * <p>If this mode is set to <tt>true</tt> (the "smart" IFD correction), the writer may try to change IFD to
+     * some similar settings, so that it will be able to write the image. In particular, if number of bits
+     * per sample is not divided by 8 (like 4 bits/sample or "HiRes" RGB image with 5+5+5 bits/pixel),
+     * the number of bits will be automatically increased up to the nearest supported bit depth: 8, 16 or 32
+     * (for floating-point images, up to 32- or 64-bit <tt>float</tt>/<tt>double</tt> precision).
+     * If you specified YCbCr photometric interpretation for <i>non-JPEG</i> compression &mdash;
+     * for example, uncompressed, LZW, or Deflate compression &mdash; it will be automatically replaced with RGB
+     * (this class supports YCbCr encoding for JPEG only). And so on.</p>
+     *
+     * <p>If this mode is not set (this flag is <tt>false</tt>), such settings will lead to an exception.
+     * In this case we guarantee that TIFF writer never changes existing entries in the passed IFD, but may only
+     * <i>add</i> some tag if they are necessary.</p>
+     *
+     * <p>Default value is <tt>false</tt>. You may set it to <tt>true</tt>, for example, when you need
+     * to encode a new copy of some existing TIFF file.</p>
+     *
+     * <p>Note that this flag is passed to {@link #correctIFDForWriting(TiffIFD, boolean)} method,
+     * called inside <tt>writeSamples</tt>/<tt>writeImage</tt> methods.
+     *
+     * @param smartIFDCorrection <tt>true</tt> means that we enable smart correction of the specified IFD
+     *                           and do not require strictly accurate, fully supported IFD settings.
+     * @return a reference to this object.
+     */
+    public TiffWriter setSmartIFDCorrection(boolean smartIFDCorrection) {
+        this.smartIFDCorrection = smartIFDCorrection;
         return this;
     }
 
@@ -860,10 +906,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     }
 
     public void correctIFDForWriting(TiffIFD ifd) throws FormatException {
-        correctIFDForWriting(ifd, true);
+        correctIFDForWriting(ifd, smartIFDCorrection);
     }
 
-    public void correctIFDForWriting(TiffIFD ifd, boolean strictCheck) throws FormatException {
+    public void correctIFDForWriting(TiffIFD ifd, boolean smartCorrection) throws FormatException {
         final int samplesPerPixel = ifd.getSamplesPerPixel();
         if (!ifd.containsKey(TiffIFD.BITS_PER_SAMPLE)) {
             ifd.put(TiffIFD.BITS_PER_SAMPLE, new int[]{8});
@@ -879,7 +925,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     "requested combination of number of bits per sample and sample format is not supported: " +
                     e.getMessage());
         }
-        if (strictCheck) {
+        if (!smartCorrection) {
             final OptionalInt optionalBits = ifd.tryEqualBitDepth();
             if (optionalBits.isEmpty()) {
                 throw new UnsupportedTiffFormatException("Cannot write TIFF, because requested number of " +
@@ -954,13 +1000,19 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                 newPhotometric = TiffPhotometricInterpretation.RGB;
             } else {
                 if (ifd.isStandardYCbCrNonJpeg()) {
-                    // - In this case, we automatically decode YCbCr into RGB while reading;
-                    // we cannot encode pixels back to YCbCr,
-                    // so, it would be better to change newPhotometric interpretation to RGB.
-                    // Note that for JPEG we have no this problem: we CAN encode JPEG as YCbCr.
-                    // For other models (like CMYK or CIE Lab), we ignore newPhotometric interpretation
-                    // and suppose that the user herself prepared channels in the necessary model.
-                    newPhotometric = TiffPhotometricInterpretation.RGB;
+                    if (!smartCorrection) {
+                        throw new UnsupportedTiffFormatException("Cannot write TIFF: encoding YCbCr " +
+                                "photometric interpretation is not supported for compression \"" +
+                                compression.getCodecName() + "\"");
+                    } else {
+                        // - In this case, we automatically decode YCbCr into RGB while reading;
+                        // we cannot encode pixels back to YCbCr,
+                        // so, it would be better to change newPhotometric interpretation to RGB.
+                        // Note that for JPEG we have no this problem: we CAN encode JPEG as YCbCr.
+                        // For other models (like CMYK or CIE Lab), we ignore newPhotometric interpretation
+                        // and suppose that the user herself prepared channels in the necessary model.
+                        newPhotometric = TiffPhotometricInterpretation.RGB;
+                    }
                 }
             }
         } else {

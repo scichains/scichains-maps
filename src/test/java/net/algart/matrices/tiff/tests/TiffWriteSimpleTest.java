@@ -54,6 +54,7 @@ public class TiffWriteSimpleTest {
         try (final TiffWriter writer = new TiffWriter(targetFile)) {
             writer.setByteFiller((byte) 0xB0);
             writer.startNewFile();
+            writer.setSmartIFDCorrection(true);
             // writer.startNewFile(); // - not a problem to call twice
             TiffIFD ifd = new TiffIFD();
             final int[] bitsPerSample = {8};
@@ -68,7 +69,6 @@ public class TiffWriteSimpleTest {
 
             System.out.printf("Desired IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
 
-            writer.correctIFDForWriting(ifd, false);
             TiffMap map = writer.newMap(ifd);
             // map = writer.newMap(ifd); - will throw an exception
             System.out.printf("Saved IFD:%n%s%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL));
