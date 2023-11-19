@@ -32,6 +32,7 @@ import io.scif.codec.PassthroughCodec;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.formats.tiff.TiffConstants;
 import io.scif.formats.tiff.TiffRational;
+import net.algart.matrices.tiff.codecs.CodecTiming;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.tiff.tiles.TiffMap;
@@ -165,6 +166,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
     private long timeReading = 0;
     private long timeCustomizingDecoding = 0;
     private long timeDecoding = 0;
+    private long timeDecodingMain = 0;
+    private long timeDecodingBridge = 0;
+    private long timeDecodingAdditional = 0;
     private long timeCompleteDecoding = 0;
 
     public TiffReader(Path file) throws IOException, FormatException {
@@ -880,6 +884,10 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         long t2 = debugTime();
         if (codec != null) {
+            if (codec instanceof CodecTiming timing) {
+                timing.setTiming(TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG);
+                timing.clearTiming();
+            }
             tile.setPartiallyDecodedData(codecDecompress(encodedData, codec, codecOptions));
         } else {
             if (scifio == null) {
@@ -896,6 +904,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
 
         timeCustomizingDecoding += t2 - t1;
         timeDecoding += t3 - t2;
+        if (codec instanceof CodecTiming timing) {
+            timeDecodingMain += timing.timeMain();
+            timeDecodingBridge += timing.timeBridge();
+            timeDecodingAdditional += timing.timeAdditional();
+        } else {
+            timeDecodingMain += t3 - t2;
+        }
         timeCompleteDecoding += t4 - t3;
     }
 
@@ -1116,7 +1131,7 @@ public class TiffReader extends AbstractContextual implements Closeable {
             throws FormatException, IOException {
         Objects.requireNonNull(map, "Null TIFF map");
         long t1 = debugTime();
-        clearTime();
+        clearTiming();
         TiffTools.checkRequestedArea(fromX, fromY, sizeX, sizeY);
         // - note: we allow this area to be outside the image
         final int numberOfChannels = map.numberOfChannels();
@@ -1157,7 +1172,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
             LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,
                     "%s read %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f initializing + %.3f read/decode " +
-                            "(%.3f read + %.3f customize/bit-order + %.3f decode + %.3f complete)" +
+                            "(%.3f read + %.3f customize/bit-order + %.3f decode " +
+                            " (= %.3f main + %.3f bridge + %.3f additional) " +
+                            "+ %.3f complete)" +
                             "%s%s, %.3f MB/s",
                     getClass().getSimpleName(),
                     numberOfChannels, sizeX, sizeY, size / 1048576.0,
@@ -1167,6 +1184,9 @@ public class TiffReader extends AbstractContextual implements Closeable {
                     timeReading * 1e-6,
                     timeCustomizingDecoding * 1e-6,
                     timeDecoding * 1e-6,
+                    timeDecodingMain * 1e-6,
+                    timeDecodingBridge * 1e-6,
+                    timeDecodingAdditional * 1e-6,
                     timeCompleteDecoding * 1e-6,
                     interleave ?
                             String.format(Locale.US, " + %.3f interleave", (t4 - t3) * 1e-6) : "",
@@ -1231,10 +1251,13 @@ public class TiffReader extends AbstractContextual implements Closeable {
         return codecOptions;
     }
 
-    private void clearTime() {
+    private void clearTiming() {
         timeReading = 0;
         timeCustomizingDecoding = 0;
         timeDecoding = 0;
+        timeDecodingMain = 0;
+        timeDecodingBridge = 0;
+        timeDecodingAdditional = 0;
         timeCompleteDecoding = 0;
     }
 

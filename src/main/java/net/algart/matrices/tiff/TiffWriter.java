@@ -33,6 +33,7 @@ import io.scif.codec.CodecOptions;
 import io.scif.formats.tiff.TiffCompression;
 import io.scif.formats.tiff.TiffConstants;
 import io.scif.formats.tiff.TiffRational;
+import net.algart.matrices.tiff.codecs.CodecTiming;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodec;
 import net.algart.matrices.tiff.codecs.ExtendedJPEGCodecOptions;
 import net.algart.matrices.tiff.tiles.TiffMap;
@@ -139,9 +140,12 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private volatile long positionOfLastIFDOffset = -1;
 
     private long timeWriting = 0;
-    private long timePreparingDecoding = 0;
+    private long timePreparingEncoding = 0;
     private long timeCustomizingEncoding = 0;
     private long timeEncoding = 0;
+    private long timeEncodingMain = 0;
+    private long timeEncodingBridge = 0;
+    private long timeEncodingAdditional = 0;
 
     public TiffWriter(Path file) throws IOException {
         this(null, file, false);
@@ -880,6 +884,10 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         long t3 = debugTime();
         byte[] data = tile.getDecodedData();
         if (codec != null) {
+            if (codec instanceof CodecTiming timing) {
+                timing.setTiming(TiffTools.BUILT_IN_TIMING && LOGGABLE_DEBUG);
+                timing.clearTiming();
+            }
             tile.setEncodedData(codec.compress(data, codecOptions));
         } else {
             if (scifio == null) {
@@ -891,9 +899,16 @@ public class TiffWriter extends AbstractContextual implements Closeable {
         TiffTools.invertFillOrderIfRequested(tile);
         long t4 = debugTime();
 
-        timePreparingDecoding += t2 - t1;
+        timePreparingEncoding += t2 - t1;
         timeCustomizingEncoding += t3 - t2;
         timeEncoding += t4 - t3;
+        if (codec instanceof CodecTiming timing) {
+            timeEncodingMain += timing.timeMain();
+            timeEncodingBridge += timing.timeBridge();
+            timeEncodingAdditional += timing.timeAdditional();
+        } else {
+            timeEncodingMain += t4 - t3;
+        }
     }
 
     public void encode(TiffMap map) throws FormatException {
@@ -1214,7 +1229,7 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     (t5 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
                     (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
-                    timePreparingDecoding * 1e-6,
+                    timePreparingEncoding * 1e-6,
                     timeCustomizingEncoding * 1e-6,
                     timeEncoding * 1e-6,
                     timeWriting * 1e-6,
@@ -1247,15 +1262,20 @@ public class TiffWriter extends AbstractContextual implements Closeable {
                     "%s wrote %dx%dx%d samples (%.3f MB) in %.3f ms = " +
                             "%.3f conversion/copying data + %.3f writing IFD " +
                             "+ %.3f/%.3f encoding/writing " +
-                            "(%.3f prepare + %.3f customize + %.3f encode + %.3f write), %.3f MB/s",
+                            "(%.3f prepare + %.3f customize + %.3f encode " +
+                            " (= %.3f main + %.3f bridge + %.3f additional) " +
+                            "+ %.3f write), %.3f MB/s",
                     getClass().getSimpleName(),
                     map.numberOfChannels(), sizeX, sizeY, sizeOf / 1048576.0,
                     (t5 - t1) * 1e-6,
                     (t2 - t1) * 1e-6, (t3 - t2) * 1e-6,
                     (t4 - t3) * 1e-6, (t5 - t4) * 1e-6,
-                    timePreparingDecoding * 1e-6,
+                    timePreparingEncoding * 1e-6,
                     timeCustomizingEncoding * 1e-6,
                     timeEncoding * 1e-6,
+                    timeEncodingMain * 1e-6,
+                    timeEncodingBridge * 1e-6,
+                    timeEncodingAdditional * 1e-6,
                     timeWriting * 1e-6,
                     sizeOf / 1048576.0 / ((t5 - t1) * 1e-9)));
         }
@@ -1292,8 +1312,11 @@ public class TiffWriter extends AbstractContextual implements Closeable {
     private void clearTime() {
         timeWriting = 0;
         timeCustomizingEncoding = 0;
-        timePreparingDecoding = 0;
+        timePreparingEncoding = 0;
         timeEncoding = 0;
+        timeEncodingMain = 0;
+        timeEncodingBridge = 0;
+        timeEncodingAdditional = 0;
     }
 
     private void checkVirginFile() throws IOException {

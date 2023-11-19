@@ -40,7 +40,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public class ExtendedJPEGCodec extends AbstractCodec {
+public class ExtendedJPEGCodec extends AbstractCodec implements CodecTiming {
+
+    private long timeMain = 0;
+    private long timeBridge = 0;
+    private long timeAdditional = 0;
+    private boolean timing = false;
 
     @Parameter
     private CodecService codecService;
@@ -52,6 +57,7 @@ public class ExtendedJPEGCodec extends AbstractCodec {
         if (data.length == 0) {
             return data;
         }
+        long t1 = timing ? System.nanoTime() : 0;
 
         if (options.channels != 1 && options.channels != 3) {
             throw new FormatException("JPEG compression for " + options.channels + " channels is not supported");
@@ -60,27 +66,32 @@ public class ExtendedJPEGCodec extends AbstractCodec {
             throw new FormatException("JPEG compression for " + options.bitsPerSample +
                     "-bit data is not supported (only 8-bit samples allowed)");
         }
-        final TiffPhotometricInterpretation colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
-                extended.getPhotometricInterpretation() :
-                TiffPhotometricInterpretation.Y_CB_CR;
-
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final BufferedImage image = AWTImageTools.makeImage(data, options.width,
                 options.height, options.channels, options.interleaved,
                 options.bitsPerSample / 8, false, options.littleEndian, options.signed);
+
+        long t2 = timing ? System.nanoTime() : 0;
+        final TiffPhotometricInterpretation colorSpace = options instanceof ExtendedJPEGCodecOptions extended ?
+                extended.getPhotometricInterpretation() :
+                TiffPhotometricInterpretation.Y_CB_CR;
 
         try {
             JPEGTools.writeJPEG(image, output, colorSpace, options.quality);
         } catch (final IOException e) {
             throw new FormatException("Cannot compress JPEG data", e);
         }
-        return output.toByteArray();
+        byte[] result = output.toByteArray();
+        long t3 = timing ? System.nanoTime() : 0;
+        timeBridge += t2 - t1;
+        timeMain += t3 - t2;
+        return result;
     }
 
     @Override
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
-        //TODO!! optimize AWTImageTools.getPixelBytes
         final long offset = in.offset();
+        long t1 = timing ? System.nanoTime() : 0;
         JPEGTools.ImageInformation imageInformation;
         try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192)) {
             imageInformation = JPEGTools.readJPEG(input);
@@ -104,7 +115,9 @@ public class ExtendedJPEGCodec extends AbstractCodec {
         }
 
         BufferedImage bi = imageInformation.bufferedImage();
+        long t2 = timing ? System.nanoTime() : 0;
         final byte[][] data = AWTImageTools.getPixelBytes(bi, options.littleEndian);
+        long t3 = timing ? System.nanoTime() : 0;
 
         if (options instanceof ExtendedJPEGCodecOptions extended) {
             JPEGTools.completeReadingJPEG(
@@ -132,6 +145,32 @@ public class ExtendedJPEGCodec extends AbstractCodec {
                 }
             }
         }
+        long t4 = timing ? System.nanoTime() : 0;
+        timeMain += t2 - t1;
+        timeBridge += t3 - t2;
+        timeAdditional += t4 - t3;
         return result;
+    }
+
+    public void setTiming(boolean timing) {
+        this.timing = timing;
+    }
+
+    public void clearTiming() {
+        timeMain = 0;
+        timeBridge = 0;
+        timeAdditional = 0;
+    }
+
+    public long timeMain() {
+        return timeMain;
+    }
+
+    public long timeBridge() {
+        return timeBridge;
+    }
+
+    public long timeAdditional() {
+        return timeAdditional;
     }
 }
