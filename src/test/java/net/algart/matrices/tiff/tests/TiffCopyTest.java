@@ -69,7 +69,9 @@ public class TiffCopyTest {
         for (int test = 1; test <= numberOfTests; test++) {
             System.out.printf("Test #%d%n", test);
             try (Context context = noContext ? null : scifio.getContext()) {
-                copyTiff(context, sourceFile, targetFile, firstIFDIndex, lastIFDIndex, false);
+                copyTiff(
+                        context, sourceFile, targetFile, firstIFDIndex, lastIFDIndex,
+                        false, false);
             }
         }
         System.out.println("Done");
@@ -79,6 +81,7 @@ public class TiffCopyTest {
             Context context,
             Path sourceFile, Path targetFile,
             int firstIFDIndex, int lastIFDIndex,
+            boolean enforceBigTiff,
             boolean uncompressedTarget)
             throws IOException, FormatException {
         try (TiffReader reader = new TiffReader(context, sourceFile, false)) {
@@ -91,7 +94,7 @@ public class TiffCopyTest {
             boolean ok = false;
             try (TiffWriter writer = new TiffWriter(context, targetFile)) {
                 writer.setSmartIFDCorrection(true);
-                writer.setBigTiff(reader.isBigTiff());
+                writer.setBigTiff(enforceBigTiff || reader.isBigTiff());
                 writer.setLittleEndian(reader.isLittleEndian());
                 // writer.setJpegInPhotometricRGB(true);
                 // - should not be important for copying, when PhotometricInterpretation is already specified
@@ -117,9 +120,11 @@ public class TiffCopyTest {
         }
     }
 
-    static void copyTiff(Context context, Path sourceFile, Path targetFile, boolean uncompressedTarget)
+    static void copyTiff(
+            Context context, Path sourceFile, Path targetFile,
+            boolean enforceBigTiff, boolean uncompressedTarget)
             throws IOException, FormatException {
-        copyTiff(context, sourceFile, targetFile, 0, Integer.MAX_VALUE, uncompressedTarget);
+        copyTiff(context, sourceFile, targetFile, 0, Integer.MAX_VALUE, enforceBigTiff, uncompressedTarget);
     }
 
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)
