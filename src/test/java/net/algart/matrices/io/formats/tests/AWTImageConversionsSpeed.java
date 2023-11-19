@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.tiff.tests.misc;
+package net.algart.matrices.io.formats.tests;
 
 
 import io.scif.gui.AWTImageTools;
