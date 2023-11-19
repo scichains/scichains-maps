@@ -26,6 +26,7 @@ package net.algart.matrices.tiff.tests;
 
 import io.scif.FormatException;
 import io.scif.SCIFIO;
+import io.scif.formats.tiff.TiffCompression;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
@@ -68,7 +69,7 @@ public class TiffCopyTest {
         for (int test = 1; test <= numberOfTests; test++) {
             System.out.printf("Test #%d%n", test);
             try (Context context = noContext ? null : scifio.getContext()) {
-                copyTiff(context, sourceFile, targetFile, firstIFDIndex, lastIFDIndex);
+                copyTiff(context, sourceFile, targetFile, firstIFDIndex, lastIFDIndex, false);
             }
         }
         System.out.println("Done");
@@ -77,7 +78,8 @@ public class TiffCopyTest {
     private static void copyTiff(
             Context context,
             Path sourceFile, Path targetFile,
-            int firstIFDIndex, int lastIFDIndex)
+            int firstIFDIndex, int lastIFDIndex,
+            boolean uncompressedTarget)
             throws IOException, FormatException {
         try (TiffReader reader = new TiffReader(context, sourceFile, false)) {
             if (!reader.isValid()) {
@@ -100,6 +102,9 @@ public class TiffCopyTest {
                 for (int ifdIndex = firstIFDIndex; ifdIndex <= lastIFDIndex; ifdIndex++) {
                     final TiffIFD readIFD = ifds.get(ifdIndex);
                     final TiffIFD writeIFD = new TiffIFD(readIFD);
+                    if (uncompressedTarget) {
+                        writeIFD.putCompression(TiffCompression.UNCOMPRESSED);
+                    }
                     System.out.printf("\r  Copying #%d/%d: %s%n", ifdIndex, ifds.size(), readIFD);
                     copyImage(readIFD, writeIFD, reader, writer);
                 }
@@ -112,9 +117,9 @@ public class TiffCopyTest {
         }
     }
 
-    static void copyTiff(Context context, Path sourceFile, Path targetFile)
+    static void copyTiff(Context context, Path sourceFile, Path targetFile, boolean uncompressedTarget)
             throws IOException, FormatException {
-        copyTiff(context, sourceFile, targetFile, 0, Integer.MAX_VALUE);
+        copyTiff(context, sourceFile, targetFile, 0, Integer.MAX_VALUE, uncompressedTarget);
     }
 
     static void copyImage(TiffIFD readIFD, TiffIFD writeIFD, TiffReader reader, TiffWriter writer)

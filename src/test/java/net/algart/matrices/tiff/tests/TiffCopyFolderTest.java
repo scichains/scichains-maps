@@ -44,6 +44,11 @@ public class TiffCopyFolderTest {
             noContext = true;
             startArgIndex++;
         }
+        boolean uncompressed = false;
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-uncompressed")) {
+            uncompressed = true;
+            startArgIndex++;
+        }
         if (args.length < startArgIndex + 2) {
             System.out.println("Usage:");
             System.out.println("    " + TiffCopyFolderTest.class.getName()
@@ -68,7 +73,7 @@ public class TiffCopyFolderTest {
                         continue;
                     }
                     try {
-                        TiffCopyTest.copyTiff(context, file, targetFolder.resolve(fileName));
+                        TiffCopyTest.copyTiff(context, file, targetFolder.resolve(fileName), uncompressed);
                     } catch (UnsupportedTiffFormatException | UnsupportedCompressionException e) {
                         System.out.println("  Cannot copy: " + e.getMessage());
                     } catch (FormatException e) {
