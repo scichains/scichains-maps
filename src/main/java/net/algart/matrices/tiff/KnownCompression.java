@@ -61,7 +61,6 @@ enum KnownCompression {
             KnownCompression::writeJpeg200Options),
     OLYMPUS_JPEG2000(TiffCompression.OLYMPUS_JPEG2000, null, ExtendedJPEG2000Codec::new,
             KnownCompression::writeJpeg200Options),
-    //TODO!! - check JPEG 2000 compressions after fixing https://github.com/scifio/scifio/issues/495
     NIKON(TiffCompression.NIKON, null, null, KnownCompression::writeOptionsStandard),
     LURAWAVE(TiffCompression.LURAWAVE, null, null, KnownCompression::writeOptionsStandard);
 

@@ -55,7 +55,6 @@ public class TiffIFD {
         NORMAL(true, false),
         NORMAL_SORTED(true, true),
         DETAILED(false, false);
-        //TODO!! JSON
         private final boolean compactArrays;
         private final boolean sorted;
 

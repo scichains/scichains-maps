@@ -97,7 +97,6 @@ public class JAIWriteTiffTest {
 //        writeParam.setColorConverter(
 //                new TIFFYCbCrColorConverter(metadata), BaselineTIFFTagSet.PHOTOMETRIC_INTERPRETATION_RGB);
 //        System.out.printf("PhotometricInterpretation: %s%n", writeParam.getPhotometricInterpretation());
-        //TODO!! How to use it correctly?
 
         IIOImage iioImage = new IIOImage(bi, null, metadata);
         tiffWriter.write(null, iioImage, writeParam);

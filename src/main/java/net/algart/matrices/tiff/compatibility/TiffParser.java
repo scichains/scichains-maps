@@ -626,7 +626,6 @@ public class TiffParser extends TiffReader {
      * @throws IOException              when there is an error accessing the stream.
      * @throws IllegalArgumentException when the tag number is unknown.
      */
-    // TODO : Try to remove this method. It is only being used by
     // loci.formats.in.MetamorphReader.
     @Deprecated
     public TiffIFDEntry getFirstIFDEntry(final int tag) throws IOException {
