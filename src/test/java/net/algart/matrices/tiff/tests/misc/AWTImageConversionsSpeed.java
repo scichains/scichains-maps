@@ -22,24 +22,37 @@
  * SOFTWARE.
  */
 
-package net.algart.matrices.io.formats.tests;
+package net.algart.matrices.tiff.tests.misc;
 
 
 import io.scif.gui.AWTImageTools;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.UpdatablePArray;
 import net.algart.external.BufferedImageToMatrixConverter;
+import net.algart.matrices.tiff.codecs.JPEGTools;
 
 import javax.imageio.IIOException;
 import javax.imageio.ImageIO;
 import javax.imageio.stream.ImageInputStream;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBuffer;
+import java.awt.image.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 
 public class AWTImageConversionsSpeed {
+    private static byte[][] separateToArrays(byte[] bytes3Band) {
+        if (bytes3Band == null) {
+            return null;
+        }
+        final int bandSize = bytes3Band.length / 3;
+        byte[][] result = new byte[3][bandSize];
+        for (int k = 0; k < 3; k++) {
+            System.arraycopy(bytes3Band, k * bandSize, result[k], 0, bandSize);
+        }
+        return result;
+    }
+
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage:");
@@ -73,16 +86,29 @@ public class AWTImageConversionsSpeed {
             BufferedImageToMatrixConverter converter = new BufferedImageToMatrixConverter.ToPacked3D(true);
             Matrix<? extends UpdatablePArray> matrix = converter.toMatrix(bi);
             long t3 = System.nanoTime();
+            byte[] bgr = JPEGTools.quickBGRPixelBytes(bi);
+            bgr = JPEGTools.separateBGR(bgr, bgr.length / 3);
+            long t4 = System.nanoTime();
+            byte[][] quickData = separateToArrays(bgr);
             bytesPerSample = data[0].length / (dimX * dimY);
             assert dimX * dimY * bytesPerSample == data[0].length : "unaligned samples!";
             final int size = data.length * data[0].length;
+            if (quickData != null) {
+                for (int k = 0; k < data.length; k++) {
+                    if (!Arrays.equals(data[k], quickData[k])) {
+                        throw new AssertionError("Invalid quick data");
+                    }
+                }
+            }
             System.out.printf(Locale.US,
                     "Decoding image %dx%dx%d, %d samples per %d bytes: " +
-                            "%.3f ms AWTImageTools (%.3f MB/sec), %.3f ms AlgART%n",
+                            "%.3f ms AWTImageTools (%.3f MB/sec), %.3f ms AlgART, " +
+                            "%.3f ms quickPixelBytes (%.3f MB/sec)%n",
                     dimX, dimY, data.length, size / bytesPerSample, bytesPerSample,
-                    (t2 - t1) * 1e-6,
-                    size / 1048576.0 / ((t2 - t1) * 1e-9),
-                    (t3 - t2) * 1e-6);
+                    (t2 - t1) * 1e-6, size / 1048576.0 / ((t2 - t1) * 1e-9),
+                    (t3 - t2) * 1e-6,
+                    (t4 - t3) * 1e-6, size / 1048576.0 / ((t4 - t3) * 1e-9));
+
         }
 
         bi = null;

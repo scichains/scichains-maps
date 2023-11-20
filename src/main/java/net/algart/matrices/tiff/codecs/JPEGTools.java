@@ -35,7 +35,7 @@ import javax.imageio.*;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
-import java.awt.image.BufferedImage;
+import java.awt.image.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -142,58 +142,128 @@ public class JPEGTools {
         return null;
     }
 
-
-    public static void completeReadingJPEG(
+    public static boolean completeDecodingYCbCrNecessary(
             ImageInformation imageInformation,
+            TiffPhotometricInterpretation declaredColorSpace,
+            int[] declaredSubsampling) {
+        Objects.requireNonNull(imageInformation, "Null image information");
+        Objects.requireNonNull(declaredColorSpace, "Null color space");
+        Objects.requireNonNull(declaredSubsampling, "Null declared subsampling");
+        final String colorSpace = tryToFindColorSpace(imageInformation.metadata);
+        return "RGB".equalsIgnoreCase(colorSpace)
+                && declaredColorSpace == TiffPhotometricInterpretation.Y_CB_CR
+                && declaredSubsampling.length >= 2
+                && declaredSubsampling[0] == 1 && declaredSubsampling[1] == 1
+                && imageInformation.bufferedImage.getRaster().getNumBands() == 3;
+        // Rare case: YCbCr is encoded with non-standard sub-sampling (more exactly, without sub-sampling),
+        // and the JPEG is incorrectly detected as RGB; so, there is no sense to optimize this.
+    }
+
+    public static void completeDecodingYCbCr(
             byte[][] data,
+            ImageInformation imageInformation,
             TiffPhotometricInterpretation declaredColorSpace,
             int[] declaredSubsampling)
             throws FormatException {
-        Objects.requireNonNull(imageInformation, "Null image information");
         Objects.requireNonNull(data, "Null data");
+        Objects.requireNonNull(imageInformation, "Null image information");
         Objects.requireNonNull(declaredColorSpace, "Null color space");
         Objects.requireNonNull(declaredSubsampling, "Null declared subsampling");
         final long bandLength = (long) imageInformation.bufferedImage.getWidth()
                 * (long) imageInformation.bufferedImage.getHeight();
-        String colorSpace = tryToFindColorSpace(imageInformation.metadata);
-        final boolean correctionNecessary =
-                "RGB".equalsIgnoreCase(colorSpace)
-                        && declaredColorSpace == TiffPhotometricInterpretation.Y_CB_CR
-                        && declaredSubsampling.length >= 2
-                        && declaredSubsampling[0] == 1 && declaredSubsampling[1] == 1
-                        && data.length == 3;
-        if (correctionNecessary) {
-            // Rare case: YCbCr is encoded with non-standard sub-sampling (more exactly, without sub-sampling),
-            // and the JPEG is incorrectly detected as RGB; so, there is no sense to optimize this.
-            if (USE_LEGACY_DECODE_Y_CB_CR) {
-                decodeYCbCrLegacy(data, bandLength);
-                return;
-            }
+        if (USE_LEGACY_DECODE_Y_CB_CR) {
+            decodeYCbCrLegacy(data, bandLength);
+            return;
+        }
 
-            if (data[0].length != bandLength) {
-                // - should not occur
-                throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample in JPEG " +
-                        "must be 1, but actually we have " +
-                        (double) data[0].length / (double) bandLength + " bytes/sample");
-            }
-            for (int i = 0; i < data[0].length; i++) {
-                int y = data[0][i] & 0xFF;
-                int cb = data[1][i] & 0xFF;
-                int cr = data[2][i] & 0xFF;
+        if (data[0].length != bandLength) {
+            // - should not occur
+            throw new FormatException("Cannot correct unpacked JPEG: number of bytes per sample in JPEG " +
+                    "must be 1, but actually we have " +
+                    (double) data[0].length / (double) bandLength + " bytes/sample");
+        }
+        for (int i = 0; i < data[0].length; i++) {
+            int y = data[0][i] & 0xFF;
+            int cb = data[1][i] & 0xFF;
+            int cr = data[2][i] & 0xFF;
 
-                cb -= 128;
-                cr -= 128;
+            cb -= 128;
+            cr -= 128;
 
-                double red = (y + 1.402 * cr);
-                double green = (y - 0.34414 * cb - 0.71414 * cr);
-                double blue = (y + 1.772 * cb);
+            double red = (y + 1.402 * cr);
+            double green = (y - 0.34414 * cb - 0.71414 * cr);
+            double blue = (y + 1.772 * cb);
 
-                data[0][i] = (byte) toUnsignedByte(red);
-                data[1][i] = (byte) toUnsignedByte(green);
-                data[2][i] = (byte) toUnsignedByte(blue);
-            }
+            data[0][i] = (byte) toUnsignedByte(red);
+            data[1][i] = (byte) toUnsignedByte(green);
+            data[2][i] = (byte) toUnsignedByte(blue);
         }
     }
+
+    public static byte[] quickBGRPixelBytes(BufferedImage bufferedImage) {
+        Objects.requireNonNull(bufferedImage, "Null bufferedImage");
+        final WritableRaster raster = bufferedImage.getRaster();
+        if (!canDirectlyUseBankDataForBGRBands(raster)) {
+            return null;
+        }
+        byte[][] bankData = ((DataBufferByte) raster.getDataBuffer()).getBankData();
+        if (bankData.length != 1) {
+            return null;
+        }
+        byte[] data = bankData[0];
+        if (data.length != 3 * (long) raster.getWidth() * (long) raster.getHeight()) {
+            // - should not occur
+            return null;
+        }
+        return data;
+    }
+
+    public static byte[] separateBGR(byte[] bytes, int numberOfPixels) {
+        Objects.requireNonNull(bytes, "Null bytes");
+        if (bytes.length != 3 * numberOfPixels) {
+            throw new IllegalArgumentException("Length of bytes array is not equal to 3 * number of pixels");
+        }
+        final int bandSize2 = 2 * numberOfPixels;
+        final byte[] separatedBytes = new byte[bytes.length];
+        for (int i = 0, disp = 0; i < numberOfPixels; i++) {
+            separatedBytes[i + bandSize2] = bytes[disp++];
+            separatedBytes[i + numberOfPixels] = bytes[disp++];
+            separatedBytes[i] = bytes[disp++];
+        }
+        return separatedBytes;
+    }
+
+    private static boolean canDirectlyUseBankDataForBGRBands(final WritableRaster raster) {
+        if (raster.getTransferType() != DataBuffer.TYPE_BYTE) {
+            return false;
+        }
+        final DataBuffer buffer = raster.getDataBuffer();
+        if (!(buffer instanceof DataBufferByte)) {
+            return false;
+        }
+        if (raster.getNumBands() != 3) {
+            return false;
+        }
+        final SampleModel model = raster.getSampleModel();
+        if (!(model instanceof ComponentSampleModel componentSampleModel)) {
+            return false;
+        }
+        final int pixelStride = componentSampleModel.getPixelStride();
+        if (pixelStride != 3) {
+            return false;
+        }
+        final int width = raster.getWidth();
+        final int scanlineStride = componentSampleModel.getScanlineStride();
+        if (scanlineStride != pixelStride * width) {
+            return false;
+        }
+        final int[] bandOffsets = componentSampleModel.getBandOffsets();
+        if (bandOffsets.length != 3) {
+            return false;
+        }
+        return bandOffsets[0] == 2 && bandOffsets[1] == 1 && bandOffsets[2] == 0;
+    }
+
 
     private static void decodeYCbCrLegacy(byte[][] buf, long bandLength) {
         final boolean littleEndian = false;

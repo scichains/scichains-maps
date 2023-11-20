@@ -41,6 +41,7 @@ import java.io.InputStream;
 import java.util.Objects;
 
 public class ExtendedJPEGCodec extends AbstractCodec implements CodecTiming {
+    private static final boolean OPTIMIZE_SEPARATING_BGR = true;
 
     private long timeMain = 0;
     private long timeBridge = 0;
@@ -92,9 +93,9 @@ public class ExtendedJPEGCodec extends AbstractCodec implements CodecTiming {
     public byte[] decompress(final DataHandle<Location> in, CodecOptions options) throws FormatException, IOException {
         final long offset = in.offset();
         long t1 = timing ? System.nanoTime() : 0;
-        JPEGTools.ImageInformation imageInformation;
+        JPEGTools.ImageInformation info;
         try (InputStream input = new BufferedInputStream(new DataHandleInputStream<>(in), 8192)) {
-            imageInformation = JPEGTools.readJPEG(input);
+            info = JPEGTools.readJPEG(input);
         } catch (final IOException exc) {
             // probably a lossless JPEG; delegate to LosslessJPEGCodec
             if (codecService == null) {
@@ -105,7 +106,7 @@ public class ExtendedJPEGCodec extends AbstractCodec implements CodecTiming {
             final Codec codec = codecService.getCodec(LosslessJPEGCodec.class);
             return codec.decompress(in, options);
         }
-        if (imageInformation == null) {
+        if (info == null) {
             throw new FormatException("Cannot read JPEG image: unknown format");
             // - for example, OLD_JPEG
         }
@@ -113,41 +114,53 @@ public class ExtendedJPEGCodec extends AbstractCodec implements CodecTiming {
         if (options == null) {
             options = CodecOptions.getDefaultOptions();
         }
-
-        BufferedImage bi = imageInformation.bufferedImage();
+        boolean completeDecoding = false;
+        TiffPhotometricInterpretation declaredColorSpace = null;
+        int[] declaredSubsampling = null;
+        if (options instanceof ExtendedJPEGCodecOptions extended) {
+            declaredColorSpace = extended.getPhotometricInterpretation();
+            declaredSubsampling = extended.getYCbCrSubsampling();
+            completeDecoding = JPEGTools.completeDecodingYCbCrNecessary(info, declaredColorSpace, declaredSubsampling);
+        }
+        BufferedImage bi = info.bufferedImage();
         long t2 = timing ? System.nanoTime() : 0;
-        final byte[][] data = AWTImageTools.getPixelBytes(bi, options.littleEndian);
+        timeMain += t2 - t1;
+
+        final byte[] quickResult = options.interleaved || completeDecoding || !OPTIMIZE_SEPARATING_BGR?
+                null :
+                JPEGTools.quickBGRPixelBytes(bi);
+        final byte[][] data = quickResult != null ? null : AWTImageTools.getPixelBytes(bi, options.littleEndian);
         long t3 = timing ? System.nanoTime() : 0;
 
-        if (options instanceof ExtendedJPEGCodecOptions extended) {
-            JPEGTools.completeReadingJPEG(
-                    imageInformation,
-                    data,
-                    extended.getPhotometricInterpretation(),
-                    extended.getYCbCrSubsampling());
+        if (completeDecoding) {
+            JPEGTools.completeDecodingYCbCr(data, info, declaredColorSpace, declaredSubsampling);
         }
+        timeBridge += t3 - t2;
 
-        int bandSize = data[0].length;
-        byte[] result = new byte[data.length * bandSize];
-        if (data.length == 1) {
-            result = data[0];
+        final byte[] result;
+        if (quickResult != null) {
+            result = JPEGTools.separateBGR(quickResult, bi.getWidth() * bi.getHeight());
         } else {
-            if (options.interleaved) {
-                int next = 0;
-                for (int i = 0; i < bandSize; i++) {
-                    for (byte[] bytes : data) {
-                        result[next++] = bytes[i];
-                    }
-                }
+            int bandSize = data[0].length;
+            if (data.length == 1) {
+                result = data[0];
             } else {
-                for (int i = 0; i < data.length; i++) {
-                    System.arraycopy(data[i], 0, result, i * bandSize, bandSize);
+                result = new byte[data.length * bandSize];
+                if (options.interleaved) {
+                    int next = 0;
+                    for (int i = 0; i < bandSize; i++) {
+                        for (byte[] bytes : data) {
+                            result[next++] = bytes[i];
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < data.length; i++) {
+                        System.arraycopy(data[i], 0, result, i * bandSize, bandSize);
+                    }
                 }
             }
         }
         long t4 = timing ? System.nanoTime() : 0;
-        timeMain += t2 - t1;
-        timeBridge += t3 - t2;
         timeAdditional += t4 - t3;
         return result;
     }
