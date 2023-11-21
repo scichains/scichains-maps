@@ -30,8 +30,9 @@ import net.algart.matrices.tiff.TiffIFD;
 
 public class CreatingIFDTest {
     private static void showIFD(TiffIFD ifd, String name) {
-        System.out.printf("%s%nBrief:%n----%n%s%n----%nNormal:%n----%n%s%n----%n%n",
-                name, ifd, ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
+        System.out.printf("%s%nBrief:%n----%n%s%n----%n", name, ifd);
+        System.out.printf("Normal:%n----%n%s%n----%n%n", ifd.toString(TiffIFD.StringFormat.NORMAL_SORTED));
+        System.out.printf("Json:%n----%n%s%n----%n%n", ifd.toString(TiffIFD.StringFormat.JSON));
     }
 
     public static void main(String[] args) throws FormatException {
@@ -50,5 +51,11 @@ public class CreatingIFDTest {
         // ifd.put(IFD.IMAGE_WIDTH, 3e20);
         // - previous operator enforces exception while showing IFD
         showIFD(ifd, "Dimensions");
+
+        ifd.put(1577, true);
+        ifd.put(1578, 56.0);
+        ifd.put(1579, 'c');
+        ifd.put(1580, "String\nСтрока");
+        showIFD(ifd, "Unknown tags");
     }
 }

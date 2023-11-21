@@ -1498,7 +1498,7 @@ public class TiffIFD {
         } catch (Exception e) {
             sb.append(json ?
                     "  \"exceptionBasic\" : \"%s\",%n".formatted(e.getMessage()) :
-                    " [cannot detect basic information: "+ e.getMessage() + "] ");
+                    " [cannot detect basic information: " + e.getMessage() + "] ");
         }
         try {
             final TiffSampleType sampleType = sampleType(false);
@@ -1589,19 +1589,19 @@ public class TiffIFD {
             boolean manyValues = v != null && v.getClass().isArray();
             String tagName = ifdTagName(tag, !json);
             if (json) {
-                if (manyValues || v instanceof Number || v instanceof Boolean) {
-                    sb.append(firstEntry ? "" : ",%n".formatted());
-                    firstEntry = false;
-                    sb.append("    \"%s\" : ".formatted(tagName));
-                    if (manyValues) {
-                        sb.append("[");
-                        appendIFDArray(sb, v, false, true);
-                        sb.append("]");
-                    } else if (v instanceof TiffRational) {
-                        sb.append("\"").append(v).append("\"");
-                    } else {
-                        sb.append(v);
-                    }
+                sb.append(firstEntry ? "" : ",%n".formatted());
+                firstEntry = false;
+                sb.append("    \"%s\" : ".formatted(tagName));
+                if (manyValues) {
+                    sb.append("[");
+                    appendIFDArray(sb, v, false, true);
+                    sb.append("]");
+                } else if (v instanceof TiffRational) {
+                    sb.append("\"").append(v).append("\"");
+                } else if (v instanceof Number || v instanceof Boolean) {
+                    sb.append(v);
+                } else {
+                    sb.append("\"").append(escapeForJson(String.valueOf(v))).append("\"");
                 }
             } else {
                 sb.append("%n".formatted());
@@ -1840,6 +1840,11 @@ public class TiffIFD {
         } else {
             return String.valueOf(a - r * b);
         }
+    }
+
+    private static String escapeForJson(String s) {
+        return s.replaceAll("\\n", "\\\\n")
+                .replaceAll("\\r", "\\\\r");
     }
 
     private static void appendIFDArray(StringBuilder sb, Object v, boolean compact, boolean jsonMode) {
