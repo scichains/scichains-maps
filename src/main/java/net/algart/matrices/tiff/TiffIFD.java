@@ -27,11 +27,11 @@ package net.algart.matrices.tiff;
 import io.scif.FormatException;
 import io.scif.formats.tiff.OnDemandLongArray;
 import io.scif.formats.tiff.TiffCompression;
+import io.scif.formats.tiff.TiffRational;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.*;
-import java.util.function.Supplier;
 
 public class TiffIFD {
     public record UnsupportedTypeValue(int type, int count, long valueOrOffset) {
@@ -54,13 +54,18 @@ public class TiffIFD {
         BRIEF(true, false),
         NORMAL(true, false),
         NORMAL_SORTED(true, true),
-        DETAILED(false, false);
+        DETAILED(false, false),
+        JSON(false, false);
         private final boolean compactArrays;
         private final boolean sorted;
 
         StringFormat(boolean compactArrays, boolean sorted) {
             this.compactArrays = compactArrays;
             this.sorted = sorted;
+        }
+
+        public boolean isJson() {
+            return this == JSON;
         }
     }
 
@@ -1458,8 +1463,15 @@ public class TiffIFD {
 
     public String toString(StringFormat format) {
         Objects.requireNonNull(format, "Null format");
-        final StringBuilder sb = new StringBuilder("IFD");
-        sb.append(" (%s)".formatted(subIFDType == null ? "main" : ifdTagName(subIFDType, false)));
+        final boolean json = format.isJson();
+        final StringBuilder sb = new StringBuilder();
+        sb.append(json ?
+                String.format("{%n") :
+                "IFD");
+        final String ifdTypeName = subIFDType == null ? "main" : ifdTagName(subIFDType, false);
+        sb.append((json ?
+                "  \"ifdType\" : \"%s\",%n" :
+                " (%s)").formatted(ifdTypeName));
         long dimX = 0;
         long dimY = 0;
         int channels;
@@ -1467,142 +1479,205 @@ public class TiffIFD {
         int tileSizeY = 1;
         try {
             final TiffSampleType sampleType = sampleType(false);
-            sb.append(" ");
-            sb.append(sampleType == null ? "???" : sampleType.elementType().getSimpleName());
+            sb.append((json ?
+                    "  \"elementType\" : \"%s\",%n" :
+                    " %s").formatted(
+                    sampleType == null ? "???" : sampleType.elementType().getSimpleName()));
             channels = getSamplesPerPixel();
             if (hasImageDimensions()) {
                 dimX = getImageDimX();
                 dimY = getImageDimY();
                 tileSizeX = getTileSizeX();
                 tileSizeY = getTileSizeY();
-                sb.append("[%dx%dx%d], ".formatted(dimX, dimY, channels));
+                sb.append((json ? "  \"dimX\" : %d,%n  \"dimY\" : %d,%n  \"channels\" : %d,%n" :
+                        "[%dx%dx%d], ").formatted(dimX, dimY, channels));
             } else {
-                sb.append("[?x?x%d], ".formatted(channels));
+                sb.append((json ? "  \"channels\" : %d,%n" :
+                        "[?x?x%d], ").formatted(channels));
             }
         } catch (Exception e) {
-            sb.append(" [cannot detect basic information: ").append(e.getMessage()).append("] ");
+            sb.append(json ?
+                    "  \"exceptionBasic\" : \"%s\",%n".formatted(e.getMessage()) :
+                    " [cannot detect basic information: "+ e.getMessage() + "] ");
         }
         try {
             final TiffSampleType sampleType = sampleType(false);
             final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
             final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
-            sb.append("%s, precision %s%s, ".formatted(
-                    isLittleEndian() ? "little-endian" : "big-endian",
-                    sampleType == null ? "???" : sampleType.prettyName(),
-                    isBigTiff() ? " [BigTIFF]" : ""));
+            sb.append(json ?
+                    ("  \"precision\" : \"%s\",%n" +
+                            "  \"littleEndian\" : %s,%n" +
+                            "  \"bigTiff\" : %s,%n" +
+                            "  \"tiled\" : %s,%n").formatted(
+                            sampleType.prettyName(),
+                            isLittleEndian(),
+                            isBigTiff(),
+                            hasTileInformation()) :
+                    "%s, precision %s%s, ".formatted(
+                            isLittleEndian() ? "little-endian" : "big-endian",
+                            sampleType == null ? "???" : sampleType.prettyName(),
+                            isBigTiff() ? " [BigTIFF]" : ""));
             if (hasTileInformation()) {
-                sb.append("%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
-                        tileCountX,
-                        tileCountY,
-                        tileCountX * tileCountY,
-                        tileSizeX,
-                        tileSizeY,
-                        remainderToString(dimX, tileSizeX),
-                        remainderToString(dimY, tileSizeY)));
+                sb.append(
+                        json ?
+                                ("  \"tiles\" : {%n" +
+                                        "    \"sizeX\" : %d,%n" +
+                                        "    \"sizeY\" : %d,%n" +
+                                        "    \"countX\" : %d,%n" +
+                                        "    \"countY\" : %d,%n" +
+                                        "    \"count\" : %d%n" +
+                                        "  },%n").formatted(
+                                        tileSizeX, tileSizeY, tileCountX, tileCountY,
+                                        tileCountX * tileCountY) :
+                                "%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
+                                        tileCountX,
+                                        tileCountY,
+                                        tileCountX * tileCountY,
+                                        tileSizeX,
+                                        tileSizeY,
+                                        remainderToString(dimX, tileSizeX),
+                                        remainderToString(dimY, tileSizeY)));
             } else {
-                sb.append("%d strips per %d lines (last strip %s, virtual \"tiles\" %dx%d)".formatted(
-                        tileCountY,
-                        tileSizeY,
-                        dimY == tileCountY * tileSizeY ? "full" : remainderToString(dimY, tileSizeY) + " lines",
-                        tileSizeX,
-                        tileSizeY));
+                sb.append(
+                        json ?
+                                ("  \"strips\" : {%n" +
+                                        "    \"sizeY\" : %d,%n" +
+                                        "    \"countY\" : %d%n" +
+                                        "  },%n").formatted(tileSizeY, tileCountY) :
+                                "%d strips per %d lines (last strip %s, virtual \"tiles\" %dx%d)".formatted(
+                                        tileCountY,
+                                        tileSizeY,
+                                        dimY == tileCountY * tileSizeY ?
+                                                "full" :
+                                                remainderToString(dimY, tileSizeY) + " lines",
+                                        tileSizeX,
+                                        tileSizeY));
             }
+            sb.append(json ?
+                    "  \"chunked\" : %s,%n".formatted(isChunked()) :
+                    isChunked() ? ", chunked" : ", planar");
         } catch (Exception e) {
-            sb.append(" [cannot detect additional information: ").append(e.getMessage()).append("]");
+            sb.append(json ?
+                    "  \"exceptionAdditional\" : \"%s\",%n".formatted(e.getMessage()) :
+                    " [cannot detect additional information: " + e.getMessage() + "]");
         }
-        try {
-            sb.append(isChunked() ? ", chunked" : ", planar");
-        } catch (Exception e) {
-            sb.append(" [").append(e.getMessage()).append("]");
-        }
-        if (hasFileOffsetForReading()) {
-            sb.append(", reading offset @%d=0x%X".formatted(fileOffsetForReading, fileOffsetForReading));
-        }
-        if (hasFileOffsetForWriting()) {
-            sb.append(", writing offset @%d=0x%X".formatted(fileOffsetForWriting, fileOffsetForWriting));
-        }
-        if (hasNextIFDOffset()) {
-            sb.append(isLastIFD() ? ", LAST" : ", next IFD at @%d=0x%X".formatted(nextIFDOffset, nextIFDOffset));
+        if (!json) {
+            if (hasFileOffsetForReading()) {
+                sb.append(", reading offset @%d=0x%X".formatted(fileOffsetForReading, fileOffsetForReading));
+            }
+            if (hasFileOffsetForWriting()) {
+                sb.append(", writing offset @%d=0x%X".formatted(fileOffsetForWriting, fileOffsetForWriting));
+            }
+            if (hasNextIFDOffset()) {
+                sb.append(isLastIFD() ? ", LAST" : ", next IFD at @%d=0x%X".formatted(nextIFDOffset, nextIFDOffset));
+            }
         }
         if (format == StringFormat.BRIEF) {
+            assert !json;
             return sb.toString();
         }
-        sb.append("; ").append(numberOfEntries()).append(" entries:");
+        if (json) {
+            sb.append(("  \"numberOfEntries\" : %d,%n  \"entries\" : {%n").formatted(numberOfEntries()));
+        } else {
+            sb.append("; ").append(numberOfEntries()).append(" entries:");
+        }
         final Map<Integer, TiffEntry> entries = this.detailedEntries;
         final Collection<Integer> keySequence = format.sorted ? new TreeSet<>(map.keySet()) : map.keySet();
+        boolean firstEntry = true;
         for (Integer tag : keySequence) {
             final Object v = this.get(tag);
-            sb.append(String.format("%n"));
-            Object additional = null;
-            try {
-                switch (tag) {
-                    case PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().prettyName();
-                    case COMPRESSION -> additional = prettyCompression(getCompression());
-                    case PLANAR_CONFIGURATION -> {
-                        if (v instanceof Number number) {
-                            switch (number.intValue()) {
-                                case PLANAR_CONFIGURATION_CHUNKED -> additional = "chunky";
-                                case PLANAR_CONFIGURATION_SEPARATE -> additional = "rarely-used planar";
-                            }
-                        }
-                    }
-                    case SAMPLE_FORMAT -> {
-                        if (v instanceof Number number) {
-                            switch (number.intValue()) {
-                                case SAMPLE_FORMAT_UINT -> additional = "unsigned integer";
-                                case SAMPLE_FORMAT_INT -> additional = "signed integer";
-                                case SAMPLE_FORMAT_IEEEFP -> additional = "IEEE float";
-                                case SAMPLE_FORMAT_VOID -> additional = "undefined";
-                                case SAMPLE_FORMAT_COMPLEX_INT -> additional = "complex integer";
-                                case SAMPLE_FORMAT_COMPLEX_IEEEFP -> additional = "complex float";
-                            }
-                        }
-                    }
-                    case FILL_ORDER -> {
-                        additional = !isReversedBits() ?
-                                "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)" :
-                                "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
-                    }
-                    case PREDICTOR -> {
-                        if (v instanceof Number number) {
-                            switch (number.intValue()) {
-                                case PREDICTOR_NONE -> additional = "none";
-                                case PREDICTOR_HORIZONTAL -> additional = "horizontal subtraction";
-                                case PREDICTOR_FLOATING_POINT -> additional = "floating-point subtraction";
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                additional = e;
-            }
-            sb.append("    ").append(ifdTagName(tag, true)).append(" = ");
             boolean manyValues = v != null && v.getClass().isArray();
-            if (manyValues) {
-                sb.append(v.getClass().getComponentType().getSimpleName());
-                sb.append("[").append(Array.getLength(v)).append("]");
-                sb.append(" {");
-                appendIFDArray(sb, v, format.compactArrays);
-                sb.append("}");
-            } else {
-                sb.append(v);
-            }
-            if (entries != null) {
-                final TiffEntry tiffEntry = entries.get(tag);
-                if (tiffEntry != null) {
-                    sb.append(" : ").append(entryTypeToString(tiffEntry.type()));
-                    int valueCount = tiffEntry.valueCount();
-                    if (valueCount != 1) {
-                        sb.append("[").append(valueCount).append("]");
-                    }
+            String tagName = ifdTagName(tag, !json);
+            if (json) {
+                if (manyValues || v instanceof Number || v instanceof Boolean) {
+                    sb.append(firstEntry ? "" : ",%n".formatted());
+                    firstEntry = false;
+                    sb.append("    \"%s\" : ".formatted(tagName));
                     if (manyValues) {
-                        sb.append(" at @").append(tiffEntry.valueOffset());
+                        sb.append("[");
+                        appendIFDArray(sb, v, false, true);
+                        sb.append("]");
+                    } else if (v instanceof TiffRational) {
+                        sb.append("\"").append(v).append("\"");
+                    } else {
+                        sb.append(v);
                     }
                 }
+            } else {
+                sb.append("%n".formatted());
+                Object additional = null;
+                try {
+                    switch (tag) {
+                        case PHOTOMETRIC_INTERPRETATION -> additional = getPhotometricInterpretation().prettyName();
+                        case COMPRESSION -> additional = prettyCompression(getCompression());
+                        case PLANAR_CONFIGURATION -> {
+                            if (v instanceof Number number) {
+                                switch (number.intValue()) {
+                                    case PLANAR_CONFIGURATION_CHUNKED -> additional = "chunky";
+                                    case PLANAR_CONFIGURATION_SEPARATE -> additional = "rarely-used planar";
+                                }
+                            }
+                        }
+                        case SAMPLE_FORMAT -> {
+                            if (v instanceof Number number) {
+                                switch (number.intValue()) {
+                                    case SAMPLE_FORMAT_UINT -> additional = "unsigned integer";
+                                    case SAMPLE_FORMAT_INT -> additional = "signed integer";
+                                    case SAMPLE_FORMAT_IEEEFP -> additional = "IEEE float";
+                                    case SAMPLE_FORMAT_VOID -> additional = "undefined";
+                                    case SAMPLE_FORMAT_COMPLEX_INT -> additional = "complex integer";
+                                    case SAMPLE_FORMAT_COMPLEX_IEEEFP -> additional = "complex float";
+                                }
+                            }
+                        }
+                        case FILL_ORDER -> {
+                            additional = !isReversedBits() ?
+                                    "default bits order: highest first (big-endian, 7-6-5-4-3-2-1-0)" :
+                                    "reversed bits order: lowest first (little-endian, 0-1-2-3-4-5-6-7)";
+                        }
+                        case PREDICTOR -> {
+                            if (v instanceof Number number) {
+                                switch (number.intValue()) {
+                                    case PREDICTOR_NONE -> additional = "none";
+                                    case PREDICTOR_HORIZONTAL -> additional = "horizontal subtraction";
+                                    case PREDICTOR_FLOATING_POINT -> additional = "floating-point subtraction";
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    additional = e;
+                }
+                sb.append("    ").append(tagName).append(" = ");
+                if (manyValues) {
+                    sb.append(v.getClass().getComponentType().getSimpleName());
+                    sb.append("[").append(Array.getLength(v)).append("]");
+                    sb.append(" {");
+                    appendIFDArray(sb, v, format.compactArrays, false);
+                    sb.append("}");
+                } else {
+                    sb.append(v);
+                }
+                if (entries != null) {
+                    final TiffEntry tiffEntry = entries.get(tag);
+                    if (tiffEntry != null) {
+                        sb.append(" : ").append(entryTypeToString(tiffEntry.type()));
+                        int valueCount = tiffEntry.valueCount();
+                        if (valueCount != 1) {
+                            sb.append("[").append(valueCount).append("]");
+                        }
+                        if (manyValues) {
+                            sb.append(" at @").append(tiffEntry.valueOffset());
+                        }
+                    }
+                }
+                if (additional != null) {
+                    sb.append("   [it means: ").append(additional).append("]");
+                }
             }
-            if (additional != null) {
-                sb.append("   [it means: ").append(additional).append("]");
-            }
+        }
+        if (json) {
+            sb.append("%n  }%n}%n".formatted());
         }
         return sb.toString();
     }
@@ -1708,7 +1783,9 @@ public class TiffIFD {
      * @return user-friendly name in a style of Java constant
      */
     public static String ifdTagName(int tag, boolean includeNumeric) {
-        String name = Objects.requireNonNullElse(IFDFriendlyNames.IFD_TAG_NAMES.get(tag), "Unknown tag");
+        String name = Objects.requireNonNullElse(
+                IFDFriendlyNames.IFD_TAG_NAMES.get(tag),
+                "UnknownTag" + tag);
         if (!includeNumeric) {
             return name;
         }
@@ -1765,14 +1842,21 @@ public class TiffIFD {
         }
     }
 
-    private static void appendIFDArray(StringBuilder sb, Object v, boolean compact) {
-        final int len = Array.getLength(v);
-        if (v instanceof byte[] bytes) {
-            appendIFDBytesArray(sb, bytes, compact);
+    private static void appendIFDArray(StringBuilder sb, Object v, boolean compact, boolean jsonMode) {
+        final boolean numeric = v instanceof byte[] || v instanceof short[] ||
+                v instanceof int[] || v instanceof long[] ||
+                v instanceof float[] || v instanceof double[] ||
+                v instanceof Number[];
+        if (!numeric && jsonMode) {
             return;
         }
-        final int left = v instanceof short[] || v instanceof char[] ? 25 : 10;
-        final int right = v instanceof short[] || v instanceof char[] ? 10 : 5;
+        if (!jsonMode && v instanceof byte[] bytes) {
+            appendIFDHexBytesArray(sb, bytes, compact);
+            return;
+        }
+        final int len = Array.getLength(v);
+        final int left = v instanceof short[] ? 25 : 10;
+        final int right = v instanceof short[] ? 10 : 5;
         final int mask = v instanceof short[] ? 0xFFFF : 0;
         for (int k = 0; k < len; k++) {
             if (compact && k == left && len >= left + 5 + right) {
@@ -1787,11 +1871,15 @@ public class TiffIFD {
             if (mask != 0) {
                 o = ((Number) o).intValue() & mask;
             }
-            sb.append(o);
+            if (jsonMode && o instanceof TiffRational) {
+                sb.append("\"").append(o).append("\"");
+            } else {
+                sb.append(o);
+            }
         }
     }
 
-    private static void appendIFDBytesArray(StringBuilder sb, byte[] v, boolean compact) {
+    private static void appendIFDHexBytesArray(StringBuilder sb, byte[] v, boolean compact) {
         final int len = v.length;
         for (int k = 0; k < len; k++) {
             if (compact && k == 20 && len >= 35) {

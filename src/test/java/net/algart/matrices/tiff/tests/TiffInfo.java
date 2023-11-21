@@ -37,7 +37,7 @@ import java.util.Arrays;
 
 public class TiffInfo {
     boolean strict = false;
-    boolean detailed = false;
+    TiffIFD.StringFormat stringFormat = TiffIFD.StringFormat.NORMAL;
 
     public static void main(String[] args) throws IOException, FormatException {
         TiffInfo info = new TiffInfo();
@@ -47,12 +47,16 @@ public class TiffInfo {
             startArgIndex++;
         }
         if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-detailed")) {
-            info.detailed = true;
+            info.stringFormat = TiffIFD.StringFormat.DETAILED;
+            startArgIndex++;
+        }
+        if (args.length > startArgIndex && args[startArgIndex].equalsIgnoreCase("-json")) {
+            info.stringFormat = TiffIFD.StringFormat.JSON;
             startArgIndex++;
         }
         if (args.length < startArgIndex + 1) {
             System.out.println("Usage:");
-            System.out.println("    " + TiffInfo.class.getName() + " [-strict] [-detailed] " +
+            System.out.println("    " + TiffInfo.class.getName() + " [-strict] [-detailed|-json] " +
                     "some_tiff_file.tif [firstIFDIndex lastIFDIndex]");
             return;
         }
@@ -110,10 +114,11 @@ public class TiffInfo {
     }
 
     public String ifdInfo(TiffIFD ifd, int ifdIndex, int ifdCount) {
-        return "IFD #%d/%d: %s%n".formatted(
+        return "IFD #%d/%d:%s%s%n".formatted(
                 ifdIndex,
                 ifdCount,
-                ifd.toString(detailed ? TiffIFD.StringFormat.DETAILED : TiffIFD.StringFormat.NORMAL));
+                stringFormat.isJson() ? "%n".formatted() : " ",
+                ifd.toString(stringFormat));
     }
 
     public static String extension(String fileName, String defaultExtension) {
