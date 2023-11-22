@@ -796,6 +796,71 @@ public class TiffTools {
         return unpacked;
     }
 
+    public static String escapeJsonString(CharSequence string) {
+        final StringBuilder result = new StringBuilder();
+        escapeJsonString(result, string);
+        return result.toString();
+    }
+
+    // Clone of the method JsonGeneratorImpl.writeEscapedString
+    public static void escapeJsonString(StringBuilder result, CharSequence string) {
+        int len = string.length();
+        for (int i = 0; i < len; i++) {
+            int begin = i;
+            int end = i;
+            char c = string.charAt(i);
+            // find all the characters that need not be escaped
+            // unescaped = %x20-21 | %x23-5B | %x5D-10FFFF
+            while (c >= 0x20 && c != 0x22 && c != 0x5c) {
+                i++;
+                end = i;
+                if (i < len) {
+                    c = string.charAt(i);
+                } else {
+                    break;
+                }
+            }
+            // Write characters without escaping
+            if (begin < end) {
+                result.append(string, begin, end);
+                if (i == len) {
+                    break;
+                }
+            }
+
+            switch (c) {
+                case '"':
+                case '\\':
+                    result.append('\\');
+                    result.append(c);
+                    break;
+                case '\b':
+                    result.append('\\');
+                    result.append('b');
+                    break;
+                case '\f':
+                    result.append('\\');
+                    result.append('f');
+                    break;
+                case '\n':
+                    result.append('\\');
+                    result.append('n');
+                    break;
+                case '\r':
+                    result.append('\\');
+                    result.append('r');
+                    break;
+                case '\t':
+                    result.append('\\');
+                    result.append('t');
+                    break;
+                default:
+                    String hex = "000" + Integer.toHexString(c);
+                    result.append("\\u").append(hex.substring(hex.length() - 4));
+            }
+        }
+    }
+
     public static DataHandle<Location> getExistingFileHandle(Path file) throws FileNotFoundException {
         if (!Files.isRegularFile(file)) {
             throw new FileNotFoundException("File " + file

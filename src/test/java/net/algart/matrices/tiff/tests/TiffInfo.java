@@ -98,7 +98,7 @@ public class TiffInfo {
                         reader.getStream().isLittleEndian() ? "little" : "big");
                 for (int k = 0; k < ifdCount; k++) {
                     if (k >= firstIFDIndex && k <= lastIFDIndex) {
-                        final var ifd = ifdList.get(k);
+                        final TiffIFD ifd = ifdList.get(k);
                         System.out.println(ifdInfo(ifd, k, ifdCount));
                         if (!(ifd.containsKey(IFD.STRIP_BYTE_COUNTS) || ifd.containsKey(IFD.TILE_BYTE_COUNTS))) {
                             throw new IOException("Invalid IFD: does not contain StripByteCounts/TileByteCounts tag");

@@ -1466,11 +1466,11 @@ public class TiffIFD {
         final boolean json = format.isJson();
         final StringBuilder sb = new StringBuilder();
         sb.append(json ?
-                String.format("{%n") :
+                "{\n" :
                 "IFD");
         final String ifdTypeName = subIFDType == null ? "main" : ifdTagName(subIFDType, false);
         sb.append((json ?
-                "  \"ifdType\" : \"%s\",%n" :
+                "  \"ifdType\" : \"%s\",\n" :
                 " (%s)").formatted(ifdTypeName));
         long dimX = 0;
         long dimY = 0;
@@ -1480,7 +1480,7 @@ public class TiffIFD {
         try {
             final TiffSampleType sampleType = sampleType(false);
             sb.append((json ?
-                    "  \"elementType\" : \"%s\",%n" :
+                    "  \"elementType\" : \"%s\",\n" :
                     " %s").formatted(
                     sampleType == null ? "???" : sampleType.elementType().getSimpleName()));
             channels = getSamplesPerPixel();
@@ -1489,15 +1489,17 @@ public class TiffIFD {
                 dimY = getImageDimY();
                 tileSizeX = getTileSizeX();
                 tileSizeY = getTileSizeY();
-                sb.append((json ? "  \"dimX\" : %d,%n  \"dimY\" : %d,%n  \"channels\" : %d,%n" :
+                sb.append((json ?
+                        "  \"dimX\" : %d,\n  \"dimY\" : %d,\n  \"channels\" : %d,\n" :
                         "[%dx%dx%d], ").formatted(dimX, dimY, channels));
             } else {
-                sb.append((json ? "  \"channels\" : %d,%n" :
+                sb.append((json ?
+                        "  \"channels\" : %d,\n" :
                         "[?x?x%d], ").formatted(channels));
             }
         } catch (Exception e) {
             sb.append(json ?
-                    "  \"exceptionBasic\" : \"%s\",%n".formatted(e.getMessage()) :
+                    "  \"exceptionBasic\" : \"%s\",\n".formatted(TiffTools.escapeJsonString(e.getMessage())) :
                     " [cannot detect basic information: " + e.getMessage() + "] ");
         }
         try {
@@ -1505,10 +1507,10 @@ public class TiffIFD {
             final long tileCountX = (dimX + (long) tileSizeX - 1) / tileSizeX;
             final long tileCountY = (dimY + (long) tileSizeY - 1) / tileSizeY;
             sb.append(json ?
-                    ("  \"precision\" : \"%s\",%n" +
-                            "  \"littleEndian\" : %s,%n" +
-                            "  \"bigTiff\" : %s,%n" +
-                            "  \"tiled\" : %s,%n").formatted(
+                    ("  \"precision\" : \"%s\",\n" +
+                            "  \"littleEndian\" : %s,\n" +
+                            "  \"bigTiff\" : %s,\n" +
+                            "  \"tiled\" : %s,\n").formatted(
                             sampleType.prettyName(),
                             isLittleEndian(),
                             isBigTiff(),
@@ -1520,13 +1522,13 @@ public class TiffIFD {
             if (hasTileInformation()) {
                 sb.append(
                         json ?
-                                ("  \"tiles\" : {%n" +
-                                        "    \"sizeX\" : %d,%n" +
-                                        "    \"sizeY\" : %d,%n" +
-                                        "    \"countX\" : %d,%n" +
-                                        "    \"countY\" : %d,%n" +
-                                        "    \"count\" : %d%n" +
-                                        "  },%n").formatted(
+                                ("  \"tiles\" : {\n" +
+                                        "    \"sizeX\" : %d,\n" +
+                                        "    \"sizeY\" : %d,\n" +
+                                        "    \"countX\" : %d,\n" +
+                                        "    \"countY\" : %d,\n" +
+                                        "    \"count\" : %d\n" +
+                                        "  },\n").formatted(
                                         tileSizeX, tileSizeY, tileCountX, tileCountY,
                                         tileCountX * tileCountY) :
                                 "%dx%d=%d tiles %dx%d (last tile %sx%s)".formatted(
@@ -1540,10 +1542,10 @@ public class TiffIFD {
             } else {
                 sb.append(
                         json ?
-                                ("  \"strips\" : {%n" +
-                                        "    \"sizeY\" : %d,%n" +
-                                        "    \"countY\" : %d%n" +
-                                        "  },%n").formatted(tileSizeY, tileCountY) :
+                                ("  \"strips\" : {\n" +
+                                        "    \"sizeY\" : %d,\n" +
+                                        "    \"countY\" : %d\n" +
+                                        "  },\n").formatted(tileSizeY, tileCountY) :
                                 "%d strips per %d lines (last strip %s, virtual \"tiles\" %dx%d)".formatted(
                                         tileCountY,
                                         tileSizeY,
@@ -1554,11 +1556,11 @@ public class TiffIFD {
                                         tileSizeY));
             }
             sb.append(json ?
-                    "  \"chunked\" : %s,%n".formatted(isChunked()) :
+                    "  \"chunked\" : %s,\n".formatted(isChunked()) :
                     isChunked() ? ", chunked" : ", planar");
         } catch (Exception e) {
             sb.append(json ?
-                    "  \"exceptionAdditional\" : \"%s\",%n".formatted(e.getMessage()) :
+                    "  \"exceptionAdditional\" : \"%s\",\n".formatted(TiffTools.escapeJsonString(e.getMessage())) :
                     " [cannot detect additional information: " + e.getMessage() + "]");
         }
         if (!json) {
@@ -1577,7 +1579,7 @@ public class TiffIFD {
             return sb.toString();
         }
         if (json) {
-            sb.append(("  \"numberOfEntries\" : %d,%n  \"entries\" : {%n").formatted(numberOfEntries()));
+            sb.append("  \"map\" : {\n");
         } else {
             sb.append("; ").append(numberOfEntries()).append(" entries:");
         }
@@ -1589,9 +1591,9 @@ public class TiffIFD {
             boolean manyValues = v != null && v.getClass().isArray();
             String tagName = ifdTagName(tag, !json);
             if (json) {
-                sb.append(firstEntry ? "" : ",%n".formatted());
+                sb.append(firstEntry ? "" : ",\n");
                 firstEntry = false;
-                sb.append("    \"%s\" : ".formatted(tagName));
+                sb.append("    \"%s\" : ".formatted(TiffTools.escapeJsonString(tagName)));
                 if (manyValues) {
                     sb.append("[");
                     appendIFDArray(sb, v, false, true);
@@ -1601,7 +1603,9 @@ public class TiffIFD {
                 } else if (v instanceof Number || v instanceof Boolean) {
                     sb.append(v);
                 } else {
-                    sb.append("\"").append(escapeForJson(String.valueOf(v))).append("\"");
+                    sb.append("\"");
+                    TiffTools.escapeJsonString(sb, String.valueOf(v));
+                    sb.append("\"");
                 }
             } else {
                 sb.append("%n".formatted());
@@ -1677,7 +1681,7 @@ public class TiffIFD {
             }
         }
         if (json) {
-            sb.append("%n  }%n}%n".formatted());
+            sb.append("\n  }\n}");
         }
         return sb.toString();
     }
@@ -1840,11 +1844,6 @@ public class TiffIFD {
         } else {
             return String.valueOf(a - r * b);
         }
-    }
-
-    private static String escapeForJson(String s) {
-        return s.replaceAll("\\n", "\\\\n")
-                .replaceAll("\\r", "\\\\r");
     }
 
     private static void appendIFDArray(StringBuilder sb, Object v, boolean compact, boolean jsonMode) {
