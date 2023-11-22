@@ -3,8 +3,8 @@
   "platforms": [
     {
       "id": "9c544176-7b28-43a0-b8fe-9987b4a1fa99",
-      "name": "Image-maps",
-      "category": "image-maps",
+      "name": "CV-maps",
+      "category": "cv-maps",
       "description": "Image maps/pyramids, Java",
       "technology": "jvm",
       "language": "java",
