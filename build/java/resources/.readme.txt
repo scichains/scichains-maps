@@ -1,1 +1,1 @@
-This folder is for storing resources
+This folder is for storing resources like demo-images etc.

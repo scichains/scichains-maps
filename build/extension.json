@@ -26,13 +26,14 @@
           "java/lib/scifio/parsington-3.1.0.jar",
           "java/lib/scifio/scifio-0.46.0.jar",
           "java/lib/scifio/scifio-jai-imageio-1.1.1.jar",
-          "java/lib/scifio/scijava-common-2.96.0.jar",
+          "java/lib/scifio/scijava-common-2.97.0.jar",
           "java/lib/scifio/scijava-optional-1.0.1.jar",
           "java/lib/scifio/scijava-table-1.0.2.jar",
           "java/lib/scifio/slf4j-api-1.7.32.jar",
           "java/lib/scifio/trove4j-3.0.3.jar",
           "java/lib/scifio/udunits-4.3.18.jar",
 
+          "java/lib/algart-tiff-${net.algart.algart-tiff.version}.jar",
           "java/lib/${artifactId}-${version}.jar"
         ],
         "vm_options": [

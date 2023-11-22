@@ -15,6 +15,13 @@
             <outputDirectory>./java/lib</outputDirectory>
         </dependencySet>
         <dependencySet>
+            <includes>
+                <include>net.algart:algart-tiff</include>
+            </includes>
+            <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>
+            <outputDirectory>./java/lib</outputDirectory>
+        </dependencySet>
+        <dependencySet>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>io.scif:*</include>
