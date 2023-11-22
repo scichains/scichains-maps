@@ -3,11 +3,14 @@
   "platforms": [
     {
       "id": "9c544176-7b28-43a0-b8fe-9987b4a1fa99",
-      "category": "image-maps",
       "name": "Image-maps",
+      "category": "image-maps",
+      "description": "Image maps/pyramids, Java",
       "technology": "jvm",
       "language": "java",
       "folders": {
+        "models": "java/models",
+        "resources": "java/resources",
         "libraries": "java/lib"
       },
       "configuration": {

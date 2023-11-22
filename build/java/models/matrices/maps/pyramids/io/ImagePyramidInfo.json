@@ -1,0 +1,317 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "matrices.maps.pyramids.io",
+  "name": "Image pyramid information",
+  "id": "e11d5f15-64aa-486e-baa2-ff627a221db2",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.cv.matrices.maps.pyramids.io.ImagePyramidInfo"
+  },
+  "in_ports": [
+    {
+      "value_type": "scalar",
+      "name": "file",
+      "caption": "file",
+      "hint": "[Optional] String path to the file. If specified, it is used instead of \"File\" parameter (with all replacements performed in that parameter)."
+    },
+    {
+      "value_type": "scalar",
+      "name": "file_name_addition",
+      "caption": "file name addition",
+      "hint": "[Optional] Modification for input file name."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "ROI",
+      "name": "roi",
+      "hint": "[Optional] If specified, it must be 4 numbers describing a ROI rectangle (region of interest) inside whole pyramid.\nIf not specified, ROI is supposed contains the whole resolution level from (0, 0) to (level_dim_x−1, level_dim_y−1).\nNote: if ROI is specified, but exceed the whole resolution level, it is automatically reduced to bounds of this level.\nROI is used when \"Auto-scanning sequence\" is not \"None\" or if \"Read whole ROI\" flag is set."
+    },
+    {
+      "value_type": "scalar",
+      "name": "pyramid_configuration",
+      "caption": "pyramid configuration",
+      "hint": "[Optional] Some additional information, describing the pyramid, which relates to the given data and cannot be changed dynamically."
+    },
+    {
+      "value_type": "scalar",
+      "name": "rendering_configuration",
+      "caption": "rendering configuration",
+      "hint": "[Optional] Some additional information for customizing rendering the pyramid which can vary for the same data file."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "number_of_levels"
+    },
+    {
+      "value_type": "scalar",
+      "name": "level_dim_x"
+    },
+    {
+      "value_type": "scalar",
+      "name": "level_dim_y"
+    },
+    {
+      "value_type": "scalar",
+      "caption": "number of frames",
+      "name": "number_of_frames",
+      "hint": "Total number of frames in all ROIs in the current pyramid.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "caption": "frames per series",
+      "name": "frames_per_series",
+      "hint": "Number of frames per every series, i.e. in horizontal row or vertical column.\nReturned only if \"Auto-scanning sequence\" parameter is not \"None\"."
+    },
+    {
+      "value_type": "scalar",
+      "caption": "recommended number of frames in buffer",
+      "name": "recommended_number_of_frames_in_buffer",
+      "hint": "Recommended number of frames, stored in the buffer for resolving problem of stitching and joining objects.\nCalculated by formula in the parameter \"Recommended number of stored frames\"."
+    },
+    {
+      "value_type": "scalar",
+      "name": "builtin_metadata",
+      "hint": "Metadata, built in the pyramid file (when they exist).",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "metadata",
+      "hint": "External metadata: JSON content of accompanying .meta-file (when it exists).",
+      "advanced": true
+    },
+    {
+      "value_type": "numbers",
+      "caption": "ROI rectangles",
+      "name": "metadata_roi_rectangles",
+      "hint": "ROI rectangles from the accompanying .meta-file (when it exists), scaled to requested \"Resolution level\".\nFor every ROI of any form we calculate the minimal containing rectangle, consisting of all (integer) pixels (x,y), that x₁≤x≤x₂, y₁≤y≤y₂,\nand return 4 numbers (x₁+x₂)/2, (y₁+y₂)/2, x₂−x₁+1, y₂−y₁+1 (i.e. the center and sizes),\nscaled to coordinates of the selected resolution level and intersected with the input ROI\n(when it is specified) and with the whole rectangle of the level.\nEmpty rectangles (0x0, Nx0, 0xN) are not included into the result (they are not processed).\nIf there is no .meta-file, then the input ROI is returned (when it is specified) or the whole rectangle of the level (when not)."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "ROI contours",
+      "name": "metadata_roi_contours",
+      "hint": "ROI contours from the accompanying .meta-file (when it exists), scaled to requested \"Resolution level\".\nEvery ROI is converted to standard contour format, and array of all contours is returned.\nObject label for result contours will be equal to the index of the ROI: 1,2,3,..."
+    },
+    {
+      "value_type": "scalar",
+      "name": "absolute_path",
+      "caption": "absolute path",
+      "hint": "Actual full absolute path to the file",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "parent_folder",
+      "caption": "parent folder",
+      "hint": "Absolute path to the parent folder of the file",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "file_name",
+      "caption": "file name",
+      "hint": "Actual file name (without folder)",
+      "advanced": true
+    }
+  ],
+  "out_ports_hidden": [
+    {
+      "value_type": "scalar",
+      "name": "output"
+    }
+  ],
+  "controls": [
+    {
+      "caption": "File",
+      "name": "file",
+      "description": "You can use here relative paths (without starting \"/\" or \"c:\\\"), for example, \"test.tiff\" or \"images/test.tiff\". They will be resolved relative the current folder, containing the executed chain.\nIf this path starts with substring %TEMP%, %TEMP%/ or %TEMP%x. where x is OS-depended file separator character, this substring is replaced with the full path to the system temp directory (System.getProperty(\"java.io.tmpdir\")) with ending file separator. For example, it is correct to write here %TEMP%my_file.dat, %TEMP%/my_file.dat or (in Windows) %TEMP%\\my_file.dat.\nAlso you can use in this string Java system properties: \"${name}\", for example: \"${java.io.tmpdir}\", and executor system properties \"${path.name.ext}\", \"${path.name}\", \"${file.name.ext}\", \"${file.name}\", \"${resources}\" (chain path/file name with/without extension, resource folder of the platform, containing this function).",
+      "value_type": "String",
+      "edition_type": "file",
+      "default": ""
+    },
+    {
+      "name": "fileNameAdditionMode",
+      "caption": "How to add \"file name addition\" (for example XXX.DAT)",
+      "description": "This mode can be used together with input string \"file name addition\"",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "NONE",
+          "caption": "no correction (\"file name addition\" is not used)"
+        },
+        {
+          "value": "AFTER_ALL_PATH",
+          "caption": "after all path: /path => /pathXXX.DAT"
+        },
+        {
+          "value": "REPLACE_IN_PATH",
+          "caption": "replace $$$ in path: /path/name$$$.ext => /path/nameXXX.DAT.ext"
+        },
+        {
+          "value": "REPLACE_IN_PATH_REMOVING_EXTENSION",
+          "caption": "replace $$$ with the addition, but without its extension: /path/name$$$.ext => /path/nameXXX.ext"
+        }
+      ],
+      "default": "NONE"
+    },
+    {
+      "caption": "Secure mode",
+      "name": "secure",
+      "description": "If set, \"file name addition\" feature and Java system properties in the path are disabled, and the path is checked that it does not contain \"suspicious\" characters/substring like %, ${. executor system properties \"${path.name.ext}\", \"${path.name}\", \"${file.name.ext}\", \"${file.name}\" and starting %TEMP%/ are enabled.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Format of the pyramid",
+      "name": "planePyramidFormat",
+      "description": "Note that only non-pyramid format (1st case) is always available. Other formats may be added in the package.\n\"Auto-detect by extension\" mode allows to detect only SVS format; all other extension will be interpreted as \"Non-pyramid image\" case (usual formats supported by Java).",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "AUTO_DETECT_BY_EXTENSION",
+          "caption": "Auto-detect by extension"
+        },
+        {
+          "value": "JAVA_IMAGEIO",
+          "caption": "Non-pyramid image (all formats supported by Java)"
+        },
+        {
+          "value": "SVS",
+          "caption": "Aperio SVS"
+        },
+        {
+          "value": "CUSTOM",
+          "caption": "Custom (factory class must be specified)"
+        }
+      ],
+      "default": "AUTO_DETECT_BY_EXTENSION"
+    },
+    {
+      "caption": "Factory class",
+      "name": "customPlanePyramidSourceFactoryClass",
+      "description": "Must contain full name of Java class, implementing PlanePyramidSourceFactory interface and providing support of this file format.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Resolution level",
+      "name": "resolutionLevel",
+      "description": "Level #0 has the best resolution, level #1 is less, etc.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Auto-scanning sequence",
+      "name": "scanningSequence",
+      "description": "Sequence of scanning of the specified \"ROI\".",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "NONE",
+          "caption": "None (use \"start X/Y\")"
+        },
+        {
+          "value": "ROWS_LEFT_TO_RIGHT",
+          "caption": "By rows, →"
+        },
+        {
+          "value": "ROWS_BY_SNAKE",
+          "caption": "By rows, ⇄ (\"snake\": →, ←, →, ...)"
+        },
+        {
+          "value": "COLUMNS_TOP_TO_BOTTOM",
+          "caption": "By columns, ↓"
+        },
+        {
+          "value": "COLUMNS_BY_SNAKE",
+          "caption": "By columns, ⇵ (\"snake\": ↓, ↑, ↓, ...)"
+        },
+        {
+          "value": "SHORTEST_SIDE",
+          "caption": "Along shortest side, → or ↓"
+        },
+        {
+          "value": "SHORTEST_SIDE_BY_SNAKE",
+          "caption": "Along shortest side, ⇄ or ⇵ (\"snake\")"
+        }
+      ],
+      "default": "NONE"
+    },
+    {
+      "caption": "Recommended number of stored frames (JavaScript)",
+      "name": "recommendedNumberOfStoredFrames",
+      "description": "For stitching needs, you usually need to store some number of frames in a buffer. For example, if you scan the pyramid by rows from left to right, and every row contain m frames, you need to have at least m+1 additional frames besides the current one to find objects, that are probably continued from the previous adjacent frames.\nThis parameter is a JavaScript formula, helping to estimate the necessary number of stored frames in such a buffer. In this script you can use the integer variable \"m\": it will be equal to the output \"frames per series\", or to the number of frames per every horizontal row if \"Auto-scanning sequence\" parameter is \"None\". Also you will have a boolean variable \"snake\", which is \"true\" for \"snake\" modes (see previous parameter).\nFor example, when you scan the pyramid by rows from left to right, the formula \"m+2\" will return possible estimation: it is enough for joining objects, which are not greater than 1 frame.\nAlso you will have a string variable \"p\", which is equal to the value of the following advanced parameter \"Variable p\".\nThis formula is used ONLY to fill the output \"recommended number of frames in buffer\". You can ignore it and create your own script for necessary estimations.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": "snake ? 2*m : m+2"
+    },
+    {
+      "caption": "Variable p",
+      "name": "recommendedNumberOfStoredFramesP",
+      "description": "Value of variable \"p\", that can be used in the previous formula. You may pass here some additional information, necessary for your formula, like the number of rows of frames, that you want to store (if it is >1), or any more complex information, for example, in a form of some JSON.\nNote that this variable is a number, if it can be correctly parsed as Integer or Double Java type, or a string in other case.",
+      "value_type": "String",
+      "edition_type": "value",
+      "advanced": true,
+      "default": ""
+    },
+    {
+      "caption": "Use metadata",
+      "name": "useMetadata",
+      "description": "If set, the accompanying JSON .meta-file is used to find ROI rectangles, that will be actually analysed and returned in \"ROI rectangles\" result. Also \"metadata\" and \"ROI contours\" ports will be filled.\nIf cleared, this file is ignored and not loaded. It is supposed that we have only 1 ROI rectangle, that covers all the pyramid, but \"ROI contours\" will contain an empty array.\nUsually should be set.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "advanced": true,
+      "default": true
+    },
+    {
+      "caption": "Require non-intersecting ROI rectangles",
+      "name": "requireNonIntersectingRectangles",
+      "description": "If set, and if the accompanying JSON .meta-file exists (regardless on \"Use metadata ROI rectangles\" flag), this function checks, whether some of ROI rectangles, specified in this file, intersects each other, and throws an exception, if intersecting rectangles were found.\nRemind that \"ROI rectangle\" is a minimal rectangle, containing whole ROI (in a case if it is not rectangular).\nIt can be useful in the very beginning, because some solutions, based on this function, require that the frames, analysed by this function, do not intersect each other.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "advanced": true,
+      "default": false
+    },
+    {
+      "caption": "Minimal analysed size",
+      "name": "minimalAnalyzedSize",
+      "description": "If this value is M>1, if the accompanying JSON .meta-file exists (regardless on \"Use metadata ROI rectangles\" flag), this function checks, that the rectangles, specified in this file, after scaling to requested \"Resolution level\", have width ≥ M and height ≥ M. The input \"ROI\" and the sizes of the whole pyramid are also checked by the same way, and also the frame sizes (\"X-size\" and \"Y-size\" below) must be ≥ M. If some ROIs are less than M, they are excluded from the analysis, if the frame sizes are less than M, the functions throws an exception.\nRemind that \"ROI rectangle\" is a minimal rectangle, containing whole ROI (in a case if it is not rectangular).\nIt can be useful in the very beginning, because some solutions, based on this function, reduce the analysed frames by some gap; there is no sense to analyse a frame or ROI less than such gap.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Use input ROI",
+      "name": "useInputROI",
+      "description": "If set, the input \"ROI\" port is used (when specified). If cleared, it is ignored and ROI is supposed to be the whole pyramid.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "X-size (frame width)",
+      "name": "sizeX",
+      "value_type": "long",
+      "edition_type": "value",
+      "default": 1000
+    },
+    {
+      "caption": "Y-size (frame height)",
+      "name": "sizeY",
+      "description": "These sizes of the frame must be positive. They are used for calculating some output ports.",
+      "value_type": "long",
+      "edition_type": "value",
+      "default": 1000
+    }
+  ]
+}
