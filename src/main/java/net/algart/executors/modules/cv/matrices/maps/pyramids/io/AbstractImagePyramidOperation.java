@@ -8,7 +8,6 @@ import net.algart.bridges.standard.JavaScriptContextContainer;
 import net.algart.executors.api.Executor;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.core.common.io.FileOperation;
-import net.algart.executors.modules.cv.matrices.maps.ScanningMapSequence;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSourceFactory;

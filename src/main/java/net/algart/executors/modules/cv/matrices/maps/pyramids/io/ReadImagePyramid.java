@@ -2,8 +2,6 @@ package net.algart.executors.modules.cv.matrices.maps.pyramids.io;
 
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.api.data.SScalar;
-import net.algart.executors.modules.cv.matrices.maps.DiagonalDirectionOnMap;
-import net.algart.executors.modules.cv.matrices.maps.ScanningMapSequence;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;

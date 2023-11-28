@@ -1,7 +1,6 @@
 package net.algart.executors.modules.cv.matrices.maps.pyramids.io;
 
 import net.algart.contours.Contours;
-import net.algart.executors.modules.cv.matrices.maps.ScanningMapSequence;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 

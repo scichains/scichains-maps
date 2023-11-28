@@ -1,6 +1,5 @@
 package net.algart.executors.modules.cv.matrices.maps.pyramids.io;
 
-import net.algart.executors.modules.cv.matrices.maps.ScanningMapSequence;
 import net.algart.matrices.maps.pyramids.io.api.PlanePyramidSource;
 
 import java.io.IOError;

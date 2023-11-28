@@ -1,6 +1,6 @@
 package net.algart.executors.modules.cv.matrices.maps.pyramids.io;
 
-public enum ImagePyramidOpeningMode {
+enum ImagePyramidOpeningMode {
     OPEN_AND_CLOSE(false, true, true),
     OPEN(false, true, false),
     OPEN_ON_RESET_AND_FIRST_CALL(true, false, false),
