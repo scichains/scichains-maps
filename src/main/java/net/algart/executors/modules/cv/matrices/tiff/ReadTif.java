@@ -24,16 +24,11 @@
 
 package net.algart.executors.modules.cv.matrices.tiff;
 
-import net.algart.executors.api.Executor;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.core.common.io.FileOperation;
-import net.algart.executors.modules.core.matrices.io.MatReader;
-import net.algart.executors.modules.core.matrices.io.UnsupportedImageFormatException;
 import net.algart.multimatrix.MultiMatrix;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
@@ -41,7 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
-public final class ReadTiff extends FileOperation implements ReadOnlyExecutionInput {
+public final class ReadTif extends FileOperation implements ReadOnlyExecutionInput {
     public static final String OUTPUT_DIM_X = "dim_x";
     public static final String OUTPUT_DIM_Y = "dim_y";
     public static final String OUTPUT_NUMBER_OF_LEVELS = "number_of_levels";
@@ -58,7 +53,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
     private int numberOfChannels = 0;
     //TODO!! control flags of TiffReader
 
-    public ReadTiff() {
+    public ReadTif() {
         addFileOperationPorts();
         addInputMat(DEFAULT_INPUT_PORT);
         addOutputMat(DEFAULT_OUTPUT_PORT);
@@ -66,18 +61,18 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         addOutputScalar(OUTPUT_DIM_Y);
     }
 
-    public static ReadTiff getInstance() {
-        return new ReadTiff();
+    public static ReadTif getInstance() {
+        return new ReadTif();
     }
 
-    public static ReadTiff getSecureInstance() {
-        final ReadTiff result = new ReadTiff();
+    public static ReadTif getSecureInstance() {
+        final ReadTif result = new ReadTif();
         result.setSecure(true);
         return result;
     }
 
     @Override
-    public ReadTiff setFile(String file) {
+    public ReadTif setFile(String file) {
         super.setFile(file);
         return this;
     }
@@ -86,7 +81,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return fileExistenceRequired;
     }
 
-    public ReadTiff setFileExistenceRequired(boolean fileExistenceRequired) {
+    public ReadTif setFileExistenceRequired(boolean fileExistenceRequired) {
         this.fileExistenceRequired = fileExistenceRequired;
         return this;
     }
@@ -95,7 +90,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return ifdIndex;
     }
 
-    public ReadTiff setIfdIndex(int ifdIndex) {
+    public ReadTif setIfdIndex(int ifdIndex) {
         this.ifdIndex = nonNegative(ifdIndex);
         return this;
     }
@@ -104,7 +99,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return wholeLevel;
     }
 
-    public ReadTiff setWholeLevel(boolean wholeLevel) {
+    public ReadTif setWholeLevel(boolean wholeLevel) {
         this.wholeLevel = wholeLevel;
         return this;
     }
@@ -113,7 +108,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return startX;
     }
 
-    public ReadTiff setStartX(long startX) {
+    public ReadTif setStartX(long startX) {
         this.startX = startX;
         return this;
     }
@@ -122,7 +117,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return startY;
     }
 
-    public ReadTiff setStartY(long startY) {
+    public ReadTif setStartY(long startY) {
         this.startY = startY;
         return this;
     }
@@ -131,7 +126,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return sizeX;
     }
 
-    public ReadTiff setSizeX(long sizeX) {
+    public ReadTif setSizeX(long sizeX) {
         this.sizeX = sizeX;
         return this;
     }
@@ -140,7 +135,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return sizeY;
     }
 
-    public ReadTiff setSizeY(long sizeY) {
+    public ReadTif setSizeY(long sizeY) {
         this.sizeY = sizeY;
         return this;
     }
@@ -149,7 +144,7 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return numberOfChannels;
     }
 
-    public ReadTiff setNumberOfChannels(int numberOfChannels) {
+    public ReadTif setNumberOfChannels(int numberOfChannels) {
         this.numberOfChannels = nonNegative(numberOfChannels);
         return this;
     }
