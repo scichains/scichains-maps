@@ -36,7 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
-public final class ReadTif extends FileOperation implements ReadOnlyExecutionInput {
+public final class ReadTiff extends FileOperation implements ReadOnlyExecutionInput {
     public static final String OUTPUT_DIM_X = "dim_x";
     public static final String OUTPUT_DIM_Y = "dim_y";
     public static final String OUTPUT_NUMBER_OF_LEVELS = "number_of_levels";
@@ -53,7 +53,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
     private int numberOfChannels = 0;
     //TODO!! control flags of TiffReader
 
-    public ReadTif() {
+    public ReadTiff() {
         addFileOperationPorts();
         addInputMat(DEFAULT_INPUT_PORT);
         addOutputMat(DEFAULT_OUTPUT_PORT);
@@ -61,18 +61,18 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         addOutputScalar(OUTPUT_DIM_Y);
     }
 
-    public static ReadTif getInstance() {
-        return new ReadTif();
+    public static ReadTiff getInstance() {
+        return new ReadTiff();
     }
 
-    public static ReadTif getSecureInstance() {
-        final ReadTif result = new ReadTif();
+    public static ReadTiff getSecureInstance() {
+        final ReadTiff result = new ReadTiff();
         result.setSecure(true);
         return result;
     }
 
     @Override
-    public ReadTif setFile(String file) {
+    public ReadTiff setFile(String file) {
         super.setFile(file);
         return this;
     }
@@ -81,7 +81,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return fileExistenceRequired;
     }
 
-    public ReadTif setFileExistenceRequired(boolean fileExistenceRequired) {
+    public ReadTiff setFileExistenceRequired(boolean fileExistenceRequired) {
         this.fileExistenceRequired = fileExistenceRequired;
         return this;
     }
@@ -90,7 +90,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return ifdIndex;
     }
 
-    public ReadTif setIfdIndex(int ifdIndex) {
+    public ReadTiff setIfdIndex(int ifdIndex) {
         this.ifdIndex = nonNegative(ifdIndex);
         return this;
     }
@@ -99,7 +99,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return wholeLevel;
     }
 
-    public ReadTif setWholeLevel(boolean wholeLevel) {
+    public ReadTiff setWholeLevel(boolean wholeLevel) {
         this.wholeLevel = wholeLevel;
         return this;
     }
@@ -108,7 +108,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return startX;
     }
 
-    public ReadTif setStartX(long startX) {
+    public ReadTiff setStartX(long startX) {
         this.startX = startX;
         return this;
     }
@@ -117,7 +117,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return startY;
     }
 
-    public ReadTif setStartY(long startY) {
+    public ReadTiff setStartY(long startY) {
         this.startY = startY;
         return this;
     }
@@ -126,7 +126,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return sizeX;
     }
 
-    public ReadTif setSizeX(long sizeX) {
+    public ReadTiff setSizeX(long sizeX) {
         this.sizeX = sizeX;
         return this;
     }
@@ -135,7 +135,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return sizeY;
     }
 
-    public ReadTif setSizeY(long sizeY) {
+    public ReadTiff setSizeY(long sizeY) {
         this.sizeY = sizeY;
         return this;
     }
@@ -144,7 +144,7 @@ public final class ReadTif extends FileOperation implements ReadOnlyExecutionInp
         return numberOfChannels;
     }
 
-    public ReadTif setNumberOfChannels(int numberOfChannels) {
+    public ReadTiff setNumberOfChannels(int numberOfChannels) {
         this.numberOfChannels = nonNegative(numberOfChannels);
         return this;
     }
