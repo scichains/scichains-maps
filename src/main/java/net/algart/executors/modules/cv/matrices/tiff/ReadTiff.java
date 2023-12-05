@@ -42,14 +42,15 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
     public static final String OUTPUT_NUMBER_OF_LEVELS = "number_of_levels";
     public static final String OUTPUT_LEVEL_DIM_X = "level_dim_x";
     public static final String OUTPUT_LEVEL_DIM_Y = "level_dim_y";
+    public static final String OUTPUT_IFD = "ifd";
 
     private boolean fileExistenceRequired = true;
     private int ifdIndex = 0;
     private boolean wholeLevel = false;
-    private long startX = 0;
-    private long startY = 0;
-    private long sizeX = 1;
-    private long sizeY = 1;
+    private int startX = 0;
+    private int startY = 0;
+    private int sizeX = 1;
+    private int sizeY = 1;
     private int numberOfChannels = 0;
     //TODO!! control flags of TiffReader
 
@@ -104,38 +105,38 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return this;
     }
 
-    public long getStartX() {
+    public int getStartX() {
         return startX;
     }
 
-    public ReadTiff setStartX(long startX) {
+    public ReadTiff setStartX(int startX) {
         this.startX = startX;
         return this;
     }
 
-    public long getStartY() {
+    public int getStartY() {
         return startY;
     }
 
-    public ReadTiff setStartY(long startY) {
+    public ReadTiff setStartY(int startY) {
         this.startY = startY;
         return this;
     }
 
-    public long getSizeX() {
+    public int getSizeX() {
         return sizeX;
     }
 
-    public ReadTiff setSizeX(long sizeX) {
+    public ReadTiff setSizeX(int sizeX) {
         this.sizeX = sizeX;
         return this;
     }
 
-    public long getSizeY() {
+    public int getSizeY() {
         return sizeY;
     }
 
-    public ReadTiff setSizeY(long sizeY) {
+    public ReadTiff setSizeY(int sizeY) {
         this.sizeY = sizeY;
         return this;
     }
