@@ -808,10 +808,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             throws FormatException, IOException {
         final TiffMap map = largeData.maps.get(ifdIndex);
         map.checkPixelCompatibility(bandCount, elementType, false);
-        final Object data = largeData.tiffReader.readImage(map, fromX, fromY, sizeX, sizeY);
-        return Matrices.matrix(
-                (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(data),
-                bandCount, sizeX, sizeY);
+        return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
     }
 
     private int resolutionLevelToActualResolutionLevel(int resolutionLevel) {

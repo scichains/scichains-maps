@@ -51,6 +51,9 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
     private int startY = 0;
     private int sizeX = 1;
     private int sizeY = 1;
+    private boolean truncateByLevel = true;
+    // - necessary when we do not know level sizes before 1st call of this function,
+    // for example, if we need to read large image fragment-per-fragment
     private int numberOfChannels = 0;
     //TODO!! control flags of TiffReader
 
@@ -138,6 +141,15 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
 
     public ReadTiff setSizeY(int sizeY) {
         this.sizeY = sizeY;
+        return this;
+    }
+
+    public boolean isTruncateByLevel() {
+        return truncateByLevel;
+    }
+
+    public ReadTiff setTruncateByLevel(boolean truncateByLevel) {
+        this.truncateByLevel = truncateByLevel;
         return this;
     }
 
