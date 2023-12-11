@@ -1,0 +1,111 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Read frame from map buffer",
+  "id": "6e3c8b60-02b8-422f-a3d0-72632f88d841",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.ReadFromMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    },
+    {
+      "value_type": "numbers",
+      "name": "rectangle",
+      "hint": "If specified, it must be 4 numbers describing a rectangle which should be read: min_x, max_x, min_y, max_y."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "mat",
+      "name": "output",
+      "hint": "Matrix, loaded from the map buffer."
+    },
+    {
+      "value_type": "numbers",
+      "name": "expanded",
+      "hint": "Rectangle of result matrix: source rectangle, requested to read, expanded\nby the given \"X/Y-expansion\", but then reduced to fit into the map buffer."
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_x",
+      "hint": "Width of result matrix."
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_y",
+      "hint": "Height of result matrix."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "containing rectangle",
+      "name": "containing_rectangle",
+      "hint": "4 numbers describing minimal rectangle, containing all existing frames in the map buffer."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Start X to read (left)",
+      "name": "startX",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Start Y to read (top)",
+      "name": "startY",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "X-size (width)",
+      "name": "sizeX",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 100
+    },
+    {
+      "caption": "Y-size (height)",
+      "name": "sizeY",
+      "description": "Note: if there is an input \"rectangle\", 4 parameters above are ignored.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 100
+    },
+    {
+      "caption": "X-expansion",
+      "name": "expansionX",
+      "description": "Value of expansion by x-coordinate for output matrix and \"expanded\" rectangle.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Y-expansion",
+      "name": "expansionY",
+      "description": "Value of expansion by x-coordinate for output matrix and \"expanded\" rectangle.\nNote: the rectangle of the  matrix to read is expanded by all direction, but in such a way to be fully covered by already existing frames. So, if in some direction there is no frames yet, the rectangle will not be expanded there.\nIf skipped, it will be equal to X-expansion.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Reindex stitched objects",
+      "name": "reindexStitched",
+      "description": "If set and if the map buffer stitches object labels, the result matrix is automatically re-indexes to provide the same index for every two (or more) stitched objects.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    }
+  ]
+}

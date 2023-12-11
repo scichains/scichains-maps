@@ -1,0 +1,35 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Set map buffer's capacity",
+  "id": "0b0e2897-e475-4236-8c82-2758c618fcc2",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.SetMapBufferCapacity"
+  },
+  "in_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "New number of stored frames",
+      "name": "numberOfStoredFrames",
+      "description": "Number of frames, stored in this map buffer",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 1
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Map buffer correlation table",
+  "id": "d8def84d-407c-4cd0-9e77-aaa05416e588",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.MapBufferCorrelationTable"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "stitching map (reindexing table)",
+      "name": "stitching_map",
+      "hint": "Reindexing table for all stitched objects."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "partial objects",
+      "name": "partial_set",
+      "hint": "Table of partial (delayed) objects: 0 for completed, 1 for partial..\nNote: this information is available only for buffers in \"Stitching labels\" mode.\""
+    },
+    {
+      "value_type": "numbers",
+      "caption": "raw partial objects",
+      "name": "raw_partial_set",
+      "hint": "Raw version of \"partial objects\" (without reindexing). Can be used for debugging.",
+      "advanced": true
+    },
+    {
+      "value_type": "numbers",
+      "caption": "object pairs",
+      "name": "object_pairs",
+      "hint": "List of all correlated object pairs.\nNote: this information is available only for buffers in \"Stitching labels\" mode.\""
+    },
+    {
+      "value_type": "scalar",
+      "caption": "number of objects",
+      "name": "number_of_objects",
+      "hint": "Current number of objects: B or B+1, where B is the last re-indexing base.\nIt will be B+1 if the map buffer was created with the flag \"Zeros are reserved for background\", or B if that flag was not set.\nNote: this information is available only for buffers, created in \"Auto-reindexing labels\" mode."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Indexing base of stitching map",
+      "name": "indexingBase",
+      "description": "Indexing base of result map. If this value B is non-zero, it just means that the first element is removed from the result array. In other words, two objects with labels L1 and L2 correlates (considered to be the same object), when map[L1−B]=map[L2−B], where B is this base (0 or 1).\nThe value 1 can be convenient, if the map buffer was created with the flag \"Zeros are reserved for background\".",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "ZERO_BASED",
+          "caption": "0 (zero-based numbering)"
+        },
+        {
+          "value": "ONE_BASED",
+          "caption": "1 (one-based numbering)"
+        }
+      ],
+      "default": "ZERO_BASED"
+    }
+  ]
+}

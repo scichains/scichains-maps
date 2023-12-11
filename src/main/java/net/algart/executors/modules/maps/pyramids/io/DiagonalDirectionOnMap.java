@@ -22,14 +22,35 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.executors.modules.maps.pyramids.io;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+import net.algart.math.IPoint;
 
-import java.io.IOException;
+public enum DiagonalDirectionOnMap {
+    LEFT_UP {
+        @Override
+        public IPoint shift(long x, long y) {
+            return IPoint.valueOf(-x, -y);
+        }
+    },
+    RIGHT_UP {
+        @Override
+        public IPoint shift(long x, long y) {
+            return IPoint.valueOf(x, -y);
+        }
+    },
+    LEFT_DOWN {
+        @Override
+        public IPoint shift(long x, long y) {
+            return IPoint.valueOf(-x, y);
+        }
+    },
+    RIGHT_DOWN {
+        @Override
+        public IPoint shift(long x, long y) {
+            return IPoint.valueOf(x, y);
+        }
+    };
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
-    }
+    public abstract IPoint shift(long x, long y);
 }

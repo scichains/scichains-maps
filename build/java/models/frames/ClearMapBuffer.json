@@ -1,0 +1,67 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Clear map buffer",
+  "id": "66d3019d-26dc-4b2d-b628-b16b6df9b8f7",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.ClearMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "scalar",
+      "caption": "number of objects",
+      "name": "number_of_objects",
+      "hint": "Number of objects after executing this function: B or B+1, where B is the last re-indexing base.\nIt will be B+1 if the map buffer was created with the flag \"Zeros are reserved for background\", or B if that flag was not set.\nOf course, B = 0, if this function has actually cleared the map buffer and if \"Reset indexing\" flag is set."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "When to clear?",
+      "name": "stage",
+      "description": "If set to \"On reset\", the specified map buffer is cleared while reset. It means: when executing in a loop this function is performed only once, before 1st execution. For most applications, should be \"On reset\".",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "RESET",
+          "caption": "On reset"
+        },
+        {
+          "value": "EXECUTE",
+          "caption": "On every execution"
+        }
+      ],
+      "default": "RESET"
+    },
+    {
+      "caption": "Do action",
+      "name": "doAction",
+      "description": "If cleared, this function does not clear the map buffer and returns the input \"map_buffer_id\" without any actions. (The output \"number of objects\" is returned always.)\nYou may use this flag if you need to clear the map buffer not always, but depending on some conditions, for example, when starting to process new image.\nUsually this flag is set.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Reset indexing",
+      "name": "resetIndexing",
+      "description": "If this map buffer was created in \"Auto-reindexing labels\" mode, this function resets indexing (clears current re-indexing base to 0) when this flag is set.\nIf this flag is cleared (false), all frames are removed from the map buffer, but the re-indexing base keeps its value. It is useful, for example, if you need to continue analysis on a new image from the series of images.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    }
+  ]
+}

@@ -22,14 +22,33 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.maps.pyramids.io.formats.sources.svs.metadata;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+public class SVSAttribute {
+    private final String name;
+    private final String value;
 
-import java.io.IOException;
+    public SVSAttribute(String name, String value) {
+        if (name == null) {
+            throw new NullPointerException("Null SVS attribute name");
+        }
+        if (value == null) {
+            throw new NullPointerException("Null SVS attribute value");
+        }
+        this.name = name;
+        this.value = value;
+    }
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    public String getName() {
+        return name;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    @Override
+    public String toString() {
+        return name + " = " + value;
     }
 }

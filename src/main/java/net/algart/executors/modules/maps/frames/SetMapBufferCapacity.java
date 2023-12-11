@@ -22,14 +22,33 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.executors.modules.maps.frames;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
+import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
+import net.algart.executors.api.data.SScalar;
+import net.algart.executors.modules.core.common.scalars.ScalarFilter;
 
-import java.io.IOException;
+public final class SetMapBufferCapacity extends ScalarFilter {
+    private int numberOfStoredFrames = 1;
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    public SetMapBufferCapacity() {
+        setDefaultInputScalar(InitializeMapBuffer.MAP_BUFFER_ID);
+        setDefaultOutputScalar(InitializeMapBuffer.MAP_BUFFER_ID);
+    }
+
+    public int getNumberOfStoredFrames() {
+        return numberOfStoredFrames;
+    }
+
+    public SetMapBufferCapacity setNumberOfStoredFrames(int numberOfStoredFrames) {
+        this.numberOfStoredFrames = positive(numberOfStoredFrames);
+        return this;
+    }
+
+    public SScalar process(SScalar source) {
+        final MapBuffer mapBuffer = MapBufferKey.getInstance(source.toLong()).getMapBuffer();
+        mapBuffer.setMaximalNumberOfStoredFrames(numberOfStoredFrames);
+        return source;
     }
 }

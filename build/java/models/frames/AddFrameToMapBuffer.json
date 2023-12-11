@@ -1,0 +1,104 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Add frame to map buffer",
+  "id": "446198a8-f57e-4cbd-9d4b-e4bf9f1b8520",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.AddFrameToMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    },
+    {
+      "value_type": "mat",
+      "name": "input",
+      "hint": "Matrix, added as a new frame to the map buffer.\nNote: if therre is \"rectangle to crop\", the actual input matrix will be only a part of this matrix."
+    },
+    {
+      "value_type": "numbers",
+      "name": "position",
+      "hint": "[Optional] Point, describing some position.\nIf specified, it will be used instead of \"Start X/Y\" parameters.\nAlso can contain 4 numbers min_x, max_x, min_y, max_y (rectangle); then its left top corner will be the position.\nIn the first case (point), block length must be 1, in the second case (rectangle), it must be 2."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "rectangle to crop",
+      "name": "rectangle_to_crop",
+      "hint": "[Optional] If specified, it must contain 4 numbers min_x, max_x, min_y, max_y (rectangle).\nThe input matrix is cropped by this rectangle at the very beginning (before any other operations).\nIn this case, this rectangle must be a part of rectangle 0 ≤ x/y < matrix sizes."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "mat",
+      "name": "output",
+      "hint": "[Optional] Matrix, loaded from the map buffer at \"expanded\" rectangle (see below).\nIf there is no expansion (both \"X/Y-expansion\" = 0), it is the source matrix (reindexed and cropped, if requested)."
+    },
+    {
+      "value_type": "numbers",
+      "name": "rectangle",
+      "hint": "Rectangle of the added frame: 4 numbers min_x, max_x, min_y, max_y.\nNote: it is NOT the position of the returned matrix! It is the position of the added frame (source image, cropped if requested)."
+    },
+    {
+      "value_type": "numbers",
+      "name": "expanded",
+      "caption": "expanded (actual rectangle)",
+      "hint": "Rectangle of the added frame, expanded by the given \"X/Y-expansion\", but then reduced to fit into the map buffer.\nIt is exactly the position of the returned matrix."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "containing rectangle",
+      "name": "containing_rectangle",
+      "hint": "4 numbers describing minimal rectangle, containing all existing frames in the map buffer."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Start X",
+      "name": "startX",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Start Y",
+      "name": "startY",
+      "description": "Left/top corner of the added frame will have the specified coordinates (start X, start Y)",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "X-expansion",
+      "name": "expansionX",
+      "description": "Value of expansion by x-coordinate for output matrix and \"expanded\" rectangle.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Y-expansion",
+      "name": "expansionY",
+      "description": "Value of expansion by x-coordinate for output matrix and \"expanded\" rectangle.\nNote: the rectangle of the added frame is expanded by all direction, but in such a way to be fully covered by already existing frames. So, if in some direction there is no frames yet, the frame will not be expanded there.\nIf skipped, it will be equal to X-expansion.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Disable overlapping",
+      "name": "disableOverlapping",
+      "description": "If set, this function will not add a frame if it intersects with some existing frames: such attempt will lead to error message. It is convenient in most situations, because allows to avoid adding frames to invalid positions.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    }
+  ]
+}

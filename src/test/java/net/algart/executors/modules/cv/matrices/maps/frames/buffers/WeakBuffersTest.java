@@ -22,14 +22,22 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.executors.modules.cv.matrices.maps.frames.buffers;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
 
-import java.io.IOException;
+public final class WeakBuffersTest {
+    private static void createBuffer() {
+        MapBufferKey.getUniqueInstance().getOrCreateMapBuffer();
+    }
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    public static void main(String[] args) {
+        for (int k = 0; k < 1000; k++) {
+            createBuffer();
+            System.out.printf("%d: %d buffers%n", k, MapBufferKey.numberOfStoredMapBuffers());
+            if (k % 10 == 0) {
+                System.gc();
+            }
+        }
     }
 }

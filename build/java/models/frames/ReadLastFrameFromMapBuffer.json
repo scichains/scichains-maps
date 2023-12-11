@@ -1,0 +1,161 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Read last frame from map buffer",
+  "id": "9af3a355-a1c3-4736-b80a-ef2f471a9761",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.ReadLastFrameFromMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "cropping containing rectangle",
+      "name": "cropping_containing_rectangle",
+      "hint": "If specified, it must be 4 numbers min_x, max_x, min_y, max_y describing some rectangle. In this case,\nthe result matrix — result of joining or just the last frame (if \"Joint completed objects\" is not set) — will be cropped by this rectangle.\nIt can be useful if you have some another map buffer or large image, from which you need to retrieve pixel data at the same position\nas the result of this function: you may pass here the containing rectangle of that map buffer or image."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "mat",
+      "name": "output",
+      "hint": "Result matrix."
+    },
+    {
+      "value_type": "mat",
+      "caption": "labels",
+      "name": "labels",
+      "hint": "Translated (reindexed) result matrix, so that it contains sequential labels 1,2,...\nThe minimal existing label in the loaded frame (after jointing if the flag \"Joint completed objects\" is set)\nis replaced here with 1, the next label (in increasing order) will be 2, the next one will be replaced with 3 etc.\nThis matrix is returned only if \"Sequentially reindex\" flags is set."
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_x",
+      "hint": "Width of result matrix."
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_y",
+      "hint": "Height of result matrix."
+    },
+    {
+      "value_type": "numbers",
+      "name": "rectangle",
+      "hint": "Position of the result matrix at the map (last frame, maybe extended to include completed objects).\nHere are 4 numbers describing a rectangle: min_x, max_x, min_y, max_y."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "sequential restoring table",
+      "name": "restoring_table",
+      "hint": "Returned if the flag \"Sequentially reindex\" is set:\nfor every value V in the result (sequential) \"labels\", the original label before reindexing\n(note that it is returned in the usual output matrix in an case) will be equal to\ntable[V−1] or table[V], depending on \"Include background labels in restoring table\" flag."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "containing rectangle",
+      "name": "containing_rectangle",
+      "hint": "4 numbers describing minimal rectangle, containing all existing frames in the map buffer."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Joint completed objects",
+      "name": "jointCompletedObjects",
+      "description": "If set and if the map buffer stitches object labels, this function automatically extend the last frame to include all objects, which are continuations of objects from previous frames and which are already completed, and excludes all objects, which are probably continued on the following frames.\nNote: in this case, the usual result matrix will contain labels, already reindexed by the map buffer correlation table, so that all pixels of the single stitched object will have the same value (\"stitched\" label), even when it was placed on two or more original frames.\nHowever: if you choose \"Retain last available part\" mode (see below \"How to joint too large objects?\"), then this rule is not fulfilled for RETAINED PARTS: their labels can be only PARTIALLY reindexed. In particular, you can receive two retained parts of the same object as different labels. If you want to get correctly translated labels for all objects, including retained parts, you need to translate all labels by the map buffer correlation table at the end of calculations, when it will fully completed.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Joint expansion in percents",
+      "name": "jointExpansionInPercents",
+      "description": "If set, the following 2 parameters (when specified) are measured in percents of the sizes of the 1st frame in the map. For example, \"Joint X/Y-expansions\"=50 means 0.5 of the frame sizes.\nIf cleared, these parameter are measured in pixels.\nNote: if \"Joint X-expansions\" is not specified, it is equivalent to the value 100 of both parameters when this flag is set.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Joint X-expansions",
+      "name": "jointExpansionX",
+      "description": "Value of expansion by x-coordinate while jointing continued objects. If not specified, the frame is always expanded by sizes of the 1st frame in the map; so, maximal jointed object can occupy up to 2, but not 3 frames. It is always so if there are not objects larger than a single frame. ",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Joint Y-expansions",
+      "name": "jointExpansionY",
+      "description": "Value of expansion by y-coordinate while jointing continued objects. If not specified, it will be equal to X-expansion.\nNote: if X-expansions is not specified, this parameter is ignored.\nAlso note: zero values of both x/y-expansions IS NOT equivalent to disabling mode \"Joint completed objects\" above. If jointing is enabled, but \"Joint X/Y-expansions\"=0, but this function still will process whole objects, but will be unable to joint objects with their continuation in another frames.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Jointing auto-crop",
+      "name": "jointingAutoCrop",
+      "description": "If set and if the map buffer stitches object labels, the result jointed image will ba automatically cropped to remove unused background area (zeros).",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Zero X-padding",
+      "name": "zeroPaddingX",
+      "description": "Value of additional padding by x-coordinate for the jointed image.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Zero Y-padding",
+      "name": "zeroPaddingY",
+      "description": "Value of additional padding by x-coordinate for the jointed image.\nIf skipped, it will be equal to X-padding.\nPadding is not used if \"Joint completed objects\" is not set.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "How to joint too large objects?",
+      "name": "jointingTooLargeObjects",
+      "description": "Behaviour of jointing algorithm when an object is still not fully available after expansion the frame (see parameters above).",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "SKIP",
+          "caption": "Skip (not include to result matrix)"
+        },
+        {
+          "value": "RETAIN_LAST_PART",
+          "caption": "Retain last available part"
+        }
+      ],
+      "default": "SKIP"
+    },
+    {
+      "caption": "Sequentially reindex",
+      "name": "sequentiallyReindex",
+      "description": "If set, this function re-indexes result matrix, so that it will contain sequential labels 1,2,..., and returns it in the result \"labels\" (2nd output matrix), and also returns \"sequential restoring table\", allowing to restore original labels (1st output matrix) from the resulting matrix.\nNote: in this case, the map buffer must contain integer labels of objects.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Zero-based restoring table (with background)",
+      "name": "zeroBasedRestoringTable",
+      "description": "If set, then the returned \"sequential restoring table\" will also contain first zero element, corresponding to the background: table[0]=0. Thus, the original label before reindexing for the given value V in the result \"labels\" (or, that is the same, the corresponding pixel in the usual result) will be equal table[V].\nIf this flag is cleared, first zero element is NOT included into the \"sequential restoring table\", so, the original label will be equal to table[V−1]. This variant is usually more convenient, if you want to measure labelled objects (but NOT measure zero background).\nNote: this flag is ingnored, if \"Sequentially reindex\" is not set.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    }
+  ]
+}

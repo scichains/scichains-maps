@@ -1,0 +1,125 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Change rectangle, but inside map buffer",
+  "id": "94332c8f-12da-4efd-b176-06e4d6f2f984",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.ChangeRectangleInsideMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    },
+    {
+      "value_type": "numbers",
+      "name": "rectangle",
+      "hint": "[Optional] 4 numbers describing an existing rectangle to be changed: min_x, max_x, min_y, max_y.\nIt is supposed to be inside the existing map buffer (covered by existing frames).\nFor example, it can be the last added frame.\nIf not specified, it is supposed to be the last added frame."
+    },
+    {
+      "value_type": "numbers",
+      "name": "expanded",
+      "hint": "[Optional] 4 numbers min_x, max_x, min_y, max_y, describing some \"expanded\" rectangle, that should contain the previous one (source).\nIf specified, the result will be cropped (intersected) by this one, and the output \"relative_rectangle\" will be also returned."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\"."
+    },
+    {
+      "value_type": "numbers",
+      "name": "rectangle",
+      "hint": "4 numbers describing resulting (changed) rectangle.\nIf the source rectangle was inside the existing map buffer, the result will be also inside it\n(if necessary, it will be reduced to fit into the map buffer)."
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_x",
+      "hint": "Width of the result rectangle: 2nd number − 1st number + 1.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "dim_y",
+      "hint": "Height of the result rectangle: 4th number − 3rd number + 1.",
+      "advanced": true
+    },
+    {
+      "value_type": "numbers",
+      "caption": "relative rectangle",
+      "name": "relative_rectangle",
+      "hint": "[Optional] The result (\"rectangle\") in coordinate system with the origin at the left-top corner of \"expanded\" rectangle (when specified),\nin other words, the result, shifted back by left-top corner \"expanded\" rectangle."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "relative expanded",
+      "name": "relative_expanded_rectangle",
+      "hint": "[Optional] The \"expanded\" rectangle (when specified) in coordinate system with the origin at the left-top corner of the result (\"rectangle\"),\nin other words, the \"expanded\" rectangle, shifted back by left-top corner result \"rectangle\"."
+    },
+    {
+      "value_type": "numbers",
+      "caption": "containing rectangle",
+      "name": "containing_rectangle",
+      "hint": "4 numbers describing minimal rectangle, containing all existing frames in the map buffer."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Changing type",
+      "name": "changing",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "LEFT_UP",
+          "caption": "shift left up (−x, −y)"
+        },
+        {
+          "value": "RIGHT_UP",
+          "caption": "shift right up (+x, −y)"
+        },
+        {
+          "value": "LEFT_DOWN",
+          "caption": "shift left down (−x, +y)"
+        },
+        {
+          "value": "RIGHT_DOWN",
+          "caption": "shift right down (+x, +y)"
+        },
+        {
+          "value": "EXPAND",
+          "caption": "expand by all directions"
+        }
+      ],
+      "default": "EXPAND"
+    },
+    {
+      "caption": "X-correction",
+      "name": "x",
+      "description": "Value of shift along x-coordinate or expansion by x-coordinate.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Y-correction",
+      "name": "y",
+      "description": "Value of shift along y-coordinate or expansion by y-coordinate.\nIf skipped, it will be equal to X-correction.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Rectangle must be covered",
+      "name": "rectangleMustBeCovered",
+      "description": "If set, this function checks, whether the source rectangle is really inside the existing map buffer (is covered by existing frames). If this condition is not fulfilled, an exception is thrown.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    }
+  ]
+}

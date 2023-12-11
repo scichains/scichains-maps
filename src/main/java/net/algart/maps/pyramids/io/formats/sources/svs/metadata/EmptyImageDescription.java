@@ -22,14 +22,33 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.maps.pyramids.io.formats.sources.svs.metadata;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
-import java.io.IOException;
+class EmptyImageDescription extends SVSImageDescription {
+    EmptyImageDescription(String imageDescriptionTagValue) {
+    }
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    @Override
+    public String subFormatTitle() {
+        return null;
+    }
+
+    @Override
+    public Set<String> importantAttributeNames() {
+        return Collections.emptySet();
+    }
+
+    @Override
+    public List<String> importantTextAttributes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public boolean isImportant() {
+        return false;
     }
 }

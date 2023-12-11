@@ -22,14 +22,33 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.executors.modules.maps.pyramids.io;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+enum ImagePyramidOpeningMode {
+    OPEN_AND_CLOSE(false, true, true),
+    OPEN(false, true, false),
+    OPEN_ON_RESET_AND_FIRST_CALL(true, false, false),
+    OPEN_ON_FIRST_CALL(false, false, false);
 
-import java.io.IOException;
+    private final boolean closePreviousOnReset;
+    private final boolean closePreviousOnExecute;
+    private final boolean closeAfterExecute;
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    ImagePyramidOpeningMode(boolean closePreviousOnReset, boolean closePreviousOnExecute, boolean closeAfterExecute) {
+        this.closePreviousOnReset = closePreviousOnReset;
+        this.closePreviousOnExecute = closePreviousOnExecute;
+        this.closeAfterExecute = closeAfterExecute;
+    }
+
+    public boolean isClosePreviousOnReset() {
+        return closePreviousOnReset;
+    }
+
+    public boolean isClosePreviousOnExecute() {
+        return closePreviousOnExecute;
+    }
+
+    public boolean isCloseAfterExecute() {
+        return closeAfterExecute;
     }
 }

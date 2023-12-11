@@ -1,0 +1,76 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Initialize map buffer",
+  "id": "a8917783-fb23-4d8e-a1c5-c1fd9d66a144",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.InitializeMapBuffer"
+  },
+  "in_ports": [
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of newly created buffer (the same for sequential calls of this function)."
+    },
+    {
+      "value_type": "scalar",
+      "caption": "number of objects",
+      "name": "number_of_objects",
+      "hint": "Number of objects after executing this function: B or B+1, where B is the last re-indexing base.\nIt will be B+1 if the map buffer was created with the flag \"Zeros are reserved for background\", or B if that flag was not set.\nOf course, B = 0, if this function has created a new map buffer or has cleared an existing one with set \"Reset indexing\" flag."
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Do clearing on reset",
+      "name": "clearOnReset",
+      "description": "This function always creates new map buffer, if it does not still exist, and returns its ID. Sequential calls will return the same ID. Besides it, every call of this function sets (modifies) the parameters of the created (or already existing) map buffer, listed below: \"Number of stored frames\", \"Stitching labels\", \"Auto-reindexing labels\", \"Zeros are reserved for background\".\n\nIn addition, if this flag \"Do clearing on reset\" is set and the if the map buffer already exists, it is cleared (reinitialized) while reset. (\"Reset\" means 1st execution of a loop, when there is some loop, or each execution if there is no loop.)\nIf this flag is not set, the existing map buffer is never cleared.\n\nIn simple situations, this flag should be set, because this function creates a new map buffer only once while initialization: if you call this function again and again, it will return the same buffer every time, and you probably need to reinitialize (clear) the buffer while reset of the loop. However, if you understand what you do, please clear this flag; it is useful, for example, if you want to create a buffer and reuse it in the same chain many times (but not forget to remove the buffer after all calculations or to set this flag to \"true\" when you start processing new map).\n\nNote: even if this flag is set, this function never clears the map buffer while 2nd and following iterations of the loop, but does it only while reset. If you need to clear existing buffer in the middle of loop, please use \"Clear map buffer\" function.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Number of stored frames",
+      "name": "numberOfStoredFrames",
+      "description": "Number of frames, stored in this map buffer",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 1
+    },
+    {
+      "caption": "Stitching labels",
+      "name": "stitchingLabels",
+      "description": "If set, the map buffer must contain integer labels of objects, and while adding new frame all positive labels will be automatically correlated (\"stitched\") with labels on already existing adjacent frames. You may retrieve the correlation table by \"Map buffer correlation table\" function.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Auto-reindexing labels",
+      "name": "autoReindexLabels",
+      "description": "If set, the map buffer must contain integer labels of objects, and while adding new frame all labels will be automatically re-indexed (incremented by current \"base\") to provide separate integer range of labels for every frame. The current \"base\" in the map buffer will be automatically changed to maximal value in the new (re-indexed) frame matrix or to this value + 1.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Zeros are reserved for background",
+      "name": "zerosLabelReservedForBackground",
+      "description": "If \"Auto-reindexing labels\" is set, this flag controls how to process zero pixel.\nIf it is set, zero labels are considered as a background, the current \"base\" (see the previous parameter) will not be added to zero labels, but only to non-zero; new \" base\" will be just the maximal value in the added frame.\nIf it is cleared, zero labels are processed by common rules: the current \"base\" will be added to all labels, and new \"base\" will be the maximal value + 1.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Reset indexing",
+      "name": "resetIndexing",
+      "description": "When this functions clears the existing map buffer (see above \"Do clearing on reset\"), it checks this flag. If the map buffer is created in \"Auto-reindexing labels\" mode, this function resets indexing (clears current re-indexing base to 0) when this flag is set and does not reset indexing if it is cleared.\nIn other words, if this flag is cleared (false), \"clearing\" means that all frames are removed from the map buffer, but the re-indexing base keeps its value. It is useful, for example, if you need to continue analysis on a new image from the series of images: so, the map buffer should be cleared, but incrementing sequence of labels should be continued.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    }
+  ]
+}

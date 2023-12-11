@@ -22,14 +22,26 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.build.callers;
+package net.algart.executors.modules.maps.frames.graph;
 
-import net.algart.executors.modules.core.build.ExecutorJsonVerifier;
+public interface WeightedDirectedGraph {
+    int numberOfVertices();
 
-import java.io.IOException;
+    int numberOfOutgoingEdges(int vertex);
 
-public final class ExecutorJsonVerifierCaller {
-    public static void main(String[] args) throws IOException, InterruptedException {
-        ExecutorJsonVerifier.main(args);
+    // Note: neighbourVertex and edgeWeight method are oriented to storing all edges in arrays.
+    // It is not very good for some possible implementations, but provides maximal performance
+    // without requirement of allocating memory.
+    int neighbourVertex(int vertex, int neighbourIndex);
+
+    double edgeWeight(int vertex, int neighbourIndex);
+
+    default void checkVertexIndex(int vertex) {
+        if (vertex < 0) {
+            throw new IllegalArgumentException("Negative vertex index = " + vertex);
+        }
+        if (vertex >= numberOfVertices()) {
+            throw new IllegalArgumentException("Too high vertex index = " + vertex + " >= " + numberOfVertices());
+        }
     }
 }

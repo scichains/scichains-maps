@@ -1,0 +1,35 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "frames",
+  "name": "Remove map buffer",
+  "id": "898ff790-78c2-4b8e-8d12-a88eeef68b3b",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.frames.RemoveMapBuffer"
+  },
+  "in_ports":  [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "ID of some existing map buffer."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "map_buffer_id",
+      "hint": "Copy of input \"map_buffer_id\".\nNote that you CANNOT use this ID to access the map buffer,\nif you did not set the flag \"Skip action\": the buffer is removed!"
+    }
+  ],
+  "controls": [
+    {
+      "caption": "Do action",
+      "name": "doAction",
+      "description": "If cleared, this function does nothing and returns an empty scalar. You may use this flag if you need to remove the map buffer not always, but, for example, only after the last iteration of some loop.\nUsually this flag is set.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    }
+  ]
+}
