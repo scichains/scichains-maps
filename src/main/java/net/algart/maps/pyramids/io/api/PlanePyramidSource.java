@@ -47,10 +47,10 @@ public interface PlanePyramidSource {
 
     int DEFAULT_COMPRESSION = Math.max(2,
         Arrays.SystemSettings.getIntProperty(
-                "net.algart.matrices.maps.pyramids.io.defaultPyramidCompression", 4));
+                "net.algart.maps.pyramids.io.defaultPyramidCompression", 4));
     long DEFAULT_TILE_DIM = Math.max(16,
         Arrays.SystemSettings.getLongProperty(
-                "net.algart.matrices.maps.pyramids.io.tile", 1024));
+                "net.algart.maps.pyramids.io.tile", 1024));
     long DEFAULT_MINIMAL_PYRAMID_SIZE = 8;
 
     enum SpecialImageKind {

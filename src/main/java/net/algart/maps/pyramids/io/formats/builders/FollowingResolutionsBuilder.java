@@ -34,7 +34,7 @@ import java.util.List;
 public abstract class FollowingResolutionsBuilder {
     public static final long RECOMMENDED_TILE_DIM_FOR_MAKING_FOLLOWING_RESOLUTIONS = Math.max(16,
         Arrays.SystemSettings.getLongProperty(
-                "net.algart.matrices.maps.pyramids.io.formats.common.builders" +
+                "net.algart.maps.pyramids.io.formats.common.builders" +
                         ".tileForMakingFollowingResolutions",
             PlanePyramidSource.DEFAULT_TILE_DIM)
     );

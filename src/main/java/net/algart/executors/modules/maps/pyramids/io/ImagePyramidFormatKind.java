@@ -25,8 +25,8 @@
 package net.algart.executors.modules.maps.pyramids.io;
 
 import net.algart.executors.api.SystemEnvironment;
-import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
 import net.algart.maps.pyramids.io.api.sources.ImageIOPlanePyramidSourceFactory;
+import net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSourceFactory;
 
 import java.util.Objects;
 
@@ -34,10 +34,9 @@ public enum ImagePyramidFormatKind {
     AUTO_DETECT_BY_EXTENSION(null),
     JAVA_IMAGEIO(ImageIOPlanePyramidSourceFactory.class.getName()),
     SVS(factory(
-            "net.algart.matrices.maps.pyramids.io.formats.sources.factories.SVS",
-            // - first name is used in new scichains-maps module
-            "net.algart.matrices.maps.pyramids.io.api.sources.factories.SVS"),
-            // - last properties has priority
+            new String[] {"net.algart.maps.pyramids.io.formats.sources.factories.SVS"},
+            SVSPlanePyramidSourceFactory.class),
+            // - note that the last properties has priority
             "svs"),
     CUSTOM(null);
 
@@ -80,13 +79,14 @@ public enum ImagePyramidFormatKind {
         // - default case: a lot of non-pyramid formats
     }
 
-    private static String factory(String... propertyNames) {
+    private static String factory(String[] propertyNames, Class<?> defaultFactory) {
+        Objects.requireNonNull(defaultFactory, "Null defaultFactory");
         for (int i = propertyNames.length - 1; i >= 0; i--) {
             final String result = SystemEnvironment.getStringProperty(propertyNames[i]);
             if (result != null) {
                 return result;
             }
         }
-        return PlanePyramidSourceFactory.Unsupported.class.getName();
+        return defaultFactory.getName();
     }
 }

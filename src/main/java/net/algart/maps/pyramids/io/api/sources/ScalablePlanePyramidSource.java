@@ -41,7 +41,7 @@ import java.util.*;
 public class ScalablePlanePyramidSource implements PlanePyramidSource {
     static final int TIME_ENFORCING_GC =
             Arrays.SystemSettings.getIntProperty(
-                    "net.algart.matrices.maps.pyramids.io.api.timeEnforcingGc",
+                    "net.algart.maps.pyramids.io.api.timeEnforcingGc",
                     0);
     // - in milliseconds; not used if 0
 

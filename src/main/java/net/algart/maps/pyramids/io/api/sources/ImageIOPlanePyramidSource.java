@@ -48,10 +48,10 @@ import java.util.*;
 public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceWrapper implements PlanePyramidSource {
     private static final String CACHE_READY_MARKER_FILE = ".ready";
     private static final int COMPRESSION = Math.max(2, Arrays.SystemSettings.getIntProperty(
-            "net.algart.matrices.maps.pyramids.io.api.sources.ImageIOPlanePyramidSource.compression",
+            "net.algart.maps.pyramids.io.api.sources.ImageIOPlanePyramidSource.compression",
             2));
     private static final int MIN_PYRAMID_LEVEL_SIDE = Arrays.SystemSettings.getIntProperty(
-            "net.algart.matrices.maps.pyramids.io.api.sources.ImageIOPlanePyramidSource.minPyramidLevelSide",
+            "net.algart.maps.pyramids.io.api.sources.ImageIOPlanePyramidSource.minPyramidLevelSide",
             512);
 
     private static final System.Logger LOG = System.getLogger(ImageIOPlanePyramidSource.class.getName());
