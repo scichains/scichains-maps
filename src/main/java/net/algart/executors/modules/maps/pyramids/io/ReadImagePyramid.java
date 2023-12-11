@@ -26,6 +26,7 @@ package net.algart.executors.modules.maps.pyramids.io;
 
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.api.data.SScalar;
+import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
@@ -93,7 +94,7 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation {
         abstract long scaleY(ReadImagePyramid e, long y, boolean forSize);
     }
 
-    private ImagePyramidOpeningMode openingMode = ImagePyramidOpeningMode.OPEN_ON_RESET_AND_FIRST_CALL;
+    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_ON_RESET_AND_FIRST_CALL;
     private boolean closeAfterLast = true;
     private boolean wholeROI = false;
     private long startX = 0;
@@ -166,11 +167,11 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation {
         addOutputScalar(OUTPUT_CLOSED);
     }
 
-    public ImagePyramidOpeningMode getOpeningMode() {
+    public LongTimeOpeningMode getOpeningMode() {
         return openingMode;
     }
 
-    public ReadImagePyramid setOpeningMode(ImagePyramidOpeningMode openingMode) {
+    public ReadImagePyramid setOpeningMode(LongTimeOpeningMode openingMode) {
         this.openingMode = nonNull(openingMode);
         return this;
     }
@@ -459,7 +460,6 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation {
         return sizeUnit().scaleY(this, sizeY, true);
     }
 
-
     public boolean isFirstInRoi() {
         return firstInRoi;
     }
@@ -478,6 +478,12 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation {
 
     public boolean isLast() {
         return last;
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        closePyramid(true);
     }
 
     public void openPyramid(Path path) {
@@ -505,12 +511,6 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation {
         fillOutputFileInformation(path);
         fillOutputInformation(planePyramidSource, selectedLevelRois);
         // - note: we need to fill output ports here, even if pyramid was already opened
-    }
-
-    @Override
-    public void close() {
-        super.close();
-        closePyramid(true);
     }
 
     private void closePyramid(boolean longTermResources) {

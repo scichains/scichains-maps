@@ -22,9 +22,9 @@
  * SOFTWARE.
  */
 
-package net.algart.executors.modules.maps.pyramids.io;
+package net.algart.executors.modules.maps;
 
-enum ImagePyramidOpeningMode {
+public enum LongTimeOpeningMode {
     OPEN_AND_CLOSE(false, true, true),
     OPEN(false, true, false),
     OPEN_ON_RESET_AND_FIRST_CALL(true, false, false),
@@ -34,7 +34,7 @@ enum ImagePyramidOpeningMode {
     private final boolean closePreviousOnExecute;
     private final boolean closeAfterExecute;
 
-    ImagePyramidOpeningMode(boolean closePreviousOnReset, boolean closePreviousOnExecute, boolean closeAfterExecute) {
+    LongTimeOpeningMode(boolean closePreviousOnReset, boolean closePreviousOnExecute, boolean closeAfterExecute) {
         this.closePreviousOnReset = closePreviousOnReset;
         this.closePreviousOnExecute = closePreviousOnExecute;
         this.closeAfterExecute = closeAfterExecute;

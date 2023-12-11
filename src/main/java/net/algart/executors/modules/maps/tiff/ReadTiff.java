@@ -24,9 +24,17 @@
 
 package net.algart.executors.modules.maps.tiff;
 
+import io.scif.FormatException;
+import net.algart.arrays.Matrix;
+import net.algart.arrays.PArray;
+import net.algart.arrays.UpdatablePArray;
+import net.algart.executors.api.Executor;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
-import net.algart.executors.modules.core.common.io.FileOperation;
+import net.algart.executors.modules.maps.LongTimeOpeningMode;
+import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
 
 import java.io.FileNotFoundException;
@@ -34,17 +42,17 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 
-public final class ReadTiff extends FileOperation implements ReadOnlyExecutionInput {
+public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExecutionInput {
+    public static final String OUTPUT_VALID = "valid";
     public static final String OUTPUT_DIM_X = "dim_x";
     public static final String OUTPUT_DIM_Y = "dim_y";
-    public static final String OUTPUT_NUMBER_OF_LEVELS = "number_of_levels";
-    public static final String OUTPUT_LEVEL_DIM_X = "level_dim_x";
-    public static final String OUTPUT_LEVEL_DIM_Y = "level_dim_y";
-    public static final String OUTPUT_IFD = "ifd";
 
-    private boolean fileExistenceRequired = true;
+    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_ON_RESET_AND_FIRST_CALL;
+    private boolean requireFileExistence = true;
+    private boolean requireValidTiff = true;
     private int ifdIndex = 0;
     private boolean wholeLevel = false;
     private int startX = 0;
@@ -57,12 +65,19 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
     private int numberOfChannels = 0;
     //TODO!! control flags of TiffReader
 
+    private volatile TiffReader reader = null;
+
     public ReadTiff() {
         addFileOperationPorts();
         addInputMat(DEFAULT_INPUT_PORT);
+        addInputScalar(INPUT_CLOSE_FILE);
         addOutputMat(DEFAULT_OUTPUT_PORT);
         addOutputScalar(OUTPUT_DIM_X);
         addOutputScalar(OUTPUT_DIM_Y);
+        addOutputScalar(OUTPUT_NUMBER_OF_LEVELS);
+        addOutputScalar(OUTPUT_LEVEL_DIM_X);
+        addOutputScalar(OUTPUT_LEVEL_DIM_Y);
+        addOutputScalar(OUTPUT_IFD);
     }
 
     public static ReadTiff getInstance() {
@@ -81,12 +96,30 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         return this;
     }
 
-    public boolean isFileExistenceRequired() {
-        return fileExistenceRequired;
+    public LongTimeOpeningMode getOpeningMode() {
+        return openingMode;
     }
 
-    public ReadTiff setFileExistenceRequired(boolean fileExistenceRequired) {
-        this.fileExistenceRequired = fileExistenceRequired;
+    public ReadTiff setOpeningMode(LongTimeOpeningMode openingMode) {
+        this.openingMode = nonNull(openingMode);
+        return this;
+    }
+
+    public boolean isRequireFileExistence() {
+        return requireFileExistence;
+    }
+
+    public ReadTiff setRequireFileExistence(boolean requireFileExistence) {
+        this.requireFileExistence = requireFileExistence;
+        return this;
+    }
+
+    public boolean isRequireValidTiff() {
+        return requireValidTiff;
+    }
+
+    public ReadTiff setRequireValidTiff(boolean requireValidTiff) {
+        this.requireValidTiff = requireValidTiff;
         return this;
     }
 
@@ -163,6 +196,13 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
     }
 
     @Override
+    public void initialize() {
+        if (openingMode.isClosePreviousOnReset()) {
+            closeFile();
+        }
+    }
+
+    @Override
     public void process() {
         SMat input = getInputMat(defaultInputPortName(), true);
         if (input.isInitialized()) {
@@ -186,23 +226,110 @@ public final class ReadTiff extends FileOperation implements ReadOnlyExecutionIn
         Objects.requireNonNull(path, "Null path");
         try {
             if (!Files.isRegularFile(path)) {
-                if (fileExistenceRequired) {
+                if (requireFileExistence) {
                     throw new FileNotFoundException("File not found: " + path);
                 } else {
                     return null;
                 }
             }
-            MultiMatrix result = null;
+            final TiffReader reader = openFile(path);
+            if (!reader.isValid()) {
+                closeFile();
+                return null;
+            }
+            int fromX = this.startX;
+            int fromY = this.startY;
+            int toX = fromX + this.sizeX;
+            int toY = fromY + this.sizeY;
+            //TODO!! truncate if truncateByLevel
 
-            if (result == null) throw new UnsupportedOperationException();
+            final MultiMatrix result = readMultiMatrix(reader, fromX, fromY, toX, toY);
 
-            if (numberOfChannels != 0) {
-                result = result.asOtherNumberOfChannels(numberOfChannels);
+
+            final boolean close = needToClose(this, openingMode);
+            if (close) {
+                closeFile();
             }
             return result;
-        } catch (IOException e) {
+        } catch (IOException | FormatException e) {
             throw new IOError(e);
         }
     }
 
+    @Override
+    public void close() {
+        super.close();
+        closeFile();
+    }
+
+
+    public TiffReader openFile(Path path) {
+        Objects.requireNonNull(path, "Null path");
+        TiffReader reader = this.reader;
+        if (reader == null) {
+            try {
+                logDebug(() -> "Opening " + path);
+                this.reader = reader = new TiffReader(context(), path, requireValidTiff);
+                // - note: the assignments sequence guarantees that this method will not return null
+            } catch (IOException | FormatException e) {
+                throw new IOError(e);
+            }
+        }
+        fillOutputFileInformation(path);
+        // - note: we need to fill output ports here, even if the file was already opened
+        fillOutputInformation(this, reader, ifdIndex);
+        return reader;
+    }
+
+    public static void fillOutputInformation(Executor executor, TiffReader reader, int ifdIndex) {
+        Objects.requireNonNull(executor, "Null executor");
+        Objects.requireNonNull(reader, "Null reader");
+        try {
+            final List<TiffIFD> ifds = reader.allIFDs();
+            if (executor.hasOutputPort(OUTPUT_NUMBER_OF_LEVELS)) {
+                executor.getScalar(OUTPUT_NUMBER_OF_LEVELS).setTo(ifds.size());
+            }
+            if (ifdIndex < ifds.size()) {
+                TiffIFD ifd = ifds.get(ifdIndex);
+                if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_X)) {
+                    executor.getScalar(OUTPUT_LEVEL_DIM_X).setTo(ifd.getImageDimX());
+                }
+                if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_Y)) {
+                    executor.getScalar(OUTPUT_LEVEL_DIM_Y).setTo(ifd.getImageDimY());
+                }
+                if (executor.isOutputNecessary(OUTPUT_IFD)) {
+                    executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
+                }
+                if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
+                    executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
+                }
+            }
+        } catch (IOException | FormatException e) {
+            throw new IOError(e);
+        }
+    }
+
+    private MultiMatrix readMultiMatrix(TiffReader reader, int fromX, int fromY, int toX, int toY)
+            throws IOException, FormatException {
+        final TiffMap map = reader.map(ifdIndex);
+        final Matrix<? extends PArray> m = reader.readMatrix(map, fromX, fromY, toX, toY);
+        MultiMatrix result = MultiMatrix.unpackChannels(m);
+        if (numberOfChannels != 0) {
+            result = result.asOtherNumberOfChannels(numberOfChannels);
+        }
+        return result;
+    }
+
+    private void closeFile() {
+        TiffReader reader = this.reader;
+        if (reader != null) {
+            this.reader = null;
+            logDebug(() -> "Closing " + reader);
+            try {
+                reader.close();
+            } catch (IOException e) {
+                throw new IOError(e);
+            }
+        }
+    }
 }

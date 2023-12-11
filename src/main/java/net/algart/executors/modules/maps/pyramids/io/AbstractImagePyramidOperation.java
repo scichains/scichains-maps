@@ -313,8 +313,10 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
     }
 
     public final void closeSourceFactory() {
-        sourceFactory.close();
-        sourceFactory = PlanePyramidSourceFactory.Unsupported.INSTANCE;
+        synchronized (lock) {
+            sourceFactory.close();
+            sourceFactory = PlanePyramidSourceFactory.Unsupported.INSTANCE;
+        }
     }
 
     public static String sourceFactoryClassName(
