@@ -27,15 +27,16 @@ package net.algart.executors.modules.maps.tiff;
 import io.scif.FormatException;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
-import net.algart.arrays.UpdatablePArray;
 import net.algart.executors.api.Executor;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
+import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
+import net.algart.multimatrix.MultiMatrix2D;
 
 import java.io.FileNotFoundException;
 import java.io.IOError;
@@ -46,24 +47,26 @@ import java.util.List;
 import java.util.Objects;
 
 public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExecutionInput {
-    public static final String OUTPUT_VALID = "valid";
     public static final String OUTPUT_DIM_X = "dim_x";
     public static final String OUTPUT_DIM_Y = "dim_y";
+    public static final String OUTPUT_RECTANGLE = "rectangle";
 
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_ON_RESET_AND_FIRST_CALL;
     private boolean requireFileExistence = true;
     private boolean requireValidTiff = true;
     private int ifdIndex = 0;
-    private boolean wholeLevel = false;
+    private boolean wholeImage = false;
     private int startX = 0;
     private int startY = 0;
     private int sizeX = 1;
     private int sizeY = 1;
-    private boolean truncateByLevel = true;
+    private boolean truncateByImage = true;
     // - necessary when we do not know level sizes before 1st call of this function,
     // for example, if we need to read large image fragment-per-fragment
+    private boolean caching = true;
+    private boolean autoScaleWhenIncreasingBitDepth = true;
+    private boolean cropTilesToImageBoundaries = true;
     private int numberOfChannels = 0;
-    //TODO!! control flags of TiffReader
 
     private volatile TiffReader reader = null;
 
@@ -74,9 +77,10 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         addOutputMat(DEFAULT_OUTPUT_PORT);
         addOutputScalar(OUTPUT_DIM_X);
         addOutputScalar(OUTPUT_DIM_Y);
-        addOutputScalar(OUTPUT_NUMBER_OF_LEVELS);
-        addOutputScalar(OUTPUT_LEVEL_DIM_X);
-        addOutputScalar(OUTPUT_LEVEL_DIM_Y);
+        addOutputScalar(OUTPUT_NUMBER_OF_IMAGES);
+        addOutputScalar(OUTPUT_IMAGE_DIM_X);
+        addOutputScalar(OUTPUT_IMAGE_DIM_Y);
+        addOutputNumbers(OUTPUT_RECTANGLE);
         addOutputScalar(OUTPUT_IFD);
     }
 
@@ -132,12 +136,12 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isWholeLevel() {
-        return wholeLevel;
+    public boolean isWholeImage() {
+        return wholeImage;
     }
 
-    public ReadTiff setWholeLevel(boolean wholeLevel) {
-        this.wholeLevel = wholeLevel;
+    public ReadTiff setWholeImage(boolean wholeImage) {
+        this.wholeImage = wholeImage;
         return this;
     }
 
@@ -164,7 +168,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     public ReadTiff setSizeX(int sizeX) {
-        this.sizeX = sizeX;
+        this.sizeX = nonNegative(sizeX);
         return this;
     }
 
@@ -173,16 +177,43 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     public ReadTiff setSizeY(int sizeY) {
-        this.sizeY = sizeY;
+        this.sizeY = nonNegative(sizeY);
         return this;
     }
 
-    public boolean isTruncateByLevel() {
-        return truncateByLevel;
+    public boolean isTruncateByImage() {
+        return truncateByImage;
     }
 
-    public ReadTiff setTruncateByLevel(boolean truncateByLevel) {
-        this.truncateByLevel = truncateByLevel;
+    public ReadTiff setTruncateByImage(boolean truncateByImage) {
+        this.truncateByImage = truncateByImage;
+        return this;
+    }
+
+    public boolean isCaching() {
+        return caching;
+    }
+
+    public ReadTiff setCaching(boolean caching) {
+        this.caching = caching;
+        return this;
+    }
+
+    public boolean isAutoScaleWhenIncreasingBitDepth() {
+        return autoScaleWhenIncreasingBitDepth;
+    }
+
+    public ReadTiff setAutoScaleWhenIncreasingBitDepth(boolean autoScaleWhenIncreasingBitDepth) {
+        this.autoScaleWhenIncreasingBitDepth = autoScaleWhenIncreasingBitDepth;
+        return this;
+    }
+
+    public boolean isCropTilesToImageBoundaries() {
+        return cropTilesToImageBoundaries;
+    }
+
+    public ReadTiff setCropTilesToImageBoundaries(boolean cropTilesToImageBoundaries) {
+        this.cropTilesToImageBoundaries = cropTilesToImageBoundaries;
         return this;
     }
 
@@ -225,6 +256,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     public MultiMatrix readTiff(Path path, boolean doActualReading) {
         Objects.requireNonNull(path, "Null path");
         try {
+            //TODO!! OUTPUT_RECTANGLE, dim_x/y
             if (!Files.isRegularFile(path)) {
                 if (requireFileExistence) {
                     throw new FileNotFoundException("File not found: " + path);
@@ -237,21 +269,19 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
                 closeFile();
                 return null;
             }
-            int fromX = this.startX;
-            int fromY = this.startY;
-            int toX = fromX + this.sizeX;
-            int toY = fromY + this.sizeY;
-            //TODO!! truncate if truncateByLevel
-
-            final MultiMatrix result = readMultiMatrix(reader, fromX, fromY, toX, toY);
-
-
+            final MultiMatrix2D result = doActualReading ?
+                    readMultiMatrix(reader) :
+                    null;
             final boolean close = needToClose(this, openingMode);
             if (close) {
                 closeFile();
             }
             return result;
         } catch (IOException | FormatException e) {
+            closeFile();
+            closeContext();
+            // - closing can be important to allow the user to fix the problem;
+            // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
         }
     }
@@ -269,7 +299,12 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         if (reader == null) {
             try {
                 logDebug(() -> "Opening " + path);
-                this.reader = reader = new TiffReader(context(), path, requireValidTiff);
+                reader = caching ?
+                        new CachingTiffReader(context(), path, requireValidTiff) :
+                        new TiffReader(context(), path, requireValidTiff);
+                reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
+                reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
+                this.reader = reader;
                 // - note: the assignments sequence guarantees that this method will not return null
             } catch (IOException | FormatException e) {
                 throw new IOError(e);
@@ -285,17 +320,20 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         Objects.requireNonNull(executor, "Null executor");
         Objects.requireNonNull(reader, "Null reader");
         try {
+            if (executor.hasOutputPort(OUTPUT_VALID)) {
+                executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
+            }
             final List<TiffIFD> ifds = reader.allIFDs();
-            if (executor.hasOutputPort(OUTPUT_NUMBER_OF_LEVELS)) {
-                executor.getScalar(OUTPUT_NUMBER_OF_LEVELS).setTo(ifds.size());
+            if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
+                executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
             }
             if (ifdIndex < ifds.size()) {
                 TiffIFD ifd = ifds.get(ifdIndex);
-                if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_X)) {
-                    executor.getScalar(OUTPUT_LEVEL_DIM_X).setTo(ifd.getImageDimX());
+                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+                    executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
                 }
-                if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_Y)) {
-                    executor.getScalar(OUTPUT_LEVEL_DIM_Y).setTo(ifd.getImageDimY());
+                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+                    executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
                 }
                 if (executor.isOutputNecessary(OUTPUT_IFD)) {
                     executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
@@ -309,11 +347,28 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         }
     }
 
-    private MultiMatrix readMultiMatrix(TiffReader reader, int fromX, int fromY, int toX, int toY)
-            throws IOException, FormatException {
+    private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException, FormatException {
         final TiffMap map = reader.map(ifdIndex);
+        int fromX = this.startX;
+        int fromY = this.startY;
+        int toX = fromX + this.sizeX;
+        int toY = fromY + this.sizeY;
+        if (wholeImage) {
+            fromX = 0;
+            fromY = 0;
+            toX = map.dimX();
+            toY = map.dimY();
+        } else if (truncateByImage) {
+            fromX = Math.max(fromX, 0);
+            fromY = Math.max(fromY, 0);
+            toX = Math.min(toX, map.dimX());
+            toY = Math.min(toY, map.dimY());
+            if (fromX >= toX || fromY >= toY) {
+                return null;
+            }
+        }
         final Matrix<? extends PArray> m = reader.readMatrix(map, fromX, fromY, toX, toY);
-        MultiMatrix result = MultiMatrix.unpackChannels(m);
+        MultiMatrix2D result = MultiMatrix.unpackChannels(m).asMultiMatrix2D();
         if (numberOfChannels != 0) {
             result = result.asOtherNumberOfChannels(numberOfChannels);
         }

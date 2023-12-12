@@ -28,16 +28,16 @@ import io.scif.SCIFIO;
 import net.algart.executors.api.Executor;
 import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
-import net.algart.matrices.tiff.TiffReader;
 import org.scijava.Context;
 
 import java.util.Objects;
 
 public abstract class AbstractTiffOperation extends FileOperation {
     public static final String INPUT_CLOSE_FILE = "close_file";
-    public static final String OUTPUT_NUMBER_OF_LEVELS = "number_of_levels";
-    public static final String OUTPUT_LEVEL_DIM_X = "level_dim_x";
-    public static final String OUTPUT_LEVEL_DIM_Y = "level_dim_y";
+    public static final String OUTPUT_VALID = "valid";
+    public static final String OUTPUT_NUMBER_OF_IMAGES = "number_of_images";
+    public static final String OUTPUT_IMAGE_DIM_X = "image_dim_x";
+    public static final String OUTPUT_IMAGE_DIM_Y = "image_dim_y";
     public static final String OUTPUT_IFD = "ifd";
     public static final String OUTPUT_PRETTY_IFD = "pretty_ifd";
 
@@ -92,7 +92,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (openingMode.isCloseAfterExecute()) {
             return true;
         }
-        final String s = executor.getInputScalar(INPUT_CLOSE_FILE).getValue();
+        final String s = executor.getInputScalar(INPUT_CLOSE_FILE, true).getValue();
         return Boolean.parseBoolean(s);
     }
 }
