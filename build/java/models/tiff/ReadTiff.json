@@ -41,6 +41,11 @@
     },
     {
       "value_type": "scalar",
+      "name": "valid",
+      "hint": "\"true\" if the input file is in TIFF format and it was read successfully;\n\"false\" in other case (in particular in a case of some exception)."
+    },
+    {
+      "value_type": "scalar",
       "name": "number_of_images"
     },
     {
@@ -169,7 +174,7 @@
     {
       "caption": "IFD index",
       "name": "ifdIndex",
-      "description": "Index of the image inside the TIFF.",
+      "description": "Index of the selected image (IFD) inside the TIFF.",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
@@ -184,12 +189,29 @@
       "default": true
     },
     {
-      "caption": "Read whole image",
-      "name": "wholeImage",
-      "description": "If set, the following 4 parameters \"Start X/Y\", \"X-size (width)\" and \"Y-size (height)\" are ignored, and this function reads all pixels of the TIFF image.",
+      "caption": "Requires existing file",
+      "name": "requireFileExistence",
+      "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing (just returns non-initialized result).",
       "value_type": "boolean",
       "edition_type": "value",
-      "default": false
+      "default": true
+    },
+    {
+      "caption": "Requires valid TIFF",
+      "name": "requireValidTiff",
+      "description": "If set, the input file (when it exists) must be a correct TIFF file; in other case, this function will throw an exception.\nIf this flag is cleared and the file is not a TIFF file, this function does nothing (just returns non-initialized result).\nIn any case, you can check that the file is a correct TIFF in \"valid\" output port (but if this flag is set, that port will contain \"false\" only in a case of an exception).",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "advanced": true,
+      "default": true
+    },
+    {
+      "caption": "Read whole image",
+      "name": "wholeImage",
+      "description": "If set, the following 4 parameters \"Start X/Y\", \"X-size\" and \"Y-size\" are ignored, and this function reads all pixels of the selected TIFF image.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
     },
     {
       "caption": "Start X",
@@ -219,6 +241,66 @@
       "value_type": "int",
       "edition_type": "value",
       "default": 1000
+    },
+    {
+      "caption": "Crop to image boundaries",
+      "name": "cropToImage",
+      "description": "If set (default value), the area, specified by 4 parameters \"Start X/Y\", \"X-size\" and \"Y-size\", is automatically cropped by the bounds of the TIFF image.\nIf this flag is cleared, you may specify any area, for example, with negative coordinates; the pixels outside the image will be filled by zeroes, that usually means black color.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Caching mode",
+      "name": "caching",
+      "description": "If set (default value) AND if the file is not closed after finishing this function (see \"When to open/close TIFF file?\"), the loaded tiles of TIFF file will be stored in the cache. It allows to accelerate sequential calls of this function while reading parts of the same tiles. For example, it can be very useful, if the source TIFF consists of many JPEG tiles 1024x1024 and you read it many times by areas 500x500 (\"X/Y-size\"): every tile will be loaded and decompressed only once. If you read areas, that always consist of several whole tiles (in the previous example, 2048x2048 areas with boundaries that are multiples of 2048), this flag does not improve performance and may be cleared to save memory.\nNote that default cache size is 256 MB; this is enough to store >80 RGB tiles 1024x1024 with 8-bit precision.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Auto-scale when increasing bit depth",
+      "name": "autoScaleWhenIncreasingBitDepth",
+      "description": "Whether do we need to scale pixel sample values when automatic increasing bit depths, for example, when we decode 12-bit grayscale image into 16-bit result. Set to \"true\" by default.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "advanced": true,
+      "default": true
+    },
+    {
+      "caption": "Crop tiles to image boundaries",
+      "name": "cropTilesToImageBoundaries",
+      "description": "Whether do we need to crop boundary tiles to the image bounds. Set to \"true\" by default.\nIf you will clear this flag, you will be able to read \"hidden\" parts of boundary tiles, which are actually stored inside the file, but usually are not shown to a user. To do this, you should also clear \"Truncate by image bounds\" flag (in other case, this flag has no effect).",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "advanced": true,
+      "default": true
+    },
+    {
+      "caption": "Desired number of channels",
+      "name": "numberOfChannels",
+      "description": "Allows to specify desired number of channels in the result, for example, automatically remove alpha-channel when it is present (value 3) or convert the result into grayscale image (value 1).",
+      "value_type": "int",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": 0,
+          "caption": "0 (original)"
+        },
+        {
+          "value": 1,
+          "caption": "1 (monochrome)"
+        },
+        {
+          "value": 3,
+          "caption": "3 (RGB)"
+        },
+        {
+          "value": 4,
+          "caption": "4 (RGBA)"
+        }
+      ],
+      "default": 0
     }
   ]
 }

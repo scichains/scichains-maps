@@ -31,6 +31,7 @@ import net.algart.executors.api.Executor;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
+import net.algart.math.IRectangularArea;
 import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
@@ -51,19 +52,21 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     public static final String OUTPUT_DIM_Y = "dim_y";
     public static final String OUTPUT_RECTANGLE = "rectangle";
 
-    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_ON_RESET_AND_FIRST_CALL;
+    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
+    // - note: default value in this CLASS (not in the executor model) SHOULD be something very simple,
+    // because this class may be used without full setup of all parameter, for example, in InputReadTiff model
     private boolean requireFileExistence = true;
     private boolean requireValidTiff = true;
     private int ifdIndex = 0;
-    private boolean wholeImage = false;
+    private boolean wholeImage = true;
     private int startX = 0;
     private int startY = 0;
     private int sizeX = 1;
     private int sizeY = 1;
-    private boolean truncateByImage = true;
+    private boolean cropToImage = true;
     // - necessary when we do not know level sizes before 1st call of this function,
     // for example, if we need to read large image fragment-per-fragment
-    private boolean caching = true;
+    private boolean caching = false;
     private boolean autoScaleWhenIncreasingBitDepth = true;
     private boolean cropTilesToImageBoundaries = true;
     private int numberOfChannels = 0;
@@ -88,6 +91,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return new ReadTiff();
     }
 
+    // Used in InputReadTiff model
     public static ReadTiff getSecureInstance() {
         final ReadTiff result = new ReadTiff();
         result.setSecure(true);
@@ -181,12 +185,12 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isTruncateByImage() {
-        return truncateByImage;
+    public boolean isCropToImage() {
+        return cropToImage;
     }
 
-    public ReadTiff setTruncateByImage(boolean truncateByImage) {
-        this.truncateByImage = truncateByImage;
+    public ReadTiff setCropToImage(boolean cropToImage) {
+        this.cropToImage = cropToImage;
         return this;
     }
 
@@ -256,7 +260,10 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     public MultiMatrix readTiff(Path path, boolean doActualReading) {
         Objects.requireNonNull(path, "Null path");
         try {
-            //TODO!! OUTPUT_RECTANGLE, dim_x/y
+            getScalar(OUTPUT_VALID).setTo(false);
+            getScalar(OUTPUT_DIM_X).remove();
+            getScalar(OUTPUT_DIM_Y).remove();
+            getNumbers(OUTPUT_RECTANGLE).remove();
             if (!Files.isRegularFile(path)) {
                 if (requireFileExistence) {
                     throw new FileNotFoundException("File not found: " + path);
@@ -358,7 +365,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             fromY = 0;
             toX = map.dimX();
             toY = map.dimY();
-        } else if (truncateByImage) {
+        } else if (cropToImage) {
             fromX = Math.max(fromX, 0);
             fromY = Math.max(fromY, 0);
             toX = Math.min(toX, map.dimX());
@@ -372,6 +379,9 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         if (numberOfChannels != 0) {
             result = result.asOtherNumberOfChannels(numberOfChannels);
         }
+        getScalar(OUTPUT_DIM_X).setTo(toX - fromX);
+        getScalar(OUTPUT_DIM_Y).setTo(toY - fromY);
+        getNumbers(OUTPUT_RECTANGLE).setTo(IRectangularArea.valueOf(fromX, fromY, toX - 1, toY - 1));
         return result;
     }
 

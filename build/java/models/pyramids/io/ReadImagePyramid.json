@@ -456,7 +456,7 @@
     {
       "caption": "Read whole ROI",
       "name": "wholeROI",
-      "description": "If set, the following 4 parameters \"Start X/Y\", \"X-size (width)\" and \"Y-size (height)\" are ignored, and this function reads all pixels of the input ROI as the only one frame. If there is no input ROI or if the flag \"Use input ROI\" is cleared, it means reading whole pyramid level in a single image.\nNote: if this flag is set, \"Auto-scanning sequence\" parameter is ignored in this case and considered to be \"None\". \"Recommended number of stored frames\" is also ignored, because we read only a single frame; the output \"recommended number of frames in buffer\" will be 1.",
+      "description": "If set, the following 4 parameters \"Start X/Y\", \"X-size\" and \"Y-size\" are ignored, and this function reads all pixels of the input ROI as the only one frame. If there is no input ROI or if the flag \"Use input ROI\" is cleared, it means reading whole pyramid level in a single image.\nNote: if this flag is set, \"Auto-scanning sequence\" parameter is ignored in this case and considered to be \"None\". \"Recommended number of stored frames\" is also ignored, because we read only a single frame; the output \"recommended number of frames in buffer\" will be 1.",
       "value_type": "boolean",
       "edition_type": "value",
       "default": false
@@ -486,7 +486,7 @@
     {
       "caption": "Y-size (frame height)",
       "name": "sizeY",
-      "description": "Note: zero x/y-size are not allowed, excepting a case when the flag \"Read whole ROI\" is set (then these parameters are ignored).\nAlso note: the rectangle is automatically crop by right/bottom bounds of the layer, if \"Auto-scanning sequence\" is \"None\", and also by input ROI in other case.",
+      "description": "Note: zero x/y-size are not allowed, excepting a case when the flag \"Read whole ROI\" is set (then these parameters are ignored).\nAlso note: the rectangle is automatically cropped by right/bottom bounds of the layer, if \"Auto-scanning sequence\" is \"None\", and also by input ROI in other case.",
       "value_type": "long",
       "edition_type": "value",
       "default": 1000
