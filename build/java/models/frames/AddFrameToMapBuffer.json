@@ -3,12 +3,15 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Add frame to map buffer",
+  "tags": [
+    "matrices"
+  ],
   "id": "446198a8-f57e-4cbd-9d4b-e4bf9f1b8520",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.frames.AddFrameToMapBuffer"
   },
-  "in_ports":  [
+  "in_ports": [
     {
       "value_type": "scalar",
       "name": "map_buffer_id",

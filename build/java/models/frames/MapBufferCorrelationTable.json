@@ -3,12 +3,15 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Map buffer correlation table",
+  "tags": [
+    "matrices"
+  ],
   "id": "d8def84d-407c-4cd0-9e77-aaa05416e588",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.frames.MapBufferCorrelationTable"
   },
-  "in_ports":  [
+  "in_ports": [
     {
       "value_type": "scalar",
       "name": "map_buffer_id",

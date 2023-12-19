@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "category": "tiff",
   "name": "Read TIFF",
+  "tags": [
+    "matrices"
+  ],
   "id": "f41f11d5-1a89-42f4-9b91-ce06f61c8d1a",
   "language": "java",
   "java": {
@@ -301,6 +304,23 @@
         }
       ],
       "default": 0
+    },
+    {
+      "name": "visibleResult",
+      "caption": "Visible result",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "output",
+          "caption": "TIFF image"
+        },
+        {
+          "value": "ifd",
+          "caption": "IFD information in JSON format"
+        }
+      ],
+      "default": "output"
     }
   ]
 }

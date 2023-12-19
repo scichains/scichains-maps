@@ -4,6 +4,9 @@
   "category": "pyramids.io",
   "name": "Image pyramid information",
   "id": "e11d5f15-64aa-486e-baa2-ff627a221db2",
+  "tags": [
+    "matrices"
+  ],
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.pyramids.io.ImagePyramidInfo"

@@ -74,6 +74,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     private volatile TiffReader reader = null;
 
     public ReadTiff() {
+        useVisibleResultParameter();
         addFileOperationPorts();
         addInputMat(DEFAULT_INPUT_PORT);
         addInputScalar(INPUT_CLOSE_FILE);

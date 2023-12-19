@@ -3,12 +3,15 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Change rectangle, but inside map buffer",
+  "tags": [
+    "matrices"
+  ],
   "id": "94332c8f-12da-4efd-b176-06e4d6f2f984",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.frames.ChangeRectangleInsideMapBuffer"
   },
-  "in_ports":  [
+  "in_ports": [
     {
       "value_type": "scalar",
       "name": "map_buffer_id",

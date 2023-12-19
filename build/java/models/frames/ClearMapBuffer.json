@@ -3,12 +3,15 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Clear map buffer",
+  "tags": [
+    "matrices"
+  ],
   "id": "66d3019d-26dc-4b2d-b628-b16b6df9b8f7",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.frames.ClearMapBuffer"
   },
-  "in_ports":  [
+  "in_ports": [
     {
       "value_type": "scalar",
       "name": "map_buffer_id",

@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Set map buffer's capacity",
+  "tags": [
+    "matrices"
+  ],
   "id": "0b0e2897-e475-4236-8c82-2758c618fcc2",
   "language": "java",
   "java": {

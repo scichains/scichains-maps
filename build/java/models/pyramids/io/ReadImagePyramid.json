@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "category": "pyramids.io",
   "name": "Read plane pyramid",
+  "tags": [
+    "matrices"
+  ],
   "id": "b11c34fb-7f8a-493c-89a6-db81cb71137f",
   "language": "java",
   "java": {

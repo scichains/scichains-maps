@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Initialize map buffer",
+  "tags": [
+    "matrices"
+  ],
   "id": "a8917783-fb23-4d8e-a1c5-c1fd9d66a144",
   "language": "java",
   "java": {

@@ -3,12 +3,15 @@
   "version": "0.0.1",
   "category": "frames",
   "name": "Read frame from map buffer",
+  "tags": [
+    "matrices"
+  ],
   "id": "6e3c8b60-02b8-422f-a3d0-72632f88d841",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.frames.ReadFromMapBuffer"
   },
-  "in_ports":  [
+  "in_ports": [
     {
       "value_type": "scalar",
       "name": "map_buffer_id",
