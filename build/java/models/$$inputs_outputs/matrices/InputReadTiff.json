@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "category": "$$[inputs/outputs].matrices",
   "name": "Input/read TIFF matrix",
-  "tags": [
-    "input"
-  ],
   "id": "516bcb94-d60c-4301-9b11-0226aa1a0ee7",
   "options": {
     "behavior": {
