@@ -24,6 +24,7 @@
 
 package net.algart.executors.modules.maps.pyramids.io;
 
+import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.api.data.SScalar;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
@@ -41,7 +42,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public final class ReadImagePyramid extends AbstractImagePyramidOperation {
+public final class ReadImagePyramid extends AbstractImagePyramidOperation implements ReadOnlyExecutionInput {
     public static final String INPUT_FILE_LIST = "file_list";
     public static final String OUTPUT_DIM_X = "dim_x";
     public static final String OUTPUT_DIM_Y = "dim_y";

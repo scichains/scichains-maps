@@ -24,6 +24,7 @@
 
 package net.algart.executors.modules.maps.pyramids.io;
 
+import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 
 import java.io.IOError;
@@ -31,7 +32,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
 
-public final class ImagePyramidInfo extends AbstractImagePyramidOperation {
+public final class ImagePyramidInfo extends AbstractImagePyramidOperation implements ReadOnlyExecutionInput {
     private long sizeX = 1;
     private long sizeY = 1;
 
@@ -75,6 +76,7 @@ public final class ImagePyramidInfo extends AbstractImagePyramidOperation {
     }
 
     public void testPlanePyramid(Path path) {
+        Objects.requireNonNull(path, "Null path");
         getScalar().setTo("Information about the pyramid " + path);
         PlanePyramidSource planePyramidSource = null;
         try {

@@ -27,13 +27,11 @@ package net.algart.executors.modules.maps.tiff;
 import io.scif.FormatException;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
-import net.algart.executors.api.Executor;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.tiff.CachingTiffReader;
-import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
@@ -44,7 +42,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Objects;
 
 public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExecutionInput {
@@ -75,17 +72,18 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
 
     public ReadTiff() {
         useVisibleResultParameter();
-        addFileOperationPorts();
         addInputMat(DEFAULT_INPUT_PORT);
         addInputScalar(INPUT_CLOSE_FILE);
         addOutputMat(DEFAULT_OUTPUT_PORT);
         addOutputScalar(OUTPUT_DIM_X);
         addOutputScalar(OUTPUT_DIM_Y);
+        addOutputScalar(OUTPUT_VALID);
         addOutputScalar(OUTPUT_NUMBER_OF_IMAGES);
         addOutputScalar(OUTPUT_IMAGE_DIM_X);
         addOutputScalar(OUTPUT_IMAGE_DIM_Y);
         addOutputNumbers(OUTPUT_RECTANGLE);
         addOutputScalar(OUTPUT_IFD);
+        addOutputScalar(OUTPUT_PRETTY_IFD);
     }
 
     public static ReadTiff getInstance() {
@@ -320,39 +318,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
-        fillOutputInformation(this, reader, ifdIndex);
+        fillReadingOutputInformation(this, reader, ifdIndex);
         return reader;
-    }
-
-    public static void fillOutputInformation(Executor executor, TiffReader reader, int ifdIndex) {
-        Objects.requireNonNull(executor, "Null executor");
-        Objects.requireNonNull(reader, "Null reader");
-        try {
-            if (executor.hasOutputPort(OUTPUT_VALID)) {
-                executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
-            }
-            final List<TiffIFD> ifds = reader.allIFDs();
-            if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
-                executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
-            }
-            if (ifdIndex < ifds.size()) {
-                TiffIFD ifd = ifds.get(ifdIndex);
-                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
-                    executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
-                }
-                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
-                    executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
-                }
-                if (executor.isOutputNecessary(OUTPUT_IFD)) {
-                    executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
-                }
-                if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
-                    executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
-                }
-            }
-        } catch (IOException | FormatException e) {
-            throw new IOError(e);
-        }
     }
 
     private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException, FormatException {
