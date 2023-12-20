@@ -5,7 +5,7 @@
   "name": "Image pyramid information",
   "id": "e11d5f15-64aa-486e-baa2-ff627a221db2",
   "tags": [
-    "matrices"
+    "i/o"
   ],
   "language": "java",
   "java": {

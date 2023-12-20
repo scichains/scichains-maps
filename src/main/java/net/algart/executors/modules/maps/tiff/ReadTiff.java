@@ -299,22 +299,18 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
 
-    public TiffReader openFile(Path path) {
+    public TiffReader openFile(Path path) throws IOException, FormatException {
         Objects.requireNonNull(path, "Null path");
+        logDebug(() -> "Opening " + path);
         TiffReader reader = this.reader;
         if (reader == null) {
-            try {
-                logDebug(() -> "Opening " + path);
-                reader = caching ?
-                        new CachingTiffReader(context(), path, requireValidTiff) :
-                        new TiffReader(context(), path, requireValidTiff);
-                reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
-                reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
-                this.reader = reader;
-                // - note: the assignments sequence guarantees that this method will not return null
-            } catch (IOException | FormatException e) {
-                throw new IOError(e);
-            }
+            reader = caching ?
+                    new CachingTiffReader(context(), path, requireValidTiff) :
+                    new TiffReader(context(), path, requireValidTiff);
+            reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
+            reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
+            this.reader = reader;
+            // - note: the assignments sequence guarantees that this method will not return null
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened

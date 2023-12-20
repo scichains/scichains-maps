@@ -4,7 +4,8 @@
   "category": "tiff",
   "name": "Read TIFF",
   "tags": [
-    "matrices"
+    "matrices",
+    "i/o"
   ],
   "id": "f41f11d5-1a89-42f4-9b91-ce06f61c8d1a",
   "language": "java",
@@ -75,32 +76,32 @@
     {
       "value_type": "scalar",
       "name": "ifd",
-      "hint": "IFD information in JSON format"
+      "hint": "IFD information in JSON format."
     },
     {
       "value_type": "scalar",
       "name": "pretty_ifd",
-      "hint": "IFD information in human-readable format"
+      "hint": "IFD information in human-readable format."
     },
     {
       "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
-      "hint": "Actual full absolute path to the file",
+      "hint": "Actual full absolute path to the file.",
       "advanced": true
     },
     {
       "value_type": "scalar",
       "name": "parent_folder",
       "caption": "parent folder",
-      "hint": "Absolute path to the parent folder of the file",
+      "hint": "Absolute path to the parent folder of the file.",
       "advanced": true
     },
     {
       "value_type": "scalar",
       "name": "file_name",
       "caption": "file name",
-      "hint": "Actual file name (without folder)",
+      "hint": "Actual file name (without folder).",
       "advanced": true
     }
   ],
@@ -175,14 +176,6 @@
       "default": "OPEN_ON_RESET_AND_FIRST_CALL"
     },
     {
-      "caption": "IFD index",
-      "name": "ifdIndex",
-      "description": "Index of the selected image (IFD) inside the TIFF.",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
       "caption": "Use context",
       "name": "useContext",
       "description": "If set, the TIFF reader will create and use special \"context\", necessary for plugins, implementing some unusual TIFF compression formats. This mode little slows down initialization this object and not necessary in most typical cases. You may clear this flag if you need reading only usual TIFF formats like Deflate, LZW, JPEG, JPEG-2000 and if you need maximal performance.",
@@ -207,6 +200,14 @@
       "edition_type": "value",
       "advanced": true,
       "default": true
+    },
+    {
+      "caption": "IFD index",
+      "name": "ifdIndex",
+      "description": "Index of the selected image (IFD) inside the TIFF.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
     },
     {
       "caption": "Read whole image",

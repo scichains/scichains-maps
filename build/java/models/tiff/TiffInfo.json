@@ -5,7 +5,7 @@
   "name": "TIFF information",
   "id": "cd106bf3-1670-47b3-9beb-1f0c825d17a6",
   "tags": [
-    "matrices"
+    "i/o"
   ],
   "language": "java",
   "java": {
@@ -29,17 +29,17 @@
     {
       "value_type": "scalar",
       "name": "valid",
-      "hint": "\"true\" if the input file is in TIFF format and it was read successfully;\n\"false\" in other case (in particular in a case of some exception)."
+      "hint": "\"true\" if the input file is in TIFF format and it was opened successfully;\n\"false\" in other case (in particular in a case of some exception)."
     },
     {
       "value_type": "scalar",
       "name": "all_ifds",
-      "hint": "All IFDs information in JSON format"
+      "hint": "All IFDs information in JSON array format.\nNote: this is JSON array, NOT a single JSON object!"
     },
     {
       "value_type": "scalar",
       "name": "pretty_all_ifds",
-      "hint": "All IFDs information in human-readable format"
+      "hint": "All IFDs information in human-readable format."
     },
     {
       "value_type": "scalar",
@@ -56,12 +56,12 @@
     {
       "value_type": "scalar",
       "name": "ifd",
-      "hint": "IFD information in JSON format"
+      "hint": "IFD information in JSON format."
     },
     {
       "value_type": "scalar",
       "name": "pretty_ifd",
-      "hint": "IFD information in human-readable format"
+      "hint": "IFD information in human-readable format."
     },
     {
       "value_type": "scalar",
@@ -129,12 +129,53 @@
       "default": false
     },
     {
+      "caption": "Requires existing file",
+      "name": "requireFileExistence",
+      "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Requires valid TIFF",
+      "name": "requireValidTiff",
+      "description": "If set, the input file (when it exists) must be a correct TIFF file; in other case, this function will throw an exception.\nIf this flag is cleared and the file is not a TIFF file, this function does nothing.\nIn any case, you can check that the file is a correct TIFF in \"valid\" output port (but if this flag is set, that port will contain \"false\" only in a case of an exception).",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
       "caption": "IFD index",
       "name": "ifdIndex",
-      "description": "Index of the selected image (IFD) inside the TIFF.\nNote that you can ",
+      "description": "Index of the selected image (IFD) inside the TIFF.\nNote that the information about all TIFF file, returned in \"all_ifds\" and \"pretty_all_ifds\" ports, does not depend on this parameter.",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
+    },
+    {
+      "name": "visibleResult",
+      "caption": "Visible result",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "all_ifds",
+          "caption": "All IFDs information in JSON array format"
+        },
+        {
+          "value": "pretty_all_ifds",
+          "caption": "All IFDs information in human-readable format"
+        },
+        {
+          "value": "ifd",
+          "caption": "Selected IFD information in JSON format"
+        },
+        {
+          "value": "pretty_ifd",
+          "caption": "Selected IFD information in human-readable format"
+        }
+      ],
+      "default": "pretty_all_ifds"
     }
   ]
 }
