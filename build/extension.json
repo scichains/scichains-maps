@@ -6,6 +6,9 @@
       "name": "CV-maps",
       "category": "cv-maps",
       "description": "Image maps/pyramids, Java",
+      "tags": [
+        "$public"
+      ],
       "technology": "jvm",
       "language": "java",
       "folders": {
