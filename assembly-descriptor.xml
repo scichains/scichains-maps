@@ -34,18 +34,8 @@
     </dependencySets>
     <files>
         <file>
-            <source>${project.basedir}/target/${artifact.artifactId}-${artifact.baseVersion}-tests.jar</source>
-            <!-- add "...-tests.jar" manually, also into system (maybe not too necessary, but useful) -->
-            <outputDirectory>./java/lib</outputDirectory>
-        </file>
-        <file>
             <source>${project.build.directory}/classes/extension.json</source>
             <!-- appeared here with filtering by resource/includes section in the main pom.xml -->
-            <outputDirectory>./</outputDirectory>
-        </file>
-        <file>
-            <source>${project.basedir}/build/.public</source>
-            <!-- marker for building public distributive -->
             <outputDirectory>./</outputDirectory>
         </file>
     </files>
