@@ -24,26 +24,17 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import net.algart.arrays.Matrix;
-import net.algart.arrays.PArray;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
-import net.algart.executors.modules.core.numbers.misc.SetArrayLength;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
-import net.algart.math.IRectangularArea;
-import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.tiff.tiles.TiffTile;
-import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 
-import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -51,8 +42,30 @@ import java.util.Objects;
 public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyExecutionInput {
     public static final String OUTPUT_IFD_INDEX = "ifd_index";
 
+    public enum ByteOrder {
+        BIG_ENDIAN(java.nio.ByteOrder.BIG_ENDIAN),
+        LITTLE_ENDIAN(java.nio.ByteOrder.LITTLE_ENDIAN),
+        NATIVE(java.nio.ByteOrder.nativeOrder());
+
+        private final java.nio.ByteOrder order;
+
+        ByteOrder(java.nio.ByteOrder order) {
+            this.order = order;
+        }
+
+        public java.nio.ByteOrder order() {
+            return order;
+        }
+
+        public boolean isLittleEndian() {
+            return order == java.nio.ByteOrder.LITTLE_ENDIAN;
+        }
+    }
+
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     private boolean appendIFDToExistingTiff = true;
+    private boolean bigTiff = true;
+    private ByteOrder byteOrder = ByteOrder.NATIVE;
     private boolean resizable = true;
     private int imageDimX = 0;
     private int imageDimY = 0;
@@ -101,6 +114,24 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     public WriteTiff setAppendIFDToExistingTiff(boolean appendIFDToExistingTiff) {
         this.appendIFDToExistingTiff = appendIFDToExistingTiff;
+        return this;
+    }
+
+    public boolean isBigTiff() {
+        return bigTiff;
+    }
+
+    public WriteTiff setBigTiff(boolean bigTiff) {
+        this.bigTiff = bigTiff;
+        return this;
+    }
+
+    public ByteOrder getByteOrder() {
+        return byteOrder;
+    }
+
+    public WriteTiff setByteOrder(ByteOrder byteOrder) {
+        this.byteOrder = byteOrder;
         return this;
     }
 
@@ -219,6 +250,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         synchronized (lock) {
             if (writer == null) {
                 writer = new TiffWriter(context(), path, !appendIFDToExistingTiff);
+                writer.setBigTiff(bigTiff);
+                writer.setLittleEndian(byteOrder.isLittleEndian());
                 if (appendIFDToExistingTiff) {
                     writer.startExistingFile();
                 } else {
