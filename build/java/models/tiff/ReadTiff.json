@@ -212,21 +212,22 @@
     {
       "caption": "Read whole image",
       "name": "wholeImage",
-      "description": "If set, the following 4 parameters \"Start X/Y\", \"X-size\" and \"Y-size\" are ignored, and this function reads all pixels of the selected TIFF image.",
+      "description": "If set, the following 4 parameters \"X/Y\", \"X-size\" and \"Y-size\" are ignored, and this function reads all pixels of the selected TIFF image.",
       "value_type": "boolean",
       "edition_type": "value",
       "default": true
     },
     {
-      "caption": "Start X",
-      "name": "startX",
+      "caption": "X",
+      "name": "x",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
     },
     {
-      "caption": "Start Y",
-      "name": "startY",
+      "caption": "Y",
+      "name": "y",
+      "description": "(X,Y) is the position of left top pixel of the loaded frame (matrix) inside the full IFD image.",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
@@ -249,7 +250,7 @@
     {
       "caption": "Crop to image boundaries",
       "name": "cropToImage",
-      "description": "If set (default value), the area, specified by 4 parameters \"Start X/Y\", \"X-size\" and \"Y-size\", is automatically cropped by the bounds of the TIFF image.\nIf this flag is cleared, you may specify any area, for example, with negative coordinates; the pixels outside the image will be filled by zeroes, that usually means black color.",
+      "description": "If set (default value), the area, specified by 4 parameters \"X/Y\", \"X-size\" and \"Y-size\", is automatically cropped by the bounds of the TIFF image.\nIf this flag is cleared, you may specify any area, for example, with negative coordinates; the pixels outside the image will be filled by zeroes, that usually means black color.",
       "value_type": "boolean",
       "edition_type": "value",
       "default": true

@@ -55,8 +55,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     private boolean requireValidTiff = true;
     private int ifdIndex = 0;
     private boolean wholeImage = true;
-    private int startX = 0;
-    private int startY = 0;
+    private int x = 0;
+    private int y = 0;
     private int sizeX = 1;
     private int sizeY = 1;
     private boolean cropToImage = true;
@@ -147,21 +147,21 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public int getStartX() {
-        return startX;
+    public int getX() {
+        return x;
     }
 
-    public ReadTiff setStartX(int startX) {
-        this.startX = startX;
+    public ReadTiff setX(int x) {
+        this.x = x;
         return this;
     }
 
-    public int getStartY() {
-        return startY;
+    public int getY() {
+        return y;
     }
 
-    public ReadTiff setStartY(int startY) {
-        this.startY = startY;
+    public ReadTiff setY(int y) {
+        this.y = y;
         return this;
     }
 
@@ -300,7 +300,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
 
     public TiffReader openFile(Path path) throws IOException {
         Objects.requireNonNull(path, "Null path");
-        logDebug(() -> "Opening " + path);
+        logDebug(() -> "Reading " + path);
         TiffReader reader = this.reader;
         if (reader == null) {
             reader = caching ?
@@ -319,8 +319,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
 
     private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException {
         final TiffMap map = reader.map(ifdIndex);
-        int fromX = this.startX;
-        int fromY = this.startY;
+        int fromX = this.x;
+        int fromY = this.y;
         int toX = fromX + this.sizeX;
         int toY = fromY + this.sizeY;
         if (wholeImage) {
