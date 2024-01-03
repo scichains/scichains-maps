@@ -24,12 +24,12 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs.metadata;
 
-import io.scif.FormatException;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import net.algart.json.Jsons;
 import net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
+import net.algart.matrices.tiff.TiffException;
 
 import java.util.*;
 
@@ -68,7 +68,7 @@ public abstract class SVSImageDescription {
         return false;
     }
 
-    public double pixelSize() throws FormatException {
+    public double pixelSize() throws TiffException {
         throw new UnsupportedOperationException();
     }
 
@@ -76,7 +76,7 @@ public abstract class SVSImageDescription {
         return false;
     }
 
-    public double magnification() throws FormatException {
+    public double magnification() throws TiffException {
         throw new UnsupportedOperationException();
     }
 
@@ -84,11 +84,11 @@ public abstract class SVSImageDescription {
         return false;
     }
 
-    public double imageOnSlideLeftInMicronsAxisRightward() throws FormatException {
+    public double imageOnSlideLeftInMicronsAxisRightward() throws TiffException {
         throw new UnsupportedOperationException();
     }
 
-    public double imageOnSlideTopInMicronsAxisUpward() throws FormatException {
+    public double imageOnSlideTopInMicronsAxisUpward() throws TiffException {
         throw new UnsupportedOperationException();
     }
 
@@ -111,7 +111,7 @@ public abstract class SVSImageDescription {
         if (isPixelSizeSupported()) {
             try {
                 Jsons.addDouble(builder, "pixelSize", pixelSize());
-            } catch (FormatException e) {
+            } catch (TiffException e) {
                 builder.add("pixelSize", "format error: " + e);
             }
         }

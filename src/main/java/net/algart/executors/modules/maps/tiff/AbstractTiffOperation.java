@@ -24,7 +24,6 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import io.scif.FormatException;
 import io.scif.SCIFIO;
 import net.algart.executors.api.Executor;
 import net.algart.executors.modules.core.common.io.FileOperation;
@@ -129,7 +128,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
                     executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
                 }
             }
-        } catch (IOException | FormatException e) {
+        } catch (IOException e) {
             throw new IOError(e);
         }
     }

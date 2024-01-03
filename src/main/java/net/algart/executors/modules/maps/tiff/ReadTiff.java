@@ -24,7 +24,6 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import io.scif.FormatException;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
 import net.algart.executors.api.ReadOnlyExecutionInput;
@@ -283,7 +282,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
                 closeFile();
             }
             return result;
-        } catch (IOException | FormatException e) {
+        } catch (IOException e) {
             closeFile();
             closeContext();
             // - closing can be important to allow the user to fix the problem;
@@ -299,7 +298,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
 
-    public TiffReader openFile(Path path) throws IOException, FormatException {
+    public TiffReader openFile(Path path) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Opening " + path);
         TiffReader reader = this.reader;
@@ -318,7 +317,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return reader;
     }
 
-    private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException, FormatException {
+    private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException {
         final TiffMap map = reader.map(ifdIndex);
         int fromX = this.startX;
         int fromY = this.startY;

@@ -24,15 +24,15 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.FormatException;
 import io.scif.SCIFIO;
 import jakarta.json.JsonObject;
 import net.algart.json.Jsons;
-import net.algart.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
 import net.algart.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
+import net.algart.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
+import net.algart.matrices.tiff.TiffException;
 import org.scijava.Context;
 
 import java.awt.*;
@@ -95,7 +95,7 @@ public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
                     svsJson.getBoolean("combineWithWholeSlideImage", false),
                     geometry);
             // "false" default value is necessary for compatibility with old slides (before March 2015)
-        } catch (FormatException e) {
+        } catch (TiffException e) {
             throw PlanePyramidTools.rmiSafeWrapper(e);
         }
         final JsonObject coarseData = renderingJson.getJsonObject("coarseData");

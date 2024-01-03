@@ -24,10 +24,13 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.FormatException;
 import io.scif.formats.tiff.TiffCompression;
-import net.algart.arrays.*;
+import net.algart.arrays.Matrices;
+import net.algart.arrays.Matrix;
+import net.algart.arrays.PArray;
+import net.algart.arrays.UpdatablePArray;
 import net.algart.maps.pyramids.io.api.AbstractPlanePyramidSource;
+import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
@@ -37,10 +40,10 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.tiff.CachingTiffReader;
+import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
-import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import org.scijava.Context;
 
 import java.awt.*;
@@ -109,7 +112,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private volatile Color dataBorderColor = Color.GRAY;
     private volatile int dataBorderWidth = 0;
 
-    public SVSPlanePyramidSource(Context sciContext, Path svsFile) throws IOException, FormatException {
+    public SVSPlanePyramidSource(Context sciContext, Path svsFile) throws IOException {
         this(sciContext, svsFile, false, null);
     }
 
@@ -118,7 +121,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             Path svsFile,
             boolean combineWithWholeSlideRequest,
             SVSAdditionalCombiningInfo additionalCombiningInfo)
-            throws IOException, FormatException {
+            throws IOException {
         Objects.requireNonNull(sciContext, "Null sciContext");
         Objects.requireNonNull(svsFile, "Null svsFile");
         long t1 = System.nanoTime();
@@ -214,7 +217,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.dimX = levelDimX;
             this.dimY = levelDimY;
             if (dimX > Integer.MAX_VALUE || dimY > Integer.MAX_VALUE) {
-                throw new FormatException("Too large image " + dimX + "x" + dimY);
+                throw new TiffException("Too large image " + dimX + "x" + dimY);
                 // Impossible if !this.combineWithWholeSlide (already checked by
                 // TiffTools.checkThatIfdSizesArePositiveIntegers),
                 // very improbable if this.combineWithWholeSlide.
@@ -314,12 +317,12 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 }
                 final Class<?> elementType = map.elementType();
                 if (elementType != this.elementType) {
-                    throw new FormatException("Invalid element types: \""
+                    throw new TiffException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""
                             + " (image description " + map.description().orElse("N/A") + ")");
                 }
                 if (map.numberOfChannels() != bandCount) {
-                    throw new FormatException("Invalid number of samples per pixel: "
+                    throw new TiffException("Invalid number of samples per pixel: "
                             + map.numberOfChannels() + " instead of " + bandCount
                             + " (image description " + map.description().orElse("N/A") + ")");
                 }
@@ -561,10 +564,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             assert width > 0 && height > 0;
             // - already checked in the constructor
             return Optional.of(readData(i, 0, 0, (int) width, (int) height));
+        } catch (TiffException e) {
+            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } catch (IOException e) {
             throw new IOError(e);
-        } catch (FormatException e) {
-            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } finally {
             largeData.writeLock.unlock();
         }
@@ -579,10 +582,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         largeData.writeLock.lock();
         try {
             largeData.init();
+        } catch (TiffException e) {
+            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } catch (IOException e) {
             throw new IOError(e);
-        } catch (FormatException e) {
-            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } finally {
             largeData.writeLock.unlock();
         }
@@ -729,17 +732,17 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             } else {
                 return readAndCompressDataFromLevel(resolutionLevel, (int) fromX, (int) fromY, sizeX, sizeY);
             }
+        } catch (TiffException e) {
+            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } catch (IOException e) {
             throw new IOError(e);
-        } catch (FormatException e) {
-            throw new IOError(PlanePyramidTools.rmiSafeWrapper(e));
         } finally {
             lock.unlock();
         }
     }
 
     private static boolean detectMotic(List<TiffMap> maps, SVSImageDescription mainImageDescription)
-            throws FormatException {
+            throws TiffException {
         // Warning! It is an evristic algorithm that should be improved in collaboration with Motic!
         if (mainImageDescription != null && mainImageDescription.isGeometrySupported()) {
             // current version of Motic slides does not support geometry
@@ -759,8 +762,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         return numberOfLZW == 2;
     }
 
-    private static SVSImageDescription findMainImageDescription(List<SVSImageDescription> imageDescriptions)
-            throws FormatException {
+    private static SVSImageDescription findMainImageDescription(List<SVSImageDescription> imageDescriptions) {
         for (SVSImageDescription description : imageDescriptions) {
             if (description.isImportant()) {
                 return description;
@@ -780,7 +782,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     private Matrix<? extends PArray> readAndCompressDataFromLevel(
             int resolutionLevel, int fromX, int fromY, int sizeX, int sizeY)
-            throws FormatException, IOException {
+            throws IOException {
         final int actualResolutionLevel = resolutionLevelToActualResolutionLevel(resolutionLevel);
         final long requiredCompression = compression(resolutionLevel);
         final long requiredActualCompression = actualCompression(actualResolutionLevel);
@@ -803,9 +805,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         return result;
     }
 
-    private Matrix<? extends PArray> readData(
-            int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
-            throws FormatException, IOException {
+    private Matrix<? extends PArray> readData(int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
+            throws IOException {
         final TiffMap map = largeData.maps.get(ifdIndex);
         map.checkPixelCompatibility(bandCount, elementType, false);
         return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
@@ -908,7 +909,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             return this.tiffReader != null;
         }
 
-        private synchronized void init() throws IOException, FormatException {
+        private synchronized void init() throws IOException {
             if (tiffReader == null) {
                 long t1 = System.nanoTime();
                 tiffReader = new CachingTiffReader(sciContext, svsFile).setByteFiller(TIFF_FILLER);

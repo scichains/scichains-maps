@@ -24,7 +24,6 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs.tests;
 
-import io.scif.FormatException;
 import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
@@ -50,7 +49,7 @@ public class SVSSourceTest {
     // - non-zero value allows to illustrate a bug in TiffParser.getSamples
     private static final int START_Y = 0;
 
-    public static void main(String[] args) throws IOException, FormatException {
+    public static void main(String[] args) throws IOException {
         int startArgIndex = 0;
         boolean combine = false;
         if (args.length > startArgIndex && args[startArgIndex].equals("-combine")) {

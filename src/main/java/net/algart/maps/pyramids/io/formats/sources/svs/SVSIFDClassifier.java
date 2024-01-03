@@ -24,14 +24,14 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.FormatException;
 import io.scif.formats.tiff.IFD;
 import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.Arrays;
+import net.algart.maps.pyramids.io.api.PlanePyramidSource;
+import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
-import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -57,7 +57,7 @@ public final class SVSIFDClassifier {
     private int macroIndex = -1;
     private final List<Integer> unknownSpecialIndexes = new ArrayList<>();
 
-    public SVSIFDClassifier(List<TiffMap> maps) throws FormatException {
+    public SVSIFDClassifier(List<TiffMap> maps) throws TiffException {
         Objects.requireNonNull(maps);
         this.maps = maps;
         this.ifdCount = maps.size();
@@ -193,7 +193,7 @@ public final class SVSIFDClassifier {
                 + ", unknown " + unknownSpecialIndexes;
     }
 
-    private void detectThumbnail() throws FormatException {
+    private void detectThumbnail() throws TiffException {
         if (ifdCount <= THUMBNAIL_IFD_INDEX) {
             return;
         }
@@ -203,7 +203,7 @@ public final class SVSIFDClassifier {
         }
     }
 
-    private boolean detectTwoLastImages() throws FormatException {
+    private boolean detectTwoLastImages() throws TiffException {
         if (ifdCount <= THUMBNAIL_IFD_INDEX + 2) {
             return false;
         }
@@ -265,7 +265,7 @@ public final class SVSIFDClassifier {
         return true;
     }
 
-    private void detectSingleLastImage() throws FormatException {
+    private void detectSingleLastImage() throws TiffException {
         if (ifdCount <= THUMBNAIL_IFD_INDEX + 1) {
             return;
         }
@@ -299,7 +299,7 @@ public final class SVSIFDClassifier {
         }
     }
 
-    static boolean isSmallImage(TiffIFD ifd) throws FormatException {
+    static boolean isSmallImage(TiffIFD ifd) throws TiffException {
         final long[] tileOffsets = ifd.getLongArray(IFD.TILE_OFFSETS);
 //        System.out.println(tileOffsets == null ? "null" : tileOffsets.length);
         return tileOffsets == null &&
@@ -315,18 +315,18 @@ public final class SVSIFDClassifier {
         Objects.requireNonNull(map, "Null map");
         try {
             return String.valueOf(map.ifd().getCompression());
-        } catch (FormatException e) {
+        } catch (TiffException e) {
             return "[invalid image compression: " + e.getMessage() + "]";
         }
     }
 
-    private static double area(TiffIFD ifd) throws FormatException {
+    private static double area(TiffIFD ifd) throws TiffException {
         final long dimX = ifd.getImageDimX();
         final long dimY = ifd.getImageDimY();
         return (double) dimX * (double) dimY;
     }
 
-    private static double ratio(TiffIFD ifd) throws FormatException {
+    private static double ratio(TiffIFD ifd) throws TiffException {
         final long dimX = ifd.getImageDimX();
         final long dimY = ifd.getImageDimY();
         assert dimX > 0 && dimY > 0;
@@ -334,7 +334,7 @@ public final class SVSIFDClassifier {
         return (double) Math.max(dimX, dimY) / (double) Math.min(dimX, dimY);
     }
 
-    public static void main(String[] args) throws IOException, FormatException {
+    public static void main(String[] args) throws IOException {
         if (args.length == 0) {
             System.out.println("Usage: " + SVSIFDClassifier.class.getName() + " file1.svs file2.svs ...");
             return;

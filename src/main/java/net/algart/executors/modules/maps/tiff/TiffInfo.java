@@ -24,7 +24,6 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import io.scif.FormatException;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
@@ -113,7 +112,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
                     getScalar(OUTPUT_PRETTY_ALL_IFDS).setTo(allIFDPrettyInfo(ifds));
                 }
             }
-        } catch (IOException | FormatException e) {
+        } catch (IOException e) {
             throw new IOError(e);
         }
     }

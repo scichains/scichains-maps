@@ -24,10 +24,10 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs.metadata;
 
-import io.scif.FormatException;
+import net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
 import net.algart.math.IRectangularArea;
 import net.algart.math.RectangularArea;
-import net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSource;
+import net.algart.matrices.tiff.TiffException;
 
 import java.util.*;
 
@@ -95,20 +95,20 @@ class StandardSVSImageDescription extends SVSImageDescription {
         return isPixelSizeSupported();
     }
 
-    public double pixelSize() throws FormatException {
+    public double pixelSize() throws TiffException {
         final SVSAttribute attribute = attributes.get(MICRON_PER_PIXEL_ATTRIBUTE);
         if (attribute == null) {
-            throw new FormatException("Image description does not contain \""
+            throw new TiffException("Image description does not contain \""
                 + MICRON_PER_PIXEL_ATTRIBUTE + "\" attribute");
         }
         final double result;
         try {
             result = Double.parseDouble(attribute.getValue());
         } catch (NumberFormatException e) {
-            throw new FormatException("Image description contains invalid pixel size attribute: " + attribute, e);
+            throw new TiffException("Image description contains invalid pixel size attribute: " + attribute, e);
         }
         if (result <= 0.0) {
-            throw new FormatException("Image description contains negative pixel size attribute: " + attribute);
+            throw new TiffException("Image description contains negative pixel size attribute: " + attribute);
         }
         return result;
     }
@@ -117,15 +117,15 @@ class StandardSVSImageDescription extends SVSImageDescription {
         return attributes.containsKey(MAGNIFICATION_ATTRIBUTE);
     }
 
-    public double magnification() throws FormatException {
+    public double magnification() throws TiffException {
         final SVSAttribute attribute = attributes.get(MAGNIFICATION_ATTRIBUTE);
         if (attribute == null) {
-            throw new FormatException("Image description does not contain magnification attribute");
+            throw new TiffException("Image description does not contain magnification attribute");
         }
         try {
             return Double.parseDouble(attribute.getValue());
         } catch (NumberFormatException e) {
-            throw new FormatException("Image description contains invalid magnification attribute: " + attribute, e);
+            throw new TiffException("Image description contains invalid magnification attribute: " + attribute, e);
         }
     }
 
@@ -136,29 +136,29 @@ class StandardSVSImageDescription extends SVSImageDescription {
             && attributes.containsKey(TOP_ATTRIBUTE);
     }
 
-    public double imageOnSlideLeftInMicronsAxisRightward() throws FormatException {
+    public double imageOnSlideLeftInMicronsAxisRightward() throws TiffException {
         final SVSAttribute attribute = attributes.get(LEFT_ATTRIBUTE);
         if (attribute == null) {
-            throw new FormatException("Image description does not contain Left attribute");
+            throw new TiffException("Image description does not contain Left attribute");
         }
         try {
             return Double.parseDouble(attribute.getValue()) * 1000.0;
             // mm to microns
         } catch (NumberFormatException e) {
-            throw new FormatException("Image description contains invalid Left attribute: " + attribute, e);
+            throw new TiffException("Image description contains invalid Left attribute: " + attribute, e);
         }
     }
 
-    public double imageOnSlideTopInMicronsAxisUpward() throws FormatException {
+    public double imageOnSlideTopInMicronsAxisUpward() throws TiffException {
         final SVSAttribute attribute = attributes.get(TOP_ATTRIBUTE);
         if (attribute == null) {
-            throw new FormatException("Image description does not contain Top attribute");
+            throw new TiffException("Image description does not contain Top attribute");
         }
         try {
             return Double.parseDouble(attribute.getValue()) * 1000.0;
             // mm to microns
         } catch (NumberFormatException e) {
-            throw new FormatException("Image description contains invalid Top attribute: " + attribute, e);
+            throw new TiffException("Image description contains invalid Top attribute: " + attribute, e);
         }
     }
 
