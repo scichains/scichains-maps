@@ -252,11 +252,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 writer = new TiffWriter(context(), path, !appendIFDToExistingTiff);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
-                if (appendIFDToExistingTiff) {
-                    writer.startExistingFile();
-                } else {
-                    writer.startNewFile();
-                }
+                writer.open(true);
                 map = writer.newMap(configure(firstMatrix));
 
                 // - note: the assignments sequence guarantees that this method will not return null
@@ -289,11 +285,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         }
         List<TiffTile> updated = writer.updateMatrix(map, matrix.packChannels(), x, y);
         if (flushASAP) {
-            for (TiffTile tile : updated) {
-                if (!tile.hasUnset()) {
-                    writer.writeTile(tile);
-                }
-            }
+            writer.writeCompletedTiles(updated);
         }
     }
 
