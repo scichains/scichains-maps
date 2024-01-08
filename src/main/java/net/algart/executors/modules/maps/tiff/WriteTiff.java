@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2017-2023 Daniel Alievsky, AlgART Laboratory (http://algart.net)
+ * Copyright (c) 2017-2024 Daniel Alievsky, AlgART Laboratory (http://algart.net)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,10 +73,9 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private int y = 0;
     private boolean flushASAP = false;
 
-    private TiffWriter writer = null;
-    private TiffMap map = null;
-    private final Object lock = new Object();
-    // - this is not a complete synchronization, just avoiding strange situations
+    private volatile TiffWriter writer = null;
+    private volatile TiffMap map = null;
+    // - note: "volatile" does not provide correct protection here! This just reduces possible problems
 
     public WriteTiff() {
         useVisibleResultParameter();
@@ -247,20 +246,18 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     public void openFile(Path path, MultiMatrix2D firstMatrix) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
-        synchronized (lock) {
-            if (writer == null) {
-                writer = new TiffWriter(context(), path, !appendIFDToExistingTiff);
-                writer.setBigTiff(bigTiff);
-                writer.setLittleEndian(byteOrder.isLittleEndian());
-                writer.open(true);
-                map = writer.newMap(configure(firstMatrix));
+        if (writer == null) {
+            writer = new TiffWriter(context(), path, !appendIFDToExistingTiff);
+            writer.setBigTiff(bigTiff);
+            writer.setLittleEndian(byteOrder.isLittleEndian());
+            writer.open(true);
+            map = writer.newMap(configure(firstMatrix));
 
-                // - note: the assignments sequence guarantees that this method will not return null
-            }
-            fillOutputFileInformation(path);
-            // - note: we need to fill output ports here, even if the file was already opened
-//        fillReadingOutputInformation(this, writer, ifdIndex);
+            // - note: the assignments sequence guarantees that this method will not return null
         }
+        fillOutputFileInformation(path);
+        // - note: we need to fill output ports here, even if the file was already opened
+//        fillReadingOutputInformation(this, writer, ifdIndex);
     }
 
     private TiffIFD configure(MultiMatrix2D firstMatrix) {
@@ -269,7 +266,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         if (!resizable) {
             if (imageDimX == 0 || imageDimY == 0) {
                 throw new IllegalArgumentException("Zero image dimensions " + imageDimX + "x" + imageDimY
-                    + " are allowed only in resizable mode (in this case they are ignored)");
+                        + " are allowed only in resizable mode (in this case they are ignored)");
             }
             ifd.putImageDimensions(imageDimX, imageDimY);
         }
@@ -277,12 +274,6 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
     private void writeMultiMatrix(MultiMatrix2D matrix) throws IOException {
-        TiffWriter writer;
-        TiffMap map;
-        synchronized (lock) {
-            writer = this.writer;
-            map = this.map;
-        }
         List<TiffTile> updated = writer.updateMatrix(map, matrix.packChannels(), x, y);
         if (flushASAP) {
             writer.writeCompletedTiles(updated);
@@ -290,16 +281,14 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
     private void closeFile() {
-        synchronized (lock) {
-            if (writer != null) {
-                this.writer = null;
-                logDebug(() -> "Closing " + writer);
-                try {
-                    writer.complete(map);
-                    writer.close();
-                } catch (IOException e) {
-                    throw new IOError(e);
-                }
+        if (writer != null) {
+            this.writer = null;
+            logDebug(() -> "Closing " + writer);
+            try {
+                writer.complete(map);
+                writer.close();
+            } catch (IOException e) {
+                throw new IOError(e);
             }
         }
     }
