@@ -49,7 +49,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     public static final String OUTPUT_RECTANGLE = "rectangle";
 
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
-    // - note: default value in this CLASS (not in the executor model) SHOULD be something very simple,
+    // - note: default value in this CLASS (not in the executor model) SHOULD be very simple,
     // because this class may be used without full setup of all parameter, for example, in InputReadTiff model
     private boolean requireFileExistence = true;
     private boolean requireValidTiff = true;
@@ -77,6 +77,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         addOutputScalar(OUTPUT_DIM_X);
         addOutputScalar(OUTPUT_DIM_Y);
         addOutputScalar(OUTPUT_VALID);
+        addOutputScalar(OUTPUT_IFD_INDEX);
         addOutputScalar(OUTPUT_NUMBER_OF_IMAGES);
         addOutputScalar(OUTPUT_IMAGE_DIM_X);
         addOutputScalar(OUTPUT_IMAGE_DIM_Y);
@@ -270,6 +271,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
                 }
             }
             final TiffReader reader = openFile(path);
+            fillReadingOutputInformation(this, reader, ifdIndex);
             if (!reader.isValid()) {
                 closeFile();
                 return null;
@@ -313,7 +315,6 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
-        fillReadingOutputInformation(this, reader, ifdIndex);
         return reader;
     }
 

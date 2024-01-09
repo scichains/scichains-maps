@@ -1,0 +1,183 @@
+{
+  "app": "executor",
+  "version": "0.0.1",
+  "category": "tiff",
+  "name": "Write TIFF",
+  "tags": [
+    "matrices",
+    "i/o"
+  ],
+  "id": "7e87c2b5-2027-4c01-8eb4-3045948b71e4",
+  "language": "java",
+  "java": {
+    "class": "net.algart.executors.modules.maps.tiff.WriteTiff"
+  },
+  "in_ports": [
+    {
+      "value_type": "mat",
+      "name": "input"
+    },
+    {
+      "value_type": "scalar",
+      "name": "file",
+      "caption": "file",
+      "hint": "[Optional] String path to the file. If specified, it is used instead of \"File\" parameter (with all replacements performed in that parameter)."
+    },
+    {
+      "value_type": "scalar",
+      "name": "file_name_addition",
+      "caption": "file name addition",
+      "hint": "[Optional] Modification for input file name."
+    },
+    {
+      "value_type": "scalar",
+      "name": "close_file",
+      "caption": "close file",
+      "hint": "\"true\"/\"false\": if \"true\", the input file will be always closed after executing."
+    }
+  ],
+  "out_ports": [
+    {
+      "value_type": "scalar",
+      "name": "valid",
+      "hint": "\"true\" if the input file is in TIFF format and it was read successfully;\n\"false\" in other case (in particular in a case of some exception)."
+    },
+    {
+      "value_type": "scalar",
+      "name": "ifd_index",
+      "hint": "Index of currently written IFD."
+    },
+    {
+      "value_type": "scalar",
+      "name": "number_of_images",
+      "hint": "Number of ready IFD images."
+    },
+    {
+      "value_type": "scalar",
+      "name": "image_dim_x"
+    },
+    {
+      "value_type": "scalar",
+      "name": "image_dim_y"
+    },
+    {
+      "value_type": "scalar",
+      "name": "ifd",
+      "hint": "IFD information in JSON format."
+    },
+    {
+      "value_type": "scalar",
+      "name": "pretty_ifd",
+      "hint": "IFD information in human-readable format."
+    },
+    {
+      "value_type": "scalar",
+      "name": "absolute_path",
+      "caption": "absolute path",
+      "hint": "Actual full absolute path to the file.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "parent_folder",
+      "caption": "parent folder",
+      "hint": "Absolute path to the parent folder of the file.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
+      "name": "file_name",
+      "caption": "file name",
+      "hint": "Actual file name (without folder).",
+      "advanced": true
+    }
+  ],
+  "controls": [
+    {
+      "caption": "File",
+      "name": "file",
+      "description": "You can use here relative paths (without starting \"/\" or \"c:\\\"), for example, \"test.tiff\" or \"images/test.tiff\". They will be resolved relative the current folder, containing the executed chain.\nIf this path starts with substring %TEMP%, %TEMP%/ or %TEMP%x. where x is OS-depended file separator character, this substring is replaced with the full path to the system temp directory (System.getProperty(\"java.io.tmpdir\")) with ending file separator. For example, it is correct to write here %TEMP%my_file.dat, %TEMP%/my_file.dat or (in Windows) %TEMP%\\my_file.dat.\nAlso you can use in this string Java system properties: \"${name}\", for example: \"${java.io.tmpdir}\", and executor system properties \"${path.name.ext}\", \"${path.name}\", \"${file.name.ext}\", \"${file.name}\", \"${resources}\" (chain path/file name with/without extension, resource folder of the platform, containing this function).",
+      "value_type": "String",
+      "edition_type": "file",
+      "default": ""
+    },
+    {
+      "name": "fileNameAdditionMode",
+      "caption": "How to add \"file name addition\" (for example XXX.DAT)",
+      "description": "This mode can be used together with input string \"file name addition\"",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "NONE",
+          "caption": "no correction (\"file name addition\" is not used)"
+        },
+        {
+          "value": "AFTER_ALL_PATH",
+          "caption": "after all path: /path => /pathXXX.DAT"
+        },
+        {
+          "value": "REPLACE_IN_PATH",
+          "caption": "replace $$$ in path: /path/name$$$.ext => /path/nameXXX.DAT.ext"
+        },
+        {
+          "value": "REPLACE_IN_PATH_REMOVING_EXTENSION",
+          "caption": "replace $$$ with the addition, but without its extension: /path/name$$$.ext => /path/nameXXX.ext"
+        }
+      ],
+      "default": "NONE",
+      "advanced": true
+    },
+    {
+      "caption": "Secure mode",
+      "name": "secure",
+      "description": "If set, \"file name addition\" feature and Java system properties in the path are disabled, and the path is checked that it does not contain \"suspicious\" characters/substring like % (property?), ${... (variable inside a string?). Executor system properties \"${path.name.ext}\", \"${path.name}\", \"${file.name.ext}\", \"${file.name}\" and starting %TEMP%/ are enabled.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "When to open/close TIFF file?",
+      "name": "openingMode",
+      "description": "Recommended mode for usage in a loop (one frame per iteration) is \"Open/reopen on reset or when closed; read; not close\".\nNote: the main information about the TIFF image is written while opening the file.\nNote: in first 2 modes \"Open/reopen...\", the previous file, which was probably opened, is automatically closed. The 3rd mode, recommended above for loops, does the same while reset of the loop (while the first iteration).\nAlso note: the TIFF file will be closed at the end of executing this function in any case, if \"close_file\" input port contains \"true\" value. In addition, this file is always closed in a case of any exception.",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "OPEN_AND_CLOSE",
+          "caption": "Open/reopen; read; close"
+        },
+        {
+          "value": "OPEN",
+          "caption": "Open/reopen; read; but not close"
+        },
+        {
+          "value": "OPEN_ON_RESET_AND_FIRST_CALL",
+          "caption": "Open/reopen on reset or when closed; read; not close"
+        },
+        {
+          "value": "OPEN_ON_FIRST_CALL",
+          "caption": "Open/reopen when closed; read; not close"
+        }
+      ],
+      "default": "OPEN_AND_CLOSE"
+    },
+    {
+      "name": "visibleResult",
+      "caption": "Visible result",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "absolute_path",
+          "caption": "Absolute path to result file"
+        },
+        {
+          "value": "ifd",
+          "caption": "New IFD information in JSON format"
+        }
+      ],
+      "default": "absolute_path"
+    }
+  ]
+}

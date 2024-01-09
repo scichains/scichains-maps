@@ -30,6 +30,8 @@ import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.tiles.TiffMap;
 import org.scijava.Context;
 
 import java.io.IOError;
@@ -40,6 +42,7 @@ import java.util.Objects;
 public abstract class AbstractTiffOperation extends FileOperation {
     public static final String INPUT_CLOSE_FILE = "close_file";
     public static final String OUTPUT_VALID = "valid";
+    public static final String OUTPUT_IFD_INDEX = "ifd_index";
     public static final String OUTPUT_NUMBER_OF_IMAGES = "number_of_images";
     public static final String OUTPUT_IMAGE_DIM_X = "image_dim_x";
     public static final String OUTPUT_IMAGE_DIM_Y = "image_dim_y";
@@ -110,6 +113,9 @@ public abstract class AbstractTiffOperation extends FileOperation {
                 executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
             }
             final List<TiffIFD> ifds = reader.allIFDs();
+            if (executor.hasOutputPort(OUTPUT_IFD_INDEX)) {
+                executor.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
+            }
             if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
                 executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
             }
@@ -130,6 +136,27 @@ public abstract class AbstractTiffOperation extends FileOperation {
             }
         } catch (IOException e) {
             throw new IOError(e);
+        }
+    }
+
+    public static void fillWritingOutputInformation(Executor executor, TiffWriter writer, TiffMap map) {
+        Objects.requireNonNull(executor, "Null executor");
+        Objects.requireNonNull(writer, "Null writer");
+        Objects.requireNonNull(map, "Null map");
+        if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
+            executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(writer.numberOfIFDs());
+        }
+        if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+            executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(map.dimX());
+        }
+        if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+            executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(map.dimY());
+        }
+        if (executor.isOutputNecessary(OUTPUT_IFD)) {
+            executor.getScalar(OUTPUT_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.JSON));
+        }
+        if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
+            executor.getScalar(OUTPUT_PRETTY_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.DETAILED));
         }
     }
 

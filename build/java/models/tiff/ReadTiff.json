@@ -50,6 +50,11 @@
     },
     {
       "value_type": "scalar",
+      "name": "ifd_index",
+      "hint": "Index of currently read IFD (equal to \"IFD index\" parameter)."
+    },
+    {
+      "value_type": "scalar",
       "name": "number_of_images"
     },
     {
@@ -152,7 +157,7 @@
     {
       "caption": "When to open/close TIFF file?",
       "name": "openingMode",
-      "description": "Recommended mode for usage in a loop (one frame per iteration) is \"Open/reopen on reset or when closed; read; not close\".\nNote: the main geometrical information about the pyramid and all metadata are read while opening the file and are not reloaded without reopening.\nNote: in first 2 modes \"Open/reopen...\", the previous file, which was probably opened, is automatically closed. The 3rd mode, recommended above for loops, does the same while reset of the loop (while the first iteration).\nAlso note: the pyramid file will be closed at the end of executing this function in any case, if \"close_file\" input port contains \"true\" value. In addition, this file is always closed in a case of any exception.",
+      "description": "Recommended mode for usage in a loop (one frame per iteration) is \"Open/reopen on reset or when closed; read; not close\".\nNote: the main information about the TIFF is read while opening the file and are not reloaded without reopening.\nNote: in first 2 modes \"Open/reopen...\", the previous file, which was probably opened, is automatically closed. The 3rd mode, recommended above for loops, does the same while reset of the loop (while the first iteration).\nAlso note: the TIFF file will be closed at the end of executing this function in any case, if \"close_file\" input port contains \"true\" value. In addition, this file is always closed in a case of any exception.",
       "value_type": "String",
       "edition_type": "enum",
       "items": [
@@ -173,7 +178,7 @@
           "caption": "Open/reopen when closed; read; not close"
         }
       ],
-      "default": "OPEN_ON_RESET_AND_FIRST_CALL"
+      "default": "OPEN_AND_CLOSE"
     },
     {
       "caption": "Use context",

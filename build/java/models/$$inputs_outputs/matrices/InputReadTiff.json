@@ -54,6 +54,11 @@
     },
     {
       "value_type": "scalar",
+      "name": "ifd_index",
+      "hint": "Index of currently read IFD (equal to \"IFD index\" parameter)."
+    },
+    {
+      "value_type": "scalar",
       "name": "number_of_images"
     },
     {
