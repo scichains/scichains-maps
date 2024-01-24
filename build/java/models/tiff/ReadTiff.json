@@ -181,15 +181,6 @@
       "default": "OPEN_AND_CLOSE"
     },
     {
-      "caption": "Use context",
-      "name": "useContext",
-      "description": "If set, the TIFF reader will create and use special \"context\", necessary for plugins, implementing some unusual TIFF compression formats. This mode little slows down initialization this object and not necessary in most typical cases. You may clear this flag if you need reading only usual TIFF formats like Deflate, LZW, JPEG, JPEG-2000 and if you need maximal performance.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "advanced": true,
-      "default": true
-    },
-    {
       "caption": "Requires existing file",
       "name": "requireFileExistence",
       "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing (just returns non-initialized result).",

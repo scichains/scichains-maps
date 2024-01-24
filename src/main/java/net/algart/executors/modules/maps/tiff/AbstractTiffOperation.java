@@ -24,7 +24,6 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import io.scif.SCIFIO;
 import net.algart.executors.api.Executor;
 import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
@@ -32,7 +31,6 @@ import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tiles.TiffMap;
-import org.scijava.Context;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -49,50 +47,10 @@ public abstract class AbstractTiffOperation extends FileOperation {
     public static final String OUTPUT_IFD = "ifd";
     public static final String OUTPUT_PRETTY_IFD = "pretty_ifd";
 
-    private boolean useContext = false;
-
-    private volatile Context tiffContext = null;
     private final Object lock = new Object();
 
     public AbstractTiffOperation() {
         addFileOperationPorts();
-    }
-
-    public boolean isUseContext() {
-        return useContext;
-    }
-
-    public AbstractTiffOperation setUseContext(boolean useContext) {
-        this.useContext = useContext;
-        return this;
-    }
-
-    @Override
-    public void close() {
-        super.close();
-        closeContext();
-    }
-
-    public final Context context() {
-        return useContext ? resetContext() : null;
-    }
-
-    public final Context resetContext() {
-        synchronized (lock) {
-            if (tiffContext == null) {
-                tiffContext = new SCIFIO().context();
-            }
-            return tiffContext;
-        }
-    }
-
-    public final void closeContext() {
-        synchronized (lock) {
-            if (tiffContext != null) {
-                tiffContext.close();
-                tiffContext = null;
-            }
-        }
     }
 
     public static boolean needToClose(Executor executor, LongTimeOpeningMode openingMode) {

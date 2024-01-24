@@ -44,7 +44,6 @@ import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
-import org.scijava.Context;
 
 import java.awt.*;
 import java.io.IOError;
@@ -83,7 +82,6 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
     private final Path svsFile;
-    private final Context sciContext;
     private final SVSIFDClassifier ifdClassifier;
     private final List<SVSImageDescription> imageDescriptions;
     private final SVSImageDescription mainImageDescription;
@@ -112,20 +110,17 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private volatile Color dataBorderColor = Color.GRAY;
     private volatile int dataBorderWidth = 0;
 
-    public SVSPlanePyramidSource(Context sciContext, Path svsFile) throws IOException {
-        this(sciContext, svsFile, false, null);
+    public SVSPlanePyramidSource(Path svsFile) throws IOException {
+        this(svsFile, false, null);
     }
 
     public SVSPlanePyramidSource(
-            Context sciContext,
             Path svsFile,
             boolean combineWithWholeSlideRequest,
             SVSAdditionalCombiningInfo additionalCombiningInfo)
             throws IOException {
-        Objects.requireNonNull(sciContext, "Null sciContext");
         Objects.requireNonNull(svsFile, "Null svsFile");
         long t1 = System.nanoTime();
-        this.sciContext = sciContext;
         this.svsFile = svsFile;
         this.largeData.init();
         boolean success = false;
@@ -912,7 +907,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         private synchronized void init() throws IOException {
             if (tiffReader == null) {
                 long t1 = System.nanoTime();
-                tiffReader = new CachingTiffReader(sciContext, svsFile).setByteFiller(TIFF_FILLER);
+                //noinspection resource
+                tiffReader = new CachingTiffReader(svsFile).setByteFiller(TIFF_FILLER);
                 tiffReader.setInterleaveResults(true);
                 // - should be removed in future versions, returning unpacked planes
                 maps = tiffReader.allMaps();

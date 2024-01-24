@@ -57,14 +57,13 @@ Possible pyramidJson:
 public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
-    private volatile Context sciContext;
-
     public SVSPlanePyramidSourceFactory() {
-        long t1 = System.nanoTime();
-        sciContext = new SCIFIO().context();
-        long t2 = System.nanoTime();
-        LOG.log(System.Logger.Level.INFO, String.format(Locale.US,
-                "Creating %s (context %s): %.3f ms", this, sciContext, (t2 - t1) * 1e-6));
+        // Deprecated solution, not necessary in new algart-tiff versions for any SVS files
+//        long t1 = System.nanoTime();
+//        sciContext = new SCIFIO().context();
+//        long t2 = System.nanoTime();
+//        LOG.log(System.Logger.Level.INFO, String.format(Locale.US,
+//                "Creating %s (context %s): %.3f ms", this, sciContext, (t2 - t1) * 1e-6));
     }
 
     @Override
@@ -90,7 +89,6 @@ public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
             SVSAdditionalCombiningInfo geometry = SVSAdditionalCombiningInfo.getInstanceFromJson(
                     Jsons.getJsonObject(svsJson,"recommendedGeometry"));
             source = new SVSPlanePyramidSource(
-                    sciContext,
                     Paths.get(pyramidPath),
                     svsJson.getBoolean("combineWithWholeSlideImage", false),
                     geometry);
@@ -119,25 +117,25 @@ public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
         }
     }
 
-    @Override
-    public void close() {
-        Context sciContext = this.sciContext;
-        this.sciContext = null;
-        if (sciContext != null) {
-            long t1 = System.nanoTime();
-            sciContext.close();
-            long t2 = System.nanoTime();
-            LOG.log(System.Logger.Level.INFO, () -> String.format(Locale.US,
-                    "Closing SVS plane pyramid source factory (context %s): %.3f ms",
-                    sciContext, (t2 - t1) * 1e-6));
-        } else {
-            LOG.log(System.Logger.Level.WARNING,
-                    "Attempt to close already CLOSED SVS plane pyramid source factory");
-        }
-    }
+//    @Override
+//    public void close() {
+//        Context sciContext = this.sciContext;
+//        this.sciContext = null;
+//        if (sciContext != null) {
+//            long t1 = System.nanoTime();
+//            sciContext.close();
+//            long t2 = System.nanoTime();
+//            LOG.log(System.Logger.Level.INFO, () -> String.format(Locale.US,
+//                    "Closing SVS plane pyramid source factory (context %s): %.3f ms",
+//                    sciContext, (t2 - t1) * 1e-6));
+//        } else {
+//            LOG.log(System.Logger.Level.WARNING,
+//                    "Attempt to close already CLOSED SVS plane pyramid source factory");
+//        }
+//    }
 
     @Override
     public String toString() {
-        return "SVS plane pyramid source factory" + (sciContext == null ? " (CLOSED)" : "");
+        return "SVS plane pyramid source factory";
     }
 }

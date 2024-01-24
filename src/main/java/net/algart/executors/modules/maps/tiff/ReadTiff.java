@@ -286,7 +286,6 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             return result;
         } catch (IOException e) {
             closeFile();
-            closeContext();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
@@ -306,8 +305,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         TiffReader reader = this.reader;
         if (reader == null) {
             reader = caching ?
-                    new CachingTiffReader(context(), path, requireValidTiff) :
-                    new TiffReader(context(), path, requireValidTiff);
+                    new CachingTiffReader(path, requireValidTiff) :
+                    new TiffReader(path, requireValidTiff);
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
             reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
             this.reader = reader;

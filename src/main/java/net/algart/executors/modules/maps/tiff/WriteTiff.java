@@ -108,8 +108,6 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     // - note: "volatile" does not provide correct protection here! This just reduces possible problems
 
     public WriteTiff() {
-        //noinspection resource
-        setUseContext(false);
         useVisibleResultParameter();
         defaultOutputPortName(OUTPUT_ABSOLUTE_PATH);
         addInputMat(DEFAULT_INPUT_PORT);
@@ -322,7 +320,6 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             }
         } catch (IOException e) {
             closeFile();
-            closeContext();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
@@ -342,7 +339,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         if (this.writer == null) {
             TiffWriter writer = null;
             try {
-                writer = new TiffWriter(context(), path, !appendIFDToExistingTiff);
+                writer = new TiffWriter(path, !appendIFDToExistingTiff);
                 // - will be ignored in a case of any exception
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
