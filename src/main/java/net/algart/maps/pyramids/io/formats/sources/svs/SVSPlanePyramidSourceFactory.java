@@ -24,7 +24,6 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.SCIFIO;
 import jakarta.json.JsonObject;
 import net.algart.json.Jsons;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;

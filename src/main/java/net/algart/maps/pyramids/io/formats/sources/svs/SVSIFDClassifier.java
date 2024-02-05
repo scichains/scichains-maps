@@ -24,13 +24,13 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.formats.tiff.IFD;
-import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.Arrays;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.tags.TagCompression;
+import net.algart.matrices.tiff.tags.Tags;
 import net.algart.matrices.tiff.tiles.TiffMap;
 
 import java.io.IOException;
@@ -220,15 +220,15 @@ public final class SVSIFDClassifier {
                 "  Checking last 2 small IFDs #%d %s and #%d %s for Label and Macro...",
                 index1, sizesToString(map1), index2, sizesToString(map2)));
         if (ALWAYS_USE_SVS_SPECIFICATION_FOR_LABEL_AND_MACRO) {
-            final TiffCompression compression1 = ifd1.getCompression();
-            final TiffCompression compression2 = ifd2.getCompression();
+            final int compression1 = ifd1.getCompressionCode();
+            final int compression2 = ifd2.getCompressionCode();
             boolean found = false;
-            if (compression1 == TiffCompression.LZW && compression2 == TiffCompression.JPEG) {
+            if (compression1 == TagCompression.LZW.code() && compression2 == TagCompression.JPEG.code()) {
                 this.labelIndex = index1;
                 this.macroIndex = index2;
                 found = true;
             }
-            if (compression1 == TiffCompression.JPEG && compression2 == TiffCompression.LZW) {
+            if (compression1 == TagCompression.JPEG.code() && compression2 == TagCompression.LZW.code()) {
                 this.labelIndex = index2;
                 this.macroIndex = index1;
                 found = true;
@@ -281,7 +281,7 @@ public final class SVSIFDClassifier {
         LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                 "  Last IFD #%d, ratio: %.5f, standard Macro %.5f", index, ratio, STANDARD_MACRO_ASPECT_RATIO));
         if (ratio <= STANDARD_MACRO_ASPECT_RATIO * (1.0 - ALLOWED_ASPECT_RATION_DEVIATION)) {
-            if (ifd.getCompression() == TiffCompression.JPEG) {
+            if (ifd.getCompressionCode() == TagCompression.JPEG.code()) {
                 // strange image, but very improbable that it is Label encoded by JPEG
                 // (usually Label is compressed lossless)
                 this.macroIndex = index;
@@ -300,7 +300,7 @@ public final class SVSIFDClassifier {
     }
 
     static boolean isSmallImage(TiffIFD ifd) throws TiffException {
-        final long[] tileOffsets = ifd.getLongArray(IFD.TILE_OFFSETS);
+        final long[] tileOffsets = ifd.getLongArray(Tags.TILE_OFFSETS);
 //        System.out.println(tileOffsets == null ? "null" : tileOffsets.length);
         return tileOffsets == null &&
                 (long) ifd.getImageDimX() * (long) ifd.getImageDimY() < MAX_PIXEL_COUNT_IN_SPECIAL_IMAGES;
@@ -313,11 +313,7 @@ public final class SVSIFDClassifier {
 
     static String compressionToString(TiffMap map) {
         Objects.requireNonNull(map, "Null map");
-        try {
-            return String.valueOf(map.ifd().getCompression());
-        } catch (TiffException e) {
-            return "[invalid image compression: " + e.getMessage() + "]";
-        }
+        return String.valueOf(map.ifd().optCompression().orElse(null));
     }
 
     private static double area(TiffIFD ifd) throws TiffException {

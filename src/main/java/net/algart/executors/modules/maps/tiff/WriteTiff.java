@@ -24,12 +24,12 @@
 
 package net.algart.executors.modules.maps.tiff;
 
-import io.scif.formats.tiff.TiffCompression;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffWriter;
+import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.tiff.tiles.TiffTile;
 import net.algart.multimatrix.MultiMatrix2D;
@@ -62,21 +62,21 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
     public enum Compression {
-        UNCOMPRESSED(TiffCompression.UNCOMPRESSED),
-        LZW(TiffCompression.LZW),
-        DEFLATE(TiffCompression.DEFLATE),
-        JPEG(TiffCompression.JPEG),
-        JPEG_RGB(TiffCompression.JPEG),
-        JPEG_2000(TiffCompression.JPEG_2000_LOSSY),
-        JPEG_2000_LOSSLESS(TiffCompression.JPEG_2000);
+        UNCOMPRESSED(TagCompression.UNCOMPRESSED),
+        LZW(TagCompression.LZW),
+        DEFLATE(TagCompression.DEFLATE),
+        JPEG(TagCompression.JPEG),
+        JPEG_RGB(TagCompression.JPEG),
+        JPEG_2000_LOSSY(TagCompression.JPEG_2000_LOSSY),
+        JPEG_2000_LOSSLESS(TagCompression.JPEG_2000_LOSSLESS);
 
-        private final TiffCompression compression;
+        private final TagCompression compression;
 
-        Compression(TiffCompression compression) {
+        Compression(TagCompression compression) {
             this.compression = compression;
         }
 
-        public TiffCompression compression() {
+        public TagCompression compression() {
             return compression;
         }
 

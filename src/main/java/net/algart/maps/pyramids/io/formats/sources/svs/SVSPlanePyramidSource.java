@@ -24,7 +24,6 @@
 
 package net.algart.maps.pyramids.io.formats.sources.svs;
 
-import io.scif.formats.tiff.TiffCompression;
 import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
@@ -43,6 +42,7 @@ import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tiles.TiffMap;
 
 import java.awt.*;
@@ -749,7 +749,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (!SVSIFDClassifier.isSmallImage(ifd) || ifdIndex == SVS_IFD_THUMBNAIL_INDEX) {
                 continue;
             }
-            if (ifd.getCompression() == TiffCompression.LZW) {
+            if (ifd.getCompressionCode() == TagCompression.LZW.code()) {
                 // only Label in standard SVS files
                 numberOfLZW++;
             }
