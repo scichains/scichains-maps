@@ -15,7 +15,8 @@
   "in_ports": [
     {
       "value_type": "mat",
-      "name": "input"
+      "name": "input",
+      "hint": "Source image, that will be written as a new TIFF IFD image\nor added to the current IFD, if the file is already opened."
     },
     {
       "value_type": "scalar",
@@ -161,6 +162,131 @@
         }
       ],
       "default": "OPEN_AND_CLOSE"
+    },
+    {
+      "caption": "Append to existing TIFF",
+      "name": "appendIFDToExistingTiff",
+      "description": "If set, this function appends a new IFD image to the end of an existing file. If not set, this function deletes the specified file (when it exists) before any other actions This flag has no effect if the specified file does not exist.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "BigTIFF",
+      "name": "bigTiff",
+      "description": "If set, the new file will be created in BigTIFF format. This is necessary if you plan to create TIFF larger than 4 GB. If you are sure that your file will never be so large, even after possible appending new IFD images, you may stay this flag cleared: usual TIFF (non BigTIFF) is is compatible with larger number of viewers, for example with OS built-in viewers.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false
+    },
+    {
+      "caption": "Byte order",
+      "name": "byteOrder",
+      "description": "Byte order in the newly created TIFF.",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "BIG_ENDIAN",
+          "caption": "big-endian"
+        },
+        {
+          "value": "LITTLE_ENDIAN",
+          "caption": "little-endian"
+        },
+        {
+          "value": "NATIVE",
+          "caption": "native (optimal for current computer)"
+        }
+      ],
+      "default": "NATIVE"
+    },
+    {
+      "caption": "TIFF compression mode",
+      "name": "compression",
+      "description": "TIFF compression format, used for encoding this IFD image.",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "UNCOMPRESSED",
+          "caption": "Uncompressed (TIFF tag 1)"
+        },
+        {
+          "value": "LZW",
+          "caption": "LZW (TIFF tag 5)"
+        },
+        {
+          "value": "DEFLATE",
+          "caption": "Deflate (TIFF tag 8)"
+        },
+        {
+          "value": "JPEG",
+          "caption": "JPEG (TIFF tag 7)"
+        },
+        {
+          "value": "JPEG_2000_LOSSLESS",
+          "caption": "JPEG-2000 lossless (TIFF tag 33003, used by Aperio)"
+        },
+        {
+          "value": "JPEG_2000_LOSSLESS_ALTERNATIVE",
+          "caption": "JPEG-2000 lossless alternative (TIFF tag 33005, used by Aperio)"
+        },
+        {
+          "value": "JPEG_2000_LOSSY",
+          "caption": "JPEG-2000 lossy (TIFF tag 33004)"
+        }
+      ],
+      "default": "JPEG"
+    },
+    {
+      "caption": "Prefer RGB",
+      "name": "preferRGB",
+      "description": "If set, this function encodes JPEG images in RGB color space without subsampling. If cleared, this function encodes JPEG in more traditional YCbCr format with subsampling (skipping some of Cb and Cr values). RGB format minimizes loss of data and, so, is better for goals of image processing; YCbCr provides better compression and suitable for human viewed. In current version, this flag does not affect other compression modes, besides JPEG.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Quality",
+      "name": "quality",
+      "description": "May contain some real value, specifying desired quality of the compression image. If not specified, some default compression quality will be applied (usually the best).\nFor JPEG compression, this value must be between 0.0 (worst) and 1.0 (best). If the quality is not specified, the default value is 1.0 (minimal loss).\nFor JPEG-2000, the minimal allowed value is ~0.3–0.5, the maximal value is not limited. If the quality is not specified, the default value is 10 for JPEG-2000 lossy or maximal possible real value for JPEG-2000 lossless. (If the quality IS specified, \"lossless\" and \"lossy\" JPEG-2000 formats actually do not differ in level of loss.)\nFor other compressions, this parameter is ignored.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Signed integers",
+      "name": "signedIntegers",
+      "description": "If the image contains integer pixel values (8-, 16- or 32-bits), function marks the new IFD image as containing unsigned or signed integers, depending on this flag. Usually should be cleared (unsigned).",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false,
+      "advanced": true
+    },
+    {
+      "caption": "Resizable",
+      "name": "resizable",
+      "description": "If set and if this function is used many times without closing the file, the sizes of the result IFD image are calculated automatically as the minimal rectangle, containing all added frames. If cleared, the sizes of new IFD must be specified in the parameters \"X-size of the new image\" and  \"Y-size of the new image\".\nIf this function is called for single writing (the mode \"Open/reopen; read; close\" above), this flag is ignored.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false,
+      "advanced": true
+    },
+    {
+      "caption": "X-size of the new image",
+      "name": "imageDimX",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Y-size of the new image",
+      "name": "imageDimY",
+      "description": "Full sizes of new IFD image. If \"Resizable\" flag is set, or if this function is used for single writing (the file is opened and then immediately closed), these parameters may stay be zero; in other case, they must contain some positive values.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
     },
     {
       "name": "visibleResult",

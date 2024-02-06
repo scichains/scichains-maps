@@ -61,35 +61,12 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         }
     }
 
-    public enum Compression {
-        UNCOMPRESSED(TagCompression.UNCOMPRESSED),
-        LZW(TagCompression.LZW),
-        DEFLATE(TagCompression.DEFLATE),
-        JPEG(TagCompression.JPEG),
-        JPEG_RGB(TagCompression.JPEG),
-        JPEG_2000_LOSSY(TagCompression.JPEG_2000_LOSSY),
-        JPEG_2000_LOSSLESS(TagCompression.JPEG_2000_LOSSLESS);
-
-        private final TagCompression compression;
-
-        Compression(TagCompression compression) {
-            this.compression = compression;
-        }
-
-        public TagCompression compression() {
-            return compression;
-        }
-
-        public boolean isJpegInPhotometricRGB() {
-            return this == JPEG_RGB;
-        }
-    }
-
-    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
+      private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     private boolean appendIFDToExistingTiff = false;
     private boolean bigTiff = false;
     private ByteOrder byteOrder = ByteOrder.NATIVE;
-    private Compression compression = Compression.UNCOMPRESSED;
+    private TagCompression compression = TagCompression.UNCOMPRESSED;
+    private boolean preferRGB = false;
     private Double quality = null;
     private boolean signedIntegers = false;
     private boolean resizable = true;
@@ -163,12 +140,21 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         return this;
     }
 
-    public Compression getCompression() {
+    public TagCompression getCompression() {
         return compression;
     }
 
-    public WriteTiff setCompression(Compression compression) {
+    public WriteTiff setCompression(TagCompression compression) {
         this.compression = nonNull(compression);
+        return this;
+    }
+
+    public boolean isPreferRGB() {
+        return preferRGB;
+    }
+
+    public WriteTiff setPreferRGB(boolean preferRGB) {
+        this.preferRGB = preferRGB;
         return this;
     }
 
@@ -307,12 +293,12 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         Objects.requireNonNull(path, "Null path");
         Objects.requireNonNull(matrix, "Null matrix");
         try {
-            openFile(path, matrix);
+            final boolean needToClose = needToClose(this, openingMode);
+            openFile(path, matrix, needToClose);
             getScalar(OUTPUT_IFD_INDEX).setTo(writer.numberOfIFDs());
             // - BEFORE writing
             writeMultiMatrix(matrix);
-            final boolean close = needToClose(this, openingMode);
-            if (close) {
+            if (needToClose) {
                 closeFile(true);
             } else {
                 fillWritingOutputInformation(this, writer, map);
@@ -333,7 +319,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
 
-    public void openFile(Path path, MultiMatrix2D firstMatrix) throws IOException {
+    public void openFile(Path path, MultiMatrix2D firstMatrix, boolean singleWriteOnly) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
         if (this.writer == null) {
@@ -343,10 +329,11 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 // - will be ignored in a case of any exception
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
-                writer.setJpegInPhotometricRGB(compression.isJpegInPhotometricRGB());
+                writer.setJpegInPhotometricRGB(preferRGB);
                 writer.open(true);
-                final TiffIFD ifd = configure(writer, firstMatrix);
-                this.map = writer.newMap(ifd, resizable);
+                final TiffIFD ifd = configure(writer, firstMatrix, singleWriteOnly);
+                this.map = writer.newMap(ifd, resizable && !singleWriteOnly);
+                writer.writeForward(map);
             } catch (IOException e) {
                 if (writer != null) {
                     writer.close();
@@ -366,21 +353,31 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         writer.setOrRemoveQuality(quality);
     }
 
-    private TiffIFD configure(TiffWriter writer, MultiMatrix2D firstMatrix) {
+    private TiffIFD configure(TiffWriter writer, MultiMatrix2D firstMatrix, boolean singleWriteOnly) {
         TiffIFD ifd = writer.newIFD(tiled);
         if (tiled) {
             ifd.putTileSizes(tileSizeX, tileSizeY);
         } else if (stripSizeY != null) {
             ifd.putOrRemoveStripSize(stripSizeY == 0 ? null : stripSizeY);
         }
-        ifd.putCompression(compression.compression());
+        ifd.putCompression(compression);
         ifd.putPixelInformation(firstMatrix.numberOfChannels(), firstMatrix.elementType(), signedIntegers);
+
         if (!resizable) {
-            if (imageDimX == 0 || imageDimY == 0) {
-                throw new IllegalArgumentException("Zero image dimensions " + imageDimX + "x" + imageDimY
-                        + " are allowed only in resizable mode (in this case they are ignored)");
+            if (imageDimX != 0 && imageDimY != 0) {
+                ifd.putImageDimensions(imageDimX, imageDimY);
+            } else {
+                if (singleWriteOnly) {
+                    ifd.putImageDimensions((int) firstMatrix.dimX(), (int) firstMatrix.dimY());
+                } else {
+                    throw new IllegalArgumentException("Zero image dimensions " + imageDimX + "x" + imageDimY
+                            + " are allowed only in resizable mode (in this case they are ignored)");
+                }
             }
-            ifd.putImageDimensions(imageDimX, imageDimY);
+        } else {
+            if (singleWriteOnly) {
+                ifd.putImageDimensions((int) firstMatrix.dimX(), (int) firstMatrix.dimY());
+            }
         }
         return ifd;
     }
