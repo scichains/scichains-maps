@@ -232,7 +232,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     @Override
     public void initialize() {
         if (openingMode.isClosePreviousOnReset()) {
-            closeFile();
+            closeReader();
         }
     }
 
@@ -273,7 +273,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             final TiffReader reader = openFile(path);
             fillReadingOutputInformation(this, reader, ifdIndex);
             if (!reader.isValid()) {
-                closeFile();
+                closeReader();
                 return null;
             }
             final MultiMatrix2D result = doActualReading ?
@@ -281,11 +281,11 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
                     null;
             final boolean close = needToClose(this, openingMode);
             if (close) {
-                closeFile();
+                closeReader();
             }
             return result;
         } catch (IOException e) {
-            closeFile();
+            closeReader();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
@@ -295,7 +295,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     @Override
     public void close() {
         super.close();
-        closeFile();
+        closeReader();
     }
 
 
@@ -348,7 +348,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return result;
     }
 
-    private void closeFile() {
+    private void closeReader() {
         TiffReader reader = this.reader;
         if (reader != null) {
             this.reader = null;

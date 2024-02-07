@@ -277,7 +277,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     @Override
     public void initialize() {
         if (openingMode.isClosePreviousOnReset()) {
-            closeFile();
+            closeWriter(false);
         }
     }
 
@@ -299,25 +299,29 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             // - BEFORE writing
             writeMultiMatrix(matrix);
             if (needToClose) {
-                closeFile(true);
+                closeWriter(true);
             } else {
                 fillWritingOutputInformation(this, writer, map);
                 // - AFTER writing
             }
         } catch (IOException e) {
-            closeFile();
-            // - closing can be important to allow the user to fix the problem;
+            closeFileOnError();
+            // - closing is important to allow the user to fix the problem (for example, delete the file);
             // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
+        } catch (RuntimeException e) {
+            // - some not-too-good codecs may throw strange exceptions instead of IOException,
+            // and we need to close file to allow user to continue work (for example, to delete it)
+            closeFileOnError();
+            throw e;
         }
     }
 
     @Override
     public void close() {
         super.close();
-        closeFile();
+        closeFileOnError();
     }
-
 
     public void openFile(Path path, MultiMatrix2D firstMatrix, boolean singleWriteOnly) throws IOException {
         Objects.requireNonNull(path, "Null path");
@@ -334,9 +338,10 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 final TiffIFD ifd = configure(writer, firstMatrix, singleWriteOnly);
                 this.map = writer.newMap(ifd, resizable && !singleWriteOnly);
                 writer.writeForward(map);
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 if (writer != null) {
                     writer.close();
+                    //TODO!! delete file
                 }
                 throw e;
             }
@@ -390,11 +395,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         }
     }
 
-    private void closeFile() {
-        closeFile(false);
-    }
-
-    private void closeFile(boolean fillOutput) {
+    private void closeWriter(boolean fillOutput) {
         if (writer != null) {
             logDebug(() -> "Closing " + writer);
             try {
@@ -402,6 +403,19 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 if (fillOutput) {
                     fillWritingOutputInformation(this, writer, map);
                 }
+                writer.close();
+                writer = null;
+                map = null;
+            } catch (IOException e) {
+                throw new IOError(e);
+            }
+        }
+    }
+
+    private void closeFileOnError() {
+        if (writer != null) {
+            logDebug(() -> "Closing " + writer + " (ERROR)");
+            try {
                 writer.close();
             } catch (IOException e) {
                 throw new IOError(e);
