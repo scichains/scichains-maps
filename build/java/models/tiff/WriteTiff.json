@@ -73,6 +73,11 @@
     },
     {
       "value_type": "scalar",
+      "name": "file_size",
+      "hint": "Length of TIFF file."
+    },
+    {
+      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file.",

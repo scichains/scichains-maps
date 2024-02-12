@@ -46,6 +46,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
     public static final String OUTPUT_IMAGE_DIM_Y = "image_dim_y";
     public static final String OUTPUT_IFD = "ifd";
     public static final String OUTPUT_PRETTY_IFD = "pretty_ifd";
+    public static final String OUTPUT_FILE_SIZE = "file_size";
 
     private final Object lock = new Object();
 
@@ -92,6 +93,9 @@ public abstract class AbstractTiffOperation extends FileOperation {
                     executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
                 }
             }
+            if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
+                executor.getScalar(OUTPUT_FILE_SIZE).setTo(reader.getStream().length());
+            }
         } catch (IOException e) {
             throw new IOError(e);
         }
@@ -115,6 +119,13 @@ public abstract class AbstractTiffOperation extends FileOperation {
         }
         if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
             executor.getScalar(OUTPUT_PRETTY_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.DETAILED));
+        }
+        try {
+            if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
+                executor.getScalar(OUTPUT_FILE_SIZE).setTo(writer.getStream().length());
+            }
+        } catch (IOException e) {
+            throw new IOError(e);
         }
     }
 

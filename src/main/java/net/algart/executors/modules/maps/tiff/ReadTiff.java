@@ -84,6 +84,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         addOutputNumbers(OUTPUT_RECTANGLE);
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
+        addOutputScalar(OUTPUT_FILE_SIZE);
     }
 
     public static ReadTiff getInstance() {

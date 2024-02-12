@@ -56,6 +56,8 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
         addOutputScalar(OUTPUT_NUMBER_OF_IMAGES);
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
+        addOutputScalar(OUTPUT_FILE_SIZE);
+        addOutputScalar(OUTPUT_FILE_SIZE);
     }
 
     public boolean isRequireFileExistence() {

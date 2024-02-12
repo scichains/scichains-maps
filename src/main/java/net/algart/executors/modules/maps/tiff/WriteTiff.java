@@ -24,6 +24,8 @@
 
 package net.algart.executors.modules.maps.tiff;
 
+import net.algart.arrays.Matrix;
+import net.algart.arrays.PArray;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
@@ -61,7 +63,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         }
     }
 
-      private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
+    private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     private boolean appendIFDToExistingTiff = false;
     private boolean bigTiff = false;
     private ByteOrder byteOrder = ByteOrder.NATIVE;
@@ -96,6 +98,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         addOutputScalar(OUTPUT_IMAGE_DIM_Y);
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
+        addOutputScalar(OUTPUT_FILE_SIZE);
     }
 
     @Override
@@ -277,7 +280,11 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     @Override
     public void initialize() {
         if (openingMode.isClosePreviousOnReset()) {
-            closeWriter(false);
+            try {
+                closeWriter(false);
+            } catch (IOException e) {
+                throw new IOError(e);
+            }
         }
     }
 
@@ -294,10 +301,11 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         Objects.requireNonNull(matrix, "Null matrix");
         try {
             final boolean needToClose = needToClose(this, openingMode);
-            openFile(path, matrix, needToClose);
+            Matrix<? extends PArray> m = matrix.packChannels();
+            openFile(path, m, needToClose);
             getScalar(OUTPUT_IFD_INDEX).setTo(writer.numberOfIFDs());
             // - BEFORE writing
-            writeMultiMatrix(matrix);
+            writeMatrix(m);
             if (needToClose) {
                 closeWriter(true);
             } else {
@@ -323,29 +331,30 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         closeFileOnError();
     }
 
-    public void openFile(Path path, MultiMatrix2D firstMatrix, boolean singleWriteOnly) throws IOException {
+    public void openFile(Path path, Matrix<? extends PArray> firstMatrix, boolean singleWriteOnly) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
         if (this.writer == null) {
             TiffWriter writer = null;
+            TiffMap map;
             try {
                 writer = new TiffWriter(path, !appendIFDToExistingTiff);
                 // - will be ignored in a case of any exception
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
-                writer.setJpegInPhotometricRGB(preferRGB);
+                writer.setPreferRGB(preferRGB);
                 writer.open(true);
                 final TiffIFD ifd = configure(writer, firstMatrix, singleWriteOnly);
-                this.map = writer.newMap(ifd, resizable && !singleWriteOnly);
+                map = writer.newMap(ifd, resizable && !singleWriteOnly);
                 writer.writeForward(map);
             } catch (IOException | RuntimeException e) {
                 if (writer != null) {
                     writer.close();
-                    //TODO!! delete file
                 }
                 throw e;
             }
             this.writer = writer;
+            this.map = map;
             correctForImage();
         }
         fillOutputFileInformation(path);
@@ -358,7 +367,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         writer.setOrRemoveQuality(quality);
     }
 
-    private TiffIFD configure(TiffWriter writer, MultiMatrix2D firstMatrix, boolean singleWriteOnly) {
+    private TiffIFD configure(TiffWriter writer, Matrix<? extends PArray> firstMatrix, boolean singleWriteOnly) {
         TiffIFD ifd = writer.newIFD(tiled);
         if (tiled) {
             ifd.putTileSizes(tileSizeX, tileSizeY);
@@ -366,49 +375,43 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             ifd.putOrRemoveStripSize(stripSizeY == 0 ? null : stripSizeY);
         }
         ifd.putCompression(compression);
-        ifd.putPixelInformation(firstMatrix.numberOfChannels(), firstMatrix.elementType(), signedIntegers);
+        ifd.putMatrixInformation(firstMatrix, signedIntegers);
+        // - even if resizable, it is not a problem to start from sizes if the 1st matrix
 
         if (!resizable) {
             if (imageDimX != 0 && imageDimY != 0) {
                 ifd.putImageDimensions(imageDimX, imageDimY);
+                // - overrides firstMatrix sizes
             } else {
-                if (singleWriteOnly) {
-                    ifd.putImageDimensions((int) firstMatrix.dimX(), (int) firstMatrix.dimY());
-                } else {
+                if (!singleWriteOnly) {
                     throw new IllegalArgumentException("Zero image dimensions " + imageDimX + "x" + imageDimY
-                            + " are allowed only in resizable mode (in this case they are ignored)");
+                            + " are allowed only in resizable mode or while single writing");
                 }
-            }
-        } else {
-            if (singleWriteOnly) {
-                ifd.putImageDimensions((int) firstMatrix.dimX(), (int) firstMatrix.dimY());
             }
         }
         return ifd;
     }
 
-    private void writeMultiMatrix(MultiMatrix2D matrix) throws IOException {
+    private void writeMatrix(Matrix<? extends PArray> matrix) throws IOException {
         correctForImage();
-        List<TiffTile> updated = writer.updateMatrix(map, matrix.packChannels(), x, y);
+        List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
         if (flushASAP) {
             writer.writeCompletedTiles(updated);
         }
     }
 
-    private void closeWriter(boolean fillOutput) {
+    private void closeWriter(boolean fillOutput) throws IOException {
         if (writer != null) {
             logDebug(() -> "Closing " + writer);
-            try {
-                writer.complete(map);
-                if (fillOutput) {
-                    fillWritingOutputInformation(this, writer, map);
-                }
-                writer.close();
-                writer = null;
-                map = null;
-            } catch (IOException e) {
-                throw new IOError(e);
+            writer.complete(map);
+            if (fillOutput) {
+                fillWritingOutputInformation(this, writer, map);
             }
+            writer.close();
+            // - If there were some exception before this moment,
+            // writer/map will stay unchanged!
+            writer = null;
+            map = null;
         }
     }
 
