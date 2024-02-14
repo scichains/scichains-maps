@@ -78,6 +78,12 @@
     },
     {
       "value_type": "scalar",
+      "name": "closed",
+      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file.",
@@ -270,6 +276,14 @@
       "advanced": true
     },
     {
+      "caption": "Image description",
+      "name": "imageDescription",
+      "description": "May contain any string description of the newly created image (TIFF \"ImageDescription\" tag). This is required, for example, in SVS format. If not set (empty string), the new IFD will not contain \"ImageDescription\" tag.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
       "caption": "Resizable",
       "name": "resizable",
       "description": "If set and if this function is used many times without closing the file, the sizes of the result IFD image are calculated automatically as the minimal rectangle, containing all added frames. If cleared, the sizes of new IFD must be specified in the parameters \"X-size of the new image\" and  \"Y-size of the new image\".\nIf this function is called for single writing (the mode \"Open/reopen; read; close\" above), this flag is ignored.",
@@ -279,19 +293,74 @@
       "advanced": true
     },
     {
-      "caption": "X-size of the new image",
+      "caption": "Full X-size of the new image",
       "name": "imageDimX",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
     },
     {
-      "caption": "Y-size of the new image",
+      "caption": "Full Y-size of the new image",
       "name": "imageDimY",
       "description": "Full sizes of new IFD image. If \"Resizable\" flag is set, or if this function is used for single writing (the file is opened and then immediately closed), these parameters may stay be zero; in other case, they must contain some positive values.",
       "value_type": "int",
       "edition_type": "value",
       "default": 0
+    },
+    {
+      "caption": "X",
+      "name": "x",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Y",
+      "name": "y",
+      "description": "(X,Y) is the position of left top pixel of the added frame (matrix) inside the full IFD image. In is usually necessary when you write image frame-by-frame in a loop.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 0
+    },
+    {
+      "caption": "Tiled TIFF",
+      "name": "tiled",
+      "description": "If set, newly created IFD image will be tiled. This is recommended for large images, like multiscale maps. You may clear this flag if you want to write a little image.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
+      "caption": "Tile width",
+      "name": "tileSizeX",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 256
+    },
+    {
+      "caption": "Tile height",
+      "name": "tileSizeY",
+      "description": "Sizes of a tile in \"Tiled TIFF\" mode. Must be multiples of 16.",
+      "value_type": "int",
+      "edition_type": "value",
+      "default": 256
+    },
+    {
+      "caption": "Strip height",
+      "name": "stripSizeY",
+      "description": "If this parameter is set, it determines the height of each strip in the newly created TIFF image. If it contains 0, the image will not be stripped; this is a possible choice for small images. If this parameter is empty, some default strip height will be used.\nThis parameter is ignored in \"Tiled TIFF\" mode.",
+      "value_type": "String",
+      "edition_type": "value",
+      "advanced": true,
+      "default": ""
+    },
+    {
+      "caption": "Flush ASAP",
+      "name": "flushASAP",
+      "description": "If set, this function will always flush (write to the TIFF file) all tiles that are completely filled by data, and free up the memory they occupy.\nThis is important when you are writing a large image frame-by-frame. Otherwise, this function will keep all added data in memory until finishing writing this IFD image, typically until the input port \"close file\" will become \"true\". On the other hand, if you are writing overlapping frames at the same or almost same position, you probably NEED to clear this flag.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
     },
     {
       "name": "visibleResult",

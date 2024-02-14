@@ -71,6 +71,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private boolean preferRGB = false;
     private Double quality = null;
     private boolean signedIntegers = false;
+    private String imageDescription = "";
     private boolean resizable = true;
     private int imageDimX = 0;
     private int imageDimY = 0;
@@ -80,7 +81,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private int tileSizeX = 256;
     private int tileSizeY = 256;
     private Integer stripSizeY = null;
-    private boolean flushASAP = false;
+    private boolean flushASAP = true;
 
     private volatile TiffWriter writer = null;
     private volatile TiffMap map = null;
@@ -99,6 +100,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
         addOutputScalar(OUTPUT_FILE_SIZE);
+        addOutputScalar(OUTPUT_CLOSED);
     }
 
     @Override
@@ -176,6 +178,15 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     public WriteTiff setSignedIntegers(boolean signedIntegers) {
         this.signedIntegers = signedIntegers;
+        return this;
+    }
+
+    public String getImageDescription() {
+        return imageDescription;
+    }
+
+    public WriteTiff setImageDescription(String imageDescription) {
+        this.imageDescription = nonNull(imageDescription);
         return this;
     }
 
@@ -305,7 +316,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             openFile(path, m, needToClose);
             getScalar(OUTPUT_IFD_INDEX).setTo(writer.numberOfIFDs());
             // - BEFORE writing
-            writeMatrix(m);
+            writeMatrix(m, needToClose);
             if (needToClose) {
                 closeWriter(true);
             } else {
@@ -322,6 +333,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             // and we need to close file to allow user to continue work (for example, to delete it)
             closeFileOnError();
             throw e;
+        } finally {
+            getScalar(OUTPUT_CLOSED).setTo(writer == null);
         }
     }
 
@@ -331,21 +344,25 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         closeFileOnError();
     }
 
-    public void openFile(Path path, Matrix<? extends PArray> firstMatrix, boolean singleWriteOnly) throws IOException {
+    public void openFile(Path path, Matrix<? extends PArray> firstMatrix, boolean needToClose) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
         if (this.writer == null) {
             TiffWriter writer = null;
             TiffMap map;
             try {
-                writer = new TiffWriter(path, !appendIFDToExistingTiff);
+                final boolean deleteExistingFile = !appendIFDToExistingTiff;
+                writer = new TiffWriter(path, deleteExistingFile);
                 // - will be ignored in a case of any exception
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
                 writer.setPreferRGB(preferRGB);
                 writer.open(true);
-                final TiffIFD ifd = configure(writer, firstMatrix, singleWriteOnly);
-                map = writer.newMap(ifd, resizable && !singleWriteOnly);
+                final boolean dimensionsRequired = !(needToClose && x == 0 && y == 0);
+                final TiffIFD ifd = configure(writer, firstMatrix, dimensionsRequired);
+                map = writer.newMap(ifd, resizable && dimensionsRequired);
+                // - if not dimensionsRequired (because this is single-writing call),
+                // we prefer to ignore "resizable" parameter (TIFF file will be more efficient)
                 writer.writeForward(map);
             } catch (IOException | RuntimeException e) {
                 if (writer != null) {
@@ -364,10 +381,10 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     // Corrects settings, that can be different for different IFDs or tiles.
     private void correctForImage() {
-        writer.setOrRemoveQuality(quality);
+        writer.setQuality(quality);
     }
 
-    private TiffIFD configure(TiffWriter writer, Matrix<? extends PArray> firstMatrix, boolean singleWriteOnly) {
+    private TiffIFD configure(TiffWriter writer, Matrix<? extends PArray> firstMatrix, boolean dimensionsRequired) {
         TiffIFD ifd = writer.newIFD(tiled);
         if (tiled) {
             ifd.putTileSizes(tileSizeX, tileSizeY);
@@ -383,19 +400,23 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 ifd.putImageDimensions(imageDimX, imageDimY);
                 // - overrides firstMatrix sizes
             } else {
-                if (!singleWriteOnly) {
-                    throw new IllegalArgumentException("Zero image dimensions " + imageDimX + "x" + imageDimY
-                            + " are allowed only in resizable mode or while single writing");
+                if (dimensionsRequired) {
+                    throw new IllegalArgumentException("You must specify full image sizes " +
+                             "(you may omit this only in resizable mode or while single writing at (0,0) position)");
                 }
             }
+        }
+        final String description = this.imageDescription.trim();
+        if (!description.isEmpty()) {
+            ifd.putImageDescription(description);
         }
         return ifd;
     }
 
-    private void writeMatrix(Matrix<? extends PArray> matrix) throws IOException {
+    private void writeMatrix(Matrix<? extends PArray> matrix, boolean needToClose) throws IOException {
         correctForImage();
         List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
-        if (flushASAP) {
+        if (flushASAP && !needToClose) {
             writer.writeCompletedTiles(updated);
         }
     }

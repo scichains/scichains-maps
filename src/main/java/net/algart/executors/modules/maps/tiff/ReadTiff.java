@@ -85,6 +85,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
         addOutputScalar(OUTPUT_FILE_SIZE);
+        addOutputScalar(OUTPUT_CLOSED);
     }
 
     public static ReadTiff getInstance() {
@@ -290,6 +291,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
             throw new IOError(e);
+        } finally {
+            getScalar(OUTPUT_CLOSED).setTo(reader == null);
         }
     }
 

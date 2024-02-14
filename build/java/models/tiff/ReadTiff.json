@@ -95,6 +95,12 @@
     },
     {
       "value_type": "scalar",
+      "name": "closed",
+      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
+      "advanced": true
+    },
+    {
+      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file.",

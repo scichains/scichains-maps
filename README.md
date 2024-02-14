@@ -1,5 +1,5 @@
 **SciChains**
-*Multi-scale maps (image pyramids)*
+*Multiscale maps (image pyramids)*
 
 Support of large multiscale maps, like SVS files.
 
