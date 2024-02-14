@@ -65,44 +65,42 @@ public abstract class AbstractTiffOperation extends FileOperation {
         return Boolean.parseBoolean(s);
     }
 
-    public static void fillReadingOutputInformation(Executor executor, TiffReader reader, int ifdIndex) {
+    public static void fillReadingOutputInformation(Executor executor, TiffReader reader, int ifdIndex)
+            throws IOException {
         Objects.requireNonNull(executor, "Null executor");
         Objects.requireNonNull(reader, "Null reader");
-        try {
-            if (executor.hasOutputPort(OUTPUT_VALID)) {
-                executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
+        if (executor.hasOutputPort(OUTPUT_VALID)) {
+            executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
+        }
+        final List<TiffIFD> ifds = reader.allIFDs();
+        if (executor.hasOutputPort(OUTPUT_IFD_INDEX)) {
+            executor.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
+        }
+        if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
+            executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
+        }
+        if (ifdIndex < ifds.size()) {
+            TiffIFD ifd = ifds.get(ifdIndex);
+            if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+                executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
             }
-            final List<TiffIFD> ifds = reader.allIFDs();
-            if (executor.hasOutputPort(OUTPUT_IFD_INDEX)) {
-                executor.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
+            if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+                executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
             }
-            if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
-                executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
+            if (executor.isOutputNecessary(OUTPUT_IFD)) {
+                executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
             }
-            if (ifdIndex < ifds.size()) {
-                TiffIFD ifd = ifds.get(ifdIndex);
-                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
-                    executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
-                }
-                if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
-                    executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
-                }
-                if (executor.isOutputNecessary(OUTPUT_IFD)) {
-                    executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
-                }
-                if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
-                    executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
-                }
+            if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
+                executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
             }
-            if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
-                executor.getScalar(OUTPUT_FILE_SIZE).setTo(reader.stream().length());
-            }
-        } catch (IOException e) {
-            throw new IOError(e);
+        }
+        if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
+            executor.getScalar(OUTPUT_FILE_SIZE).setTo(reader.stream().length());
         }
     }
 
-    public static void fillWritingOutputInformation(Executor executor, TiffWriter writer, TiffMap map) {
+    public static void fillWritingOutputInformation(Executor executor, TiffWriter writer, TiffMap map)
+            throws IOException {
         Objects.requireNonNull(executor, "Null executor");
         Objects.requireNonNull(writer, "Null writer");
         Objects.requireNonNull(map, "Null map");
@@ -121,12 +119,8 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
             executor.getScalar(OUTPUT_PRETTY_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.DETAILED));
         }
-        try {
-            if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
-                executor.getScalar(OUTPUT_FILE_SIZE).setTo(writer.stream().length());
-            }
-        } catch (IOException e) {
-            throw new IOError(e);
+        if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
+            executor.getScalar(OUTPUT_FILE_SIZE).setTo(writer.stream().length());
         }
     }
 
