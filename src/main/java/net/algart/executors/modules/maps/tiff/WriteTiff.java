@@ -417,17 +417,19 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         correctForImage();
         List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
         if (flushASAP && !needToClose) {
-            writer.writeCompletedTiles(updated);
+            int count = writer.writeCompletedTiles(updated);
+            logDebug(() -> "Flushing " + count + " from " + updated.size() + " changed tiles");
         }
     }
 
     private void closeWriter(boolean fillOutput) throws IOException {
         if (writer != null) {
-            logDebug(() -> "Closing " + writer);
-            writer.complete(map);
+            int count = writer.complete(map);
+            logDebug(() -> "Completing writing " + count + " tiles");
             if (fillOutput) {
                 fillWritingOutputInformation(this, writer, map);
             }
+            logDebug(() -> "Closing " + writer);
             writer.close();
             // - If there were some exception before this moment,
             // writer/map will stay unchanged!
