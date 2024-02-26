@@ -47,6 +47,8 @@ public abstract class AbstractTiffOperation extends FileOperation {
     public static final String OUTPUT_IFD = "ifd";
     public static final String OUTPUT_PRETTY_IFD = "pretty_ifd";
     public static final String OUTPUT_FILE_SIZE = "file_size";
+    public static final String OUTPUT_STORED_TILES_COUNT = "stored_tiles_count";
+    public static final String OUTPUT_STORED_TILES_MEMORY = "stored_tiles_memory";
     public static final String OUTPUT_CLOSED = "closed";
 
     private final Object lock = new Object();
@@ -65,62 +67,66 @@ public abstract class AbstractTiffOperation extends FileOperation {
         return Boolean.parseBoolean(s);
     }
 
-    public static void fillReadingOutputInformation(Executor executor, TiffReader reader, int ifdIndex)
-            throws IOException {
-        Objects.requireNonNull(executor, "Null executor");
+    public static void fillReadingOutputInformation(Executor e, TiffReader reader, int ifdIndex) throws IOException {
+        Objects.requireNonNull(e, "Null executor");
         Objects.requireNonNull(reader, "Null reader");
-        if (executor.hasOutputPort(OUTPUT_VALID)) {
-            executor.getScalar(OUTPUT_VALID).setTo(reader.isValid());
+        if (e.hasOutputPort(OUTPUT_VALID)) {
+            e.getScalar(OUTPUT_VALID).setTo(reader.isValid());
         }
         final List<TiffIFD> ifds = reader.allIFDs();
-        if (executor.hasOutputPort(OUTPUT_IFD_INDEX)) {
-            executor.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
+        if (e.hasOutputPort(OUTPUT_IFD_INDEX)) {
+            e.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
         }
-        if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
-            executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
+        if (e.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
+            e.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
         }
         if (ifdIndex < ifds.size()) {
             TiffIFD ifd = ifds.get(ifdIndex);
-            if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
-                executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
+            if (e.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+                e.getScalar(OUTPUT_IMAGE_DIM_X).setTo(ifd.getImageDimX());
             }
-            if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
-                executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
+            if (e.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+                e.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(ifd.getImageDimY());
             }
-            if (executor.isOutputNecessary(OUTPUT_IFD)) {
-                executor.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
+            if (e.isOutputNecessary(OUTPUT_IFD)) {
+                e.getScalar(OUTPUT_IFD).setTo(ifd.toString(TiffIFD.StringFormat.JSON));
             }
-            if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
-                executor.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
+            if (e.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
+                e.getScalar(OUTPUT_PRETTY_IFD).setTo(ifd.toString(TiffIFD.StringFormat.DETAILED));
             }
         }
-        if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
-            executor.getScalar(OUTPUT_FILE_SIZE).setTo(reader.stream().length());
+        if (e.hasOutputPort(OUTPUT_FILE_SIZE)) {
+            e.getScalar(OUTPUT_FILE_SIZE).setTo(reader.stream().length());
         }
     }
 
-    public static void fillWritingOutputInformation(Executor executor, TiffWriter writer, TiffMap map)
-            throws IOException {
-        Objects.requireNonNull(executor, "Null executor");
+    public static void fillWritingOutputInformation(Executor e, TiffWriter writer, TiffMap map) throws IOException {
+        Objects.requireNonNull(e, "Null executor");
         Objects.requireNonNull(writer, "Null writer");
         Objects.requireNonNull(map, "Null map");
-        if (executor.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
-            executor.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(writer.numberOfIFDs());
+        if (e.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
+            e.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(writer.numberOfIFDs());
         }
-        if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
-            executor.getScalar(OUTPUT_IMAGE_DIM_X).setTo(map.dimX());
+        if (e.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+            e.getScalar(OUTPUT_IMAGE_DIM_X).setTo(map.dimX());
         }
-        if (executor.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
-            executor.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(map.dimY());
+        if (e.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+            e.getScalar(OUTPUT_IMAGE_DIM_Y).setTo(map.dimY());
         }
-        if (executor.isOutputNecessary(OUTPUT_IFD)) {
-            executor.getScalar(OUTPUT_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.JSON));
+        if (e.isOutputNecessary(OUTPUT_IFD)) {
+            e.getScalar(OUTPUT_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.JSON));
         }
-        if (executor.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
-            executor.getScalar(OUTPUT_PRETTY_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.DETAILED));
+        if (e.isOutputNecessary(OUTPUT_PRETTY_IFD)) {
+            e.getScalar(OUTPUT_PRETTY_IFD).setTo(map.ifd().toString(TiffIFD.StringFormat.DETAILED));
         }
-        if (executor.hasOutputPort(OUTPUT_FILE_SIZE)) {
-            executor.getScalar(OUTPUT_FILE_SIZE).setTo(writer.stream().length());
+        if (e.hasOutputPort(OUTPUT_FILE_SIZE)) {
+            e.getScalar(OUTPUT_FILE_SIZE).setTo(writer.stream().length());
+        }
+        if (e.isOutputNecessary(OUTPUT_STORED_TILES_COUNT) || e.isOutputNecessary(OUTPUT_STORED_TILES_MEMORY)) {
+            // - only if requested: in very large maps, this operation can lead to O(N^2) operations
+            final long count = map.tiles().stream().filter(t -> !t.isEmpty()).count();
+            e.getScalar(OUTPUT_STORED_TILES_COUNT).setTo(count);
+            e.getScalar(OUTPUT_STORED_TILES_MEMORY).setTo(count * map.tileSizeInBytes());
         }
     }
 

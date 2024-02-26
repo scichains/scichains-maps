@@ -52,7 +52,7 @@
         <buildDirectory>${project.build.directory}/build</buildDirectory>
 
         <net.algart.scichains-core.version>4.3.6</net.algart.scichains-core.version>
-        <net.algart.algart-tiff.version>1.2.5</net.algart.algart-tiff.version>
+        <net.algart.algart-tiff.version>1.2.7</net.algart.algart-tiff.version>
     </properties>
     <dependencies>
         <dependency>

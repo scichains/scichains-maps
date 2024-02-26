@@ -278,14 +278,14 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
                 closeReader();
                 return null;
             }
-            final MultiMatrix2D result = doActualReading ?
+            final MultiMatrix2D multiMatrix = doActualReading ?
                     readMultiMatrix(reader) :
                     null;
             final boolean close = needToClose(this, openingMode);
             if (close) {
                 closeReader();
             }
-            return result;
+            return multiMatrix;
         } catch (IOException e) {
             closeReader();
             // - closing can be important to allow the user to fix the problem;

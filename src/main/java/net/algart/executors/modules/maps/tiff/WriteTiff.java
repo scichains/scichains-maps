@@ -100,6 +100,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         addOutputScalar(OUTPUT_IFD);
         addOutputScalar(OUTPUT_PRETTY_IFD);
         addOutputScalar(OUTPUT_FILE_SIZE);
+        addOutputScalar(OUTPUT_STORED_TILES_COUNT);
+        addOutputScalar(OUTPUT_STORED_TILES_MEMORY);
         addOutputScalar(OUTPUT_CLOSED);
     }
 
@@ -301,21 +303,20 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     @Override
     public void process() {
-        SMat input = getInputMat(defaultInputPortName());
-        // Note: unlike standard WriteImage, the input is always required.
-        // This helps to simplify logic of opening (we need to know image characteristics).
+        SMat input = getInputMat( true);
+        // - the input CAN be skipped, if we just want to close file,
+        // but it is REQUIRED while the first call (this will be checked later in openFile method)
         writeTiff(completeFilePath(), input.toMultiMatrix2D());
     }
 
-    public void writeTiff(Path path, MultiMatrix2D matrix) {
+    public void writeTiff(Path path, MultiMatrix2D multiMatrix) {
         Objects.requireNonNull(path, "Null path");
-        Objects.requireNonNull(matrix, "Null matrix");
+        final Matrix<? extends PArray> m = multiMatrix == null ? null : multiMatrix.packChannels();
         try {
             final boolean needToClose = needToClose(this, openingMode);
-            Matrix<? extends PArray> m = matrix.packChannels();
             openFile(path, m, needToClose);
             getScalar(OUTPUT_IFD_INDEX).setTo(writer.numberOfIFDs());
-            // - BEFORE writing
+            // - numberOfIFDs() BEFORE writing is the index of resulting IFD
             writeMatrix(m, needToClose);
             if (needToClose) {
                 closeWriter(true);
@@ -348,16 +349,20 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
         if (this.writer == null) {
+            if (firstMatrix == null) {
+                throw new IllegalArgumentException("The input matrix is not specified, " +
+                        "but this matrix is required when the TIFF file is initially opened " +
+                        "(although it can be omitted on subsequent calls when the file is already opened)");
+            }
             TiffWriter writer = null;
             TiffMap map;
             try {
                 final boolean deleteExistingFile = !appendIFDToExistingTiff;
                 writer = new TiffWriter(path, deleteExistingFile);
-                // - will be ignored in a case of any exception
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
                 writer.setPreferRGB(preferRGB);
-                writer.open(true);
+                writer.openOrCreate();
                 final boolean dimensionsRequired = !(needToClose && x == 0 && y == 0);
                 final TiffIFD ifd = configure(writer, firstMatrix, dimensionsRequired);
                 map = writer.newMap(ifd, resizable && dimensionsRequired);
@@ -382,6 +387,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     // Corrects settings, that can be different for different IFDs or tiles.
     private void correctForImage() {
         writer.setQuality(quality);
+        // - in the current version, this is the only settings, which may vary from one IFD to another
     }
 
     private TiffIFD configure(TiffWriter writer, Matrix<? extends PArray> firstMatrix, boolean dimensionsRequired) {
@@ -415,10 +421,12 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     private void writeMatrix(Matrix<? extends PArray> matrix, boolean needToClose) throws IOException {
         correctForImage();
-        List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
-        if (flushASAP && !needToClose) {
-            int count = writer.writeCompletedTiles(updated);
-            logDebug(() -> "Flushing " + count + " from " + updated.size() + " changed tiles");
+        if (matrix != null) {
+            List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
+            if (flushASAP && !needToClose) {
+                int count = writer.writeCompletedTiles(updated);
+                logDebug(() -> "Flushing " + count + " from " + updated.size() + " changed tiles");
+            }
         }
     }
 

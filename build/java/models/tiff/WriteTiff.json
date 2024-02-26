@@ -16,7 +16,7 @@
     {
       "value_type": "mat",
       "name": "input",
-      "hint": "Source image, that will be written as a new TIFF IFD image\nor added to the current IFD, if the file is already opened."
+      "hint": "Source image, that will be written as a new TIFF IFD image\nor added to the current IFD, if the file is already opened.\nCan be omitted, but ONLY if the file is already opened (for example, if you want just to close it)."
     },
     {
       "value_type": "scalar",
@@ -75,6 +75,16 @@
       "value_type": "scalar",
       "name": "file_size",
       "hint": "Length of TIFF file."
+    },
+    {
+      "value_type": "scalar",
+      "name": "stored_tiles_count",
+      "hint": "Number of tiles, which are stored in RAM and have not yet flushed to disk."
+    },
+    {
+      "value_type": "scalar",
+      "name": "stored_tiles_memory",
+      "hint": "Total memory occupied by tiles, which are stored in RAM and have not yet flushed to disk."
     },
     {
       "value_type": "scalar",
@@ -335,7 +345,8 @@
       "name": "tileSizeX",
       "value_type": "int",
       "edition_type": "value",
-      "default": 256
+      "default": 512,
+      "advanced": true
     },
     {
       "caption": "Tile height",
@@ -343,7 +354,8 @@
       "description": "Sizes of a tile in \"Tiled TIFF\" mode. Must be multiples of 16.",
       "value_type": "int",
       "edition_type": "value",
-      "default": 256
+      "default": 512,
+      "advanced": true
     },
     {
       "caption": "Strip height",
@@ -351,8 +363,8 @@
       "description": "If this parameter is set, it determines the height of each strip in the newly created TIFF image. If it contains 0, the image will not be stripped; this is a possible choice for small images. If this parameter is empty, some default strip height will be used.\nThis parameter is ignored in \"Tiled TIFF\" mode.",
       "value_type": "String",
       "edition_type": "value",
-      "advanced": true,
-      "default": ""
+      "default": "",
+      "advanced": true
     },
     {
       "caption": "Flush ASAP",
