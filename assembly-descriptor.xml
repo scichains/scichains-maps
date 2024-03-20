@@ -15,21 +15,18 @@
             <outputDirectory>./java/lib</outputDirectory>
         </dependencySet>
         <dependencySet>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>net.algart:algart-tiff</include>
             </includes>
+            <excludes>
+                <!-- Excluding AlgART: it is a standard library, provided by scichains-core
+                (It is already excluded by dependence on scichains-core,
+                but just in case we exclude it explicitly.) -->
+                <exclude>net.algart:algart:*</exclude>
+            </excludes>
             <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>
             <outputDirectory>./java/lib</outputDirectory>
-        </dependencySet>
-        <dependencySet>
-            <useTransitiveFiltering>true</useTransitiveFiltering>
-            <includes>
-                <include>io.scif:*</include>
-                <include>org.scijava:*</include>
-                <!-- must be specified directly: we sometimes include later version of scijava-common,
-                 and in this case it is automatically excluded from "io.scif:*" specification -->
-            </includes>
-            <outputDirectory>./java/lib/scifio</outputDirectory>
         </dependencySet>
     </dependencySets>
     <files>

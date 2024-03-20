@@ -115,7 +115,7 @@ public class SVSSourceTest {
             long t1 = System.nanoTime();
             Matrix<? extends PArray> m = source.readSubMatrix(level, START_X, START_Y, w, h);
             long t2 = System.nanoTime();
-            multiMatrix = MultiMatrix.valueOf2DRGBA(SMat.unpackBandsFromSequentialSamples(m));
+            multiMatrix = MultiMatrix.valueOf2DRGBA(Matrices.separate(null, m));
             long t3 = System.nanoTime();
             System.out.printf("Test #%d: %dx%d (%.3f MB) loaded in %.3f ms + %.3f ms, %.3f MB/sec%n",
                     test, w, h, Matrices.sizeOf(m) / 1048576.0,

@@ -342,7 +342,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             }
         }
         final Matrix<? extends PArray> m = reader.readMatrix(map, fromX, fromY, toX, toY);
-        MultiMatrix2D result = MultiMatrix.unpackChannels(m).asMultiMatrix2D();
+        MultiMatrix2D result = MultiMatrix.valueOf2DMerged(m);
         if (numberOfChannels != 0) {
             result = result.asOtherNumberOfChannels(numberOfChannels);
         }

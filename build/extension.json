@@ -18,10 +18,10 @@
       },
       "configuration": {
         "classpath": [
-          "java/lib/scifio/parsington-3.1.0.jar",
-          "java/lib/scifio/scifio-jai-imageio-1.1.1.jar",
-          "java/lib/scifio/scijava-common-2.97.0.jar",
-
+          "java/lib/parsington-3.1.0.jar",
+          "java/lib/scijava-common-2.97.0.jar",
+          "java/lib/jai-imageio-core-1.4.0.jar",
+          "java/lib/jai-imageio-jpeg2000-1.4.0.jar",
           "java/lib/algart-tiff-${net.algart.algart-tiff.version}.jar",
           "java/lib/${artifactId}-${version}.jar"
         ],

@@ -24,10 +24,9 @@
 
 package net.algart.maps.pyramids.io.api.sources;
 
-import net.algart.arrays.*;
 import net.algart.arrays.Arrays;
-import net.algart.external.BufferedImageToMatrixConverter;
-import net.algart.external.ExternalAlgorithmCaller;
+import net.algart.arrays.*;
+import net.algart.external.awt.BufferedImageToMatrix;
 import net.algart.maps.pyramids.io.api.AbstractPlanePyramidSourceWrapper;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidTools;
@@ -62,9 +61,9 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
         protected int imageIndex = 0;
         private boolean addAlphaWhenExist = false;
         private boolean readPixelValuesViaColorModel =
-                BufferedImageToMatrixConverter.ToPacked3D.DEFAULT_READ_PIXEL_VALUES_VIA_COLOR_MODEL;
+                BufferedImageToMatrix.ToInterleavedRGB.DEFAULT_READ_PIXEL_VALUES_VIA_COLOR_MODEL;
         private boolean readPixelValuesViaGraphics2D =
-                BufferedImageToMatrixConverter.ToPacked3D.DEFAULT_READ_PIXEL_VALUES_VIA_GRAPHICS_2D;
+                BufferedImageToMatrix.ToInterleavedRGB.DEFAULT_READ_PIXEL_VALUES_VIA_GRAPHICS_2D;
         // - ignored (as true value) for non-8-bit images
         private boolean dicomReader = false;
 
@@ -240,7 +239,7 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
         if (pyramid != null) {
             final int[] dimensions = image != null ?
                     new int[]{image.getWidth(), image.getHeight()} :
-                    ExternalAlgorithmCaller.readImageDimensions(imageFile);
+                    readImageDimensions(imageFile);
             if (pyramid.get(0).dim(1) != dimensions[0] || pyramid.get(0).dim(2) != dimensions[1])
                 throw new IOException("Illegal or corrupted cache: the pyramid in cache has zero-level "
                         + pyramid.get(0).dim(1) + "x" + pyramid.get(0).dim(2) + "(x" + pyramid.get(0).dim(0)
@@ -265,10 +264,11 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
             depth8 &= sampleSize == 8;
         }
         final Matrix<? extends PArray> matrixZero =
-                new BufferedImageToMatrixConverter.ToPacked3D(imageIOReadingBehaviour.addAlphaWhenExist)
+                new BufferedImageToMatrix.ToInterleavedRGB()
                         .setReadPixelValuesViaColorModel(imageIOReadingBehaviour.readPixelValuesViaColorModel)
                         .setReadPixelValuesViaGraphics2D(imageIOReadingBehaviour.readPixelValuesViaGraphics2D
                                 || !depth8)
+                        .setEnableAlpha(imageIOReadingBehaviour.addAlphaWhenExist)
                         .toMatrix(image);
         // !depth8: this class does not try to read 16/32/64-bit pictures (to be on the safe side),
         // it uses for them simples way via copying into 8-bit Graphics2D
@@ -458,9 +458,29 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
                 byteArray.freeResources(null);
             }
         } catch (IllegalInfoSyntaxException e) {
-            IOException ex = new IOException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    public static int[] readImageDimensions(File file) throws IOException {
+        if (!file.exists()) {
+            throw new FileNotFoundException("Image file " + file + " does not exist");
+        }
+        ImageInputStream iis = ImageIO.createImageInputStream(file);
+        try {
+            Iterator<ImageReader> iterator = ImageIO.getImageReaders(iis);
+            if (!iterator.hasNext()) {
+                throw new IIOException("Unknown image format: can't create an ImageInputStream");
+            }
+            ImageReader reader = iterator.next();
+            try {
+                reader.setInput(iis);
+                return new int[] {reader.getWidth(0), reader.getHeight(0)};
+            } finally {
+                reader.dispose();
+            }
+        } finally {
+            iis.close();
         }
     }
 }

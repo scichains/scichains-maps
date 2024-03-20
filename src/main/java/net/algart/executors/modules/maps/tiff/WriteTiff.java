@@ -311,7 +311,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     public void writeTiff(Path path, MultiMatrix2D multiMatrix) {
         Objects.requireNonNull(path, "Null path");
-        final Matrix<? extends PArray> m = multiMatrix == null ? null : multiMatrix.packChannels();
+        final Matrix<? extends PArray> m = multiMatrix == null ? null : multiMatrix.mergeChannels();
         try {
             final boolean needToClose = needToClose(this, openingMode);
             openFile(path, m, needToClose);

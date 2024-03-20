@@ -26,15 +26,16 @@ package net.algart.executors.modules.maps.pyramids.io;
 
 import jakarta.json.Json;
 import net.algart.arrays.Arrays;
+import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
 import net.algart.bridges.standard.JavaScriptContextContainer;
 import net.algart.executors.api.Executor;
-import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.core.common.io.FileOperation;
-import net.algart.math.IRectangularArea;
+import net.algart.external.MatrixIO;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
+import net.algart.math.IRectangularArea;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 
@@ -250,14 +251,14 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
         final long toY = area.maxY() + 1;
         final Matrix<? extends PArray> matrix = source.readSubMatrix(
                 resolutionLevel, fromX, fromY, toX, toY);
-        return MultiMatrix.valueOf2DRGBA(SMat.unpackBandsFromSequentialSamples(matrix));
+        return MultiMatrix.valueOf2DRGBA(Matrices.separate(null, matrix));
     }
 
     public static MultiMatrix2D readSpecialMatrix(
             PlanePyramidSource planePyramidSource,
             PlanePyramidSource.SpecialImageKind specialImageKind) {
         final Optional<Matrix<? extends PArray>> matrix = planePyramidSource.readSpecialMatrix(specialImageKind);
-        return matrix.map(m -> MultiMatrix.valueOf2DRGBA(SMat.unpackBandsFromSequentialSamples(m))).orElse(null);
+        return matrix.map(m -> MultiMatrix.valueOf2DRGBA(Matrices.separate(null, m))).orElse(null);
     }
 
     public ImagePyramidMetadataJson readMetadataOrNull(Path planePyramidPath) throws IOException {
@@ -325,7 +326,7 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
             String customClassName) {
         Objects.requireNonNull(path, "Null path");
         if (format.isAutoDetection()) {
-            format = ImagePyramidFormatKind.valueOfExtension(extension(path.toString(), null));
+            format = ImagePyramidFormatKind.valueOfExtension(MatrixIO.extension(path.toString(), null));
         }
         if (format.hasFactory()) {
             return format.getFactoryClassName();

@@ -25,9 +25,9 @@
 package net.algart.maps.pyramids.io.formats.common.recognition;
 
 import net.algart.arrays.*;
-import net.algart.external.BufferedImageToMatrixConverter;
-import net.algart.external.ExternalAlgorithmCaller;
-import net.algart.external.MatrixToBufferedImageConverter;
+import net.algart.external.MatrixIO;
+import net.algart.external.awt.BufferedImageToMatrix;
+import net.algart.external.awt.MatrixToBufferedImage;
 import net.algart.math.IPoint;
 import net.algart.math.Range;
 import net.algart.math.functions.LinearFunc;
@@ -508,7 +508,7 @@ public class BorderFinder {
         if (bufferedImage == null) {
             throw new IOException("Cannot read " + file);
         }
-        final Matrix<? extends UpdatablePArray> macro = new BufferedImageToMatrixConverter.ToPacked3D(false)
+        final Matrix<? extends UpdatablePArray> macro = new BufferedImageToMatrix.ToInterleavedRGB()
             .toMatrix(bufferedImage);
         final long leftTopX = Integer.parseInt(args[1]);
         final long leftTopY = Integer.parseInt(args[2]);
@@ -528,22 +528,22 @@ public class BorderFinder {
         long t2 = System.nanoTime();
         finder.findLeftTop();
         long t3 = System.nanoTime();
-        final String fileName = ExternalAlgorithmCaller.removeFileExtension(file).getName();
+        final String fileName = MatrixIO.removeExtension(file.getName());
         ImageIO.write(
             bufferedImage,
             "JPEG", new File(resultFolder, "result.source." + fileName + ".jpg"));
         ImageIO.write(
-            new MatrixToBufferedImageConverter.Packed3DToPackedRGB(false).toBufferedImage(finder.getAveraged()),
+            new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(finder.getAveraged()),
             "JPEG", new File(resultFolder, "result.averaged." + fileName + ".jpg"));
         final Matrix<UpdatableByteArray> allLeftTopQualities = finder.findAllLeftTopQualities(qualityMulriplier);
         ImageIO.write(
-            new MatrixToBufferedImageConverter.Packed3DToPackedRGB(false).toBufferedImage(allLeftTopQualities),
+            new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(allLeftTopQualities),
             "JPEG", new File(resultFolder, "result.ltq." + fileName + ".jpg"));
         System.out.printf(Locale.US, "Found position: (%d,%d); quality: %.5f; %.3f sec preprocess + %.3f sec search%n",
             finder.getResultLeftTopX(), finder.getResultLeftTopY(), finder.getResultLeftTopQuality(),
             (t2 - t1) * 1e-9, (t3 - t2) * 1e-9);
         ImageIO.write(
-            new MatrixToBufferedImageConverter.Packed3DToPackedRGB(false).toBufferedImage(
+            new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(
                 finder.drawResultLeftTopOnSlide(1.0)),
             "JPEG", new File(resultFolder, "result.lt." + fileName + ".jpg"));
     }

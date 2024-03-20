@@ -26,7 +26,7 @@ package net.algart.maps.pyramids.io.api.sources;
 
 import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
-import net.algart.external.MatrixToBufferedImageConverter;
+import net.algart.external.awt.MatrixToBufferedImage;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Range;
@@ -330,7 +330,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             final long zeroLevelFromY,
             final long zeroLevelToX,
             final long zeroLevelToY,
-            final MatrixToBufferedImageConverter converter) {
+            final MatrixToBufferedImage converter) {
         Objects.requireNonNull(converter, "Null converter");
         checkFromAndTo(zeroLevelFromX, zeroLevelFromY, zeroLevelToX, zeroLevelToY);
         long t1 = System.nanoTime();
@@ -341,7 +341,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
         long t2 = System.nanoTime();
         Matrix<? extends PArray> m = scaling.scaleImage();
         long t3 = System.nanoTime();
-        if (converter.byteArrayRequired() && m.elementType() != byte.class) {
+        if (converter.bytesRequired() && m.elementType() != byte.class) {
             double max = m.array().maxPossibleValue(1.0);
             m = Matrices.asFuncMatrix(LinearFunc.getInstance(0.0, 255.0 / max), ByteArray.class, m);
         }
@@ -360,7 +360,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             for (int bankIndex = 0; bankIndex < dataBuffer.getNumBanks(); bankIndex++) {
                 Matrix<? extends UpdatablePArray> bankMatrix = Matrices.matrix(
                         (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(
-                                MatrixToBufferedImageConverter.getDataArray(dataBuffer, bankIndex)),
+                                MatrixToBufferedImage.getDataArray(dataBuffer, bankIndex)),
                         width, height);
                 long filler = converter.colorValue(m, backgroundColor, bankIndex);
                 for (IRectangularArea a : backgroundAreas) {
