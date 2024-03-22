@@ -556,7 +556,7 @@ public final class FrameObjectStitcher {
             });
         }
         final MapBuffer.Frame result = reindexedLargeFrame.matrix(MultiMatrix.valueOf2DMono(
-                Matrices.matrix(SimpleMemoryModel.asUpdatableIntArray(labels), matrix.dimensions())));
+                SimpleMemoryModel.asMatrix(labels, matrix.dimensions())));
         return jointingAutoCrop ?
                 ReindexerAndRetainer.crop(result, minNonZeroX, maxNonZeroX) :
                 result;

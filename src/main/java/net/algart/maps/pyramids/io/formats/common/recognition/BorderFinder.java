@@ -88,7 +88,7 @@ public class BorderFinder {
             packedMacroImage = Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange),
                 ByteArray.class, packedMacroImage);
         }
-        final Matrix<UpdatableByteArray> packedSlide = Matrices.matrix(slide.array(), 1, slide.dimX(), slide.dimY());
+        final Matrix<UpdatableByteArray> packedSlide = slide.array().matrix(1, slide.dimX(), slide.dimY());
         if (packedMacroImage.dimEquals(packedSlide)) {
             Matrices.copy(null, packedSlide, packedMacroImage);
         } else {
@@ -387,7 +387,7 @@ public class BorderFinder {
                 }
             }
         }
-        return Matrices.matrix(SimpleMemoryModel.asUpdatableByteArray(result), dimX, dimY);
+        return SimpleMemoryModel.asUpdatableByteArray(result).matrix(dimX, dimY);
     }
 
     public Matrix<UpdatableByteArray> drawResultLeftTopOnSlide(double color) {
@@ -415,7 +415,7 @@ public class BorderFinder {
                 }
             }
         }
-        return Matrices.matrix(SimpleMemoryModel.asUpdatableByteArray(result), dimX, dimY);
+        return SimpleMemoryModel.asUpdatableByteArray(result).matrix(dimX, dimY);
     }
 
     private boolean readyToProcess() {

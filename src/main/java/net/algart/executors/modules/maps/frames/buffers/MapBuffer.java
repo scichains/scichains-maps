@@ -234,7 +234,7 @@ public final class MapBuffer {
                         }
                     }
                 });
-                this.reindexed = matrix(MultiMatrix.valueOfMono(Matrices.matrix(labelsArray, matrix.dimensions())));
+                this.reindexed = matrix(MultiMatrix.valueOfMono(labelsArray.matrix(matrix.dimensions())));
             }
 
             // Note: table[0] = 0 always; for most applications you should remove this element
