@@ -38,10 +38,7 @@ import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
-import net.algart.matrices.tiff.CachingTiffReader;
-import net.algart.matrices.tiff.TiffException;
-import net.algart.matrices.tiff.TiffIFD;
-import net.algart.matrices.tiff.TiffReader;
+import net.algart.matrices.tiff.*;
 import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tiles.TiffMap;
 
@@ -803,7 +800,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException {
         final TiffMap map = largeData.maps.get(ifdIndex);
-        map.checkPixelCompatibility(bandCount, elementType, false);
+        map.checkPixelCompatibility(bandCount, TiffSampleType.valueOf(elementType, false));
         return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
     }
 
