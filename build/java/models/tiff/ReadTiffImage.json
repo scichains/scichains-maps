@@ -2,13 +2,13 @@
   "app": "executor",
   "version": "0.0.1",
   "category": "tiff",
-  "name": "Read TIFF",
-  "description": "Reads any parts of TIFF file with detailed control and ability to continue reading other parts in subsequent calls.",
+  "name": "Read TIFF image",
+  "description": "Simle reading a single image from TIFF file.",
   "tags": [
     "matrices",
     "i/o"
   ],
-  "id": "f41f11d5-1a89-42f4-9b91-ce06f61c8d1a",
+  "id": "3e33501a-4f3d-4227-922b-e3e19eedca80",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.tiff.ReadTiff"
@@ -31,7 +31,9 @@
       "name": "input",
       "caption": "optional input",
       "hint": "If specified, this function simply returns a copy of this image (other arguments are ignored)."
-    },
+    }
+  ],
+  "in_ports_hidden": [
     {
       "value_type": "scalar",
       "name": "close_file",
@@ -96,12 +98,6 @@
     },
     {
       "value_type": "scalar",
-      "name": "closed",
-      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
-      "advanced": true
-    },
-    {
-      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file.",
@@ -119,6 +115,14 @@
       "name": "file_name",
       "caption": "file name",
       "hint": "Actual file name (without folder).",
+      "advanced": true
+    }
+  ],
+  "out_ports_hidden": [
+    {
+      "value_type": "scalar",
+      "name": "closed",
+      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
       "advanced": true
     }
   ],
@@ -167,46 +171,11 @@
       "default": false
     },
     {
-      "caption": "When to open/close TIFF file?",
-      "name": "openingMode",
-      "description": "Recommended mode for usage in a loop (one frame per iteration) is \"Open/reopen on reset or when closed; read; not close\".\nNote: the main information about the TIFF is read while opening the file and are not reloaded without reopening.\nNote: in first 2 modes \"Open/reopen...\", the previous file, which was probably opened, is automatically closed. The 3rd mode, recommended above for loops, does the same while reset of the loop (while the first iteration).\nAlso note: the TIFF file will be closed at the end of executing this function in any case, if \"close_file\" input port contains \"true\" value. In addition, this file is always closed in a case of any exception.",
-      "value_type": "String",
-      "edition_type": "enum",
-      "items": [
-        {
-          "value": "OPEN_AND_CLOSE",
-          "caption": "Open/reopen; read; close"
-        },
-        {
-          "value": "OPEN",
-          "caption": "Open/reopen; read; but not close"
-        },
-        {
-          "value": "OPEN_ON_RESET_AND_FIRST_CALL",
-          "caption": "Open/reopen on reset or when closed; read; not close"
-        },
-        {
-          "value": "OPEN_ON_FIRST_CALL",
-          "caption": "Open/reopen when closed; read; not close"
-        }
-      ],
-      "default": "OPEN_AND_CLOSE"
-    },
-    {
       "caption": "Requires existing file",
       "name": "requireFileExistence",
       "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing (just returns non-initialized result).",
       "value_type": "boolean",
       "edition_type": "value",
-      "default": true
-    },
-    {
-      "caption": "Requires valid TIFF",
-      "name": "requireValidTiff",
-      "description": "If set, the input file (when it exists) must be a correct TIFF file; in other case, this function will throw an exception.\nIf this flag is cleared and the file is not a TIFF file, this function does nothing (just returns non-initialized result).\nIn any case, you can check that the file is a correct TIFF in \"valid\" output port (but if this flag is set, that port will contain \"false\" only in a case of an exception).",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "advanced": true,
       "default": true
     },
     {
@@ -216,69 +185,6 @@
       "value_type": "int",
       "edition_type": "value",
       "default": 0
-    },
-    {
-      "caption": "Read whole image",
-      "name": "wholeImage",
-      "description": "If set, the following 4 parameters \"X/Y\", \"X-size\" and \"Y-size\" are ignored, and this function reads all pixels of the selected TIFF image.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": true
-    },
-    {
-      "caption": "X",
-      "name": "x",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
-      "caption": "Y",
-      "name": "y",
-      "description": "(X,Y) is the position of left top pixel of the loaded frame (matrix) inside the full IFD image.",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
-      "caption": "X-size (frame width)",
-      "name": "sizeX",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 1000
-    },
-    {
-      "caption": "Y-size (frame height)",
-      "name": "sizeY",
-      "description": "Note: zero x/y-size are not allowed, excepting a case when the flag \"Read whole image\" is set (then these parameters are ignored).",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 1000
-    },
-    {
-      "caption": "Crop to image boundaries",
-      "name": "cropToImage",
-      "description": "If set (default value), the area, specified by 4 parameters \"X/Y\", \"X-size\" and \"Y-size\", is automatically cropped by the bounds of the TIFF image.\nIf this flag is cleared, you may specify any area, for example, with negative coordinates; the pixels outside the image will be filled by zeroes, that usually means black color.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": true
-    },
-    {
-      "caption": "Caching mode",
-      "name": "caching",
-      "description": "If set (default value) AND if the file is not closed after finishing this function (see \"When to open/close TIFF file?\"), the loaded tiles of TIFF file will be stored in the cache. It allows to accelerate sequential calls of this function while reading parts of the same tiles. For example, it can be very useful, if the source TIFF consists of many JPEG tiles 1024x1024 and you read it many times by areas 500x500 (\"X/Y-size\"): every tile will be loaded and decompressed only once. If you read areas, that always consist of several whole tiles (in the previous example, 2048x2048 areas with boundaries that are multiples of 2048), this flag does not improve performance and may be cleared to save memory.\nNote that default cache size is 256 MB; this is enough to store >80 RGB tiles 1024x1024 with 8-bit precision.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": true
-    },
-    {
-      "caption": "Auto-unpack binary matrix to 0/255 bytes",
-      "name": "autoUnpackBitsToBytes",
-      "description": "Disables special support for binary TIFF images: 1-bit black-and-white image will be converted to 8-bit matrix (bit 0 to byte 0, bit 1 to byte 255). Set to \"false\" by default, that means correct reading 1-bit images as 1-bit binary matrices.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "advanced": true,
-      "default": false
     },
     {
       "caption": "Auto-scale when increasing bit depth",
@@ -297,15 +203,6 @@
       "edition_type": "value",
       "advanced": true,
       "default": false
-    },
-    {
-      "caption": "Crop tiles to image boundaries",
-      "name": "cropTilesToImageBoundaries",
-      "description": "Whether do we need to crop boundary tiles to the image bounds. Set to \"true\" by default.\nIf you will clear this flag, you will be able to read \"hidden\" parts of boundary tiles, which are actually stored inside the file, but usually are not shown to a user. To do this, you should also clear \"Truncate by image bounds\" flag (in other case, this flag has no effect).",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "advanced": true,
-      "default": true
     },
     {
       "caption": "Desired number of channels",
@@ -332,23 +229,6 @@
         }
       ],
       "default": 0
-    },
-    {
-      "name": "visibleResult",
-      "caption": "Visible result",
-      "value_type": "String",
-      "edition_type": "enum",
-      "items": [
-        {
-          "value": "output",
-          "caption": "TIFF image"
-        },
-        {
-          "value": "ifd",
-          "caption": "IFD information in JSON format"
-        }
-      ],
-      "default": "output"
     }
   ]
 }

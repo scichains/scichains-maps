@@ -21,8 +21,9 @@
             </includes>
             <excludes>
                 <!-- Excluding AlgART: it is a standard library, provided by scichains-core
-                (It is already excluded by dependence on scichains-core,
-                but just in case we exclude it explicitly.) -->
+                (It is excluded as a result of dependence on scichains-core
+                which turns off loading AlgART as a part of algart-tiff;
+                but just in case we exclude it here explicitly.) -->
                 <exclude>net.algart:algart:*</exclude>
             </excludes>
             <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>

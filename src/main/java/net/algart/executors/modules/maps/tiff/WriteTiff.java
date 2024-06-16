@@ -26,6 +26,8 @@ package net.algart.executors.modules.maps.tiff;
 
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
+import net.algart.executors.api.ExecutionVisibleResultsInformation;
+import net.algart.executors.api.Port;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
@@ -88,11 +90,9 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     // - note: "volatile" does not provide correct protection here! This just reduces possible problems
 
     public WriteTiff() {
-        useVisibleResultParameter();
         defaultOutputPortName(OUTPUT_ABSOLUTE_PATH);
         addInputMat(DEFAULT_INPUT_PORT);
         addInputScalar(INPUT_CLOSE_FILE);
-        addOutputScalar(OUTPUT_VALID);
         addOutputScalar(OUTPUT_IFD_INDEX);
         addOutputScalar(OUTPUT_NUMBER_OF_IMAGES);
         addOutputScalar(OUTPUT_IMAGE_DIM_X);
@@ -382,6 +382,11 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
         AbstractTiffOperation.fillWritingOutputInformation(this, writer, map);
+    }
+
+    @Override
+    public ExecutionVisibleResultsInformation visibleResultsInformation() {
+        return defaultVisibleResultsInformation(Port.Type.INPUT, DEFAULT_INPUT_PORT);
     }
 
     // Corrects settings, that can be different for different IFDs or tiles.

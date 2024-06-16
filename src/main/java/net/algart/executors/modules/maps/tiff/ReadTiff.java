@@ -63,7 +63,9 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     // - necessary when we do not know level sizes before 1st call of this function,
     // for example, if we need to read large image fragment-per-fragment
     private boolean caching = false;
+    private boolean autoUnpackBitsToBytes = false;
     private boolean autoScaleWhenIncreasingBitDepth = true;
+    private boolean autoCorrectInvertedBrightness = false;
     private boolean cropTilesToImageBoundaries = true;
     private int numberOfChannels = 0;
 
@@ -204,12 +206,30 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
+    public boolean isAutoUnpackBitsToBytes() {
+        return autoUnpackBitsToBytes;
+    }
+
+    public ReadTiff setAutoUnpackBitsToBytes(boolean autoUnpackBitsToBytes) {
+        this.autoUnpackBitsToBytes = autoUnpackBitsToBytes;
+        return this;
+    }
+
     public boolean isAutoScaleWhenIncreasingBitDepth() {
         return autoScaleWhenIncreasingBitDepth;
     }
 
     public ReadTiff setAutoScaleWhenIncreasingBitDepth(boolean autoScaleWhenIncreasingBitDepth) {
         this.autoScaleWhenIncreasingBitDepth = autoScaleWhenIncreasingBitDepth;
+        return this;
+    }
+
+    public boolean isAutoCorrectInvertedBrightness() {
+        return autoCorrectInvertedBrightness;
+    }
+
+    public ReadTiff setAutoCorrectInvertedBrightness(boolean autoCorrectInvertedBrightness) {
+        this.autoCorrectInvertedBrightness = autoCorrectInvertedBrightness;
         return this;
     }
 
@@ -311,7 +331,9 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             reader = caching ?
                     new CachingTiffReader(path, requireValidTiff) :
                     new TiffReader(path, requireValidTiff);
+            reader.setAutoUnpackBitsToBytes(autoUnpackBitsToBytes);
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
+            reader.setAutoCorrectInvertedBrightness(autoCorrectInvertedBrightness);
             reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
             this.reader = reader;
             // - note: the assignments sequence guarantees that this method will not return null

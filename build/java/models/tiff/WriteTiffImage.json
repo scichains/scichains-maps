@@ -2,13 +2,13 @@
   "app": "executor",
   "version": "0.0.1",
   "category": "tiff",
-  "name": "Write TIFF",
-  "description": "Writes/rewrites/constructs TIFF file with detailed control and ability to write different parts of the same TIFF in subsequent calls.",
+  "name": "Write TIFF image",
+  "description": "Simple writing a single image into TIFF file.",
   "tags": [
     "matrices",
     "i/o"
   ],
-  "id": "7e87c2b5-2027-4c01-8eb4-3045948b71e4",
+  "id": "5ecb88bf-528e-4542-a90e-bea80e13e529",
   "language": "java",
   "java": {
     "class": "net.algart.executors.modules.maps.tiff.WriteTiff"
@@ -30,7 +30,9 @@
       "name": "file_name_addition",
       "caption": "file name addition",
       "hint": "[Optional] Modification for input file name."
-    },
+    }
+  ],
+  "in_ports_hidden": [
     {
       "value_type": "scalar",
       "name": "close_file",
@@ -84,12 +86,6 @@
     },
     {
       "value_type": "scalar",
-      "name": "closed",
-      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
-      "advanced": true
-    },
-    {
-      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file.",
@@ -107,6 +103,14 @@
       "name": "file_name",
       "caption": "file name",
       "hint": "Actual file name (without folder).",
+      "advanced": true
+    }
+  ],
+  "out_ports_hidden": [
+    {
+      "value_type": "scalar",
+      "name": "closed",
+      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
       "advanced": true
     }
   ],
@@ -155,32 +159,6 @@
       "default": false
     },
     {
-      "caption": "When to open/close TIFF file?",
-      "name": "openingMode",
-      "description": "Recommended mode for usage in a loop (one frame per iteration) is \"Open/reopen on reset or when closed; read; not close\".\nNote: the main information about the TIFF image is written while opening the file.\nNote: in first 2 modes \"Open/reopen...\", the previous file, which was probably opened, is automatically closed. The 3rd mode, recommended above for loops, does the same while reset of the loop (while the first iteration).\nAlso note: the TIFF file will be closed at the end of executing this function in any case, if \"close_file\" input port contains \"true\" value. In addition, this file is always closed in a case of any exception.",
-      "value_type": "String",
-      "edition_type": "enum",
-      "items": [
-        {
-          "value": "OPEN_AND_CLOSE",
-          "caption": "Open/reopen; read; close"
-        },
-        {
-          "value": "OPEN",
-          "caption": "Open/reopen; read; but not close"
-        },
-        {
-          "value": "OPEN_ON_RESET_AND_FIRST_CALL",
-          "caption": "Open/reopen on reset or when closed; read; not close"
-        },
-        {
-          "value": "OPEN_ON_FIRST_CALL",
-          "caption": "Open/reopen when closed; read; not close"
-        }
-      ],
-      "default": "OPEN_AND_CLOSE"
-    },
-    {
       "caption": "Append to existing TIFF",
       "name": "appendIFDToExistingTiff",
       "description": "If set, this function appends a new IFD image to the end of an existing file. If not set, this function deletes the specified file (when it exists) before any other actions This flag has no effect if the specified file does not exist.",
@@ -194,7 +172,8 @@
       "description": "If set, the new file will be created in BigTIFF format. This is necessary if you plan to create TIFF larger than 4 GB. If you are sure that your file will never be so large, even after possible appending new IFD images, you may stay this flag cleared: usual TIFF (non BigTIFF) is is compatible with larger number of viewers, for example with OS built-in viewers.",
       "value_type": "boolean",
       "edition_type": "value",
-      "default": false
+      "default": false,
+      "advanced": true
     },
     {
       "caption": "Byte order",
@@ -262,7 +241,7 @@
       "description": "If set, this function encodes JPEG images in RGB color space without subsampling. If cleared, this function encodes JPEG in more traditional YCbCr format with subsampling (skipping some of Cb and Cr values). RGB format minimizes loss of data and, so, is better for goals of image processing; YCbCr provides better compression and suitable for human viewed. In current version, this flag does not affect other compression modes, besides JPEG.",
       "value_type": "boolean",
       "edition_type": "value",
-      "default": true
+      "default": false
     },
     {
       "caption": "Quality",
@@ -273,68 +252,12 @@
       "default": ""
     },
     {
-      "caption": "Signed integers",
-      "name": "signedIntegers",
-      "description": "If the image contains integer pixel values (8-, 16- or 32-bits), function marks the new IFD image as containing unsigned or signed integers, depending on this flag. Usually should be cleared (unsigned).",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": false,
-      "advanced": true
-    },
-    {
-      "caption": "Image description",
-      "name": "imageDescription",
-      "description": "May contain any string description of the newly created image (TIFF \"ImageDescription\" tag). This is required, for example, in SVS format. If not set (empty string), the new IFD will not contain \"ImageDescription\" tag.",
-      "value_type": "String",
-      "edition_type": "value",
-      "default": ""
-    },
-    {
-      "caption": "Resizable",
-      "name": "resizable",
-      "description": "If set and if this function is used many times without closing the file, the sizes of the result IFD image are calculated automatically as the minimal rectangle, containing all added frames. If cleared, the sizes of new IFD must be specified in the parameters \"X-size of the new image\" and  \"Y-size of the new image\".\nIf this function is called for single writing (the mode \"Open/reopen; read; close\" above), this flag is ignored.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": false,
-      "advanced": true
-    },
-    {
-      "caption": "Full X-size of the new image",
-      "name": "imageDimX",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
-      "caption": "Full Y-size of the new image",
-      "name": "imageDimY",
-      "description": "Full sizes of new IFD image. If \"Resizable\" flag is set, or if this function is used for single writing (the file is opened and then immediately closed), these parameters may stay be zero; in other case, they must contain some positive values.",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
-      "caption": "X",
-      "name": "x",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
-      "caption": "Y",
-      "name": "y",
-      "description": "(X,Y) is the position of left top pixel of the added frame (matrix) inside the full IFD image. In is usually necessary when you write image frame-by-frame in a loop.",
-      "value_type": "int",
-      "edition_type": "value",
-      "default": 0
-    },
-    {
       "caption": "Tiled TIFF",
       "name": "tiled",
-      "description": "If set, newly created IFD image will be tiled. This is recommended for large images, like multi-scale maps. You may clear this flag if you want to write a little image.",
+      "description": "If set, newly created IFD image will be tiled. This is recommended for large images, like multi-scale maps.",
       "value_type": "boolean",
       "edition_type": "value",
-      "default": true
+      "default": false
     },
     {
       "caption": "Tile width",
@@ -363,12 +286,25 @@
       "advanced": true
     },
     {
-      "caption": "Flush ASAP",
-      "name": "flushASAP",
-      "description": "If set, this function will always flush (write to the TIFF file) all tiles that are completely filled by data, and free up the memory they occupy.\nThis is important when you are writing a large image frame-by-frame. Otherwise, this function will keep all added data in memory until finishing writing this IFD image, typically until the input port \"close file\" will become \"true\". On the other hand, if you are writing overlapping frames at the same or almost same position, you probably NEED to clear this flag.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": true
+      "name": "visibleResult",
+      "caption": "Visible result",
+      "value_type": "String",
+      "edition_type": "enum",
+      "items": [
+        {
+          "value": "image",
+          "caption": "Image written to TIFF"
+        },
+        {
+          "value": "absolute_path",
+          "caption": "Absolute path to result file"
+        },
+        {
+          "value": "ifd",
+          "caption": "New IFD information in JSON format"
+        }
+      ],
+      "default": "absolute_path"
     }
   ]
 }

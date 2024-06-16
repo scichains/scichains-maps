@@ -2,7 +2,7 @@
   "app": "executor",
   "version": "0.0.1",
   "category": "$$[inputs/outputs].matrices",
-  "name": "Input/read TIFF matrix",
+  "name": "Input/read TIFF image",
   "id": "516bcb94-d60c-4301-9b11-0226aa1a0ee7",
   "options": {
     "behavior": {
@@ -99,12 +99,6 @@
     },
     {
       "value_type": "scalar",
-      "name": "closed",
-      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
-      "advanced": true
-    },
-    {
-      "value_type": "scalar",
       "name": "absolute_path",
       "caption": "absolute path",
       "hint": "Actual full absolute path to the file",
@@ -122,6 +116,14 @@
       "name": "file_name",
       "caption": "file name",
       "hint": "Actual file name (without folder)",
+      "advanced": true
+    }
+  ],
+  "out_ports_hidden": [
+    {
+      "value_type": "scalar",
+      "name": "closed",
+      "hint": "Flag true/false: it will be true when the TIFF file was closed by this function, false if it stayed to be opened.\nUseful for debugging needs.",
       "advanced": true
     }
   ],
