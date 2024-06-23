@@ -40,6 +40,7 @@ import net.algart.multimatrix.MultiMatrix2D;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -67,6 +68,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     private boolean appendIFDToExistingTiff = false;
+    private boolean deleteFileOnError = true;
     private boolean bigTiff = false;
     private ByteOrder byteOrder = ByteOrder.NATIVE;
     private TagCompression compression = TagCompression.UNCOMPRESSED;
@@ -126,6 +128,15 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     public WriteTiff setAppendIFDToExistingTiff(boolean appendIFDToExistingTiff) {
         this.appendIFDToExistingTiff = appendIFDToExistingTiff;
+        return this;
+    }
+
+    public boolean isDeleteFileOnError() {
+        return deleteFileOnError;
+    }
+
+    public WriteTiff setDeleteFileOnError(boolean deleteFileOnError) {
+        this.deleteFileOnError = deleteFileOnError;
         return this;
     }
 
@@ -328,6 +339,13 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             closeFileOnError();
             // - closing is important to allow the user to fix the problem (for example, delete the file);
             // moreover, in a case the error it is better to free all possible connected resources
+            if (deleteFileOnError) {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException suppressed) {
+                    e.addSuppressed(suppressed);
+                }
+            }
             throw new IOError(e);
         } catch (RuntimeException e) {
             // - some not-too-good codecs may throw strange exceptions instead of IOException,
@@ -357,12 +375,15 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             TiffWriter writer = null;
             TiffMap map;
             try {
-                final boolean deleteExistingFile = !appendIFDToExistingTiff;
-                writer = new TiffWriter(path, deleteExistingFile);
+                writer = new TiffWriter(path, false);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
                 writer.setPreferRGB(preferRGB);
-                writer.openOrCreate();
+                if (appendIFDToExistingTiff) {
+                    writer.openOrCreate();
+                } else {
+                    writer.create();
+                }
                 final boolean dimensionsRequired = !(needToClose && x == 0 && y == 0);
                 final TiffIFD ifd = configure(writer, firstMatrix, dimensionsRequired);
                 map = writer.newMap(ifd, resizable && dimensionsRequired);

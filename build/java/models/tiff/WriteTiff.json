@@ -189,6 +189,14 @@
       "default": false
     },
     {
+      "caption": "Delete file in a case of error",
+      "name": "deleteFileOnError",
+      "description": "If set, this function removes the TIFF file in a case of any error while writing, for example, when the precision of the input data or number of channels are not supported for the requested compression mode.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": true
+    },
+    {
       "caption": "BigTIFF",
       "name": "bigTiff",
       "description": "If set, the new file will be created in BigTIFF format. This is necessary if you plan to create TIFF larger than 4 GB. If you are sure that your file will never be so large, even after possible appending new IFD images, you may stay this flag cleared: usual TIFF (non BigTIFF) is is compatible with larger number of viewers, for example with OS built-in viewers.",
