@@ -275,7 +275,7 @@
     {
       "caption": "Quality",
       "name": "quality",
-      "description": "May contain some real value, specifying desired quality of the compression image. If not specified, some default compression quality will be applied (usually the best).\nFor JPEG compression, this value must be between 0.0 (worst) and 1.0 (best). If the quality is not specified, the default value is 1.0 (minimal loss).\nFor JPEG-2000, the minimal allowed value is ~0.3–0.5, the maximal value is not limited. If the quality is not specified, the default value is 10 for JPEG-2000 lossy or maximal possible real value for JPEG-2000 lossless. (If the quality IS specified, \"lossless\" and \"lossy\" JPEG-2000 formats actually do not differ in level of loss.)\nFor other compressions, this parameter is ignored.",
+      "description": "May contain some real value, specifying the desired quality of the compression image. If not specified, some default compression quality will be applied (usually the best).\nFor JPEG compression, this value must be between 0.0 (worst) and 1.0 (best). If the quality is not specified, the default value is 1.0 (minimal loss).\nFor JPEG-2000, the minimal allowed value is ~0.3–0.5, the maximal value is not limited. If the quality is not specified, the default value is 10 for JPEG-2000 lossy or maximal possible real value for JPEG-2000 lossless. (If the quality IS specified, \"lossless\" and \"lossy\" JPEG-2000 formats actually do not differ in level of loss.)\nFor other compressions, this parameter is ignored.",
       "value_type": "String",
       "edition_type": "value",
       "default": ""
