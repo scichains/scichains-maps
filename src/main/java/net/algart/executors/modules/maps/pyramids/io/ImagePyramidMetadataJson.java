@@ -340,7 +340,7 @@ public class ImagePyramidMetadataJson {
             final Contours contours = Contours.newInstance();
             if (vertices.size() > 1) {
                 final int[] verticesXY = roundedVerticesXY();
-                final boolean internal = Contours.strictArea(verticesXY, 0, verticesXY.length) < 0.0;
+                final boolean internal = Contours.area(verticesXY, 0, verticesXY.length) < 0.0;
                 contours.addContour(new ContourHeader(label, internal), verticesXY);
             }
             return contours;

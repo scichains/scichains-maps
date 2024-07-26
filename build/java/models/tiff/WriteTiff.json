@@ -246,6 +246,10 @@
           "caption": "Deflate (TIFF tag 8)"
         },
         {
+          "value": "PACK_BITS",
+          "caption": "PackBits (TIFF tag 32773)"
+        },
+        {
           "value": "JPEG",
           "caption": "JPEG (TIFF tag 7)"
         },

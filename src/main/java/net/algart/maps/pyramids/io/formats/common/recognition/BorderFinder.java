@@ -365,7 +365,7 @@ public class BorderFinder {
         final int maxX = (int) Math.min(dimX - 1 - checkedLengthAlongBorderX, leftTopEstimationX + sizeForSearchX / 2);
         final int maxY = (int) Math.min(dimY - 1 - checkedLengthAlongBorderY, leftTopEstimationY + sizeForSearchY / 2);
         byte[] result = new byte[(int) (dimX * dimY)];
-        JArrays.fillByteArray(result, (byte) 128);
+        JArrays.fill(result, (byte) 128);
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 final int ofs = y * (int) dimX + x;

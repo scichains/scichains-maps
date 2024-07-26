@@ -767,7 +767,7 @@ public final class FrameObjectStitcher {
             assert length == frameMatrix.dim(side.secondCoordIndex()) : "matrix sizes were not checked by checkLabels";
             this.frameLabels = new int[length];
             this.adjacentLabels = new int[length];
-            JArrays.fillIntArray(adjacentLabels, NO_LABEL);
+            JArrays.fill(adjacentLabels, NO_LABEL);
         }
 
         void readPixelsAndFindCorrelations() {

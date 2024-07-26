@@ -27,9 +27,9 @@ package net.algart.maps.pyramids.io.formats.common.recognition.tests;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.UpdatableByteArray;
 import net.algart.arrays.UpdatablePArray;
-import net.algart.external.MatrixIO;
-import net.algart.external.awt.BufferedImageToMatrix;
-import net.algart.external.awt.MatrixToBufferedImage;
+import net.algart.io.MatrixIO;
+import net.algart.io.awt.BufferedImageToMatrix;
+import net.algart.io.awt.MatrixToBufferedImage;
 import net.algart.maps.pyramids.io.formats.common.recognition.BorderFinder;
 
 import javax.imageio.ImageIO;

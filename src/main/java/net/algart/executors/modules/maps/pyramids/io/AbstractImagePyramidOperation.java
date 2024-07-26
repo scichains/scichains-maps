@@ -32,7 +32,7 @@ import net.algart.arrays.PArray;
 import net.algart.bridges.standard.JavaScriptContextContainer;
 import net.algart.executors.api.Executor;
 import net.algart.executors.modules.core.common.io.FileOperation;
-import net.algart.external.MatrixIO;
+import net.algart.io.MatrixIO;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
 import net.algart.math.IRectangularArea;
@@ -251,14 +251,14 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
         final long toY = area.maxY() + 1;
         final Matrix<? extends PArray> matrix = source.readSubMatrix(
                 resolutionLevel, fromX, fromY, toX, toY);
-        return MultiMatrix.valueOf2DRGBA(Matrices.separate(null, matrix));
+        return MultiMatrix.valueOf2DRGBA(Matrices.separate(matrix));
     }
 
     public static MultiMatrix2D readSpecialMatrix(
             PlanePyramidSource planePyramidSource,
             PlanePyramidSource.SpecialImageKind specialImageKind) {
         final Optional<Matrix<? extends PArray>> matrix = planePyramidSource.readSpecialMatrix(specialImageKind);
-        return matrix.map(m -> MultiMatrix.valueOf2DRGBA(Matrices.separate(null, m))).orElse(null);
+        return matrix.map(m -> MultiMatrix.valueOf2DRGBA(Matrices.separate(m))).orElse(null);
     }
 
     public ImagePyramidMetadataJson readMetadataOrNull(Path planePyramidPath) throws IOException {
