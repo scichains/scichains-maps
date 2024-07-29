@@ -314,7 +314,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     @Override
     public void process() {
-        SMat input = getInputMat( true);
+        SMat input = getInputMat(true);
         // - the input CAN be skipped, if we just want to close file,
         // but it is REQUIRED while the first call (this will be checked later in openFile method)
         writeTiff(completeFilePath(), input.toMultiMatrix2D());
@@ -434,7 +434,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             } else {
                 if (dimensionsRequired) {
                     throw new IllegalArgumentException("You must specify full image sizes " +
-                             "(you may omit this only in resizable mode or while single writing at (0,0) position)");
+                            "(you may omit this only in resizable mode or while single writing at (0,0) position)");
                 }
             }
         }

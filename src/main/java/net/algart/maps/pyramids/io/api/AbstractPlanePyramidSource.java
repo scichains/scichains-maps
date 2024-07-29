@@ -156,7 +156,7 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
      * Enforces some plane pyramid sources to skip (usually to stay zero) coarse data, which should not
      * be processed by image processing algorithms, like {@link SpecialImageKind#WHOLE_SLIDE}.
      *
-     * @return the flag; <tt>false</tt> by default.
+     * @return the flag; <code>false</code> by default.
      */
     public final boolean isSkipCoarseData() {
         return skipCoarseData;
@@ -330,7 +330,7 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
     /**
      * This implementation does nothing.
      *
-     * <p>If your implementation overrides this method, it must call <tt>super.loadResources</tt> at the end &mdash;
+     * <p>If your implementation overrides this method, it must call <code>super.loadResources</code> at the end &mdash;
      * because it is possible that future version will do something useful.
      */
     public void loadResources() {
@@ -394,11 +394,11 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
      * by the size of 1 tile).
      *
      * <p>The initial value is retrieved from the system property
-     * "<tt>net.algart.maps.pyramids.io.maxNonTiledReadingDim</tt>",
+     * "<code>net.algart.maps.pyramids.io.maxNonTiledReadingDim</code>",
      * if it exists and contains a valid integer number.
      * If there is no such property, or if it contains not a number,
-     * or if some exception occurred while calling <tt>Long.getLong</tt>,
-     * the default value <tt>67108864</tt> (64&nbsp;MB) is used.
+     * or if some exception occurred while calling <code>Long.getLong</code>,
+     * the default value <code>67108864</code> (64&nbsp;MB) is used.
      *
      * @return the amount of memory in bytes, which is allowed to use for caching by this instance.
      */
@@ -446,11 +446,11 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
      * and for splitting large submatrix for reading into smaller tiles, read by {@link #readLittleSubMatrix}.
      *
      * <p>The default implementation retrieves the value from the system property
-     * "<tt>net.algart.maps.pyramids.io.tileCachingMemory</tt>",
+     * "<code>net.algart.maps.pyramids.io.tileCachingMemory</code>",
      * if it exists and contains a valid integer number.
      * If there is no such property, or if it contains not a number,
-     * or if some exception occurred while calling <tt>Long.getLong</tt>,
-     * this method returns the default value <tt>4096</tt>.
+     * or if some exception occurred while calling <code>Long.getLong</code>,
+     * this method returns the default value <code>4096</code>.
      *
      * <p>The result must be positive.
      *
@@ -517,7 +517,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
         long t5 = System.nanoTime();
         LOG.log(System.Logger.Level.DEBUG, () -> String.format(Locale.US, "Combining MAP and LABEL: %.3f ms "
                         + "(%.3f parallel reading "
-                        + "[%.3f reading LABEL + %.3f rotating LABEL + %.3f + %.3f correcting LABEL || %.3f reading MAP] + "
+                        + "[%.3f reading LABEL + %.3f rotating LABEL + %.3f + "
+                        + "%.3f correcting LABEL || %.3f reading MAP] + "
                         + "%.3f allocating result + %.3f inserting MAP + %.3f inserting resized LABEL)",
                 (t4 - t1) * 1e-6,
                 (t2 - t1) * 1e-6,

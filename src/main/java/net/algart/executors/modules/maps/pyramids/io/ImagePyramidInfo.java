@@ -50,7 +50,7 @@ public final class ImagePyramidInfo extends AbstractImagePyramidOperation implem
         addOutputScalar(OUTPUT_METADATA);
         addOutputNumbers(OUTPUT_METADATA_ROI_RECTANGLES);
         addOutputNumbers(OUTPUT_METADATA_ROI_CONTOURS);
-   }
+    }
 
     public long getSizeX() {
         return sizeX;

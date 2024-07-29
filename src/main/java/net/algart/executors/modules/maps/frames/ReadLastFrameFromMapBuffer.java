@@ -24,14 +24,14 @@
 
 package net.algart.executors.modules.maps.frames;
 
+import net.algart.executors.api.data.SScalar;
+import net.algart.executors.modules.core.common.scalars.ScalarFilter;
 import net.algart.executors.modules.maps.frames.buffers.FrameObjectStitcher;
 import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
 import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.multimatrix.MultiMatrix;
-import net.algart.executors.api.data.SScalar;
-import net.algart.executors.modules.core.common.scalars.ScalarFilter;
 
 import java.util.Locale;
 
@@ -208,7 +208,7 @@ public final class ReadLastFrameFromMapBuffer extends ScalarFilter {
             otherRectangle = otherRectangle.intersection(croppingRectangle);
             if (otherRectangle == null) {
                 throw new IllegalArgumentException("The resulting frame rectangle " + otherRectangle
-                         + " does not intersect containing cropping rectangle " + croppingRectangle);
+                        + " does not intersect containing cropping rectangle " + croppingRectangle);
             }
         }
         long t2 = System.nanoTime();

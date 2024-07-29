@@ -27,11 +27,11 @@ package net.algart.maps.pyramids.io.api.sources;
 import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
 import net.algart.io.awt.MatrixToBufferedImage;
+import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.Range;
 import net.algart.math.functions.LinearFunc;
-import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -688,8 +688,8 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             } else {
                 final double scale = 1.0 / additionalCompression;
                 Matrices.copy(null, resized, Matrices.asResized(resizingMethod,
-                        source, resized.dimensions(),
-                        new double[]{1.0, scale, scale}),
+                                source, resized.dimensions(),
+                                new double[]{1.0, scale, scale}),
                         0,
                         false);
             }

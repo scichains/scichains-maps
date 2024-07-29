@@ -605,9 +605,9 @@ public class ImagePyramidMetadataJson {
     }
 
     private static void pushRectangle(double[] result, int offset, IRectangularArea r) {
-        result[offset++] = 0.5 * ((double)r.minX() + (double)r.maxX());
-        result[offset++] = 0.5 * ((double)r.minY() + (double)r.maxY());
-        result[offset++] = (double)r.sizeX();
-        result[offset++] = (double)r.sizeY();
+        result[offset++] = 0.5 * ((double) r.minX() + (double) r.maxX());
+        result[offset++] = 0.5 * ((double) r.minY() + (double) r.maxY());
+        result[offset++] = (double) r.sizeX();
+        result[offset++] = (double) r.sizeY();
     }
 }

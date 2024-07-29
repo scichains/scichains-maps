@@ -34,13 +34,13 @@ public enum ImagePyramidFormatKind {
     AUTO_DETECT_BY_EXTENSION(null),
     JAVA_IMAGEIO(ImageIOPlanePyramidSourceFactory.class.getName()),
     SVS(factory(
-            new String[] {"net.algart.maps.pyramids.io.formats.sources.factories.SVS"},
+            new String[]{"net.algart.maps.pyramids.io.formats.sources.factories.SVS"},
             SVSPlanePyramidSourceFactory.class),
             // - note that the last properties has priority
             "svs"),
     CUSTOM(null);
 
-//    "net.algart.pyramid.svs.server.SVSPlanePyramidSourceFactory"
+    //    "net.algart.pyramid.svs.server.SVSPlanePyramidSourceFactory"
     private final String factoryClassName;
     private final String[] extensions;
 

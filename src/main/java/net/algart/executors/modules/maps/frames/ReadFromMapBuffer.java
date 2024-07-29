@@ -24,20 +24,20 @@
 
 package net.algart.executors.modules.maps.frames;
 
-import net.algart.executors.modules.maps.frames.buffers.FrameObjectStitcher;
-import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
-import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
-import net.algart.executors.modules.maps.frames.joints.ObjectPairs;
 import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
 import net.algart.arrays.UpdatablePArray;
+import net.algart.executors.api.data.SScalar;
+import net.algart.executors.modules.core.common.scalars.ScalarFilter;
+import net.algart.executors.modules.maps.frames.buffers.FrameObjectStitcher;
+import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
+import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
+import net.algart.executors.modules.maps.frames.joints.ObjectPairs;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
-import net.algart.executors.api.data.SScalar;
-import net.algart.executors.modules.core.common.scalars.ScalarFilter;
 
 import java.util.ArrayList;
 import java.util.Collection;

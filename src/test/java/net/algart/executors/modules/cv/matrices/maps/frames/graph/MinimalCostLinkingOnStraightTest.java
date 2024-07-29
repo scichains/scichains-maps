@@ -47,7 +47,7 @@ public final class MinimalCostLinkingOnStraightTest {
             p += delta * mult;
             result[k] = p;
         }
-        if (rnd.nextBoolean())  {
+        if (rnd.nextBoolean()) {
             final double shift = 0.4 * rnd.nextDouble() * p;
             for (int k = 0; k < n; k++) {
                 result[k] += shift;

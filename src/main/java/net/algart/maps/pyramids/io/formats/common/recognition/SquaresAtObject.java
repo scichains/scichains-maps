@@ -116,13 +116,13 @@ public class SquaresAtObject {
     public void findSquaresWithFixedSizes() {
         if (overlapOfSquares >= fixedSquareSide) {
             throw new IllegalStateException("Cannot find squares of fixed sizes with overlap " + overlapOfSquares
-                + " >= square side" + fixedSquareSide);
+                    + " >= square side" + fixedSquareSide);
         }
         long t1 = System.nanoTime();
         final BasicMorphology morphology = BasicMorphology.getInstance(null);
         final UniformGridPattern requiredSquarePattern = Patterns.newRectangularIntegerPattern(
-            IPoint.valueOfEqualCoordinates(dimCount, 0),
-            IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1));
+                IPoint.valueOfEqualCoordinates(dimCount, 0),
+                IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1));
         // - the side of such pattern is fixedSquareSide
         final long reducedSide = fixedSquareSide - overlapOfSquares;
         Matrix<? extends UpdatablePArray> erosion = morphology.erosion(workMatrix, requiredSquarePattern);
@@ -153,8 +153,8 @@ public class SquaresAtObject {
             if (index != -1) {
                 leftTop = IPoint.valueOf(workMatrix.coordinates(index, null));
                 square = IRectangularArea.valueOf(
-                    leftTop,
-                    leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1)));
+                        leftTop,
+                        leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1)));
                 // - Note: this square is an inversion of the pattern
                 foundSquares.add(square);
                 // Now we will clear the reduced square on the work matrix...
@@ -163,14 +163,14 @@ public class SquaresAtObject {
                     // correction of the erosion: removing a square R from the source matrix
                     // leads to removing from the erosion a square R, expanded back to the erosion patter
                     final IRectangularArea reducedSquare = IRectangularArea.valueOf(
-                        leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, -fixedSquareSide + 1)),
-                        leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
+                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, -fixedSquareSide + 1)),
+                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
                     erosion.subMatrix(reducedSquare, Matrix.ContinuationMode.NULL_CONSTANT).array().fill(0L);
                 } else {
                     // Reference algorithm
                     final IRectangularArea reducedSquare = IRectangularArea.valueOf(
-                        leftTop,
-                        leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
+                            leftTop,
+                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
                     workMatrix.subMatrix(reducedSquare, Matrix.ContinuationMode.NULL_CONSTANT).array().fill(0L);
                     erosion = morphology.erosion(workMatrix, requiredSquarePattern);
                 }
@@ -184,7 +184,7 @@ public class SquaresAtObject {
                     square == null ? "not found" : "found (" + square + ")",
                     (tt3 - tt1) * 1e-6, (tt2 - tt1) * 1e-6, (tt3 - tt2) * 1e-6);
             if (square == null) {
-                debug(System.Logger.Level.DEBUG,"Finishing loop: all squares are already found");
+                debug(System.Logger.Level.DEBUG, "Finishing loop: all squares are already found");
                 break;
             }
         }
@@ -200,14 +200,14 @@ public class SquaresAtObject {
         for (; squareCount < maxNumberOfSquares; squareCount++) {
             long tt1 = System.nanoTime();
             final IterativeErosion iterativeErosion = IterativeErosion.getInstance(
-                BasicMorphology.getInstance(null),
-                UpdatableIntArray.class,
-                // 31-bit precision guarangees correct work even for very large matrices;
-                // in a very improbable case of overflow we just will not able to find the maximum exactly
-                workMatrix,
-                Patterns.newRectangularIntegerPattern(
-                    IPoint.valueOfEqualCoordinates(dimCount, -1),
-                    IPoint.valueOfEqualCoordinates(dimCount, 1)));
+                    BasicMorphology.getInstance(null),
+                    UpdatableIntArray.class,
+                    // 31-bit precision guarangees correct work even for very large matrices;
+                    // in a very improbable case of overflow we just will not able to find the maximum exactly
+                    workMatrix,
+                    Patterns.newRectangularIntegerPattern(
+                            IPoint.valueOfEqualCoordinates(dimCount, -1),
+                            IPoint.valueOfEqualCoordinates(dimCount, 1)));
             long tt2 = System.nanoTime();
             iterativeErosion.process();
             long tt3 = System.nanoTime();
@@ -217,8 +217,8 @@ public class SquaresAtObject {
             final IPoint center = IPoint.valueOf(workMatrix.coordinates(minMaxInfo.indexOfMax(), null));
             final long distanceToEdge = resultArray.getLong(minMaxInfo.indexOfMax());
             final IRectangularArea square = IRectangularArea.valueOf(
-                center.add(IPoint.valueOfEqualCoordinates(dimCount, -distanceToEdge)),
-                center.add(IPoint.valueOfEqualCoordinates(dimCount, distanceToEdge)));
+                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -distanceToEdge)),
+                    center.add(IPoint.valueOfEqualCoordinates(dimCount, distanceToEdge)));
             final long reducedSide = 2 * distanceToEdge + 1 - overlapOfSquares;
             long tt4 = System.nanoTime();
             debug(System.Logger.Level.TRACE,
@@ -227,15 +227,15 @@ public class SquaresAtObject {
                     squareCount + 1, maxNumberOfSquares, square,
                     (tt4 - tt1) * 1e-6, (tt2 - tt1) * 1e-6, (tt3 - tt2) * 1e-6, (tt4 - tt3) * 1e-6);
             if (reducedSide <= 1) {
-                debug(System.Logger.Level.DEBUG,"Finishing loop: all squares are already found");
+                debug(System.Logger.Level.DEBUG, "Finishing loop: all squares are already found");
                 break;
             }
             foundSquares.add(square);
             final IRectangularArea reducedSquare = IRectangularArea.valueOf(
-                center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2)),
-                center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2 + reducedSide - 1)));
+                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2)),
+                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2 + reducedSide - 1)));
             Matrix<UpdatableBitArray> squareSubMatrix = workMatrix.subMatrix(reducedSquare,
-                Matrix.ContinuationMode.NULL_CONSTANT);
+                    Matrix.ContinuationMode.NULL_CONSTANT);
             // - contination mode is set only to be on the safe side:
             // correct algorithm should not go outside the matrix
             squareSubMatrix.array().fill(false);

@@ -24,9 +24,9 @@
 
 package net.algart.executors.modules.maps.frames;
 
+import net.algart.executors.api.Executor;
 import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
 import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
-import net.algart.executors.api.Executor;
 
 public final class InitializeMapBuffer extends Executor {
     public static final String MAP_BUFFER_ID = "map_buffer_id";

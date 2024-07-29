@@ -24,8 +24,8 @@
 
 package net.algart.maps.pyramids.io.api;
 
-import net.algart.arrays.*;
 import net.algart.arrays.Arrays;
+import net.algart.arrays.*;
 import net.algart.math.Range;
 import net.algart.math.functions.AbstractFunc;
 import net.algart.math.functions.ConstantFunc;
@@ -35,8 +35,8 @@ import net.algart.math.functions.LinearFunc;
 import java.awt.*;
 import java.io.IOException;
 import java.nio.channels.NotYetConnectedException;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 public class PlanePyramidTools {
     public static final int MIN_PYRAMID_LEVEL_SIDE = 256;
@@ -65,10 +65,9 @@ public class PlanePyramidTools {
     }
 
     public static boolean isDimensionsRelationCorrect(
-        long[] dimOfSomeLevel,
-        long[] dimOfNextLevel,
-        int compression)
-    {
+            long[] dimOfSomeLevel,
+            long[] dimOfNextLevel,
+            int compression) {
         if (dimOfSomeLevel.length != 3 || dimOfNextLevel.length != 3) {
             throw new IllegalArgumentException("Illegal number of dimensions: must be 3");
         }
@@ -78,15 +77,14 @@ public class PlanePyramidTools {
         final long predictedNextWidth = dimOfSomeLevel[1] / compression;
         final long predictedNextHeight = dimOfSomeLevel[2] / compression;
         return dimOfNextLevel[0] == dimOfSomeLevel[0]
-            && (dimOfNextLevel[1] == predictedNextWidth || dimOfNextLevel[1] == predictedNextWidth + 1)
-            && (dimOfNextLevel[2] == predictedNextHeight || dimOfNextLevel[2] == predictedNextHeight + 1);
+                && (dimOfNextLevel[1] == predictedNextWidth || dimOfNextLevel[1] == predictedNextWidth + 1)
+                && (dimOfNextLevel[2] == predictedNextHeight || dimOfNextLevel[2] == predictedNextHeight + 1);
     }
 
     public static int findCompression(long[] dimensionsOfSomeLevel, long[] dimensionsOnNextLevel) {
         for (int probeCompression = 2; probeCompression <= 32; probeCompression++) {
             if (isDimensionsRelationCorrect(
-                dimensionsOfSomeLevel, dimensionsOnNextLevel, probeCompression))
-            {
+                    dimensionsOfSomeLevel, dimensionsOnNextLevel, probeCompression)) {
                 return probeCompression;
             }
         }
@@ -95,11 +93,11 @@ public class PlanePyramidTools {
 
     /**
      * Returns the number of resolution in the pyramid with the largest (zero) level
-     * <tt>dimX</tt>&nbsp;x&nbsp;<tt>dimY</tt>,
+     * <code>dimX</code>&nbsp;x&nbsp;<code>dimY</code>,
      * with given compression between neighbour levels and with the last level less than
-     * <tt>minimalPyramidSize</tt>&nbsp;x&nbsp;<tt>minimalPyramidSize</tt>.
-     * But the result is never less than 1, even if the specified <tt>dimX</tt> and <tt>dimY</tt>
-     * are already less than <tt>minimalPyramidSize</tt> (in this case 1 returned).
+     * <code>minimalPyramidSize</code>&nbsp;x&nbsp;<code>minimalPyramidSize</code>.
+     * But the result is never less than 1, even if the specified <code>dimX</code> and <code>dimY</code>
+     * are already less than <code>minimalPyramidSize</code> (in this case 1 returned).
      *
      * @param dimX               width of zero-level (largest) level.
      * @param dimY               height of zero-level (largest) level.
@@ -111,7 +109,7 @@ public class PlanePyramidTools {
         if (dimX <= 0 || dimY <= 0) {
             // more strict requirement (>0) than the usual requirement for matrices (>=0)
             throw new IllegalArgumentException("Illegal area dimensions " + dimX + "x" + dimY
-                + " (must be positive)");
+                    + " (must be positive)");
         }
         if (compression <= 1) {
             throw new IllegalArgumentException("Invalid compression " + compression + " (must be 2 or greater)");
@@ -140,9 +138,8 @@ public class PlanePyramidTools {
 
     public static int defaultCompression(PlanePyramidSource source) {
         if (source.numberOfResolutions() <= 1
-            || !source.isResolutionLevelAvailable(0)
-            || !source.isResolutionLevelAvailable(1))
-        {
+                || !source.isResolutionLevelAvailable(0)
+                || !source.isResolutionLevelAvailable(1)) {
             return PlanePyramidSource.DEFAULT_COMPRESSION;
         }
         int compression = findCompression(source.dimensions(0), source.dimensions(1));
@@ -150,8 +147,7 @@ public class PlanePyramidTools {
     }
 
     public static List<Matrix<? extends PArray>> equalizePrecisionToTheBest(
-        List<? extends Matrix<? extends PArray>> matrices)
-    {
+            List<? extends Matrix<? extends PArray>> matrices) {
         if (matrices == null) {
             throw new NullPointerException("Null matrices");
         }
@@ -180,10 +176,9 @@ public class PlanePyramidTools {
     }
 
     public static Matrix<? extends PArray> asBackground(
-        Class<?> elementType,
-        long dimX, long dimY,
-        double[] backgroundColor)
-    {
+            Class<?> elementType,
+            long dimX, long dimY,
+            double[] backgroundColor) {
         if (backgroundColor == null) {
             throw new NullPointerException("Null background color");
         }
@@ -202,34 +197,32 @@ public class PlanePyramidTools {
             identical &= v == filler[0];
         }
         final Func constantFunc = identical ?
-            ConstantFunc.getInstance(filler[0]) : // maybe work little faster
-            new AbstractFunc() {
-                @Override
-                public double get(double... x) {
-                    return filler[(int) x[0]];
-                }
+                ConstantFunc.getInstance(filler[0]) : // maybe work little faster
+                new AbstractFunc() {
+                    @Override
+                    public double get(double... x) {
+                        return filler[(int) x[0]];
+                    }
 
-                @Override
-                public double get(double x0, double x1, double x2) {
-                    return filler[(int) x0];
-                }
-            };
+                    @Override
+                    public double get(double x0, double x1, double x2) {
+                        return filler[(int) x0];
+                    }
+                };
         return Matrices.asCoordFuncMatrix(constantFunc, arrayType, bandCount, dimX, dimY);
     }
 
     public static void fillMatrix(
-        Matrix<? extends UpdatablePArray> m,
-        long fromX, long fromY, long toX, long toY,
-        Color color)
-    {
+            Matrix<? extends UpdatablePArray> m,
+            long fromX, long fromY, long toX, long toY,
+            Color color) {
         fillMatrix(m.subMatrix(0, fromX, fromY, m.dim(0), toX, toY), color);
     }
 
     public static void fillMatrix(
-        Matrix<? extends UpdatablePArray> m,
-        long fromX, long fromY, long toX, long toY,
-        double[] color)
-    {
+            Matrix<? extends UpdatablePArray> m,
+            long fromX, long fromY, long toX, long toY,
+            double[] color) {
         fillMatrix(m.subMatrix(0, fromX, fromY, m.dim(0), toX, toY), color);
     }
 
@@ -263,9 +256,9 @@ public class PlanePyramidTools {
         if (bandCount != color.length) {
             if (bandCount == 1) {
                 if (color.length >= 3) {
-                    color = new double[] {0.3 * color[0] + 0.59 * color[1] + 0.11 * color[2]};
+                    color = new double[]{0.3 * color[0] + 0.59 * color[1] + 0.11 * color[2]};
                 } else {
-                    color = new double[] {color[0]};
+                    color = new double[]{color[0]};
                 }
             } else {
                 double[] newColor = new double[(int) bandCount];
@@ -315,10 +308,9 @@ public class PlanePyramidTools {
         long dimY = matrix.dim(PlanePyramidSource.DIM_HEIGHT) / compression;
         while (!(areVeryLittleSizes(dimX, dimY))) {
             final Matrix<UpdatablePArray> compressed = Arrays.SMM.newMatrix(
-                UpdatablePArray.class, matrix.elementType(), matrix.dim(0), dimX, dimY);
+                    UpdatablePArray.class, matrix.elementType(), matrix.dim(0), dimX, dimY);
             if (matrix.dim(PlanePyramidSource.DIM_WIDTH) != dimX * compression
-                || matrix.dim(PlanePyramidSource.DIM_HEIGHT) != dimY * compression)
-            {
+                    || matrix.dim(PlanePyramidSource.DIM_HEIGHT) != dimY * compression) {
                 matrix = matrix.subMatr(0, 0, 0, matrix.dim(0), dimX * compression, dimY * compression);
                 // in other words, we prefer to lose 1 last pixels, but provide strict
                 // integer compression: AlgART libraries are optimized for this situation

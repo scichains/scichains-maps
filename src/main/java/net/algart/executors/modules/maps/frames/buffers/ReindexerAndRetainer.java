@@ -24,9 +24,9 @@
 
 package net.algart.executors.modules.maps.frames.buffers;
 
+import net.algart.arrays.*;
 import net.algart.executors.modules.maps.frames.joints.DynamicDisjointSet;
 import net.algart.executors.modules.maps.frames.joints.QuickLabelsSet;
-import net.algart.arrays.*;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.math.functions.Func;

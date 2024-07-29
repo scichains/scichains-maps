@@ -45,8 +45,7 @@ public interface PlanePyramidSourceFactory extends AutoCloseable {
         public PlanePyramidSource newPlanePyramidSource(
                 String pyramidPath,
                 String pyramidConfiguration,
-                String renderingConfiguration)
-        {
+                String renderingConfiguration) {
             throw new UnsupportedOperationException("No suitable plane pyramid source factory for " + pyramidPath);
         }
 
@@ -59,15 +58,15 @@ public interface PlanePyramidSourceFactory extends AutoCloseable {
     /**
      * Creates new plane pyramid source, providing access to the pyramid, stored in the given place,
      * with possible using additional recommendations, described in
-     * <tt>pyramidConfiguration</tt> and <tt>renderingConfiguration</tt> arguments.
+     * <code>pyramidConfiguration</code> and <code>renderingConfiguration</code> arguments.
      *
-     * <p>The <tt>pyramidPath</tt> can be any specifier of some external resource, like URL,
+     * <p>The <code>pyramidPath</code> can be any specifier of some external resource, like URL,
      * but usually it is a path to some disk file or subdirectory (for example, a path to .TIFF file).
      *
-     * <p>The <tt>pyramidConfiguration</tt> and <tt>renderingConfiguration</tt> arguments can use any format,
+     * <p>The <code>pyramidConfiguration</code> and <code>renderingConfiguration</code> arguments can use any format,
      * but we recommend to use JSON format for this string.
      * Most existing implementations expect correct JSON format here.
-     * Syntax errors in this file should be ignored or lead to <tt>IOException</tt>, like format errors
+     * Syntax errors in this file should be ignored or lead to <code>IOException</code>, like format errors
      * in the data file.
      *
      * @param pyramidPath            path to an external resource, where the pyramid is stored;
@@ -78,16 +77,16 @@ public interface PlanePyramidSourceFactory extends AutoCloseable {
      * @param renderingConfiguration some additional information for customizing behaviour of the resulting
      *                               pyramid source, which can vary in future for the same data file.
      * @return new pyramid source, providing access to the pyramid at the specified path.
-     * @throws NullPointerException if one of the arguments is <tt>null</tt>.
+     * @throws NullPointerException if one of the arguments is <code>null</code>.
      * @throws IOException          if some I/O problems occur while opening pyramid, and also in a case
      *                              of invalid format of the files containing the pyramid or
-     *                              of the passed <tt>renderingConfiguration</tt> description.
+     *                              of the passed <code>renderingConfiguration</code> description.
      */
     PlanePyramidSource newPlanePyramidSource(
-        String pyramidPath,
-        String pyramidConfiguration,
-        String renderingConfiguration)
-        throws IOException;
+            String pyramidPath,
+            String pyramidConfiguration,
+            String renderingConfiguration)
+            throws IOException;
 
 
     /**

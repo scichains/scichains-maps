@@ -28,9 +28,9 @@ import java.util.Objects;
 
 public final class SimpleWeightedDirectedGraph implements WeightedDirectedGraph {
     public static class Edge {
-         final int vertexFrom;
-         final int vertexTo;
-         final double weight;
+        final int vertexFrom;
+        final int vertexTo;
+        final double weight;
 
         public Edge(int vertexFrom, int vertexTo, double weight) {
             if (vertexFrom < 0) {

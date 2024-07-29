@@ -32,7 +32,6 @@ import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tiles.TiffMap;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;

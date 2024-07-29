@@ -39,7 +39,7 @@ class StandardSVSImageDescription extends SVSImageDescription {
     private static final String ADDED_COMMON_IMAGE_INFO_ATTRIBUTE = "CommonInfo";
 
     private static final Set<String> IMPORTANT = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-        "ScanScope ID", "Date", "Time"
+            "ScanScope ID", "Date", "Time"
     )));
 
     StandardSVSImageDescription(String imageDescriptionTagValue) {
@@ -54,7 +54,7 @@ class StandardSVSImageDescription extends SVSImageDescription {
                         if (records.length >= 1) {
                             // check to be on the safe side
                             attributes.put(ADDED_COMMON_IMAGE_INFO_ATTRIBUTE,
-                                new SVSAttribute(ADDED_COMMON_IMAGE_INFO_ATTRIBUTE, records[0]));
+                                    new SVSAttribute(ADDED_COMMON_IMAGE_INFO_ATTRIBUTE, records[0]));
                         }
                         for (int i = 1; i < records.length; i++) {
                             final String[] record = records[i].trim().split("[=]");
@@ -99,7 +99,7 @@ class StandardSVSImageDescription extends SVSImageDescription {
         final SVSAttribute attribute = attributes.get(MICRON_PER_PIXEL_ATTRIBUTE);
         if (attribute == null) {
             throw new TiffException("Image description does not contain \""
-                + MICRON_PER_PIXEL_ATTRIBUTE + "\" attribute");
+                    + MICRON_PER_PIXEL_ATTRIBUTE + "\" attribute");
         }
         final double result;
         try {
@@ -131,9 +131,9 @@ class StandardSVSImageDescription extends SVSImageDescription {
 
     public boolean isGeometrySupported() {
         return isPixelSizeSupported()
-            // - without pixel size we have not enough information to detect image position at the whole slide
-            && attributes.containsKey(LEFT_ATTRIBUTE)
-            && attributes.containsKey(TOP_ATTRIBUTE);
+                // - without pixel size we have not enough information to detect image position at the whole slide
+                && attributes.containsKey(LEFT_ATTRIBUTE)
+                && attributes.containsKey(TOP_ATTRIBUTE);
     }
 
     public double imageOnSlideLeftInMicronsAxisRightward() throws TiffException {
@@ -164,11 +164,10 @@ class StandardSVSImageDescription extends SVSImageDescription {
 
     @Override
     public boolean correctCombiningInfoUsingFoundBorder(
-        SVSAdditionalCombiningInfo additionalCombiningInfo,
-        SVSPlanePyramidSource source,
-        long borderLeftTopX,
-        long borderLeftTopY)
-    {
+            SVSAdditionalCombiningInfo additionalCombiningInfo,
+            SVSPlanePyramidSource source,
+            long borderLeftTopX,
+            long borderLeftTopY) {
         final RectangularArea metricWholeSlide = source.metricWholeSlide();
         final RectangularArea metricPyramid = source.metricPyramid();
         final IRectangularArea wholeSlideArea = source.pixelWholeSlide();
@@ -177,17 +176,17 @@ class StandardSVSImageDescription extends SVSImageDescription {
         final double oldMetricLeftAxisRightward = metricPyramid.min(0);
         final double oldMetricTopAxisUpward = slideHeight - metricPyramid.min(1);
         final double newMetricLeftAxisRightward = slideWidth
-            * (double) borderLeftTopX / (double) wholeSlideArea.size(0);
+                * (double) borderLeftTopX / (double) wholeSlideArea.size(0);
         final double newMetricTopAxisUpward = slideHeight
-            * (1.0 - (double) borderLeftTopY / (double) wholeSlideArea.size(1));
+                * (1.0 - (double) borderLeftTopY / (double) wholeSlideArea.size(1));
         if (newMetricTopAxisUpward > 0 && newMetricLeftAxisRightward > 0) {
             additionalCombiningInfo.setSlideWidthInMicrons(slideWidth
-                * oldMetricLeftAxisRightward / newMetricLeftAxisRightward);
+                    * oldMetricLeftAxisRightward / newMetricLeftAxisRightward);
             additionalCombiningInfo.setSlideHeightInMicrons(slideHeight
-                * oldMetricTopAxisUpward / newMetricTopAxisUpward);
+                    * oldMetricTopAxisUpward / newMetricTopAxisUpward);
             return true;
         } else {
             return false;
         }
-     }
+    }
 }

@@ -69,15 +69,15 @@ public class BorderFinder {
             throw new NullPointerException("Null packed macro image");
         }
         this.slide = Arrays.SMM.newByteMatrix(
-            packedMacroImage.dim(PlanePyramidSource.DIM_WIDTH),
-            packedMacroImage.dim(PlanePyramidSource.DIM_HEIGHT));
+                packedMacroImage.dim(PlanePyramidSource.DIM_WIDTH),
+                packedMacroImage.dim(PlanePyramidSource.DIM_HEIGHT));
         this.dimX = slide.dimX();
         this.dimY = slide.dimY();
         if (packedMacroImage.elementType() != byte.class) {
             final Range srcRange = Range.valueOf(0.0, packedMacroImage.array().maxPossibleValue(1.0));
             final Range destRange = Range.valueOf(0.0, Arrays.maxPossibleValue(ByteArray.class, 1.0));
             packedMacroImage = Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange),
-                ByteArray.class, packedMacroImage);
+                    ByteArray.class, packedMacroImage);
         }
         final Matrix<UpdatableByteArray> packedSlide = slide.array().matrix(1, slide.dimX(), slide.dimY());
         if (packedMacroImage.dimEquals(packedSlide)) {
@@ -104,7 +104,7 @@ public class BorderFinder {
     public void setCheckedLengthAlongBorderX(int checkedLengthAlongBorderX) {
         if (checkedLengthAlongBorderX <= 0) {
             throw new IllegalArgumentException("Negative or zero checkedLengthAtBorderX = "
-                + checkedLengthAlongBorderX);
+                    + checkedLengthAlongBorderX);
         }
         this.checkedLengthAlongBorderX = checkedLengthAlongBorderX;
     }
@@ -116,7 +116,7 @@ public class BorderFinder {
     public void setCheckedLengthAlongBorderY(int checkedLengthAlongBorderY) {
         if (checkedLengthAlongBorderY <= 0) {
             throw new IllegalArgumentException("Negative or zero checkedLengthAtBorderY = "
-                + checkedLengthAlongBorderY);
+                    + checkedLengthAlongBorderY);
         }
         this.checkedLengthAlongBorderY = checkedLengthAlongBorderY;
     }
@@ -139,7 +139,7 @@ public class BorderFinder {
     public void setCheckedSizeAtBackgroundX(int checkedSizeAtBackgroundX) {
         if (checkedSizeAtBackgroundX <= 0) {
             throw new IllegalArgumentException("Negative or zero checkedSizeAtBackgroundX = "
-                + checkedSizeAtBackgroundX);
+                    + checkedSizeAtBackgroundX);
         }
         this.checkedSizeAtBackgroundX = checkedSizeAtBackgroundX;
     }
@@ -151,7 +151,7 @@ public class BorderFinder {
     public void setCheckedSizeAtBackgroundY(int checkedSizeAtBackgroundY) {
         if (checkedSizeAtBackgroundY <= 0) {
             throw new IllegalArgumentException("Negative or zero checkedSizeAtBackgroundY = "
-                + checkedSizeAtBackgroundY);
+                    + checkedSizeAtBackgroundY);
         }
         this.checkedSizeAtBackgroundY = checkedSizeAtBackgroundY;
     }
@@ -163,7 +163,7 @@ public class BorderFinder {
     public void setMaxBrightnessVariationAlongBorder(double maxBrightnessVariationAlongBorder) {
         if (maxBrightnessVariationAlongBorder < 0.0) {
             throw new IllegalArgumentException("Negative maxBrightnessVariationAlongBorder = "
-                + maxBrightnessVariationAlongBorder);
+                    + maxBrightnessVariationAlongBorder);
         }
         this.maxBrightnessVariationAlongBorder = maxBrightnessVariationAlongBorder;
     }
@@ -175,7 +175,7 @@ public class BorderFinder {
     public void setMinBrightnessDifferenceFromBackground(double minBrightnessDifferenceFromBackground) {
         if (minBrightnessDifferenceFromBackground < 0.0) {
             throw new IllegalArgumentException("Negative minBrightnessDifferenceFromBackground = "
-                + minBrightnessDifferenceFromBackground);
+                    + minBrightnessDifferenceFromBackground);
         }
         this.minBrightnessDifferenceFromBackground = minBrightnessDifferenceFromBackground;
     }
@@ -311,8 +311,8 @@ public class BorderFinder {
     public void preprocess() {
         this.averaged = Arrays.SMM.newByteMatrix(dimX, dimY);
         final ContinuedRankMorphology morphology = ContinuedRankMorphology.getInstance(
-            BasicRankMorphology.getInstance(null, 0.5, RankPrecision.BITS_8),
-            Matrix.ContinuationMode.MIRROR_CYCLIC);
+                BasicRankMorphology.getInstance(null, 0.5, RankPrecision.BITS_8),
+                Matrix.ContinuationMode.MIRROR_CYCLIC);
         final IPoint min = IPoint.valueOf(-checkedSizeAtBackgroundX / 2L, -checkedSizeAtBackgroundY / 2L);
         final IPoint max = min.add(IPoint.valueOf(checkedSizeAtBackgroundX - 1L, checkedSizeAtBackgroundY - 1L));
         morphology.dilation(averaged, slide, Patterns.newRectangularIntegerPattern(min, max));
@@ -424,18 +424,18 @@ public class BorderFinder {
         final int cornerByte = slide.array().getByte(checkedIndex);
         final double corner = cornerByte / 255.0;
         final int averagedOutsideByte = averaged.array().getByte(averaged.index(
-            Math.max(0, checkedX - (checkedSizeAtBackgroundX / 2 + 2)),
-            Math.max(0, checkedY - (checkedSizeAtBackgroundY / 2 + 2))));
+                Math.max(0, checkedX - (checkedSizeAtBackgroundX / 2 + 2)),
+                Math.max(0, checkedY - (checkedSizeAtBackgroundY / 2 + 2))));
         final double averageOutside = averagedOutsideByte / 255.0;
         // "+ 2" to be on the safe side: it is really a square outside the border
         // "Math.max" is not the best idea, because if the border is near the matrix limit, the average value
         // will include the border itself; but I hope it is not too important for the median
         final int averagedInsideByte = averaged.array().getByte(averaged.index(
-            Math.min(dimX - 1, checkedX + (checkedSizeAtBackgroundX / 2 + 2)),
-            Math.min(dimY - 1, checkedY + (checkedSizeAtBackgroundY / 2 + 2))));
+                Math.min(dimX - 1, checkedX + (checkedSizeAtBackgroundX / 2 + 2)),
+                Math.min(dimY - 1, checkedY + (checkedSizeAtBackgroundY / 2 + 2))));
         final double averageInside = averagedInsideByte / 255.0;
         final double differenceFromBackground = Math.min(
-            Math.abs(corner - averageOutside), Math.abs(corner - averageInside));
+                Math.abs(corner - averageOutside), Math.abs(corner - averageInside));
         if (differenceFromBackground < minBrightnessDifferenceFromBackground) {
             return Double.NaN;
         }
@@ -481,6 +481,6 @@ public class BorderFinder {
             // NaN is little more stable solution than Infinity (maybe in future we'll change the sign of the result)
         }
         return -(variationAlongBorder + brightnessVariationAlongBorderCorrection) /
-            (differenceFromBackground + brightnessDifferenceFromBackgroundCorrection);
+                (differenceFromBackground + brightnessDifferenceFromBackgroundCorrection);
     }
 }

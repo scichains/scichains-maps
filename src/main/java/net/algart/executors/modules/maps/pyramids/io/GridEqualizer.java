@@ -141,7 +141,7 @@ public class GridEqualizer {
     }
 
     /**
-     * More quick equivalent of <tt>new GridEqualizer(totalDimension).equalize(cellSize)</tt>.
+     * More quick equivalent of <code>new GridEqualizer(totalDimension).equalize(cellSize)</code>.
      */
     public static long equalizeGrid(long totalDimension, long cellSize) {
         if (totalDimension < 0) {

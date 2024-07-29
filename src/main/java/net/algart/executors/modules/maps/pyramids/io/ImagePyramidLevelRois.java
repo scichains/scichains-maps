@@ -25,8 +25,8 @@
 package net.algart.executors.modules.maps.pyramids.io;
 
 import net.algart.contours.Contours;
-import net.algart.math.IRectangularArea;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
+import net.algart.math.IRectangularArea;
 
 import java.nio.file.Path;
 import java.util.Collections;

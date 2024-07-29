@@ -24,11 +24,11 @@
 
 package net.algart.executors.modules.cv.matrices.maps.frames.joints;
 
-import net.algart.contours.Contours;
-import net.algart.contours.ContourHeader;
-import net.algart.contours.ContourJoiner;
 import net.algart.arrays.Arrays;
 import net.algart.arrays.MutableIntArray;
+import net.algart.contours.ContourHeader;
+import net.algart.contours.ContourJoiner;
+import net.algart.contours.Contours;
 
 
 public final class SimpleContourJoinerTest {
@@ -45,10 +45,10 @@ public final class SimpleContourJoinerTest {
 
     public static void main(String[] args) {
         Contours contours = Contours.newInstance();
-        contours.addContour(new ContourHeader(0), new int[] {0, 0, 5, 0, 5, 5, 0, 5});
-        contours.addContour(new ContourHeader(1), new int[] {5, 1, 5, 0, 6, 0, 6, 1});
-        contours.addContour(new ContourHeader(2), new int[] {-1, 5, 2, 5, 2, 6, -1, 6});
-        ContourJoiner joiner = ContourJoiner.newInstance(contours, null, new int[] {10, 10, 10});
+        contours.addContour(new ContourHeader(0), new int[]{0, 0, 5, 0, 5, 5, 0, 5});
+        contours.addContour(new ContourHeader(1), new int[]{5, 1, 5, 0, 6, 0, 6, 1});
+        contours.addContour(new ContourHeader(2), new int[]{-1, 5, 2, 5, 2, 6, -1, 6});
+        ContourJoiner joiner = ContourJoiner.newInstance(contours, null, new int[]{10, 10, 10});
         final Contours result = joiner.joinContours();
         System.out.print("Before joining: ");
         printContours(contours);

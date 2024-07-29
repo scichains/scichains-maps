@@ -57,7 +57,7 @@ public final class DefaultPlanePyramidSource extends AbstractPlanePyramidSource 
             }
             if (m.dimCount() != 3)
                 throw new IllegalArgumentException("Illegal number of dimensions (" + m.dimCount()
-                    + ") in packedImagePyramid[" + k + "]: all matrices must be 3-dimensional");
+                        + ") in packedImagePyramid[" + k + "]: all matrices must be 3-dimensional");
             if (m.dim(0) > Integer.MAX_VALUE)
                 throw new IllegalArgumentException("Too large bandCount (>Integer.MAX_VALUE)");
             if (firstNonNullIndex == -1) {
@@ -65,7 +65,7 @@ public final class DefaultPlanePyramidSource extends AbstractPlanePyramidSource 
                 bandCount = (int) m.dim(0);
             } else if (m.dim(0) != bandCount)
                 throw new IllegalArgumentException("Different lowest dimension packedImagePyramid[" + k + "].dim(0) = "
-                    + m.dim(0) + " != packedImagePyramid[" + firstNonNullIndex + "].dim(0) = " + bandCount);
+                        + m.dim(0) + " != packedImagePyramid[" + firstNonNullIndex + "].dim(0) = " + bandCount);
         }
         if (firstNonNullIndex == -1)
             throw new IllegalArgumentException("All elements in packedImagePyramid are null");
@@ -131,19 +131,17 @@ public final class DefaultPlanePyramidSource extends AbstractPlanePyramidSource 
 
     @Override
     public Matrix<? extends PArray> readSubMatrix(int resolutionLevel, long fromX, long fromY, long toX, long toY)
-        throws NoSuchElementException
-    {
+            throws NoSuchElementException {
         Matrix<? extends PArray> m = packedImagePyramid.get(resolutionLevel);
         if (m == null)
             throw new NoSuchElementException("Resolution level #" + resolutionLevel + " is absent");
         return m.subMatrix(
-            0, fromX, fromY, bandCount(), toX, toY,
-            continuationEnabled ? Matrix.ContinuationMode.NAN_CONSTANT : Matrix.ContinuationMode.NONE);
+                0, fromX, fromY, bandCount(), toX, toY,
+                continuationEnabled ? Matrix.ContinuationMode.NAN_CONSTANT : Matrix.ContinuationMode.NONE);
     }
 
     public Matrix<? extends PArray> readFullMatrix(int resolutionLevel)
-        throws NoSuchElementException
-    {
+            throws NoSuchElementException {
         Matrix<? extends PArray> m = packedImagePyramid.get(resolutionLevel);
         if (m == null)
             throw new NoSuchElementException("Resolution level #" + resolutionLevel + " is absent");
@@ -162,8 +160,7 @@ public final class DefaultPlanePyramidSource extends AbstractPlanePyramidSource 
 
     @Override
     protected Matrix<? extends PArray> readLittleSubMatrix(
-            int resolutionLevel, long fromX, long fromY, long toX, long toY)
-    {
+            int resolutionLevel, long fromX, long fromY, long toX, long toY) {
         throw new AssertionError("Not used in this class!");
     }
 }

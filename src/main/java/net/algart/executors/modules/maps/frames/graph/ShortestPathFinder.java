@@ -136,7 +136,7 @@ public abstract class ShortestPathFinder {
             Arrays.fill(ready, false);
             previousInPath[startVertex] = startVertex;
             distances[startVertex] = 0.0;
-            for (;;) {
+            for (; ; ) {
                 int minimalVertex = -1;
                 double minimalDistance = Double.POSITIVE_INFINITY;
                 for (int v = 0; v < n; v++) {
@@ -173,7 +173,7 @@ public abstract class ShortestPathFinder {
                     final int v2 = graph.neighbourVertex(v1, i);
                     if (v2 <= v1) {
                         throw new IllegalArgumentException("It  is not an acyclic topologically-sorted graph:"
-                            + "vertex " + v1 + " has an outgoing edge to " + v2 + " <= " + v1);
+                                + "vertex " + v1 + " has an outgoing edge to " + v2 + " <= " + v1);
                     }
                 }
             }

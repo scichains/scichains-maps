@@ -24,8 +24,8 @@
 
 package net.algart.maps.pyramids.io.api.sources;
 
-import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
+import net.algart.maps.pyramids.io.api.PlanePyramidSourceFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,17 +33,16 @@ import java.io.IOException;
 public class ImageIOPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
     @Override
     public PlanePyramidSource newPlanePyramidSource(
-        String pyramidPath,
-        String pyramidConfiguration,
-        String renderingConfiguration)
-        throws IOException
-    {
+            String pyramidPath,
+            String pyramidConfiguration,
+            String renderingConfiguration)
+            throws IOException {
         return new ImageIOPlanePyramidSource(
-            null,
-            // - no cache
-            new File(pyramidPath),
-            new ImageIOPlanePyramidSource.ImageIOReadingBehaviour()
-                .setAddAlphaWhenExist(true));
+                null,
+                // - no cache
+                new File(pyramidPath),
+                new ImageIOPlanePyramidSource.ImageIOReadingBehaviour()
+                        .setAddAlphaWhenExist(true));
         // This plane pyramid source does not support coarse data (which can be set in renderingConfiguration)
     }
 }

@@ -90,8 +90,7 @@ public abstract class AbstractPlanePyramidSourceWrapper implements PlanePyramidS
 
     public Matrix<? extends PArray> readSubMatrix(
             int resolutionLevel, long fromX, long fromY, long toX, long toY)
-        throws NoSuchElementException, NotYetConnectedException
-    {
+            throws NoSuchElementException, NotYetConnectedException {
         return parent().readSubMatrix(resolutionLevel, fromX, fromY, toX, toY);
     }
 
@@ -100,8 +99,7 @@ public abstract class AbstractPlanePyramidSourceWrapper implements PlanePyramidS
     }
 
     public Matrix<? extends PArray> readFullMatrix(int resolutionLevel)
-        throws NoSuchElementException, NotYetConnectedException, UnsupportedOperationException
-    {
+            throws NoSuchElementException, NotYetConnectedException, UnsupportedOperationException {
         return parent().readFullMatrix(resolutionLevel);
     }
 

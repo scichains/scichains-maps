@@ -24,10 +24,10 @@
 
 package net.algart.executors.modules.maps.frames;
 
-import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
-import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
 import net.algart.executors.api.data.SScalar;
 import net.algart.executors.modules.core.common.scalars.ScalarFilter;
+import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
+import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
 
 public final class SetMapBufferCapacity extends ScalarFilter {
     private int numberOfStoredFrames = 1;

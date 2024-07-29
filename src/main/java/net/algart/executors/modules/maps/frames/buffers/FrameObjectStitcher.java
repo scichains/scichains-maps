@@ -340,13 +340,13 @@ public final class FrameObjectStitcher {
         final MapBuffer.Frame result = EARLY_REINDEX ?
                 retainCompleted(reindexedLarge, smallArea, reindexedCompleted, reindexedBoundaryLabelSet) :
                 ReindexerAndRetainer.newInstance(
-                        reducedLargeArea.get(),
-                        largeAreaFrames,
-                        smallArea,
-                        objectPairs.dynamicDisjointSet(),
-                        reindexedCompleted,
-                        reindexedBoundaryLabelSet,
-                        jointingAutoCrop)
+                                reducedLargeArea.get(),
+                                largeAreaFrames,
+                                smallArea,
+                                objectPairs.dynamicDisjointSet(),
+                                reindexedCompleted,
+                                reindexedBoundaryLabelSet,
+                                jointingAutoCrop)
                         .reindexAndRetainCompleted();
         long t9 = System.nanoTime();
         timeRetainOnlyCompleted = t9 - t8;

@@ -24,10 +24,10 @@
 
 package net.algart.executors.modules.maps.frames.buffers;
 
-import net.algart.executors.modules.maps.frames.joints.DynamicDisjointSet;
-import net.algart.executors.modules.maps.frames.joints.ObjectPairs;
 import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
+import net.algart.executors.modules.maps.frames.joints.DynamicDisjointSet;
+import net.algart.executors.modules.maps.frames.joints.ObjectPairs;
 import net.algart.math.IPoint;
 import net.algart.math.IRange;
 import net.algart.math.IRectangularArea;

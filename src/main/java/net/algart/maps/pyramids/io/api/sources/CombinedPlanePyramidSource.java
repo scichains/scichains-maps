@@ -24,11 +24,12 @@
 
 package net.algart.maps.pyramids.io.api.sources;
 
-import net.algart.arrays.*;
-import net.algart.math.IPoint;
-import net.algart.math.IRectangularArea;
+import net.algart.arrays.Matrix;
+import net.algart.arrays.PArray;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidTools;
+import net.algart.math.IPoint;
+import net.algart.math.IRectangularArea;
 
 import java.nio.channels.NotYetConnectedException;
 import java.util.List;

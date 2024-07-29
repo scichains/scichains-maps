@@ -33,10 +33,10 @@ import java.util.List;
 
 public abstract class FollowingResolutionsBuilder {
     public static final long RECOMMENDED_TILE_DIM_FOR_MAKING_FOLLOWING_RESOLUTIONS = Math.max(16,
-        Arrays.SystemSettings.getLongProperty(
-                "net.algart.maps.pyramids.io.formats.common.builders" +
-                        ".tileForMakingFollowingResolutions",
-            PlanePyramidSource.DEFAULT_TILE_DIM)
+            Arrays.SystemSettings.getLongProperty(
+                    "net.algart.maps.pyramids.io.formats.common.builders" +
+                            ".tileForMakingFollowingResolutions",
+                    PlanePyramidSource.DEFAULT_TILE_DIM)
     );
     protected final PlanePyramidSource source;
     protected final int initialResolutionLevel;
@@ -51,33 +51,32 @@ public abstract class FollowingResolutionsBuilder {
     private long processingTileDim = RECOMMENDED_TILE_DIM_FOR_MAKING_FOLLOWING_RESOLUTIONS;
 
     FollowingResolutionsBuilder(
-        PlanePyramidSource source,
-        int initialResolutionLevel,
-        int compression)
-    {
+            PlanePyramidSource source,
+            int initialResolutionLevel,
+            int compression) {
         if (source == null)
             throw new NullPointerException("Null source");
         if (compression <= 1)
             throw new IllegalArgumentException("Invalid compression " + compression + " (must be 2 or greater)");
         if (initialResolutionLevel < 0 || initialResolutionLevel >= source.numberOfResolutions())
             throw new IndexOutOfBoundsException("Initial resolution level is out of range 0.."
-                + (source.numberOfResolutions() - 1));
+                    + (source.numberOfResolutions() - 1));
         this.source = source;
         this.initialResolutionLevel = initialResolutionLevel;
         this.compression = compression;
         this.bandCount = source.bandCount();
         if (this.bandCount <= 0)
             throw new AssertionError("Invalid implementation of " + source.getClass()
-                + ": zero or negative bandCount = " + bandCount);
+                    + ": zero or negative bandCount = " + bandCount);
         long[] dimensions = source.dimensions(initialResolutionLevel);
         if (this.bandCount != dimensions[0])
             throw new AssertionError("Invalid implementation of " + source.getClass()
-                + ": bandCount != dimensions[0]");
+                    + ": bandCount != dimensions[0]");
         this.dimX = dimensions[1];
         this.dimY = dimensions[2];
         if (dimX <= 0 || dimY <= 0) // more strict requirement (>0) than the usual requirement for matrices (>=0)
             throw new IllegalArgumentException("Illegal initial layer dimensions " + dimX + "x" + dimY
-                + " (must be positive)");
+                    + " (must be positive)");
         this.totalNumberOfElements = Arrays.longMul(dimensions);
         if (totalNumberOfElements == Long.MIN_VALUE)
             throw new TooLargeArrayException("Product of all dimensions >Long.MAX_VALUE");
@@ -124,7 +123,7 @@ public abstract class FollowingResolutionsBuilder {
 
     public final void setMinimalNewResolutionLayerSize(long minimalPyramidSize) {
         this.numberOfNewResolutions = Math.max(0, // to be on the safe side; really not necessary
-            PlanePyramidTools.numberOfResolutions(dimX, dimY, compression, minimalPyramidSize) - 1);
+                PlanePyramidTools.numberOfResolutions(dimX, dimY, compression, minimalPyramidSize) - 1);
     }
 
     public final PlanePyramidSource.AveragingMode getAveragingMode() {
@@ -179,17 +178,17 @@ public abstract class FollowingResolutionsBuilder {
                 long tileToX = tileX + currentTileDimX;
                 long tileToY = tileY + currentTileDimY;
                 Matrix<? extends PArray> m = source.readSubMatrix(
-                    initialResolutionLevel, tileX, tileY, tileToX, tileToY);
+                        initialResolutionLevel, tileX, tileY, tileToX, tileToY);
                 if (m.dim(0) != bandCount || m.dim(1) != currentTileDimX || m.dim(2) != currentTileDimY)
                     throw new AssertionError("Invalid implementation of " + source.getClass()
-                        + ".readSubMatrix (fromX = "
-                        + tileX + ", fromY = " + tileY + ", toX = " + tileToX + ", toY = " + tileToY
-                        + "): incorrect dimensions of the returned matrix " + m);
+                            + ".readSubMatrix (fromX = "
+                            + tileX + ", fromY = " + tileY + ", toX = " + tileToX + ", toY = " + tileToY
+                            + "): incorrect dimensions of the returned matrix " + m);
                 if (elementType == null) {
                     // allocating results and buffers
                     elementType = m.elementType();
                     buffers.add((UpdatablePArray) Arrays.SMM.newUnresizableArray(
-                        m.elementType(), bandCount * Math.min(tileDim, dimX) * Math.min(tileDim, dimY)));
+                            m.elementType(), bandCount * Math.min(tileDim, dimX) * Math.min(tileDim, dimY)));
                     allocateNewLayers(elementType);
                     long layerDimX = dimX;
                     long layerDimY = dimY;
@@ -199,7 +198,7 @@ public abstract class FollowingResolutionsBuilder {
                         layerDimY /= compression;
                         tDim /= compression;
                         buffers.add((UpdatablePArray) Arrays.SMM.newUnresizableArray(
-                            elementType, bandCount * Math.min(tDim, layerDimX) * Math.min(tDim, layerDimY)));
+                                elementType, bandCount * Math.min(tDim, layerDimX) * Math.min(tDim, layerDimY)));
                     }
                     assert buffers.size() == nImmediatelyBuilt + 1;
                     if (needToSeparatelyCompressLastLayers) {
@@ -208,8 +207,8 @@ public abstract class FollowingResolutionsBuilder {
                     }
                 }
                 Matrix<? extends UpdatablePArray> largeBuffer = Matrices.matrixAtSubArray(
-                    buffers.get(0), 0,
-                    bandCount, currentTileDimX, currentTileDimY);
+                        buffers.get(0), 0,
+                        bandCount, currentTileDimX, currentTileDimY);
                 largeBuffer.array().copy(m.array());
                 // unlike addImage method, here we scale only the part of full tile inside the image: here we have
                 // no background correction and should not try to average extra pixels to avoid edge effects
@@ -221,15 +220,15 @@ public abstract class FollowingResolutionsBuilder {
                     tileToX /= compression;
                     tileToY /= compression;
                     Matrix<? extends UpdatablePArray> smallBuffer = Matrices.matrixAtSubArray(
-                        buffers.get(level + 1), 0,
-                        bandCount, tileToX - tileX, tileToY - tileY);
+                            buffers.get(level + 1), 0,
+                            bandCount, tileToX - tileX, tileToY - tileY);
                     Matrices.resize(null, averagingMode.averagingMethod(largeBuffer), smallBuffer, largeBuffer);
                     writeNewData(smallBuffer, level, tileX, tileY);
                     largeBuffer = smallBuffer;
                 }
                 if (needToSeparatelyCompressLastLayers) {
                     lastLayer.subMatrix(0, tileX, tileY, bandCount, tileToX, tileToY)
-                        .array().copy(largeBuffer.array());
+                            .array().copy(largeBuffer.array());
                 }
             }
         }
@@ -252,7 +251,7 @@ public abstract class FollowingResolutionsBuilder {
     protected abstract void allocateNewLayers(Class<?> elementType);
 
     protected abstract void writeNewData(
-        Matrix<? extends PArray> packedBands,
-        int indexOfNewResolutionLevel, // indexOfNewResolutionLevel=0 corresponds to initialResolutionLevel+1
-        long positionX, long positionY);
+            Matrix<? extends PArray> packedBands,
+            int indexOfNewResolutionLevel, // indexOfNewResolutionLevel=0 corresponds to initialResolutionLevel+1
+            long positionX, long positionY);
 }

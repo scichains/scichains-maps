@@ -203,7 +203,7 @@ public final class MinimalCostLinkingOnStraight implements WeightedDirectedGraph
         for (int k = 1; k < points.length; k++) {
             if (points[k] < points[k - 1]) {
                 throw new IllegalArgumentException("Array of points is not sorted: p[" + k + "] = "
-                        + points[k] + " < p[" + (k -1) + "] = " + points[k - 1]);
+                        + points[k] + " < p[" + (k - 1) + "] = " + points[k - 1]);
             }
         }
     }

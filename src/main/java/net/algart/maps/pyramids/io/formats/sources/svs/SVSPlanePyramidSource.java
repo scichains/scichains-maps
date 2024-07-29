@@ -192,8 +192,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 this.pixelPyramidAtWholeSlide = IRectangularArea.valueOf(
                         IPoint.valueOf(pixelLeft, pixelTop),
                         IPoint.valueOf(
-                                Math.max(pixelLeft, Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1),
-                                Math.max(pixelTop, Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
+                                Math.max(pixelLeft,
+                                        Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1),
+                                Math.max(pixelTop,
+                                        Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
                 levelDimX = (long) (imageDimX * metricWholeSlide.size(0) / metricPyramid.size(0));
                 levelDimY = (long) (imageDimY * metricWholeSlide.size(1) / metricPyramid.size(1));
             } else {
@@ -703,7 +705,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                     return result;
                 }
                 final Matrix<? extends PArray> actual = readAndCompressDataFromLevel(resolutionLevel,
-                        (int) (intersection.min(0) - actualArea.min(0)), (int) (intersection.min(1) - actualArea.min(1)),
+                        (int) (intersection.min(0) - actualArea.min(0)),
+                        (int) (intersection.min(1) - actualArea.min(1)),
                         (int) intersection.size(0), (int) intersection.size(1));
                 LOG.log(System.Logger.Level.DEBUG, () -> String.format(
                         "SVS combining (level %d): %d..%d x %d..%d (%d x %d) from whole slide image "

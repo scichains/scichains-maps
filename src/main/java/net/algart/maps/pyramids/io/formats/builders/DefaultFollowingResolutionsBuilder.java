@@ -36,10 +36,9 @@ public class DefaultFollowingResolutionsBuilder extends FollowingResolutionsBuil
     private List<MemoryModel> customMemoryModelsForNewResolutions = new ArrayList<MemoryModel>();
 
     public DefaultFollowingResolutionsBuilder(
-        PlanePyramidSource source,
-        int initialResolutionLevel,
-        int compression)
-    {
+            PlanePyramidSource source,
+            int initialResolutionLevel,
+            int compression) {
         super(source, initialResolutionLevel, compression);
     }
 
@@ -70,13 +69,13 @@ public class DefaultFollowingResolutionsBuilder extends FollowingResolutionsBuil
             layerDimX /= compression;
             layerDimY /= compression;
             MemoryModel mm = k < customMemoryModelsForNewResolutions.size() ?
-                customMemoryModelsForNewResolutions.get(k) :
-                Arrays.SMM;
+                    customMemoryModelsForNewResolutions.get(k) :
+                    Arrays.SMM;
             Matrix<UpdatablePArray> layer = mm.newMatrix(UpdatablePArray.class,
-                elementType, bandCount, layerDimX, layerDimY);
+                    elementType, bandCount, layerDimX, layerDimY);
             if (mm != Arrays.SMM) {
                 layer = layer.tile(bandCount,
-                    PlanePyramidSource.DEFAULT_TILE_DIM, PlanePyramidSource.DEFAULT_TILE_DIM);
+                        PlanePyramidSource.DEFAULT_TILE_DIM, PlanePyramidSource.DEFAULT_TILE_DIM);
             }
             results.add(layer);
         }
@@ -84,12 +83,11 @@ public class DefaultFollowingResolutionsBuilder extends FollowingResolutionsBuil
 
     @Override
     protected void writeNewData(
-        Matrix<? extends PArray> packedBands,
-        int indexOfNewResolutionLevel,
-        long positionX, long positionY)
-    {
+            Matrix<? extends PArray> packedBands,
+            int indexOfNewResolutionLevel,
+            long positionX, long positionY) {
         results.get(indexOfNewResolutionLevel).subMatr(
-            0, positionX, positionY, bandCount,
-            packedBands.dim(1), packedBands.dim(2)).array().copy(packedBands.array());
+                0, positionX, positionY, bandCount,
+                packedBands.dim(1), packedBands.dim(2)).array().copy(packedBands.array());
     }
 }

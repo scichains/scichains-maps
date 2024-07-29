@@ -46,11 +46,11 @@ public interface PlanePyramidSource {
     // - note: we don't call this "DIM_X/Y", because in usual matrices dimX is dim(0)
 
     int DEFAULT_COMPRESSION = Math.max(2,
-        Arrays.SystemSettings.getIntProperty(
-                "net.algart.maps.pyramids.io.defaultPyramidCompression", 4));
+            Arrays.SystemSettings.getIntProperty(
+                    "net.algart.maps.pyramids.io.defaultPyramidCompression", 4));
     long DEFAULT_TILE_DIM = Math.max(16,
-        Arrays.SystemSettings.getLongProperty(
-                "net.algart.maps.pyramids.io.tile", 1024));
+            Arrays.SystemSettings.getLongProperty(
+                    "net.algart.maps.pyramids.io.tile", 1024));
     long DEFAULT_MINIMAL_PYRAMID_SIZE = 8;
 
     enum SpecialImageKind {
@@ -92,7 +92,7 @@ public interface PlanePyramidSource {
          * Simplest universal thumbnail: the last (smallest) available level of the full image.
          * When passed to {@link #readSpecialMatrix(SpecialImageKind)} method,
          * the result is always the full image, returned by
-         * <tt>{@link #readFullMatrix readFullMatrix}(numberOfResolutions()-1)</tt>.
+         * <code>{@link #readFullMatrix readFullMatrix}(numberOfResolutions()-1)</code>.
          *
          * <p>You may use this variant instead of any other special kind, if
          * {@link #isSpecialMatrixSupported(SpecialImageKind)}
@@ -185,7 +185,7 @@ public interface PlanePyramidSource {
         },
 
         /**
-         * Usual flushing, suitable for <tt>close()</tt> and similar methods.
+         * Usual flushing, suitable for <code>close()</code> and similar methods.
          * Should close associated files, flush non-written data to disk etc.
          */
         STANDARD() {
@@ -299,20 +299,20 @@ public interface PlanePyramidSource {
         }
 
         private static final Matrices.ResizingMethod.Averaging AVERAGING_MIN =
-            new Matrices.ResizingMethod.Averaging(Matrices.InterpolationMethod.STEP_FUNCTION) {
-                @Override
-                protected Func getAveragingFunc(long[] apertureDim) {
-                    return Func.MIN;
-                }
-            };
+                new Matrices.ResizingMethod.Averaging(Matrices.InterpolationMethod.STEP_FUNCTION) {
+                    @Override
+                    protected Func getAveragingFunc(long[] apertureDim) {
+                        return Func.MIN;
+                    }
+                };
 
         private static final Matrices.ResizingMethod.Averaging AVERAGING_MAX =
-            new Matrices.ResizingMethod.Averaging(Matrices.InterpolationMethod.STEP_FUNCTION) {
-                @Override
-                protected Func getAveragingFunc(long[] apertureDim) {
-                    return Func.MAX;
-                }
-            };
+                new Matrices.ResizingMethod.Averaging(Matrices.InterpolationMethod.STEP_FUNCTION) {
+                    @Override
+                    protected Func getAveragingFunc(long[] apertureDim) {
+                        return Func.MAX;
+                    }
+                };
     }
 
     int numberOfResolutions();
@@ -330,30 +330,30 @@ public interface PlanePyramidSource {
     /**
      * <p>Returns dimensions of any pyramid level. Number of elements in the result arrays is always 3:</p>
      * <ul>
-     * <li>first element <tt>result[0]</tt> is always equal to {@link #bandCount()};</li>
-     * <li>the element <tt>result[{@link #DIM_WIDTH}]</tt> is the <i>x</i>-dimension of the level in pixels;
-     * <li>the element <tt>result[{@link #DIM_HEIGHT}]</tt> is the <i>y</i>-dimension of the level in pixels.
+     * <li>first element <code>result[0]</code> is always equal to {@link #bandCount()};</li>
+     * <li>the element <code>result[{@link #DIM_WIDTH}]</code> is the <i>x</i>-dimension of the level in pixels;
+     * <li>the element <code>result[{@link #DIM_HEIGHT}]</code> is the <i>y</i>-dimension of the level in pixels.
      * </ul>
      *
      * <p>This method always returns a new Java array and never returns a reference to an internal field.</p>
      *
-     * @param resolutionLevel the level of pyramid; zero level (<tt>resolutionLevel=0</tt>) corresponds
+     * @param resolutionLevel the level of pyramid; zero level (<code>resolutionLevel=0</code>) corresponds
      *                        to the best resolution.
      * @return dimensions of the specified pyramid level.
      * @throws NoSuchElementException if <tt>!{@link #isResolutionLevelAvailable(int)
      *                                isResolutionLevelAvailable(resolutionLevel)}</tt>
      */
     long[] dimensions(int resolutionLevel)
-        throws NoSuchElementException;
+            throws NoSuchElementException;
 
     /**
-     * Returns the dimension <tt>#index</tt> of the given pyramid level.
-     * Equivalent to <tt>{@link #dimensions(int) dimensions(resolutionLevel)}[index]</tt>,
+     * Returns the dimension <code>#index</code> of the given pyramid level.
+     * Equivalent to <code>{@link #dimensions(int) dimensions(resolutionLevel)}[index]</code>,
      * but works faster.
      *
      * @param index the index of dimension.
-     * @return  the dimension <tt>#index</tt> of this level.
-     * @throws IndexOutOfBoundsException if <tt>index&lt;0</tt> or <tt>index&gt;2</tt>.
+     * @return the dimension <code>#index</code> of this level.
+     * @throws IndexOutOfBoundsException if <code>index&lt;0</code> or <code>index&gt;2</code>.
      */
     default long dim(int resolutionLevel, int index) {
         return dimensions(resolutionLevel)[index];
@@ -368,9 +368,9 @@ public interface PlanePyramidSource {
     }
 
     /**
-     * Returns <tt>true</tt> if {@link #elementType()} method works properly.
-     * In other case, that method throws <tt>UnsupportedOperationException</tt>.
-     * In particular, returns <tt>true</tt> in  {@link DefaultPlanePyramidSource}.
+     * Returns <code>true</code> if {@link #elementType()} method works properly.
+     * In other case, that method throws <code>UnsupportedOperationException</code>.
+     * In particular, returns <code>true</code> in  {@link DefaultPlanePyramidSource}.
      *
      * @return whether {@link #elementType()} is supported.
      */
@@ -392,13 +392,13 @@ public interface PlanePyramidSource {
      * image analysis algorithms.</p>
      *
      * <p>Some pyramids, including the default implementation in {@link AbstractPlanePyramidSource}, do not
-     * support this feature. In this case, the method returns <tt>null</tt>. This situation may be
+     * support this feature. In this case, the method returns <code>null</code>. This situation may be
      * interpreted as if we have only 1 actual area, corresponding to the whole pyramid
      * from (0,&nbsp;0) to <nobr>({@link #dimensions(int) dimensions}(0)[{@link #DIM_WIDTH}]&minus;1,
      * {@link #dimensions(int) dimensions}(0)[{@link #DIM_HEIGHT}]&minus;1).</p>
      *
      * @return a list of all areas (2D rectangles), filled by actual data, at the level #0,
-     * or <tt>null</tt> if it is not supported.
+     * or <code>null</code> if it is not supported.
      */
     default List<IRectangularArea> zeroLevelActualRectangles() {
         return null;
@@ -410,33 +410,33 @@ public interface PlanePyramidSource {
      * All other areas should be considered to be a background and may be not passed to
      * image analysis algorithms.</p>
      *
-     * <p>More precisely, each element <b>P</b> of the returned list, i.e. <tt>List&lt;List&lt;IPoint&gt;&gt;</tt>,
+     * <p>More precisely, each element <b>P</b> of the returned list, i.e. <code>List&lt;List&lt;IPoint&gt;&gt;</code>,
      * corresponds to one connected 2D polygon. The structure of this element <b>P</b> is the following:</p>
      *
      * <ul>
-     * <li><b>P</b><tt>.get(0)</tt> is the list of sequential vertices of the polygon; each vertex
+     * <li><b>P</b><code>.get(0)</code> is the list of sequential vertices of the polygon; each vertex
      * appears in this list only once;</li>
-     * <li><b>P</b><tt>.get(1)</tt>, <b>P</b><tt>.get(2)</tt>, ..., <b>P</b><tt>.get(m)</tt>, where
-     * <tt>m=</tt><b>P</b><tt>.size()</tt> describe sequential vertices of all polygonal holes,
+     * <li><b>P</b><code>.get(1)</code>, <b>P</b><code>.get(2)</code>, ..., <b>P</b><code>.get(m)</code>, where
+     * <code>m=</code><b>P</b><code>.size()</code> describe sequential vertices of all polygonal holes,
      * that may appear in the polygon. If the polygon has no holes (very probable case) or if
-     * their detection is not supported, the list <b>P</b> contains only 1 element (<tt>m=1</tt>).
+     * their detection is not supported, the list <b>P</b> contains only 1 element (<code>m=1</code>).
      * </li>
      * </ul>
      *
      * <p>The default implementation in {@link AbstractPlanePyramidSource} calls {@link #zeroLevelActualRectangles()}
      * and converts each rectangle to the list <b>P</b>, containing only 1 element, and this element
-     * is the list of 4 vertices of the rectangle. If {@link #zeroLevelActualRectangles()} returns <tt>null</tt>,
-     * the default implementation also returns <tt>null</tt>.</p>
+     * is the list of 4 vertices of the rectangle. If {@link #zeroLevelActualRectangles()} returns <code>null</code>,
+     * the default implementation also returns <code>null</code>.</p>
      *
      * @return the list of all polygonal areas, filled by actual data, at the level #0, and their
-     * holes (if they exist), or <tt>null</tt> if this ability is not supported.
+     * holes (if they exist), or <code>null</code> if this ability is not supported.
      */
     default List<List<List<IPoint>>> zeroLevelActualAreaBoundaries() {
         return null;
     }
 
     Matrix<? extends PArray> readSubMatrix(int resolutionLevel, long fromX, long fromY, long toX, long toY)
-        throws NoSuchElementException, NotYetConnectedException;
+            throws NoSuchElementException, NotYetConnectedException;
     // throws if !isResolutionLevelAvailable(resolutionLevel), if !isDataReady()
 
     default boolean isFullMatrixSupported() {
@@ -446,22 +446,22 @@ public interface PlanePyramidSource {
     // Works faster than equivalent readSubMatrix call if possible;
     // but may work very slowly in compressed implementations
     Matrix<? extends PArray> readFullMatrix(int resolutionLevel)
-        throws NoSuchElementException, NotYetConnectedException, UnsupportedOperationException;
+            throws NoSuchElementException, NotYetConnectedException, UnsupportedOperationException;
     // throws if !isResolutionLevelAvailable(resolutionLevel),
     // if !isDataReady(), if !isFullMatrixSupported()
 
     /**
-     * Returns <tt>true</tt> if this special image kind is provided by current format.
-     * <p>Default implementation in <tt>AbstractPlanePyramidSource</tt> return <tt>false</tt>.
+     * Returns <code>true</code> if this special image kind is provided by current format.
+     * <p>Default implementation in <code>AbstractPlanePyramidSource</code> return <code>false</code>.
      *
      * @param kind the kind of special image.
-     * @return whether this kind is supported; <tt>false</tt> by default.
+     * @return whether this kind is supported; <code>false</code> by default.
      */
     boolean isSpecialMatrixSupported(SpecialImageKind kind);
 
     /**
      * Reads special image according specified kind.
-     * <p>If the argument is {@link SpecialImageKind#NONE}, return <tt>null</tt>. In all other cases
+     * <p>If the argument is {@link SpecialImageKind#NONE}, return <code>null</code>. In all other cases
      * returns some non-null result.
      * <p>If there is no appropriate image, returns {@link Optional#empty()}.</tt>.
      *
@@ -469,14 +469,14 @@ public interface PlanePyramidSource {
      * @return special image or {@link Optional#empty()} if this kind is not supported.
      */
     Optional<Matrix<? extends PArray>> readSpecialMatrix(SpecialImageKind kind)
-        throws NotYetConnectedException;
+            throws NotYetConnectedException;
 
     /**
      * Returns true if the data at all available levels of this source are available.
      * In other case, {@link #readSubMatrix(int, long, long, long, long)} and {@link #readFullMatrix(int)}
-     * method can throw <tt>NotYetConnectedException</tt> (but also, maybe, work properly),
+     * method can throw <code>NotYetConnectedException</code> (but also, maybe, work properly),
      * <p>Note: all other methods, including {@link #dimensions(int)}, must work without
-     * <tt>NotYetConnectedException</tt> even if this method returns <tt>false</tt>.
+     * <code>NotYetConnectedException</code> even if this method returns <code>false</code>.
      *
      * @return whether the data at all available levels of this source are available.
      */

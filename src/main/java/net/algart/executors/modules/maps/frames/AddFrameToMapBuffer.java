@@ -24,14 +24,14 @@
 
 package net.algart.executors.modules.maps.frames;
 
+import net.algart.executors.api.data.SNumbers;
+import net.algart.executors.api.data.SScalar;
+import net.algart.executors.modules.core.common.matrices.MultiMatrixFilter;
 import net.algart.executors.modules.maps.frames.buffers.MapBuffer;
 import net.algart.executors.modules.maps.frames.buffers.MapBufferKey;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
 import net.algart.multimatrix.MultiMatrix;
-import net.algart.executors.api.data.SNumbers;
-import net.algart.executors.api.data.SScalar;
-import net.algart.executors.modules.core.common.matrices.MultiMatrixFilter;
 
 import java.util.Locale;
 

@@ -32,12 +32,10 @@ import net.algart.maps.pyramids.io.api.PlanePyramidTools;
 import net.algart.maps.pyramids.io.api.sources.RotatingPlanePyramidSource;
 import net.algart.maps.pyramids.io.formats.sources.svs.metadata.SVSAdditionalCombiningInfo;
 import net.algart.matrices.tiff.TiffException;
-import org.scijava.Context;
 
 import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.Locale;
 
 /*
 Possible pyramidJson:
@@ -86,7 +84,7 @@ public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
         final SVSPlanePyramidSource source;
         try {
             SVSAdditionalCombiningInfo geometry = SVSAdditionalCombiningInfo.getInstanceFromJson(
-                    Jsons.getJsonObject(svsJson,"recommendedGeometry"));
+                    Jsons.getJsonObject(svsJson, "recommendedGeometry"));
             source = new SVSPlanePyramidSource(
                     Paths.get(pyramidPath),
                     svsJson.getBoolean("combineWithWholeSlideImage", false),

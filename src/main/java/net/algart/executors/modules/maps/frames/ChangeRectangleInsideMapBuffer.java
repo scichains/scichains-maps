@@ -81,7 +81,7 @@ public final class ChangeRectangleInsideMapBuffer extends NumbersFilter {
             this.name = name;
         }
 
-        abstract IRectangularArea change(IRectangularArea area, long x, long  y);
+        abstract IRectangularArea change(IRectangularArea area, long x, long y);
 
     }
 

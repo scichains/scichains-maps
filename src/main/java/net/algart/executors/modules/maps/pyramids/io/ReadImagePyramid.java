@@ -28,9 +28,9 @@ import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.api.data.SScalar;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
+import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
-import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 
@@ -591,7 +591,8 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation implem
                 sizeY = GridEqualizer.equalizeGrid(actualRoi.sizeY(), sizeY);
             }
             final IPoint start = mapSequence.framePosition(
-                            currentFrameLowIndex, currentFrameHighIndex, sizeX, sizeY, actualRoi.sizeX(), actualRoi.sizeY())
+                            currentFrameLowIndex, currentFrameHighIndex, sizeX, sizeY, actualRoi.sizeX(),
+                            actualRoi.sizeY())
                     .addExact(actualRoi.min());
             final long endX = Math.min(start.x() + sizeX - 1, actualRoi.maxX());
             final long endY = Math.min(start.y() + sizeY - 1, actualRoi.maxY());
