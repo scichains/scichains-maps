@@ -34,6 +34,7 @@ import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tags.TagCompression;
+import net.algart.matrices.tiff.tags.TagPredictor;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.tiff.tiles.TiffTile;
 import net.algart.multimatrix.MultiMatrix2D;
@@ -74,6 +75,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private TagCompression compression = TagCompression.UNCOMPRESSED;
     private boolean preferRGB = false;
     private Double quality = null;
+    private boolean prediction = false;
     private boolean signedIntegers = false;
     private String imageDescription = "";
     private boolean resizable = true;
@@ -182,6 +184,15 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     public WriteTiff setQuality(Double quality) {
         this.quality = quality;
+        return this;
+    }
+
+    public boolean isPrediction() {
+        return prediction;
+    }
+
+    public WriteTiff setPrediction(boolean prediction) {
+        this.prediction = prediction;
         return this;
     }
 
@@ -426,6 +437,9 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         ifd.putCompression(compression);
         ifd.putMatrixInformation(firstMatrix, signedIntegers);
         // - even if resizable, it is not a problem to start from sizes if the 1st matrix
+        ifd.putPredictor(prediction && firstMatrix.elementType() != boolean.class ?
+                TagPredictor.HORIZONTAL :
+                TagPredictor.NONE);
 
         if (!resizable) {
             if (imageDimX != 0 && imageDimY != 0) {

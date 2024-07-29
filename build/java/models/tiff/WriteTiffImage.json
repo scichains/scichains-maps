@@ -206,31 +206,35 @@
       "items": [
         {
           "value": "UNCOMPRESSED",
-          "caption": "Uncompressed (TIFF tag 1)"
+          "caption": "Uncompressed (TIFF code 1)"
         },
         {
           "value": "LZW",
-          "caption": "LZW (TIFF tag 5)"
+          "caption": "LZW (TIFF code 5)"
         },
         {
           "value": "DEFLATE",
-          "caption": "Deflate (TIFF tag 8)"
+          "caption": "Deflate (TIFF code 8)"
+        },
+        {
+          "value": "PACK_BITS",
+          "caption": "PackBits (TIFF code 32773)"
         },
         {
           "value": "JPEG",
-          "caption": "JPEG (TIFF tag 7)"
+          "caption": "JPEG (TIFF code 7)"
         },
         {
           "value": "JPEG_2000_LOSSLESS",
-          "caption": "JPEG-2000 lossless (TIFF tag 33003, used by Aperio)"
+          "caption": "JPEG-2000 lossless (TIFF code 33003, used by Aperio)"
         },
         {
           "value": "JPEG_2000_LOSSLESS_ALTERNATIVE",
-          "caption": "JPEG-2000 lossless alternative (TIFF tag 33005, used by Aperio)"
+          "caption": "JPEG-2000 lossless alternative (TIFF code 33005, used by Aperio)"
         },
         {
           "value": "JPEG_2000_LOSSY",
-          "caption": "JPEG-2000 lossy (TIFF tag 33004)"
+          "caption": "JPEG-2000 lossy (TIFF code 33004)"
         }
       ],
       "default": "JPEG"
@@ -250,6 +254,15 @@
       "value_type": "String",
       "edition_type": "value",
       "default": ""
+    },
+    {
+      "caption": "Prediction",
+      "name": "prediction",
+      "description": "Enable TIFF prediction mode (using TIFF \"Predictor\" tag, value 2, i.e. \"horizontal differencing\"). This mode can reduce file size for the \"LZW\" and \"PackBits\" compression modes. For other compressions, this flag should usually be cleared. Note: for binary images this flag is ignored.",
+      "value_type": "boolean",
+      "edition_type": "value",
+      "default": false,
+      "advanced": true
     },
     {
       "caption": "Tiled TIFF",
