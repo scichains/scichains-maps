@@ -115,10 +115,12 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
                 }
             }
         } catch (IOException e) {
+            getScalar(OUTPUT_VALID).setTo(false);
             if (requireValidTiff) {
                 throw new IOError(e);
             } else {
-                LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading " + path + ":\n      " + e);
+                LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while analysing TIFF information for " +
+                        path + ", IFD #" + ifdIndex + ":\n      " + e);
                 getScalar(OUTPUT_PRETTY_IFD).setTo(e.toString());
                 getScalar(OUTPUT_PRETTY_ALL_IFDS).setTo(e.toString());
             }

@@ -49,7 +49,7 @@
     {
       "value_type": "scalar",
       "name": "valid",
-      "hint": "\"true\" if the input file is in TIFF format and it was read successfully;\n\"false\" in other case (in particular in a case of some exception)."
+      "hint": "\"true\" if the input file is in TIFF format and it was read successfully;\n\"false\" in other case (in particular in a case of some exception).\nNote: this flag can be \"true\" even for an invalid file,\nif reading was successful but there are problems in the non-analyzed parts of the file."
     },
     {
       "value_type": "scalar",

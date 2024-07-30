@@ -307,13 +307,15 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             }
             return multiMatrix;
         } catch (IOException e) {
+            getScalar(OUTPUT_VALID).setTo(false);
             closeReader();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
             if (requireValidTiff) {
                 throw new IOError(e);
             } else {
-                LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading " + path + ":\n      " + e);
+                LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading TIFF " + path +
+                        ", IFD #" + ifdIndex + ":\n      " + e);
                 getScalar(OUTPUT_PRETTY_IFD).setTo(e.toString());
                 return null;
             }
