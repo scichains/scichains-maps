@@ -27,6 +27,7 @@ package net.algart.executors.modules.maps.tiff;
 import net.algart.executors.api.Executor;
 import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
+import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
@@ -71,10 +72,19 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (e.hasOutputPort(OUTPUT_VALID)) {
             e.getScalar(OUTPUT_VALID).setTo(reader.isValid());
         }
-        final List<TiffIFD> ifds = reader.allIFDs();
+        if (e.hasOutputPort(OUTPUT_IMAGE_DIM_X)) {
+            e.getScalar(OUTPUT_IMAGE_DIM_X).remove();
+        }
+        if (e.hasOutputPort(OUTPUT_IMAGE_DIM_Y)) {
+            e.getScalar(OUTPUT_IMAGE_DIM_Y).remove();
+        }
+        if (e.hasOutputPort(OUTPUT_FILE_SIZE)) {
+            e.getScalar(OUTPUT_FILE_SIZE).remove();
+        }
         if (e.hasOutputPort(OUTPUT_IFD_INDEX)) {
             e.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
         }
+        final List<TiffIFD> ifds = reader.allIFDs();
         if (e.hasOutputPort(OUTPUT_NUMBER_OF_IMAGES)) {
             e.getScalar(OUTPUT_NUMBER_OF_IMAGES).setTo(ifds.size());
         }
