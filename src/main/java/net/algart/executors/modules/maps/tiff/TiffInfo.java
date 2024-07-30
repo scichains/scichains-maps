@@ -115,7 +115,13 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
                 }
             }
         } catch (IOException e) {
-            throw new IOError(e);
+            if (requireValidTiff) {
+                throw new IOError(e);
+            } else {
+                LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading " + path + ":\n      " + e);
+                getScalar(OUTPUT_PRETTY_IFD).setTo(e.toString());
+                getScalar(OUTPUT_PRETTY_ALL_IFDS).setTo(e.toString());
+            }
         }
     }
 

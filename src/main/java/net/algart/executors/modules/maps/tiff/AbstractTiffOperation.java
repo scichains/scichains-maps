@@ -81,6 +81,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (e.hasOutputPort(OUTPUT_FILE_SIZE)) {
             e.getScalar(OUTPUT_FILE_SIZE).remove();
         }
+        // - clearing output ports before possible exception
         if (e.hasOutputPort(OUTPUT_IFD_INDEX)) {
             e.getScalar(OUTPUT_IFD_INDEX).setTo(ifdIndex);
         }
