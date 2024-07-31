@@ -394,22 +394,15 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
             ImagePyramidLevelRois levelRois) {
         Objects.requireNonNull(executor, "Null executor");
         Objects.requireNonNull(levelRois, "Null levelRois");
-        if (executor.hasOutputPort(OUTPUT_NUMBER_OF_LEVELS)) {
-            executor.getScalar(OUTPUT_NUMBER_OF_LEVELS).setTo(levelRois.numberOfResolutions());
-        }
-        if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_X)) {
-            executor.getScalar(OUTPUT_LEVEL_DIM_X).setTo(levelRois.levelDimX());
-        }
-        if (executor.hasOutputPort(OUTPUT_LEVEL_DIM_Y)) {
-            executor.getScalar(OUTPUT_LEVEL_DIM_Y).setTo(levelRois.levelDimY());
-        }
+        executor.setOutputScalar(OUTPUT_NUMBER_OF_LEVELS, levelRois.numberOfResolutions());
+        executor.setOutputScalar(OUTPUT_LEVEL_DIM_X, levelRois.levelDimX());
+        executor.setOutputScalar(OUTPUT_LEVEL_DIM_Y, levelRois.levelDimY());
         if (source != null && executor.isOutputNecessary(OUTPUT_BUILTIN_METADATA)) {
             executor.getScalar(OUTPUT_BUILTIN_METADATA).setTo(source.metadata());
         }
         final ImagePyramidMetadataJson metadataJson = levelRois.metadataJson();
-        if (executor.isOutputNecessary(OUTPUT_METADATA) && metadataJson != null) {
-            executor.getScalar(OUTPUT_METADATA).setTo(metadataJson.jsonString());
-        }
+        executor.setOutputScalarIfNecessary(OUTPUT_METADATA,
+                () -> metadataJson == null ? null : metadataJson.jsonString());
         if (executor.isOutputNecessary(OUTPUT_METADATA_ROI_RECTANGLES)) {
             executor.getNumbers(OUTPUT_METADATA_ROI_RECTANGLES).setToArray(
                     levelRois.allRoiCentersAndSizes(), 4);

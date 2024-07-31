@@ -107,12 +107,8 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
                 fillOutputFileInformation(path);
                 fillReadingOutputInformation(this, reader, ifdIndex);
                 final List<TiffIFD> ifds = reader.allIFDs();
-                if (isOutputNecessary(OUTPUT_ALL_IFDS)) {
-                    getScalar(OUTPUT_ALL_IFDS).setTo(Jsons.toPrettyString(allIFDJson(ifds)));
-                }
-                if (isOutputNecessary(OUTPUT_PRETTY_ALL_IFDS)) {
-                    getScalar(OUTPUT_PRETTY_ALL_IFDS).setTo(allIFDPrettyInfo(ifds));
-                }
+                setOutputScalarIfNecessary(OUTPUT_ALL_IFDS, () -> Jsons.toPrettyString(allIFDJson(ifds)));
+                setOutputScalarIfNecessary(OUTPUT_PRETTY_ALL_IFDS, () -> allIFDPrettyInfo(ifds));
             }
         } catch (IOException e) {
             getScalar(OUTPUT_VALID).setTo(false);
@@ -121,8 +117,8 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
             } else {
                 LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while analysing TIFF information for " +
                         path + ", IFD #" + ifdIndex + ":\n      " + e);
-                getScalar(OUTPUT_PRETTY_IFD).setTo(e.toString());
-                getScalar(OUTPUT_PRETTY_ALL_IFDS).setTo(e.toString());
+                setOutputScalar(OUTPUT_PRETTY_IFD, e.toString());
+                setOutputScalar(OUTPUT_PRETTY_ALL_IFDS, e.toString());
             }
         }
     }
