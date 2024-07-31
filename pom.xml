@@ -6,7 +6,7 @@
 
     <groupId>net.algart.executors</groupId>
     <artifactId>scichains-maps</artifactId>
-    <version>4.4.4</version>
+    <version>4.4.5</version>
 
     <name>SciChains maps (image pyramids)</name>
     <description>Open-source libraries, providing the base functions for SciChains product in area of computer vision.</description>
@@ -51,7 +51,7 @@
 
         <buildDirectory>${project.build.directory}/build</buildDirectory>
 
-        <net.algart.scichains-core.version>4.4.4</net.algart.scichains-core.version>
+        <net.algart.scichains-core.version>4.4.5</net.algart.scichains-core.version>
         <net.algart.algart-tiff.version>1.3.3</net.algart.algart-tiff.version>
     </properties>
     <dependencies>
