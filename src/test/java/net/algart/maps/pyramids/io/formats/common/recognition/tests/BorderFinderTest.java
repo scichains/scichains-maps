@@ -28,8 +28,8 @@ import net.algart.arrays.Matrix;
 import net.algart.arrays.UpdatableByteArray;
 import net.algart.arrays.UpdatablePArray;
 import net.algart.io.MatrixIO;
-import net.algart.io.awt.BufferedImageToMatrix;
-import net.algart.io.awt.MatrixToBufferedImage;
+import net.algart.io.awt.ImageToMatrix;
+import net.algart.io.awt.MatrixToImage;
 import net.algart.maps.pyramids.io.formats.common.recognition.BorderFinder;
 
 import javax.imageio.ImageIO;
@@ -53,7 +53,7 @@ public class BorderFinderTest {
         if (bufferedImage == null) {
             throw new IOException("Cannot read " + file);
         }
-        final Matrix<? extends UpdatablePArray> macro = new BufferedImageToMatrix.ToInterleavedRGB()
+        final Matrix<? extends UpdatablePArray> macro = new ImageToMatrix.ToInterleavedRGB()
                 .toMatrix(bufferedImage);
         final long leftTopX = Integer.parseInt(args[1]);
         final long leftTopY = Integer.parseInt(args[2]);
@@ -78,17 +78,17 @@ public class BorderFinderTest {
                 bufferedImage,
                 "JPEG", new File(resultFolder, "result.source." + fileName + ".jpg"));
         ImageIO.write(
-                new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(finder.getAveraged()),
+                new MatrixToImage.InterleavedRGBToInterleaved().toBufferedImage(finder.getAveraged()),
                 "JPEG", new File(resultFolder, "result.averaged." + fileName + ".jpg"));
         final Matrix<UpdatableByteArray> allLeftTopQualities = finder.findAllLeftTopQualities(qualityMulriplier);
         ImageIO.write(
-                new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(allLeftTopQualities),
+                new MatrixToImage.InterleavedRGBToInterleaved().toBufferedImage(allLeftTopQualities),
                 "JPEG", new File(resultFolder, "result.ltq." + fileName + ".jpg"));
         System.out.printf(Locale.US, "Found position: (%d,%d); quality: %.5f; %.3f sec preprocess + %.3f sec search%n",
                 finder.getResultLeftTopX(), finder.getResultLeftTopY(), finder.getResultLeftTopQuality(),
                 (t2 - t1) * 1e-9, (t3 - t2) * 1e-9);
         ImageIO.write(
-                new MatrixToBufferedImage.InterleavedRGBToInterleaved().toBufferedImage(
+                new MatrixToImage.InterleavedRGBToInterleaved().toBufferedImage(
                         finder.drawResultLeftTopOnSlide(1.0)),
                 "JPEG", new File(resultFolder, "result.lt." + fileName + ".jpg"));
     }

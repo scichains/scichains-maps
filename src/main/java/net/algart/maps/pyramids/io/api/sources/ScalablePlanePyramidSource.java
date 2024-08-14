@@ -26,7 +26,7 @@ package net.algart.maps.pyramids.io.api.sources;
 
 import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
-import net.algart.io.awt.MatrixToBufferedImage;
+import net.algart.io.awt.MatrixToImage;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.math.IPoint;
 import net.algart.math.IRectangularArea;
@@ -330,7 +330,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             final long zeroLevelFromY,
             final long zeroLevelToX,
             final long zeroLevelToY,
-            final MatrixToBufferedImage converter) {
+            final MatrixToImage converter) {
         Objects.requireNonNull(converter, "Null converter");
         checkFromAndTo(zeroLevelFromX, zeroLevelFromY, zeroLevelToX, zeroLevelToY);
         long t1 = System.nanoTime();
@@ -350,8 +350,8 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
                     Matrix.ContinuationMode.ZERO_CONSTANT);
             // BufferedImage cannot be empty
         }
-        final int width = converter.getWidth(m); // must be after conversion to byte, to avoid IllegalArgumentException
-        final int height = converter.getHeight(m);
+        final int width = converter.getDimX(m); // must be after conversion to byte, to avoid IllegalArgumentException
+        final int height = converter.getDimY(m);
         final Collection<IRectangularArea> backgroundAreas =
                 getBackgroundAreasInRectangle(zeroLevelFromX, zeroLevelFromY, zeroLevelToX, zeroLevelToY);
         java.awt.image.DataBuffer dataBuffer = converter.toDataBuffer(m);
@@ -360,7 +360,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             for (int bankIndex = 0; bankIndex < dataBuffer.getNumBanks(); bankIndex++) {
                 Matrix<? extends UpdatablePArray> bankMatrix = Matrices.matrix(
                         (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(
-                                MatrixToBufferedImage.getDataArray(dataBuffer, bankIndex)),
+                                MatrixToImage.getDataArray(dataBuffer, bankIndex)),
                         width, height);
                 long filler = converter.colorValue(m, backgroundColor, bankIndex);
                 for (IRectangularArea a : backgroundAreas) {

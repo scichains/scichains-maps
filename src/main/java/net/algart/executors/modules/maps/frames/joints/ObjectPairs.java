@@ -90,11 +90,11 @@ public final class ObjectPairs {
     }
 
     public int object1(int pairIndex) {
-        return pairs.getInt(2 * pairIndex);
+        return pairs.getInt(2L * pairIndex);
     }
 
     public int object2(int pairIndex) {
-        return pairs.getInt(2 * pairIndex + 1);
+        return pairs.getInt(2L * pairIndex + 1);
     }
 
     public int reindexedObject(int pairIndex) {
@@ -104,7 +104,7 @@ public final class ObjectPairs {
     }
 
     public int[] pairsArray() {
-        return Arrays.toJavaArray(pairs);
+        return pairs.toJavaArray();
     }
 
     public ObjectPairs resolveAllBases() {
@@ -172,7 +172,7 @@ public final class ObjectPairs {
 //        long t1 = System.nanoTime();
         FrameObjectStitcher.checkLabels(labelsMatrix);
         // - so, it is 2-dimensional
-        final int[] labels = labelsMatrix.channelToIntArray(0);
+        final int[] labels = labelsMatrix.channel(0).toInt();
         // Deprecated variant (high speed here is not necessary, because this method is usually not called at all):
         // final int[] labels = new LabelsAnalyser().setLabels(labelsMatrix.asMultiMatrix2D()).unsafeLabels();
         // - note: we don't modify labels below, so we can use unsafeLabels

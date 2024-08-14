@@ -472,7 +472,7 @@ public final class FrameObjectStitcher {
         final MultiMatrix2D matrix = reindexedLargeFrame.matrix().asMultiMatrix2D();
         final int dimX = (int) matrix.dimX();
         final int dimY = (int) matrix.dimY();
-        final int[] labels = matrix.channelToIntArray(0);
+        final int[] labels = matrix.channel(0).toInt();
         // Deprecated variant (actually equivalent to the simple operator above):
         // final int[] labels = new LabelsAnalyser().setLabels(matrix.asMultiMatrix2D())
         //        .labelsWithCloningIfNecessary();
@@ -578,7 +578,7 @@ public final class FrameObjectStitcher {
         final MultiMatrix2D matrix = largeFrame.matrix().asMultiMatrix2D();
         final int dimX = (int) matrix.dimX();
         final int dimY = (int) matrix.dimY();
-        final int[] labels = matrix.channelToIntArray(0);
+        final int[] labels = matrix.channel(0).toInt();
         final int[] result = new int[labels.length];
         // - filled by zero by Java
 

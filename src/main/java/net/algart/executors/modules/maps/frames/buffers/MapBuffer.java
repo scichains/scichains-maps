@@ -192,7 +192,7 @@ public final class MapBuffer {
 
             private ReindexedFrame(boolean includeReservedInRestoringTable) {
                 FrameObjectStitcher.checkLabels(matrix);
-                final int[] labels = matrix.channelToIntArray(0);
+                final int[] labels = matrix.channel(0).toInt();
                 final UpdatableIntArray labelsArray = SimpleMemoryModel.asUpdatableIntArray(labels);
                 final Range range = MultiMatrix.nonZeroRangeOf(labelsArray);
                 // - double-precision result of nonZeroRangeOf always represent int values exactly

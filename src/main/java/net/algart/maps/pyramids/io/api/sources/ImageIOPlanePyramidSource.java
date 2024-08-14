@@ -26,7 +26,7 @@ package net.algart.maps.pyramids.io.api.sources;
 
 import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
-import net.algart.io.awt.BufferedImageToMatrix;
+import net.algart.io.awt.ImageToMatrix;
 import net.algart.maps.pyramids.io.api.AbstractPlanePyramidSourceWrapper;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
 import net.algart.maps.pyramids.io.api.PlanePyramidTools;
@@ -61,7 +61,7 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
         protected int imageIndex = 0;
         private boolean addAlphaWhenExist = false;
         private boolean readingViaColorModel = false;
-        private boolean readingViaGraphics2D = false;
+        private boolean readingViaGraphics = false;
         // - ignored (as true value) for non-8-bit images
         private boolean dicomReader = false;
 
@@ -93,12 +93,12 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
             return this;
         }
 
-        public boolean isReadingViaGraphics2D() {
-            return readingViaGraphics2D;
+        public boolean isReadingViaGraphics() {
+            return readingViaGraphics;
         }
 
-        public ImageIOReadingBehaviour setReadingViaGraphics2D(boolean readingViaGraphics2D) {
-            this.readingViaGraphics2D = readingViaGraphics2D;
+        public ImageIOReadingBehaviour setReadingViaGraphics(boolean readingViaGraphics) {
+            this.readingViaGraphics = readingViaGraphics;
             return this;
         }
 
@@ -167,7 +167,7 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
                     + "imageIndex=" + getImageIndex()
                     + ", addAlphaWhenExist=" + isAddAlphaWhenExist()
                     + ", isReadingViaColorModel=" + isReadingViaColorModel()
-                    + ", isReadingViaGraphics2D=" + isReadingViaGraphics2D()
+                    + ", isReadingViaGraphics=" + isReadingViaGraphics()
                     + ", dicomReader=" + dicomReader
                     + '}';
         }
@@ -260,9 +260,9 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
             depth8 &= sampleSize == 8;
         }
         final Matrix<? extends PArray> matrixZero =
-                new BufferedImageToMatrix.ToInterleavedRGB()
+                new ImageToMatrix.ToInterleavedRGB()
                         .setReadingViaColorModel(imageIOReadingBehaviour.readingViaColorModel)
-                        .setReadingViaGraphics2D(imageIOReadingBehaviour.readingViaGraphics2D || !depth8)
+                        .setReadingViaGraphics(imageIOReadingBehaviour.readingViaGraphics || !depth8)
                         .setEnableAlpha(imageIOReadingBehaviour.addAlphaWhenExist)
                         .toMatrix(image);
         // !depth8: this class does not try to read 16/32/64-bit pictures (to be on the safe side),
