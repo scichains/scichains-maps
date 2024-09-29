@@ -350,8 +350,8 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
                     Matrix.ContinuationMode.ZERO_CONSTANT);
             // BufferedImage cannot be empty
         }
-        final int width = converter.getDimX(m); // must be after conversion to byte, to avoid IllegalArgumentException
-        final int height = converter.getDimY(m);
+        final int width = converter.dimX(m); // must be after conversion to byte, to avoid IllegalArgumentException
+        final int height = converter.dimY(m);
         final Collection<IRectangularArea> backgroundAreas =
                 getBackgroundAreasInRectangle(zeroLevelFromX, zeroLevelFromY, zeroLevelToX, zeroLevelToY);
         java.awt.image.DataBuffer dataBuffer = converter.toDataBuffer(m);
@@ -360,7 +360,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             for (int bankIndex = 0; bankIndex < dataBuffer.getNumBanks(); bankIndex++) {
                 Matrix<? extends UpdatablePArray> bankMatrix = Matrices.matrix(
                         (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(
-                                MatrixToImage.getDataArray(dataBuffer, bankIndex)),
+                                MatrixToImage.dataArray(dataBuffer, bankIndex)),
                         width, height);
                 long filler = converter.colorValue(m, backgroundColor, bankIndex);
                 for (IRectangularArea a : backgroundAreas) {

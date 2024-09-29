@@ -200,41 +200,57 @@
     {
       "caption": "TIFF compression mode",
       "name": "compression",
-      "description": "TIFF compression format, used for encoding this IFD image.",
+      "description": "TIFF compression format, used for encoding this TIFF image.",
       "value_type": "String",
       "edition_type": "enum",
       "items": [
         {
-          "value": "UNCOMPRESSED",
-          "caption": "Uncompressed (TIFF code 1)"
+          "value": "NONE",
+          "caption": "Uncompressed (compression type 1)"
+        },
+        {
+          "value": "CCITT_MODIFIED_HUFFMAN_RLE",
+          "caption": "Binary for fax: CCITT Modified Huffman RLE (compression type 2)"
+        },
+        {
+          "value": "CCITT_T4",
+          "caption": "Binary for fax: CCITT T.4/Group 3 (compression type 3)"
+        },
+        {
+          "value": "CCITT_T6",
+          "caption": "Binary for fax: CCITT T.6/Group 4 (compression type 4)"
         },
         {
           "value": "LZW",
-          "caption": "LZW (TIFF code 5)"
-        },
-        {
-          "value": "DEFLATE",
-          "caption": "Deflate (TIFF code 8)"
-        },
-        {
-          "value": "PACK_BITS",
-          "caption": "PackBits (TIFF code 32773)"
+          "caption": "LZW (compression type 5)"
         },
         {
           "value": "JPEG",
-          "caption": "JPEG (TIFF code 7)"
+          "caption": "JPEG (compression type 7)"
+        },
+        {
+          "value": "DEFLATE",
+          "caption": "Deflate (ZIP, compression type 8)"
+        },
+        {
+          "value": "PACK_BITS",
+          "caption": "PackBits (compression type 32773)"
         },
         {
           "value": "JPEG_2000_LOSSLESS",
-          "caption": "JPEG-2000 lossless (TIFF code 33003, used by Aperio)"
+          "caption": "JPEG-2000 lossless (compression type 33003, used by Aperio)"
+        },
+        {
+          "value": "JPEG_2000",
+          "caption": "JPEG-2000 lossy (compression type 33004)"
         },
         {
           "value": "JPEG_2000_LOSSLESS_ALTERNATIVE",
-          "caption": "JPEG-2000 lossless alternative (TIFF code 33005, used by Aperio)"
+          "caption": "JPEG-2000 lossless alternative (compression type 33005, used by Aperio)"
         },
         {
-          "value": "JPEG_2000_LOSSY",
-          "caption": "JPEG-2000 lossy (TIFF code 33004)"
+          "value": "JPEG_2000_LOSSLESS_OLYMPUS",
+          "caption": "JPEG-2000 lossless (compression type 34712, used by Olympus)"
         }
       ],
       "default": "JPEG"

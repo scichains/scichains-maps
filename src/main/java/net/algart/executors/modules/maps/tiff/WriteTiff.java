@@ -72,7 +72,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private boolean deleteFileOnError = true;
     private boolean bigTiff = false;
     private ByteOrder byteOrder = ByteOrder.NATIVE;
-    private TagCompression compression = TagCompression.UNCOMPRESSED;
+    private TagCompression compression = TagCompression.NONE;
     private boolean preferRGB = false;
     private Double quality = null;
     private boolean prediction = false;
@@ -390,11 +390,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
                 writer.setPreferRGB(preferRGB);
-                if (appendIFDToExistingTiff) {
-                    writer.openOrCreate();
-                } else {
-                    writer.create();
-                }
+                writer.create(appendIFDToExistingTiff);
                 final boolean dimensionsRequired = !(needToClose && x == 0 && y == 0);
                 final TiffIFD ifd = configure(writer, firstMatrix, dimensionsRequired);
                 map = writer.newMap(ifd, resizable && dimensionsRequired);

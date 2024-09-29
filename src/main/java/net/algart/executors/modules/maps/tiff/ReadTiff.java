@@ -30,7 +30,6 @@ import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.math.IRectangularArea;
-import net.algart.matrices.tiff.CachingTiffReader;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
@@ -336,9 +335,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         logDebug(() -> "Reading " + path);
         TiffReader reader = this.reader;
         if (reader == null) {
-            reader = caching ?
-                    new CachingTiffReader(path, requireValidTiff) :
-                    new TiffReader(path, requireValidTiff);
+            reader = new TiffReader(path, requireValidTiff).setCaching(caching);
             reader.setAutoUnpackBitsToBytes(autoUnpackBitsToBytes);
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
             reader.setAutoCorrectInvertedBrightness(autoCorrectInvertedBrightness);
