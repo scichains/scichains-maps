@@ -63,7 +63,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (openingMode.isCloseAfterExecute()) {
             return true;
         }
-        return Boolean.parseBoolean(executor.getInputScalar(INPUT_CLOSE_FILE, true).getValue());
+        return executor.getInputScalar(INPUT_CLOSE_FILE, true).toJavaLikeBoolean();
     }
 
     public static void fillReadingOutputInformation(Executor e, TiffReader reader, int ifdIndex) throws IOException {
