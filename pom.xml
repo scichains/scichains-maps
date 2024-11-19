@@ -10,12 +10,12 @@
 
     <name>SciChains maps (image pyramids)</name>
     <description>Open-source libraries, providing the base functions for SciChains product in area of computer vision.</description>
-    <url>http://scichains.com/</url>
+    <url>https://scichains.com/</url>
 
     <licenses>
         <license>
             <name>The MIT License (MIT)</name>
-            <url>http://opensource.org/licenses/MIT</url>
+            <url>https://opensource.org/licenses/MIT</url>
         </license>
     </licenses>
 
