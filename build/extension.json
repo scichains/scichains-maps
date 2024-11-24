@@ -17,6 +17,7 @@
         "libraries": "java/lib"
       },
       "configuration": {
+        "require_existing_paths": true,
         "classpath": [
           "java/lib/parsington-3.1.0.jar",
           "java/lib/scijava-common-2.99.0.jar",
