@@ -35,7 +35,7 @@ import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tags.TagPredictor;
-import net.algart.matrices.tiff.tiles.TiffMap;
+import net.algart.matrices.tiff.tiles.TiffMapForWriting;
 import net.algart.matrices.tiff.tiles.TiffTile;
 import net.algart.multimatrix.MultiMatrix2D;
 
@@ -89,8 +89,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private Integer stripSizeY = null;
     private boolean flushASAP = true;
 
-    private volatile TiffWriter writer = null;
-    private volatile TiffMap map = null;
+    private volatile TiffMapForWriting mapForWriting = null;
     // - note: "volatile" does not provide correct protection here! This just reduces possible problems
 
     public WriteTiff() {
@@ -337,13 +336,14 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         try {
             final boolean needToClose = needToClose(this, openingMode);
             openFile(path, m, needToClose);
-            getScalar(OUTPUT_IFD_INDEX).setTo(writer.numberOfIFDs());
+            //noinspection resource
+            getScalar(OUTPUT_IFD_INDEX).setTo(mapForWriting.writer().numberOfIFDs());
             // - numberOfIFDs() BEFORE writing is the index of resulting IFD
             writeMatrix(m, needToClose);
             if (needToClose) {
                 closeWriter(true);
             } else {
-                fillWritingOutputInformation(this, writer, map);
+                fillWritingOutputInformation(this, mapForWriting);
                 // - AFTER writing
             }
         } catch (IOException e) {
@@ -364,7 +364,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             closeFileOnError();
             throw e;
         } finally {
-            getScalar(OUTPUT_CLOSED).setTo(writer == null);
+            getScalar(OUTPUT_CLOSED).setTo(mapForWriting == null);
         }
     }
 
@@ -377,14 +377,14 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     public void openFile(Path path, Matrix<? extends PArray> firstMatrix, boolean needToClose) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
-        if (this.writer == null) {
+        if (this.mapForWriting == null) {
             if (firstMatrix == null) {
                 throw new IllegalArgumentException("The input matrix is not specified, " +
                         "but this matrix is required when the TIFF file is initially opened " +
                         "(although it can be omitted on subsequent calls when the file is already opened)");
             }
             TiffWriter writer = null;
-            TiffMap map;
+            TiffMapForWriting map;
             try {
                 writer = new TiffWriter(path, false);
                 writer.setBigTiff(bigTiff);
@@ -403,13 +403,12 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 }
                 throw e;
             }
-            this.writer = writer;
-            this.map = map;
+            this.mapForWriting = map;
             correctForImage();
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
-        AbstractTiffOperation.fillWritingOutputInformation(this, writer, map);
+        AbstractTiffOperation.fillWritingOutputInformation(this, mapForWriting);
     }
 
     @Override
@@ -419,7 +418,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
 
     // Corrects settings, that can be different for different IFDs or tiles.
     private void correctForImage() {
-        writer.setQuality(quality);
+        //noinspection resource
+        mapForWriting.writer().setQuality(quality);
         // - in the current version, this is the only settings, which may vary from one IFD to another
     }
 
@@ -458,40 +458,40 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private void writeMatrix(Matrix<? extends PArray> matrix, boolean needToClose) throws IOException {
         correctForImage();
         if (matrix != null) {
-            List<TiffTile> updated = writer.updateMatrix(map, matrix, x, y);
+            List<TiffTile> updated = mapForWriting.copyMatrixToMap(matrix, x, y);
             if (flushASAP && !needToClose) {
-                int count = writer.writeCompletedTiles(updated);
+                int count = mapForWriting.writeCompletedTiles(updated);
                 logDebug(() -> "Flushing " + count + " from " + updated.size() + " changed tiles");
             }
         }
     }
 
     private void closeWriter(boolean fillOutput) throws IOException {
-        if (writer != null) {
-            int count = writer.complete(map);
+        if (mapForWriting != null) {
+            final int count = mapForWriting.completeWriting();
             logDebug(() -> "Completing writing " + count + " tiles");
+            final TiffWriter writer = mapForWriting.writer();
             if (fillOutput) {
-                fillWritingOutputInformation(this, writer, map);
+                fillWritingOutputInformation(this, mapForWriting);
             }
             logDebug(() -> "Closing " + writer);
             writer.close();
-            // - If there were some exception before this moment,
+            // - If there were some exception before this,
             // writer/map will stay unchanged!
-            writer = null;
-            map = null;
+            mapForWriting = null;
         }
     }
 
     private void closeFileOnError() {
-        if (writer != null) {
+        if (mapForWriting != null) {
+            final TiffWriter writer = mapForWriting.writer();
             logDebug(() -> "Closing " + writer + " (ERROR)");
             try {
                 writer.close();
             } catch (IOException e) {
                 throw new IOError(e);
             } finally {
-                writer = null;
-                map = null;
+                mapForWriting = null;
                 // - not try to write more in a case of exception
             }
         }

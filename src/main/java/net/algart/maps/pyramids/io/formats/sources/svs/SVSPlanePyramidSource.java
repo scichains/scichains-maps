@@ -41,6 +41,7 @@ import net.algart.math.RectangularArea;
 import net.algart.matrices.tiff.*;
 import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tiles.TiffMap;
+import net.algart.matrices.tiff.tiles.TiffMapForReading;
 
 import java.awt.*;
 import java.io.IOError;
@@ -736,7 +737,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         }
     }
 
-    private static boolean detectMotic(List<TiffMap> maps, SVSImageDescription mainImageDescription)
+    private static boolean detectMotic(List<? extends TiffMap> maps, SVSImageDescription mainImageDescription)
             throws TiffException {
         // Warning! It is an evristic algorithm that should be improved in collaboration with Motic!
         if (mainImageDescription != null && mainImageDescription.isGeometrySupported()) {
@@ -802,7 +803,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     private Matrix<? extends PArray> readData(int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException {
-        final TiffMap map = largeData.maps.get(ifdIndex);
+        final var map = largeData.maps.get(ifdIndex);
         map.checkPixelCompatibility(bandCount, TiffSampleType.valueOf(elementType, false));
         return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
     }
@@ -889,7 +890,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
         private TiffReader tiffReader = null;
-        private List<TiffMap> maps = null;
+        private List<TiffMapForReading> maps = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
         private final Lock readLock, writeLock;

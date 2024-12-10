@@ -31,7 +31,6 @@ import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.math.IRectangularArea;
 import net.algart.matrices.tiff.TiffReader;
-import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 
@@ -349,7 +348,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException {
-        final TiffMap map = reader.map(ifdIndex);
+        final var map = reader.map(ifdIndex);
         int fromX = this.x;
         int fromY = this.y;
         int toX = fromX + this.sizeX;

@@ -50,14 +50,14 @@ public final class SVSIFDClassifier {
 
     private static final System.Logger LOG = System.getLogger(SVSPlanePyramidSource.class.getName());
 
-    private final List<TiffMap> maps;
+    private final List<? extends TiffMap> maps;
     private final int ifdCount;
     private int thumbnailIndex = -1;
     private int labelIndex = -1;
     private int macroIndex = -1;
     private final List<Integer> unknownSpecialIndexes = new ArrayList<>();
 
-    public SVSIFDClassifier(List<TiffMap> maps) throws TiffException {
+    public SVSIFDClassifier(List<? extends TiffMap> maps) throws TiffException {
         Objects.requireNonNull(maps);
         this.maps = maps;
         this.ifdCount = maps.size();

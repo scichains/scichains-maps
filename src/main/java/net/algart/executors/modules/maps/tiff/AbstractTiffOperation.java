@@ -25,13 +25,13 @@
 package net.algart.executors.modules.maps.tiff;
 
 import net.algart.executors.api.Executor;
+import net.algart.executors.api.data.SScalar;
 import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
-import net.algart.matrices.tiff.TiffException;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
-import net.algart.matrices.tiff.tiles.TiffMap;
+import net.algart.matrices.tiff.tiles.TiffMapForWriting;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,7 +63,8 @@ public abstract class AbstractTiffOperation extends FileOperation {
         if (openingMode.isCloseAfterExecute()) {
             return true;
         }
-        return executor.getInputScalar(INPUT_CLOSE_FILE, true).toJavaLikeBoolean();
+        final SScalar scalar = executor.getInputScalar(INPUT_CLOSE_FILE, true);
+        return scalar.isInitialized() && scalar.toJavaLikeBoolean();
     }
 
     public static void fillReadingOutputInformation(Executor e, TiffReader reader, int ifdIndex) throws IOException {
@@ -87,9 +88,9 @@ public abstract class AbstractTiffOperation extends FileOperation {
         e.setOutputScalar(OUTPUT_FILE_SIZE, reader.stream().length());
     }
 
-    public static void fillWritingOutputInformation(Executor e, TiffWriter writer, TiffMap map) throws IOException {
+    public static void fillWritingOutputInformation(Executor e, TiffMapForWriting map) throws IOException {
+        @SuppressWarnings("resource") final TiffWriter writer = map.writer();
         Objects.requireNonNull(e, "Null executor");
-        Objects.requireNonNull(writer, "Null writer");
         Objects.requireNonNull(map, "Null map");
         e.setOutputScalar(OUTPUT_NUMBER_OF_IMAGES, writer.numberOfIFDs());
         e.setOutputScalar(OUTPUT_IMAGE_DIM_X, map.dimX());
