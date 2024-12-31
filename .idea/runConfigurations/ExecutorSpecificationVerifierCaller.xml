@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="ExecutorJsonVerifierCaller" type="Application" factoryName="Application" nameIsGenerated="true">
-    <option name="MAIN_CLASS_NAME" value="net.algart.executors.build.callers.ExecutorJsonVerifierCaller" />
+  <configuration default="false" name="ExecutorSpecificationVerifierCaller" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="net.algart.executors.build.callers.ExecutorSpecificationVerifierCaller" />
     <module name="scichains-maps" />
     <option name="PROGRAM_PARAMETERS" value="-check_classes ${home}\ext\net.algart.executors.maps" />
     <option name="VM_PARAMETERS" value="-ea -esa -Dpolyglot.engine.WarnInterpreterOnly=false" />

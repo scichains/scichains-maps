@@ -348,7 +348,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     private MultiMatrix2D readMultiMatrix(TiffReader reader) throws IOException {
-        final var map = reader.map(ifdIndex);
+        final var map = reader.newMap(ifdIndex);
         int fromX = this.x;
         int fromY = this.y;
         int toX = fromX + this.sizeX;

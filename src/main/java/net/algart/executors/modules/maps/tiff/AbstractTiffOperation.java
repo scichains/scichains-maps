@@ -64,7 +64,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
             return true;
         }
         final SScalar scalar = executor.getInputScalar(INPUT_CLOSE_FILE, true);
-        return scalar.isInitialized() && scalar.toJavaLikeBoolean();
+        return scalar.toJavaLikeBoolean(false);
     }
 
     public static void fillReadingOutputInformation(Executor e, TiffReader reader, int ifdIndex) throws IOException {
@@ -105,5 +105,4 @@ public abstract class AbstractTiffOperation extends FileOperation {
             e.getScalar(OUTPUT_STORED_TILES_MEMORY).setTo(count * map.tileSizeInBytes());
         }
     }
-
 }
