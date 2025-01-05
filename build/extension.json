@@ -12,7 +12,7 @@
       "technology": "jvm",
       "language": "java",
       "folders": {
-        "models": "java/models",
+        "specifications": "java/specifications",
         "resources": "java/resources",
         "libraries": "java/lib"
       },

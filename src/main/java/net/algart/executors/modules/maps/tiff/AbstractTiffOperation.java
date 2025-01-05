@@ -51,8 +51,6 @@ public abstract class AbstractTiffOperation extends FileOperation {
     public static final String OUTPUT_STORED_TILES_MEMORY = "stored_tiles_memory";
     public static final String OUTPUT_CLOSED = "closed";
 
-    private final Object lock = new Object();
-
     public AbstractTiffOperation() {
         addFileOperationPorts();
     }
