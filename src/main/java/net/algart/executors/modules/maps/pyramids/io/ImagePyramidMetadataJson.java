@@ -472,8 +472,8 @@ public class ImagePyramidMetadataJson {
         Files.writeString(planePyramidMetadataJsonFile, Jsons.toPrettyString(toJson()), options);
     }
 
-    public static ImagePyramidMetadataJson valueOf(JsonObject executorJson) {
-        return new ImagePyramidMetadataJson(executorJson, null);
+    public static ImagePyramidMetadataJson valueOf(JsonObject metadataJson) {
+        return new ImagePyramidMetadataJson(metadataJson, null);
     }
 
     public static boolean isPlanePyramidMetadataJson(JsonObject metadataJson) {
