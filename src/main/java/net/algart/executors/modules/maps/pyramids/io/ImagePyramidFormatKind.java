@@ -24,7 +24,7 @@
 
 package net.algart.executors.modules.maps.pyramids.io;
 
-import net.algart.executors.api.SystemEnvironment;
+import net.algart.arrays.Arrays;
 import net.algart.maps.pyramids.io.api.sources.ImageIOPlanePyramidSourceFactory;
 import net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSourceFactory;
 
@@ -82,7 +82,7 @@ public enum ImagePyramidFormatKind {
     private static String factory(String[] propertyNames, Class<?> defaultFactory) {
         Objects.requireNonNull(defaultFactory, "Null defaultFactory");
         for (int i = propertyNames.length - 1; i >= 0; i--) {
-            final String result = SystemEnvironment.getStringProperty(propertyNames[i]);
+            final String result = Arrays.SystemSettings.getStringProperty(propertyNames[i], null);
             if (result != null) {
                 return result;
             }
