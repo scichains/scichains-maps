@@ -220,6 +220,6 @@ public final class ReadFromMapBuffer extends ScalarFilter {
             }
             result.add(r);
         }
-        return MultiMatrix.valueOf2D(result);
+        return MultiMatrix.of2D(result);
     }
 }

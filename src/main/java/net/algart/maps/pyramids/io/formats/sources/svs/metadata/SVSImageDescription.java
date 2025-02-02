@@ -40,7 +40,7 @@ public abstract class SVSImageDescription {
     SVSImageDescription() {
     }
 
-    public static SVSImageDescription valueOf(String imageDescriptionTagValue) {
+    public static SVSImageDescription of(String imageDescriptionTagValue) {
         SVSImageDescription result = new StandardSVSImageDescription(imageDescriptionTagValue);
         if (result.isImportant()) {
             return result;

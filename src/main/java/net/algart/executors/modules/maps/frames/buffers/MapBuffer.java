@@ -173,7 +173,7 @@ public final class MapBuffer {
                 // - the same behaviour for first and further calls
             }
             final Func adding = incrementingFunc(zerosLabelReservedForBackground, indexingBase);
-            return matrix(MultiMatrix.valueOfMono(
+            return matrix(MultiMatrix.ofMono(
                     Matrices.asFuncMatrix(adding, channel0.type(PArray.class), channel0).clone()));
         }
 
@@ -234,7 +234,7 @@ public final class MapBuffer {
                         }
                     }
                 });
-                this.reindexed = matrix(MultiMatrix.valueOfMono(labelsArray.matrix(matrix.dimensions())));
+                this.reindexed = matrix(MultiMatrix.of2DMono(labelsArray.matrix(matrix.dimensions())));
             }
 
             // Note: table[0] = 0 always; for most applications you should remove this element
@@ -639,7 +639,7 @@ public final class MapBuffer {
             }
             resultChannels.add(resultMatrix);
         }
-        return MultiMatrix.valueOf(resultChannels);
+        return MultiMatrix.of(resultChannels);
     }
 
     public MultiMatrix readMatrixReindexedByObjectPairs(IRectangularArea area, boolean quickCallAfterResolveAllBases) {
@@ -687,7 +687,7 @@ public final class MapBuffer {
             boolean quickCallAfterResolveAllBases) {
         final int[] result = readLabelsReindexedByObjectPairs(frames, area, quickCallAfterResolveAllBases);
         final UpdatableIntArray resultArray = SimpleMemoryModel.asUpdatableIntArray(result);
-        return MultiMatrix.valueOf2DMono(Matrices.matrix(resultArray, area.sizes()));
+        return MultiMatrix.of2DMono(Matrices.matrix(resultArray, area.sizes()));
     }
 
     int[] readLabelsReindexedByObjectPairs(
@@ -948,7 +948,7 @@ public final class MapBuffer {
         assert newIndexingBase != -1 : "no iterations instead of " + resultDimY;
         indexingBase = Math.max(indexingBase, newIndexingBase);
         // - max is important, like in Frame.nextIndexingBase
-        return new Frame(leftTop, MultiMatrix.valueOfMono(Matrices.matrix(
+        return new Frame(leftTop, MultiMatrix.ofMono(Matrices.matrix(
                 SimpleMemoryModel.asUpdatableIntArray(result), resultDimX, resultDimY)));
     }
 

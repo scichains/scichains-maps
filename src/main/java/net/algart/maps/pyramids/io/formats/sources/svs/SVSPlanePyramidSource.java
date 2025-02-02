@@ -133,7 +133,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.imageDescriptions = new ArrayList<>();
             for (int k = 0; k < ifdCount; k++) {
                 final String description = largeData.maps.get(k).description().orElse(null);
-                this.imageDescriptions.add(SVSImageDescription.valueOf(description));
+                this.imageDescriptions.add(SVSImageDescription.of(description));
                 // Note: though description can be null, SVSImageDescription object will never be null here
             }
             this.mainImageDescription = findMainImageDescription(imageDescriptions);
@@ -804,7 +804,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException {
         final var map = largeData.maps.get(ifdIndex);
-        map.checkPixelCompatibility(bandCount, TiffSampleType.valueOf(elementType, false));
+        map.checkPixelCompatibility(bandCount, TiffSampleType.of(elementType, false));
         return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
     }
 

@@ -555,7 +555,7 @@ public final class FrameObjectStitcher {
                 }
             });
         }
-        final MapBuffer.Frame result = reindexedLargeFrame.matrix(MultiMatrix.valueOf2DMono(
+        final MapBuffer.Frame result = reindexedLargeFrame.matrix(MultiMatrix.of2DMono(
                 SimpleMemoryModel.asMatrix(labels, matrix.dimensions())));
         return jointingAutoCrop ?
                 ReindexerAndRetainer.crop(result, minNonZeroX, maxNonZeroX) :
@@ -686,7 +686,7 @@ public final class FrameObjectStitcher {
                 }
             });
         }
-        final MapBuffer.Frame resultFrame = largeFrame.matrix(MultiMatrix.valueOf2DMono(
+        final MapBuffer.Frame resultFrame = largeFrame.matrix(MultiMatrix.of2DMono(
                 Matrices.matrix(SimpleMemoryModel.asUpdatableIntArray(result), matrix.dimensions())));
         return jointingAutoCrop ?
                 ReindexerAndRetainer.crop(resultFrame, minNonZeroX, maxNonZeroX) :

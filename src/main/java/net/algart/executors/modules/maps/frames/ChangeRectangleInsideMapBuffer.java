@@ -169,7 +169,7 @@ public final class ChangeRectangleInsideMapBuffer extends NumbersFilter {
         getScalar(DIM_X).setTo(result.sizeX());
         getScalar(DIM_Y).setTo(result.sizeY());
         getScalar(InitializeMapBuffer.MAP_BUFFER_ID).setTo(id);
-        return SNumbers.valueOf(result);
+        return SNumbers.of(result);
     }
 
     @Override

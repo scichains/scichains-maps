@@ -145,7 +145,7 @@ class ReindexerAndRetainer {
         IntStream.range(0, dimY).parallel().forEach(this::processSingleLine);
         final MapBuffer.Frame resultFrame = new MapBuffer.Frame(
                 largeArea.min(),
-                MultiMatrix.valueOf2DMono(
+                MultiMatrix.of2DMono(
                         Matrices.matrix(SimpleMemoryModel.asUpdatableIntArray(labels), largeArea.sizes()))
         );
         return jointingAutoCrop ?
@@ -250,7 +250,7 @@ class ReindexerAndRetainer {
         }
         return new MapBuffer.Frame(
                 frame.position().min().add(IPoint.valueOf(minX, minY)),
-                MultiMatrix.valueOf2DMono(m.subMatrix(minX, minY, maxX + 1, maxY + 1)));
+                MultiMatrix.of2DMono(m.subMatrix(minX, minY, maxX + 1, maxY + 1)));
     }
 
     private static class ReindexerAndRetainerNonInt extends ReindexerAndRetainer {

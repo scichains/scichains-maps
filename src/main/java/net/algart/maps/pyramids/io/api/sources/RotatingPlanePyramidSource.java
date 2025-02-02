@@ -71,7 +71,7 @@ public final class RotatingPlanePyramidSource implements PlanePyramidSource {
             this.rotationInDegrees = rotationInDegrees;
         }
 
-        public static RotationMode valueOf(int clockwiseRotationInDegrees) {
+        public static RotationMode of(int clockwiseRotationInDegrees) {
             return switch (clockwiseRotationInDegrees) {
                 case 0 -> NONE;
                 case 90 -> CLOCKWISE_90;
@@ -94,7 +94,7 @@ public final class RotatingPlanePyramidSource implements PlanePyramidSource {
         }
 
         public RotationMode reverse() {
-            return rotationInDegrees == 0 ? this : valueOf(360 - rotationInDegrees);
+            return rotationInDegrees == 0 ? this : of(360 - rotationInDegrees);
         }
 
         public LinearOperator operator(long width, long height) {

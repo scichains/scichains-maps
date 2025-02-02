@@ -65,7 +65,7 @@ public enum ImagePyramidFormatKind {
         return extensions.clone();
     }
 
-    public static ImagePyramidFormatKind valueOfExtension(String extension) {
+    public static ImagePyramidFormatKind ofExtension(String extension) {
         for (ImagePyramidFormatKind format : values()) {
             if (format.extensions != null) {
                 for (String e : format.extensions) {

@@ -50,7 +50,7 @@ public final class ObjectPairs {
         return dynamicDisjointSet;
     }
 
-    public static ObjectPairs valueOf(int[] pairsArray) {
+    public static ObjectPairs of(int[] pairsArray) {
         Objects.requireNonNull(pairsArray, "Null pairs array");
         if (pairsArray.length % 2 != 0) {
             throw new IllegalArgumentException("Odd length of pairs array: " + pairsArray.length);
@@ -198,7 +198,7 @@ public final class ObjectPairs {
 //        long t3 = System.nanoTime();
 //        System.out.printf("!!! %.3f + %.3f ms (%d pixels, %.2f ns/pixel) %s%n",
 //                (t2 - t1) * 1e-6, (t3 - t2) * 1e-6, result.length, (double) (t3 - t2) / result.length, labelsMatrix);
-        return MultiMatrix.valueOf2DMono(
+        return MultiMatrix.of2DMono(
                 Matrices.matrix(SimpleMemoryModel.asUpdatableIntArray(result), labelsMatrix.dimensions()));
     }
 

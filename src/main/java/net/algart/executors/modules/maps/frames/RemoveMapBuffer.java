@@ -51,7 +51,7 @@ public final class RemoveMapBuffer extends ScalarFilter {
             remove(source.toLong(), true);
             return source;
         } else {
-            return SScalar.valueOf(null);
+            return SScalar.of(null);
         }
     }
 

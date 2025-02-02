@@ -251,14 +251,14 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
         final long toY = area.maxY() + 1;
         final Matrix<? extends PArray> matrix = source.readSubMatrix(
                 resolutionLevel, fromX, fromY, toX, toY);
-        return MultiMatrix.valueOf2DRGBA(Matrices.separate(matrix));
+        return MultiMatrix.of2DRGBA(Matrices.separate(matrix));
     }
 
     public static MultiMatrix2D readSpecialMatrix(
             PlanePyramidSource planePyramidSource,
             PlanePyramidSource.SpecialImageKind specialImageKind) {
         final Optional<Matrix<? extends PArray>> matrix = planePyramidSource.readSpecialMatrix(specialImageKind);
-        return matrix.map(m -> MultiMatrix.valueOf2DRGBA(Matrices.separate(m))).orElse(null);
+        return matrix.map(m -> MultiMatrix.of2DRGBA(Matrices.separate(m))).orElse(null);
     }
 
     public ImagePyramidMetadataJson readMetadataOrNull(Path planePyramidPath) throws IOException {
@@ -326,7 +326,7 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
             String customClassName) {
         Objects.requireNonNull(path, "Null path");
         if (format.isAutoDetection()) {
-            format = ImagePyramidFormatKind.valueOfExtension(MatrixIO.extension(path.toString(), null));
+            format = ImagePyramidFormatKind.ofExtension(MatrixIO.extension(path.toString(), null));
         }
         if (format.hasFactory()) {
             return format.getFactoryClassName();

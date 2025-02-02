@@ -106,7 +106,7 @@ public class SVSPlanePyramidSourceFactory implements PlanePyramidSourceFactory {
             source.setDataBorderWidth(width);
         }
         final RotatingPlanePyramidSource.RotationMode rotationMode =
-                RotatingPlanePyramidSource.RotationMode.valueOf(svsJson.getInt("rotation", 0));
+                RotatingPlanePyramidSource.RotationMode.of(svsJson.getInt("rotation", 0));
         if (rotationMode == RotatingPlanePyramidSource.RotationMode.NONE) {
             return source;
         } else {

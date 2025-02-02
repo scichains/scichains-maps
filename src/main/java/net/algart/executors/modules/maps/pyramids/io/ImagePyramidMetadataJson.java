@@ -64,7 +64,7 @@ public class ImagePyramidMetadataJson {
                 return shapeName;
             }
 
-            public static Shape valueOfShapeNameOrNull(String name) {
+            public static Shape ofShapeNameOrNull(String name) {
                 Objects.requireNonNull(name, "Null name");
                 for (Shape shape : values()) {
                     if (shape.shapeName.equals(name)) {
@@ -78,13 +78,13 @@ public class ImagePyramidMetadataJson {
         Roi() {
         }
 
-        static Roi valueOf(JsonValue json, Path file) {
+        static Roi of(JsonValue json, Path file) {
             assert json instanceof JsonObject : "json should be checked before, for example by Jsons.getJsonArray";
-            return valueOf((JsonObject) json, file);
+            return of((JsonObject) json, file);
         }
 
-        static Roi valueOf(JsonObject json, Path file) {
-            final Shape shape = Shape.valueOfShapeNameOrNull(Jsons.reqString(json, "shape", file));
+        static Roi of(JsonObject json, Path file) {
+            final Shape shape = Shape.ofShapeNameOrNull(Jsons.reqString(json, "shape", file));
             Jsons.requireNonNull(shape, json, "shape", file);
             final Roi result = shape.creator.apply(json, file);
             assert result.getShape() == shape : "Illegal getShape() method of " + result.getClass()
@@ -457,7 +457,7 @@ public class ImagePyramidMetadataJson {
         this.version = json.getString("version", CURRENT_VERSION);
         final JsonArray roisJson = Jsons.getJsonArray(json, "rois", file, true);
         if (roisJson != null) {
-            setRois(roisJson.stream().map(value -> Roi.valueOf(value, file)).collect(Collectors.toList()), file);
+            setRois(roisJson.stream().map(value -> Roi.of(value, file)).collect(Collectors.toList()), file);
         }
     }
 
@@ -472,7 +472,7 @@ public class ImagePyramidMetadataJson {
         Files.writeString(planePyramidMetadataJsonFile, Jsons.toPrettyString(toJson()), options);
     }
 
-    public static ImagePyramidMetadataJson valueOf(JsonObject metadataJson) {
+    public static ImagePyramidMetadataJson of(JsonObject metadataJson) {
         return new ImagePyramidMetadataJson(metadataJson, null);
     }
 
