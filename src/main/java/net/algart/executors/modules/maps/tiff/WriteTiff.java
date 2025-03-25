@@ -404,7 +404,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
                 throw e;
             }
             this.mapForWriting = map;
-            correctForImage();
+            correctSettingsForNewData();
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
@@ -417,7 +417,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
     // Corrects settings, that can be different for different IFDs or tiles.
-    private void correctForImage() {
+    private void correctSettingsForNewData() {
         //noinspection resource
         mapForWriting.writer().setQuality(quality);
         // - in the current version, this is the only settings, which may vary from one IFD to another
@@ -456,7 +456,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     }
 
     private void writeMatrix(Matrix<? extends PArray> matrix, boolean needToClose) throws IOException {
-        correctForImage();
+        correctSettingsForNewData();
         if (matrix != null) {
             List<TiffTile> updated = mapForWriting.copyMatrixToMap(matrix, x, y);
             if (flushASAP && !needToClose) {
