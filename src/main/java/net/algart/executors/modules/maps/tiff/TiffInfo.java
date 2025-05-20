@@ -30,6 +30,7 @@ import jakarta.json.JsonArrayBuilder;
 import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.json.Jsons;
 import net.algart.matrices.tiff.TiffIFD;
+import net.algart.matrices.tiff.TiffOpenMode;
 import net.algart.matrices.tiff.TiffReader;
 
 import java.io.FileNotFoundException;
@@ -45,7 +46,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
     public static final String OUTPUT_PRETTY_ALL_IFDS = "pretty_all_ifds";
 
     private boolean requireFileExistence = true;
-    private boolean requireValidTiff = true;
+    private boolean requireTiff = true;
     private int ifdIndex = 0;
 
     public TiffInfo() {
@@ -69,12 +70,12 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isRequireValidTiff() {
-        return requireValidTiff;
+    public boolean isRequireTiff() {
+        return requireTiff;
     }
 
-    public TiffInfo setRequireValidTiff(boolean requireValidTiff) {
-        this.requireValidTiff = requireValidTiff;
+    public TiffInfo setRequireTiff(boolean requireTiff) {
+        this.requireTiff = requireTiff;
         return this;
     }
 
@@ -103,7 +104,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
                     return;
                 }
             }
-            try (TiffReader reader = new TiffReader(path, requireValidTiff)) {
+            try (TiffReader reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(requireTiff))) {
                 fillOutputFileInformation(path);
                 fillReadingOutputInformation(this, reader, ifdIndex);
                 final List<TiffIFD> ifds = reader.allIFDs();
@@ -112,7 +113,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
             }
         } catch (IOException e) {
             getScalar(OUTPUT_VALID).setTo(false);
-            if (requireValidTiff) {
+            if (requireTiff) {
                 throw new IOError(e);
             } else {
                 LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while analysing TIFF information for " +

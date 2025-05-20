@@ -149,7 +149,8 @@ public final class MapBuffer {
             final IRectangularArea subRectangle = other.shiftBack(position.min());
             return new Frame(
                     other.min(),
-                    matrix.mapChannels(m -> m.subMatrix(subRectangle, Matrix.ContinuationMode.ZERO_CONSTANT)));
+                    matrix.apply(m ->
+                            m.subMatrix(subRectangle, Matrix.ContinuationMode.ZERO_CONSTANT)));
         }
 
         public int nextIndexingBase(int currentIndexingBase, boolean zerosLabelReservedForBackground) {
@@ -377,7 +378,7 @@ public final class MapBuffer {
         final boolean nonOptimized = frame == null;
         if (nonOptimized) {
             if (rectangleToCrop != null) {
-                matrix = matrix.mapChannels(m -> cropMatrix(rectangleToCrop, m));
+                matrix = matrix.apply(m -> cropMatrix(rectangleToCrop, m));
             }
             frame = new Frame(leftTop, matrix);
             if (disableOverlapping) {

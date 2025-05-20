@@ -31,7 +31,7 @@ import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.matrices.tiff.TiffWriter;
-import net.algart.matrices.tiff.tiles.TiffMapForWriting;
+import net.algart.matrices.tiff.tiles.TiffWriteMap;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,7 +68,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
     public static void fillReadingOutputInformation(Executor e, TiffReader reader, int ifdIndex) throws IOException {
         Objects.requireNonNull(e, "Null executor");
         Objects.requireNonNull(reader, "Null reader");
-        e.setOutputScalar(OUTPUT_VALID, reader.isValid());
+        e.setOutputScalar(OUTPUT_VALID, reader.isValidTiff());
         e.removeOutputData(OUTPUT_IMAGE_DIM_X);
         e.removeOutputData(OUTPUT_IMAGE_DIM_Y);
         e.removeOutputData(OUTPUT_FILE_SIZE);
@@ -83,11 +83,11 @@ public abstract class AbstractTiffOperation extends FileOperation {
             e.setOutputScalarIfNecessary(OUTPUT_IFD, () -> ifd.toString(TiffIFD.StringFormat.JSON));
             e.setOutputScalarIfNecessary(OUTPUT_PRETTY_IFD, () -> ifd.toString(TiffIFD.StringFormat.DETAILED));
         }
-        e.setOutputScalar(OUTPUT_FILE_SIZE, reader.stream().length());
+        e.setOutputScalar(OUTPUT_FILE_SIZE, reader.fileLength());
     }
 
-    public static void fillWritingOutputInformation(Executor e, TiffMapForWriting map) throws IOException {
-        @SuppressWarnings("resource") final TiffWriter writer = map.writer();
+    public static void fillWritingOutputInformation(Executor e, TiffWriteMap map) throws IOException {
+        @SuppressWarnings("resource") final TiffWriter writer = map.owner();
         Objects.requireNonNull(e, "Null executor");
         Objects.requireNonNull(map, "Null map");
         e.setOutputScalar(OUTPUT_NUMBER_OF_IMAGES, writer.numberOfIFDs());
@@ -95,7 +95,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
         e.setOutputScalar(OUTPUT_IMAGE_DIM_Y, map.dimY());
         e.setOutputScalarIfNecessary(OUTPUT_IFD, () -> map.ifd().toString(TiffIFD.StringFormat.JSON));
         e.setOutputScalarIfNecessary(OUTPUT_PRETTY_IFD, () -> map.ifd().toString(TiffIFD.StringFormat.DETAILED));
-        e.setOutputScalar(OUTPUT_FILE_SIZE, writer.stream().length());
+        e.setOutputScalar(OUTPUT_FILE_SIZE, writer.fileLength());
         if (e.isOutputNecessary(OUTPUT_STORED_TILES_COUNT) || e.isOutputNecessary(OUTPUT_STORED_TILES_MEMORY)) {
             // - only if requested: in very large maps, this operation can lead to O(N^2) operations
             final long count = map.tiles().stream().filter(t -> !t.isEmpty()).count();

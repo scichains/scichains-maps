@@ -313,7 +313,7 @@ public final class SVSIFDClassifier {
 
     static String compressionToString(TiffMap map) {
         Objects.requireNonNull(map, "Null map");
-        return String.valueOf(map.ifd().optCompression().orElse(null));
+        return String.valueOf(map.ifd().optCompression());
     }
 
     private static double area(TiffIFD ifd) throws TiffException {

@@ -30,6 +30,7 @@ import net.algart.executors.api.ReadOnlyExecutionInput;
 import net.algart.executors.api.data.SMat;
 import net.algart.executors.modules.maps.LongTimeOpeningMode;
 import net.algart.math.IRectangularArea;
+import net.algart.matrices.tiff.TiffOpenMode;
 import net.algart.matrices.tiff.TiffReader;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
@@ -50,7 +51,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     // - note: default value in this CLASS (not in the executor model) SHOULD be very simple,
     // because this class may be used without full setup of all parameter, for example, in InputReadTiff model
     private boolean requireFileExistence = true;
-    private boolean requireValidTiff = true;
+    private boolean requireTiff = true;
     private int ifdIndex = 0;
     private boolean wholeImage = true;
     private int x = 0;
@@ -123,12 +124,12 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isRequireValidTiff() {
-        return requireValidTiff;
+    public boolean isRequireTiff() {
+        return requireTiff;
     }
 
-    public ReadTiff setRequireValidTiff(boolean requireValidTiff) {
-        this.requireValidTiff = requireValidTiff;
+    public ReadTiff setRequireTiff(boolean requireTiff) {
+        this.requireTiff = requireTiff;
         return this;
     }
 
@@ -292,7 +293,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             }
             final TiffReader reader = openFile(path);
             fillReadingOutputInformation(this, reader, ifdIndex);
-            if (!reader.isValid()) {
+            if (!reader.isValidTiff()) {
                 closeReader();
                 return null;
             }
@@ -309,7 +310,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             closeReader();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
-            if (requireValidTiff) {
+            if (requireTiff) {
                 throw new IOError(e);
             } else {
                 LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading TIFF " + path +
@@ -334,8 +335,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         logDebug(() -> "Reading " + path);
         TiffReader reader = this.reader;
         if (reader == null) {
-            reader = new TiffReader(path, requireValidTiff).setCaching(caching);
-            reader.setAutoUnpackBitsToBytes(autoUnpackBitsToBytes);
+            reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(requireTiff)).setCaching(caching);
+            reader.setAutoUnpackBits(TiffReader.UnpackBits.of(autoUnpackBitsToBytes));
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
             reader.setAutoCorrectInvertedBrightness(autoCorrectInvertedBrightness);
             reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);

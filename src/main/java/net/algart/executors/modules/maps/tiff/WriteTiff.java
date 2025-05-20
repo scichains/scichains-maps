@@ -35,8 +35,8 @@ import net.algart.matrices.tiff.TiffIFD;
 import net.algart.matrices.tiff.TiffWriter;
 import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tags.TagPredictor;
-import net.algart.matrices.tiff.tiles.TiffMapForWriting;
 import net.algart.matrices.tiff.tiles.TiffTile;
+import net.algart.matrices.tiff.tiles.TiffWriteMap;
 import net.algart.multimatrix.MultiMatrix2D;
 
 import java.io.IOError;
@@ -73,8 +73,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private boolean bigTiff = false;
     private ByteOrder byteOrder = ByteOrder.NATIVE;
     private TagCompression compression = TagCompression.NONE;
-    private boolean preferRGB = false;
     private Double quality = null;
+    private Double losslessCompressionLevel = null;
     private boolean prediction = false;
     private boolean signedIntegers = false;
     private String imageDescription = "";
@@ -89,7 +89,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private Integer stripSizeY = null;
     private boolean flushASAP = true;
 
-    private volatile TiffMapForWriting mapForWriting = null;
+    private volatile TiffWriteMap writeMap = null;
     // - note: "volatile" does not provide correct protection here! This just reduces possible problems
 
     public WriteTiff() {
@@ -168,21 +168,21 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         return this;
     }
 
-    public boolean isPreferRGB() {
-        return preferRGB;
-    }
-
-    public WriteTiff setPreferRGB(boolean preferRGB) {
-        this.preferRGB = preferRGB;
-        return this;
-    }
-
     public Double getQuality() {
         return quality;
     }
 
     public WriteTiff setQuality(Double quality) {
         this.quality = quality;
+        return this;
+    }
+
+    public Double getLosslessCompressionLevel() {
+        return losslessCompressionLevel;
+    }
+
+    public WriteTiff setLosslessCompressionLevel(Double losslessCompressionLevel) {
+        this.losslessCompressionLevel = losslessCompressionLevel;
         return this;
     }
 
@@ -337,13 +337,13 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             final boolean needToClose = needToClose(this, openingMode);
             openFile(path, m, needToClose);
             //noinspection resource
-            getScalar(OUTPUT_IFD_INDEX).setTo(mapForWriting.writer().numberOfIFDs());
-            // - numberOfIFDs() BEFORE writing is the index of resulting IFD
+            getScalar(OUTPUT_IFD_INDEX).setTo(writeMap.owner().numberOfIFDs());
+            // - numberOfIFDs() BEFORE writing is the index of the resulting IFD
             writeMatrix(m, needToClose);
             if (needToClose) {
                 closeWriter(true);
             } else {
-                fillWritingOutputInformation(this, mapForWriting);
+                fillWritingOutputInformation(this, writeMap);
                 // - AFTER writing
             }
         } catch (IOException e) {
@@ -364,7 +364,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             closeFileOnError();
             throw e;
         } finally {
-            getScalar(OUTPUT_CLOSED).setTo(mapForWriting == null);
+            getScalar(OUTPUT_CLOSED).setTo(writeMap == null);
         }
     }
 
@@ -377,38 +377,37 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     public void openFile(Path path, Matrix<? extends PArray> firstMatrix, boolean needToClose) throws IOException {
         Objects.requireNonNull(path, "Null path");
         logDebug(() -> "Writing " + path);
-        if (this.mapForWriting == null) {
+        if (this.writeMap == null) {
             if (firstMatrix == null) {
                 throw new IllegalArgumentException("The input matrix is not specified, " +
                         "but this matrix is required when the TIFF file is initially opened " +
                         "(although it can be omitted on subsequent calls when the file is already opened)");
             }
             TiffWriter writer = null;
-            TiffMapForWriting map;
+            TiffWriteMap writeMap;
             try {
-                writer = new TiffWriter(path, false);
+                writer = new TiffWriter(path);
                 writer.setBigTiff(bigTiff);
                 writer.setLittleEndian(byteOrder.isLittleEndian());
-                writer.setPreferRGB(preferRGB);
                 writer.create(appendIFDToExistingTiff);
                 final boolean dimensionsRequired = !(needToClose && x == 0 && y == 0);
                 final TiffIFD ifd = configure(writer, firstMatrix, dimensionsRequired);
-                map = writer.newMap(ifd, resizable && dimensionsRequired);
+                writeMap = writer.newMap(ifd, resizable && dimensionsRequired);
                 // - if not dimensionsRequired (because this is single-writing call),
                 // we prefer to ignore "resizable" parameter (TIFF file will be more efficient)
-                writer.writeForward(map);
+                writer.writeForward(writeMap);
             } catch (IOException | RuntimeException e) {
                 if (writer != null) {
                     writer.close();
                 }
                 throw e;
             }
-            this.mapForWriting = map;
+            this.writeMap = writeMap;
             correctSettingsForNewData();
         }
         fillOutputFileInformation(path);
         // - note: we need to fill output ports here, even if the file was already opened
-        AbstractTiffOperation.fillWritingOutputInformation(this, mapForWriting);
+        AbstractTiffOperation.fillWritingOutputInformation(this, writeMap);
     }
 
     @Override
@@ -416,11 +415,11 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         return defaultVisibleResultsInformation(Port.Type.INPUT, DEFAULT_INPUT_PORT);
     }
 
-    // Corrects settings, that can be different for different IFDs or tiles.
+    // Corrects settings that can be different for different IFDs or tiles.
     private void correctSettingsForNewData() {
-        //noinspection resource
-        mapForWriting.writer().setQuality(quality);
-        // - in the current version, this is the only settings, which may vary from one IFD to another
+        @SuppressWarnings("resource") final TiffWriter owner = writeMap.owner();
+        owner.setCompressionQuality(quality);
+        owner.setLosslessCompressionLevel(losslessCompressionLevel);
     }
 
     private TiffIFD configure(TiffWriter writer, Matrix<? extends PArray> firstMatrix, boolean dimensionsRequired) {
@@ -458,40 +457,40 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
     private void writeMatrix(Matrix<? extends PArray> matrix, boolean needToClose) throws IOException {
         correctSettingsForNewData();
         if (matrix != null) {
-            List<TiffTile> updated = mapForWriting.copyMatrixToMap(matrix, x, y);
+            List<TiffTile> updated = writeMap.updateMatrix(matrix, x, y);
             if (flushASAP && !needToClose) {
-                int count = mapForWriting.writeCompletedTiles(updated);
+                int count = writeMap.writeCompletedTiles(updated);
                 logDebug(() -> "Flushing " + count + " from " + updated.size() + " changed tiles");
             }
         }
     }
 
     private void closeWriter(boolean fillOutput) throws IOException {
-        if (mapForWriting != null) {
-            final int count = mapForWriting.completeWriting();
+        if (writeMap != null) {
+            final int count = writeMap.completeWriting();
             logDebug(() -> "Completing writing " + count + " tiles");
-            final TiffWriter writer = mapForWriting.writer();
+            final TiffWriter writer = writeMap.owner();
             if (fillOutput) {
-                fillWritingOutputInformation(this, mapForWriting);
+                fillWritingOutputInformation(this, writeMap);
             }
             logDebug(() -> "Closing " + writer);
             writer.close();
             // - If there were some exception before this,
             // writer/map will stay unchanged!
-            mapForWriting = null;
+            writeMap = null;
         }
     }
 
     private void closeFileOnError() {
-        if (mapForWriting != null) {
-            final TiffWriter writer = mapForWriting.writer();
+        if (writeMap != null) {
+            final TiffWriter writer = writeMap.owner();
             logDebug(() -> "Closing " + writer + " (ERROR)");
             try {
                 writer.close();
             } catch (IOException e) {
                 throw new IOError(e);
             } finally {
-                mapForWriting = null;
+                writeMap = null;
                 // - not try to write more in a case of exception
             }
         }

@@ -41,7 +41,7 @@ import net.algart.math.RectangularArea;
 import net.algart.matrices.tiff.*;
 import net.algart.matrices.tiff.tags.TagCompression;
 import net.algart.matrices.tiff.tiles.TiffMap;
-import net.algart.matrices.tiff.tiles.TiffMapForReading;
+import net.algart.matrices.tiff.tiles.TiffReadMap;
 
 import java.awt.*;
 import java.io.IOError;
@@ -805,7 +805,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             throws IOException {
         final var map = largeData.maps.get(ifdIndex);
         map.checkPixelCompatibility(bandCount, TiffSampleType.of(elementType, false));
-        return largeData.tiffReader.readMatrix(map, fromX, fromY, sizeX, sizeY);
+        return map.readInterleavedMatrix(fromX, fromY, sizeX, sizeY);
     }
 
     private int resolutionLevelToActualResolutionLevel(int resolutionLevel) {
@@ -890,7 +890,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     // LargeDataHolder class resolves all these problems, because the reference to it is shared among all clones.
     private class LargeDataHolder {
         private TiffReader tiffReader = null;
-        private List<TiffMapForReading> maps = null;
+        private List<TiffReadMap> maps = null;
         private List<Matrix<? extends PArray>> wholeSlidePyramid = null;
 
         private final Lock readLock, writeLock;
@@ -909,8 +909,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             if (tiffReader == null) {
                 long t1 = System.nanoTime();
                 tiffReader = new TiffReader(svsFile).setByteFiller(TIFF_FILLER).setCaching(true);
-                tiffReader.setInterleaveResults(true);
-                // - should be removed in future versions, returning unpacked planes
+//                tiffReader.setInterleaveResults(true);
+                // - deprecated solution (replaced with readInterleavedMatrix)
                 maps = tiffReader.allMaps();
                 long t2 = System.nanoTime();
                 LOG.log(System.Logger.Level.DEBUG, String.format(Locale.US,

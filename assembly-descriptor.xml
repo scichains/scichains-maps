@@ -11,7 +11,6 @@
             <includes>
                 <include>${artifact}</include>
             </includes>
-            <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>
             <outputDirectory>./java/lib</outputDirectory>
         </dependencySet>
         <dependencySet>
@@ -26,7 +25,6 @@
                 but just in case we exclude it here explicitly.) -->
                 <exclude>net.algart:algart:*</exclude>
             </excludes>
-            <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>
             <outputDirectory>./java/lib</outputDirectory>
         </dependencySet>
     </dependencySets>

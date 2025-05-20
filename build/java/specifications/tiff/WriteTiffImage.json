@@ -226,7 +226,11 @@
         },
         {
           "value": "JPEG",
-          "caption": "JPEG (compression type 7)"
+          "caption": "JPEG (compression type 7, traditional YCbCr format with subsampling)"
+        },
+        {
+          "value": "JPEG_RGB",
+          "caption": "JPEG-RGB (compression type 7, RGB format without subsampling)"
         },
         {
           "value": "DEFLATE",
@@ -237,36 +241,40 @@
           "caption": "PackBits (compression type 32773)"
         },
         {
-          "value": "JPEG_2000_LOSSLESS",
-          "caption": "JPEG-2000 lossless (compression type 33003, used by Aperio)"
-        },
-        {
           "value": "JPEG_2000",
-          "caption": "JPEG-2000 lossy (compression type 33004)"
+          "caption": "JPEG-2000 (compression type 34712)"
         },
         {
-          "value": "JPEG_2000_LOSSLESS_ALTERNATIVE",
-          "caption": "JPEG-2000 lossless alternative (compression type 33005, used by Aperio)"
+          "value": "JPEG_2000_LOSSLESS",
+          "caption": "JPEG-2000 lossless (compression type 34712)"
         },
         {
-          "value": "JPEG_2000_LOSSLESS_OLYMPUS",
-          "caption": "JPEG-2000 lossless (compression type 34712, used by Olympus)"
+          "value": "JPEG_2000_APERIO_33003",
+          "caption": "JPEG-2000 Aperio proprietary (compression type 33003)"
+        },
+        {
+          "value": "JPEG_2000_APERIO_33004",
+          "caption": "JPEG-2000 Aperio lossless (compression type 33004)"
+        },
+        {
+          "value": "JPEG_2000_APERIO",
+          "caption": "JPEG-2000 Aperio (compression type 33005)"
         }
       ],
-      "default": "JPEG"
-    },
-    {
-      "caption": "Prefer RGB",
-      "name": "preferRGB",
-      "description": "If set, this function encodes JPEG images in RGB color space without subsampling. If cleared, this function encodes JPEG in more traditional YCbCr format with subsampling (skipping some of Cb and Cr values). RGB format minimizes loss of data and, so, is better for goals of image processing; YCbCr provides better compression and suitable for human viewed. In current version, this flag does not affect other compression modes, besides JPEG.",
-      "value_type": "boolean",
-      "edition_type": "value",
-      "default": false
+      "default": "JPEG_RGB"
     },
     {
       "caption": "Quality",
       "name": "quality",
-      "description": "May contain some real value, specifying desired quality of the compression image. If not specified, some default compression quality will be applied (usually the best).\nFor JPEG compression, this value must be between 0.0 (worst) and 1.0 (best). If the quality is not specified, the default value is 1.0 (minimal loss).\nFor JPEG-2000, the minimal allowed value is ~0.3–0.5, the maximal value is not limited. If the quality is not specified, the default value is 10 for JPEG-2000 lossy or maximal possible real value for JPEG-2000 lossless. (If the quality IS specified, \"lossless\" and \"lossy\" JPEG-2000 formats actually do not differ in level of loss.)\nFor other compressions, this parameter is ignored.",
+      "description": "May contain some real value, specifying desired quality of the compression image. If not specified, some default compression quality will be applied (usually the best).\nFor JPEG compression, this value must be between 0.0 (worst) and 1.0 (best). If the quality is not specified, the default value is 1.0 (minimal loss).\nFor JPEG-2000, the minimal allowed value is ~0.3–0.5, the maximal value is not limited. If the quality is not specified, the default value is 5 for JPEG-2000 lossy or maximal possible real value for JPEG-2000 lossless. (If the quality IS specified, \"lossless\" and \"lossy\" JPEG-2000 formats actually do not differ in the level of loss.)\nFor other compressions, this parameter is ignored.",
+      "value_type": "String",
+      "edition_type": "value",
+      "default": ""
+    },
+    {
+      "caption": "Lossless compression level",
+      "name": "losslessCompressionLevel",
+      "description": "May contain some real value specifying the desired compression level for lossless formats like \"Deflate\". Can be between 0.0 (worst, for \"Deflate\": uncompressed) and 1.0 (best). If not specified, some default compression level will be applied. Note that even low levels such as 0.1 usually provides good compression, but the speed can be significantly better.",
       "value_type": "String",
       "edition_type": "value",
       "default": ""
