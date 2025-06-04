@@ -47,13 +47,15 @@
       "value_type": "scalar",
       "name": "pyramid_configuration",
       "caption": "pyramid configuration",
-      "hint": "[Optional] Some additional information, describing the pyramid, which relates to the given data and cannot be changed dynamically."
+      "hint": "[Optional] Some additional information, describing the pyramid, which relates to the given data and cannot be changed dynamically.",
+      "advanced": true
     },
     {
       "value_type": "scalar",
       "name": "rendering_configuration",
       "caption": "rendering configuration",
-      "hint": "[Optional] Some additional information for customizing rendering the pyramid which can vary for the same data file."
+      "hint": "[Optional] Some additional information for customizing rendering the pyramid which can vary for the same data file.",
+      "advanced": true
     }
   ],
   "out_ports": [
