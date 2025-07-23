@@ -6,7 +6,7 @@
 
     <groupId>net.algart.executors</groupId>
     <artifactId>scichains-maps</artifactId>
-    <version>4.4.16</version>
+    <version>4.5.0</version>
 
     <name>SciChains maps (image pyramids)</name>
     <description>Open-source libraries, providing the base functions for SciChains product in area of computer vision.</description>
@@ -36,9 +36,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
 
         <!-- SciChains extension folder name -->
         <extension.name>net.algart.executors.maps</extension.name>
@@ -51,8 +49,10 @@
 
         <buildDirectory>${project.build.directory}/build</buildDirectory>
 
-        <net.algart.scichains-core.version>4.4.16</net.algart.scichains-core.version>
-        <net.algart.algart-tiff.version>1.4.0</net.algart.algart-tiff.version>
+        <net.algart.scichains-core.version>4.5.0</net.algart.scichains-core.version>
+        <net.algart.algart-tiff.version>1.5.0</net.algart.algart-tiff.version>
+        <org.scijava.scijava-common.version>2.99.2</org.scijava.scijava-common.version>
+        <!-- scijava-common is used by algart-tiff: we need to specify it to generate the correct classpath -->
     </properties>
     <dependencies>
         <dependency>
@@ -120,7 +120,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.3.1</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -134,7 +134,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.4.2</version>
+                <version>3.7.1</version>
                 <configuration>
                     <finalName>build</finalName>
                     <appendAssemblyId>false</appendAssemblyId>
@@ -164,7 +164,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.5.0</version>
+                        <version>3.11.2</version>
                         <configuration>
                             <encoding>UTF-8</encoding>
                             <doclint>none</doclint>

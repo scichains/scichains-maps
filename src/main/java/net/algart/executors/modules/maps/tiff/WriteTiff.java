@@ -449,7 +449,7 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
         }
         final String description = this.imageDescription.trim();
         if (!description.isEmpty()) {
-            ifd.putImageDescription(description);
+            ifd.putDescription(description);
         }
         return ifd;
     }
