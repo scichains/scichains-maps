@@ -27,7 +27,7 @@
           "java/lib/${artifactId}-${version}.jar"
         ],
         "vm_options": [
-          "-D_net.algart.maps.pyramids.io.formats.sources.factories.SVS=net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSourceFactory",
+          "#-Dnet.algart.maps.pyramids.io.formats.sources.factories.SVS=net.algart.maps.pyramids.io.formats.sources.svs.SVSPlanePyramidSourceFactory",
           "-Dnet.algart.matrices.tiff.timing=true"
         ]
       }
