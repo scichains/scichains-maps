@@ -30,7 +30,7 @@ import net.algart.arrays.Matrices;
 import net.algart.arrays.Matrix;
 import net.algart.arrays.PArray;
 import net.algart.executors.api.Executor;
-import net.algart.executors.api.js.scriptengine.JavaScriptContextContainer;
+import net.algart.executors.api.graalvm.js.scriptengine.JavaScriptContextContainer;
 import net.algart.executors.modules.core.common.io.FileOperation;
 import net.algart.io.MatrixIO;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
