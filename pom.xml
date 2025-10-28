@@ -6,7 +6,7 @@
 
     <groupId>net.algart.executors</groupId>
     <artifactId>scichains-maps</artifactId>
-    <version>4.5.0</version>
+    <version>4.5.1</version>
 
     <name>SciChains maps (image pyramids)</name>
     <description>Open-source libraries, providing the base functions for SciChains product in area of computer vision.</description>
@@ -49,7 +49,7 @@
 
         <buildDirectory>${project.build.directory}/build</buildDirectory>
 
-        <net.algart.scichains-core.version>4.5.0</net.algart.scichains-core.version>
+        <net.algart.scichains-core.version>4.5.1</net.algart.scichains-core.version>
         <net.algart.algart-tiff.version>1.5.0</net.algart.algart-tiff.version>
         <org.scijava.scijava-common.version>2.99.2</org.scijava.scijava-common.version>
         <!-- scijava-common is used by algart-tiff: we need to specify it to generate the correct classpath -->

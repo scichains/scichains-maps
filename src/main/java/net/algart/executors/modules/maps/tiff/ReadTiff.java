@@ -265,11 +265,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             getMat().setTo(input);
         } else {
             MultiMatrix multiMatrix = readTiff(completeFilePath(), isOutputNecessary(DEFAULT_OUTPUT_PORT));
-            if (multiMatrix != null) {
-                getMat().setTo(multiMatrix);
-            } else {
-                getMat().remove();
-            }
+            getMat().setToOrRemove(multiMatrix);
         }
     }
 
