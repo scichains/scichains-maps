@@ -129,7 +129,7 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
     private String recommendedNumberOfStoredFramesP = "";
     private boolean useMetadata = true;
     private boolean useInputROI = true;
-    private boolean requireNonIntersectingRectangles = false;
+    private boolean nonIntersectingRectanglesRequired = false;
     private int minimalAnalyzedSize = 0;
 
     private final ScriptEngine context;
@@ -219,13 +219,13 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
         return this;
     }
 
-    public final boolean isRequireNonIntersectingRectangles() {
-        return requireNonIntersectingRectangles;
+    public final boolean isNonIntersectingRectanglesRequired() {
+        return nonIntersectingRectanglesRequired;
     }
 
-    public final AbstractImagePyramidOperation setRequireNonIntersectingRectangles(
-            boolean requireNonIntersectingRectangles) {
-        this.requireNonIntersectingRectangles = requireNonIntersectingRectangles;
+    public final AbstractImagePyramidOperation setNonIntersectingRectanglesRequired(
+            boolean nonIntersectingRectanglesRequired) {
+        this.nonIntersectingRectanglesRequired = nonIntersectingRectanglesRequired;
         return this;
     }
 
@@ -354,7 +354,7 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
                 .setInputRoi(useInputROI ? inputRoi : null)
                 // .setUseMetadataRectangles(useMetadata)
                 // - deprecated solution: it is better to avoid using metadata at all when !useMetadata
-                .setRequireNonIntersectingRectangles(requireNonIntersectingRectangles)
+                .setNonIntersectingRectanglesRequired(nonIntersectingRectanglesRequired)
                 .setMinimalROISize(minimalAnalyzedSize);
     }
 
@@ -386,6 +386,11 @@ public abstract class AbstractImagePyramidOperation extends FileOperation {
 
     public void fillOutputInformation(PlanePyramidSource source, ImagePyramidLevelRois levelRois) {
         fillOutputInformation(this, source, levelRois);
+    }
+
+    @Override
+    public String translateLegacyParameterAlias(String name) {
+        return name.equals("requireNonIntersectingRectangles") ? "nonIntersectingRectanglesRequired" : name;
     }
 
     public static void fillOutputInformation(

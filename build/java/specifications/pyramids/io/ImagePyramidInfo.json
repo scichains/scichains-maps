@@ -280,7 +280,7 @@
     },
     {
       "caption": "Require non-intersecting ROI rectangles",
-      "name": "requireNonIntersectingRectangles",
+      "name": "nonIntersectingRectanglesRequired",
       "description": "If set, and if the accompanying JSON .meta-file exists (regardless on \"Use metadata ROI rectangles\" flag), this function checks, whether some of ROI rectangles, specified in this file, intersects each other, and throws an exception, if intersecting rectangles were found.\nRemind that \"ROI rectangle\" is a minimal rectangle, containing whole ROI (in a case if it is not rectangular).\nIt can be useful in the very beginning, because some solutions, based on this function, require that the frames, analysed by this function, do not intersect each other.",
       "value_type": "boolean",
       "edition_type": "value",

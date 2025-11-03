@@ -45,8 +45,8 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
     public static final String OUTPUT_ALL_IFDS = "all_ifds";
     public static final String OUTPUT_PRETTY_ALL_IFDS = "pretty_all_ifds";
 
-    private boolean requireFileExistence = true;
-    private boolean requireTiff = true;
+    private boolean fileExistenceRequired = true;
+    private boolean tiffRequired = true;
     private int ifdIndex = 0;
 
     public TiffInfo() {
@@ -61,21 +61,21 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
         addOutputScalar(OUTPUT_FILE_SIZE);
     }
 
-    public boolean isRequireFileExistence() {
-        return requireFileExistence;
+    public boolean isFileExistenceRequired() {
+        return fileExistenceRequired;
     }
 
-    public TiffInfo setRequireFileExistence(boolean requireFileExistence) {
-        this.requireFileExistence = requireFileExistence;
+    public TiffInfo setFileExistenceRequired(boolean fileExistenceRequired) {
+        this.fileExistenceRequired = fileExistenceRequired;
         return this;
     }
 
-    public boolean isRequireTiff() {
-        return requireTiff;
+    public boolean isTiffRequired() {
+        return tiffRequired;
     }
 
-    public TiffInfo setRequireTiff(boolean requireTiff) {
-        this.requireTiff = requireTiff;
+    public TiffInfo setTiffRequired(boolean tiffRequired) {
+        this.tiffRequired = tiffRequired;
         return this;
     }
 
@@ -98,13 +98,13 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
         getScalar(OUTPUT_VALID).setTo(false);
         try {
             if (!Files.isRegularFile(path)) {
-                if (requireFileExistence) {
+                if (fileExistenceRequired) {
                     throw new FileNotFoundException("File not found: " + path);
                 } else {
                     return;
                 }
             }
-            try (TiffReader reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(requireTiff))) {
+            try (TiffReader reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(tiffRequired))) {
                 fillOutputFileInformation(path);
                 fillReadingOutputInformation(this, reader, ifdIndex);
                 final List<TiffIFD> ifds = reader.allIFDs();
@@ -113,7 +113,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
             }
         } catch (IOException e) {
             getScalar(OUTPUT_VALID).setTo(false);
-            if (requireTiff) {
+            if (tiffRequired) {
                 throw new IOError(e);
             } else {
                 LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while analysing TIFF information for " +

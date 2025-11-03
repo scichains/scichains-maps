@@ -50,8 +50,8 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     // - note: default value in this CLASS (not in the executor model) SHOULD be very simple,
     // because this class may be used without full setup of all parameter, for example, in InputReadTiff model
-    private boolean requireFileExistence = true;
-    private boolean requireTiff = true;
+    private boolean fileExistenceRequired = true;
+    private boolean tiffRequired = true;
     private int ifdIndex = 0;
     private boolean wholeImage = true;
     private int x = 0;
@@ -115,21 +115,21 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isRequireFileExistence() {
-        return requireFileExistence;
+    public boolean isFileExistenceRequired() {
+        return fileExistenceRequired;
     }
 
-    public ReadTiff setRequireFileExistence(boolean requireFileExistence) {
-        this.requireFileExistence = requireFileExistence;
+    public ReadTiff setFileExistenceRequired(boolean fileExistenceRequired) {
+        this.fileExistenceRequired = fileExistenceRequired;
         return this;
     }
 
-    public boolean isRequireTiff() {
-        return requireTiff;
+    public boolean isTiffRequired() {
+        return tiffRequired;
     }
 
-    public ReadTiff setRequireTiff(boolean requireTiff) {
-        this.requireTiff = requireTiff;
+    public ReadTiff setTiffRequired(boolean tiffRequired) {
+        this.tiffRequired = tiffRequired;
         return this;
     }
 
@@ -281,7 +281,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             getScalar(OUTPUT_DIM_Y).remove();
             getNumbers(OUTPUT_RECTANGLE).remove();
             if (!Files.isRegularFile(path)) {
-                if (requireFileExistence) {
+                if (fileExistenceRequired) {
                     throw new FileNotFoundException("File not found: " + path);
                 } else {
                     return null;
@@ -306,7 +306,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             closeReader();
             // - closing can be important to allow the user to fix the problem;
             // moreover, in a case the error it is better to free all possible connected resources
-            if (requireTiff) {
+            if (tiffRequired) {
                 throw new IOError(e);
             } else {
                 LOG.log(System.Logger.Level.INFO, "IGNORING EXCEPTION while reading TIFF " + path +
@@ -331,7 +331,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         logDebug(() -> "Reading " + path);
         TiffReader reader = this.reader;
         if (reader == null) {
-            reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(requireTiff)).setCaching(caching);
+            reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(tiffRequired)).setCaching(caching);
             reader.setAutoUnpackBits(TiffReader.UnpackBits.of(autoUnpackBitsToBytes));
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
             reader.setAutoCorrectInvertedBrightness(autoCorrectInvertedBrightness);

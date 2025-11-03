@@ -45,7 +45,7 @@ public final class ImagePyramidLevelRois {
     private IRectangularArea inputRoiOrWholeLevel;
     private ImagePyramidMetadataJson metadataJson = null;
     private boolean useMetadataRectangles = true;
-    private boolean requireNonIntersectingRectangles = false;
+    private boolean nonIntersectingRectanglesRequired = false;
     private int minimalROISize = 0;
     private volatile List<IRectangularArea> roiRectanglesCache = null;
     private volatile List<Contours> roiContoursCache = null;
@@ -112,12 +112,12 @@ public final class ImagePyramidLevelRois {
         return this;
     }
 
-    public boolean isRequireNonIntersectingRectangles() {
-        return requireNonIntersectingRectangles;
+    public boolean isNonIntersectingRectanglesRequired() {
+        return nonIntersectingRectanglesRequired;
     }
 
-    public ImagePyramidLevelRois setRequireNonIntersectingRectangles(boolean requireNonIntersectingRectangles) {
-        this.requireNonIntersectingRectangles = requireNonIntersectingRectangles;
+    public ImagePyramidLevelRois setNonIntersectingRectanglesRequired(boolean nonIntersectingRectanglesRequired) {
+        this.nonIntersectingRectanglesRequired = nonIntersectingRectanglesRequired;
         clearCache();
         return this;
     }
@@ -189,7 +189,7 @@ public final class ImagePyramidLevelRois {
             roiRectangles = metadataJson != null && useMetadataRectangles ?
                     Collections.unmodifiableList(metadataJson.roiRectangles(scaleX, scaleY, inputRoiOrWholeLevel)) :
                     List.of(inputRoiOrWholeLevel);
-            if (requireNonIntersectingRectangles) {
+            if (nonIntersectingRectanglesRequired) {
                 checkIntersectionOfRectangles(roiRectangles);
             }
             if (minimalROISize > 1) {

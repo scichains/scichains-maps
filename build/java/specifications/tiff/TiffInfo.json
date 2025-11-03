@@ -135,7 +135,7 @@
     },
     {
       "caption": "Requires existing file",
-      "name": "requireFileExistence",
+      "name": "fileExistenceRequired",
       "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing.",
       "value_type": "boolean",
       "edition_type": "value",
@@ -143,7 +143,7 @@
     },
     {
       "caption": "Requires TIFF",
-      "name": "requireTiff",
+      "name": "tiffRequired",
       "description": "If set, the input file (when it exists) must be a correct TIFF file; in other case, this function will throw an exception.\nIf this flag is cleared and the file is not a TIFF file, this function does nothing.\nIn any case, you can check that the file is a correct TIFF in \"valid\" output port (but if this flag is set, that port will contain \"false\" only in a case of an exception).",
       "value_type": "boolean",
       "edition_type": "value",

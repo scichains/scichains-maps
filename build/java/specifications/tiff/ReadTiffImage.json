@@ -172,7 +172,7 @@
     },
     {
       "caption": "Requires existing file",
-      "name": "requireFileExistence",
+      "name": "fileExistenceRequired",
       "description": "If set, the input file must exist; in other case, this function will throw an exception.\nIf this flag is cleared and the file does not exist, this function does nothing (just returns non-initialized result).",
       "value_type": "boolean",
       "edition_type": "value",
