@@ -35,10 +35,8 @@ import net.algart.matrices.tiff.TiffReader;
 import net.algart.multimatrix.MultiMatrix;
 import net.algart.multimatrix.MultiMatrix2D;
 
-import java.io.FileNotFoundException;
 import java.io.IOError;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
@@ -50,7 +48,6 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     private LongTimeOpeningMode openingMode = LongTimeOpeningMode.OPEN_AND_CLOSE;
     // - note: default value in this CLASS (not in the executor model) SHOULD be very simple,
     // because this class may be used without full setup of all parameter, for example, in InputReadTiff model
-    private boolean fileExistenceRequired = true;
     private boolean tiffRequired = true;
     private int ifdIndex = 0;
     private boolean wholeImage = true;
@@ -112,15 +109,6 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
 
     public ReadTiff setOpeningMode(LongTimeOpeningMode openingMode) {
         this.openingMode = nonNull(openingMode);
-        return this;
-    }
-
-    public boolean isFileExistenceRequired() {
-        return fileExistenceRequired;
-    }
-
-    public ReadTiff setFileExistenceRequired(boolean fileExistenceRequired) {
-        this.fileExistenceRequired = fileExistenceRequired;
         return this;
     }
 
@@ -274,18 +262,13 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     public MultiMatrix readTiff(Path path, boolean doActualReading) {
-        Objects.requireNonNull(path, "Null path");
         try {
             getScalar(OUTPUT_VALID).setTo(false);
             getScalar(OUTPUT_DIM_X).remove();
             getScalar(OUTPUT_DIM_Y).remove();
             getNumbers(OUTPUT_RECTANGLE).remove();
-            if (!Files.isRegularFile(path)) {
-                if (fileExistenceRequired) {
-                    throw new FileNotFoundException("File not found: " + path);
-                } else {
-                    return null;
-                }
+            if (skipIfMissingOrThrow(path)) {
+                return null;
             }
             final TiffReader reader = openFile(path);
             fillReadingOutputInformation(this, reader, ifdIndex);

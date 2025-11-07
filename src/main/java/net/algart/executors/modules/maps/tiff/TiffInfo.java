@@ -45,7 +45,6 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
     public static final String OUTPUT_ALL_IFDS = "all_ifds";
     public static final String OUTPUT_PRETTY_ALL_IFDS = "pretty_all_ifds";
 
-    private boolean fileExistenceRequired = true;
     private boolean tiffRequired = true;
     private int ifdIndex = 0;
 
@@ -59,15 +58,6 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
         addOutputScalar(OUTPUT_PRETTY_IFD);
         addOutputScalar(OUTPUT_FILE_SIZE);
         addOutputScalar(OUTPUT_FILE_SIZE);
-    }
-
-    public boolean isFileExistenceRequired() {
-        return fileExistenceRequired;
-    }
-
-    public TiffInfo setFileExistenceRequired(boolean fileExistenceRequired) {
-        this.fileExistenceRequired = fileExistenceRequired;
-        return this;
     }
 
     public boolean isTiffRequired() {
@@ -94,15 +84,10 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
     }
 
     public void testTiff(Path path) {
-        Objects.requireNonNull(path, "Null path");
         getScalar(OUTPUT_VALID).setTo(false);
         try {
-            if (!Files.isRegularFile(path)) {
-                if (fileExistenceRequired) {
-                    throw new FileNotFoundException("File not found: " + path);
-                } else {
-                    return;
-                }
+            if (skipIfMissingOrThrow(path)) {
+                return;
             }
             try (TiffReader reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(tiffRequired))) {
                 fillOutputFileInformation(path);
