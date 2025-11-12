@@ -97,9 +97,11 @@ public class SVSSourceTest {
 
         if (source instanceof SVSPlanePyramidSource svsSource) {
             SVSImageDescription description = svsSource.mainImageDescription();
-            System.out.printf("Description:%n%s%nGeometry support: %s%n",
-                    Jsons.toPrettyString(description.toJson()),
-                    description.isGeometrySupported());
+            if (description != null) {
+                System.out.printf("Description:%n%s%nGeometry support: %s%n",
+                        Jsons.toPrettyString(description.toJson()),
+                        description.isGeometrySupported());
+            }
             System.out.printf("IFD classification: %s%n", svsSource.getIfdClassifier());
             System.out.println();
         }
