@@ -267,7 +267,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             getScalar(OUTPUT_DIM_X).remove();
             getScalar(OUTPUT_DIM_Y).remove();
             getNumbers(OUTPUT_RECTANGLE).remove();
-            if (skipIfMissingOrThrow(path)) {
+            if (skipIfMissingFileOrThrow(path)) {
                 return null;
             }
             final TiffReader reader = openFile(path);

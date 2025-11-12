@@ -86,7 +86,7 @@ public final class TiffInfo extends AbstractTiffOperation implements ReadOnlyExe
     public void testTiff(Path path) {
         getScalar(OUTPUT_VALID).setTo(false);
         try {
-            if (skipIfMissingOrThrow(path)) {
+            if (skipIfMissingFileOrThrow(path)) {
                 return;
             }
             try (TiffReader reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(tiffRequired))) {

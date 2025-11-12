@@ -24,8 +24,8 @@
 
 package net.algart.maps.pyramids.io.api.sources;
 
-import net.algart.arrays.Arrays;
 import net.algart.arrays.*;
+import net.algart.arrays.Arrays;
 import net.algart.io.awt.ImageToMatrix;
 import net.algart.maps.pyramids.io.api.AbstractPlanePyramidSourceWrapper;
 import net.algart.maps.pyramids.io.api.PlanePyramidSource;
@@ -116,8 +116,13 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
         }
 
         public BufferedImage read(File imageFile) throws IOException {
-            final ImageInputStream iis = ImageIO.createImageInputStream(imageFile);
-            try {
+            Objects.requireNonNull(imageFile, "Null image file");
+            if (!imageFile.isFile()) {
+                // - strictly speaking, this is not an ideal solution: it is theoretically possible to create
+                // an ImageIO format storing in a folder; but in practice, it prevents strange error messages
+                throw new FileNotFoundException("Image file " + imageFile + " is not a regular file");
+            }
+            try (ImageInputStream iis = ImageIO.createImageInputStream(imageFile)) {
                 ImageReader reader = getImageReader(iis);
                 try {
                     ImageReadParam param = getReadParam(reader);
@@ -128,10 +133,6 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
                     return result;
                 } finally {
                     reader.dispose();
-                }
-            } finally {
-                if (iis != null) {
-                    iis.close();
                 }
             }
         }
@@ -236,9 +237,10 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
             final int[] dimensions = image != null ?
                     new int[]{image.getWidth(), image.getHeight()} :
                     readImageDimensions(imageFile);
-            if (pyramid.get(0).dim(1) != dimensions[0] || pyramid.get(0).dim(2) != dimensions[1])
+            Matrix<? extends PArray> first = pyramid.getFirst();
+            if (first.dim(1) != dimensions[0] || first.dim(2) != dimensions[1])
                 throw new IOException("Illegal or corrupted cache: the pyramid in cache has zero-level "
-                        + pyramid.get(0).dim(1) + "x" + pyramid.get(0).dim(2) + "(x" + pyramid.get(0).dim(0)
+                        + first.dim(1) + "x" + first.dim(2) + "(x" + first.dim(0)
                         + "), but the passed image is " + dimensions[0] + "x" + dimensions[1]);
             this.parent = new DefaultPlanePyramidSource(pyramid);
             long t2 = System.nanoTime();
@@ -246,7 +248,7 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
                     "ImageIOPlanePyramidSource opens image from cache %s: "
                             + "%dx%d, %d bands, %d levels (%.3f ms)",
                     pyramidCacheDir,
-                    pyramid.get(0).dim(1), pyramid.get(0).dim(2), parent.bandCount(),
+                    first.dim(1), first.dim(2), parent.bandCount(),
                     parent.numberOfResolutions(), (t2 - t1) * 1e-6));
             return;
         }
