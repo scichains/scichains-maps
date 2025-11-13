@@ -369,7 +369,7 @@ public interface PlanePyramidSource {
 
     /**
      * Returns <code>true</code> if {@link #elementType()} method works properly.
-     * In other case, that method throws <code>UnsupportedOperationException</code>.
+     * In another case, that method throws <code>UnsupportedOperationException</code>.
      * In particular, returns <code>true</code> in  {@link DefaultPlanePyramidSource}.
      *
      * @return whether {@link #elementType()} is supported.
@@ -462,10 +462,10 @@ public interface PlanePyramidSource {
     /**
      * Reads special image according specified kind.
      * <p>If the argument is {@link SpecialImageKind#NONE}, return <code>null</code>. In all other cases
-     * returns some non-null result.
+     * returns some non-null results.
      * <p>If there is no appropriate image, returns {@link Optional#empty()}.</tt>.
      *
-     * @param kind what special image is requested.
+     * @param kind what special image is requested?
      * @return special image or {@link Optional#empty()} if this kind is not supported.
      */
     Optional<Matrix<? extends PArray>> readSpecialMatrix(SpecialImageKind kind)
@@ -473,7 +473,7 @@ public interface PlanePyramidSource {
 
     /**
      * Returns true if the data at all available levels of this source are available.
-     * In other case, {@link #readSubMatrix(int, long, long, long, long)} and {@link #readFullMatrix(int)}
+     * In another case, {@link #readSubMatrix(int, long, long, long, long)} and {@link #readFullMatrix(int)}
      * method can throw <code>NotYetConnectedException</code> (but also, maybe, work properly),
      * <p>Note: all other methods, including {@link #dimensions(int)}, must work without
      * <code>NotYetConnectedException</code> even if this method returns <code>false</code>.
@@ -493,7 +493,7 @@ public interface PlanePyramidSource {
     }
 
     /**
-     * Re-initializes object and loads all necessary resources.
+     * Re-initializes the object and loads all necessary resources.
      *
      * <p>This method should be called before using this object, if
      * {@link #freeResources(FlushMode)} was called before.
