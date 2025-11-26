@@ -450,7 +450,7 @@ public final class ImageIOPlanePyramidSource extends AbstractPlanePyramidSourceW
             try {
                 byte[] ja = new byte[MatrixInfo.MAX_SERIALIZED_MATRIX_INFO_LENGTH];
                 byteArray.getData(0, ja);
-                return MatrixInfo.valueOf(ja);
+                return MatrixInfo.of(ja);
             } finally {
                 byteArray.freeResources(null);
             }

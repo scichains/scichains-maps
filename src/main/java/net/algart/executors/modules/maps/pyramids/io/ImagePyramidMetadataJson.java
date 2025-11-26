@@ -56,22 +56,21 @@ public class ImagePyramidMetadataJson {
             private final BiFunction<JsonObject, Path, Roi> creator;
 
             Shape(String shapeName, BiFunction<JsonObject, Path, Roi> creator) {
-                this.shapeName = shapeName;
-                this.creator = creator;
+                this.shapeName = Objects.requireNonNull(shapeName);
+                this.creator = Objects.requireNonNull(creator);
             }
 
             public String shapeName() {
                 return shapeName;
             }
 
-            public static Shape ofShapeNameOrNull(String name) {
-                Objects.requireNonNull(name, "Null name");
+            public static Optional<Shape> fromShapeName(String shapeName) {
                 for (Shape shape : values()) {
-                    if (shape.shapeName.equals(name)) {
-                        return shape;
+                    if (shape.shapeName.equals(shapeName)) {
+                        return Optional.of(shape);
                     }
                 }
-                return null;
+                return Optional.empty();
             }
         }
 
@@ -79,13 +78,17 @@ public class ImagePyramidMetadataJson {
         }
 
         static Roi of(JsonValue json, Path file) {
-            assert json instanceof JsonObject : "json should be checked before, for example by Jsons.getJsonArray";
+            if (!(json instanceof JsonObject)) {
+                throw new AssertionError("json should be checked before, " +
+                        "for example by Jsons.getJsonArray");
+            }
             return of((JsonObject) json, file);
         }
 
         static Roi of(JsonObject json, Path file) {
-            final Shape shape = Shape.ofShapeNameOrNull(Jsons.reqString(json, "shape", file));
-            Jsons.requireNonNull(shape, json, "shape", file);
+            final String shapeName = Jsons.reqString(json, "shape", file);
+            final Shape shape = Shape.fromShapeName(shapeName).orElseThrow(
+                    () -> Jsons.unknownValueException(json, "shape", shapeName, file));
             final Roi result = shape.creator.apply(json, file);
             assert result.getShape() == shape : "Illegal getShape() method of " + result.getClass()
                     + ": it returns " + result.getShape() + " instead of " + shape;
