@@ -88,7 +88,7 @@ public class ImagePyramidMetadataJson {
         static Roi of(JsonObject json, Path file) {
             final String shapeName = Jsons.reqString(json, "shape", file);
             final Shape shape = Shape.fromShapeName(shapeName).orElseThrow(
-                    () -> Jsons.unknownValueException(json, "shape", shapeName, file));
+                    () -> Jsons.unknownValue(json, "shape", shapeName, file));
             final Roi result = shape.creator.apply(json, file);
             assert result.getShape() == shape : "Illegal getShape() method of " + result.getClass()
                     + ": it returns " + result.getShape() + " instead of " + shape;
