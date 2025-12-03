@@ -60,6 +60,10 @@ public class ImagePyramidMetadataJson {
                 this.creator = Objects.requireNonNull(creator);
             }
 
+            public static Collection<String> shapeNames() {
+                return java.util.Arrays.stream(values()).map(Shape::shapeName).toList();
+            }
+
             public String shapeName() {
                 return shapeName;
             }
@@ -88,7 +92,7 @@ public class ImagePyramidMetadataJson {
         static Roi of(JsonObject json, Path file) {
             final String shapeName = Jsons.reqString(json, "shape", file);
             final Shape shape = Shape.fromShapeName(shapeName).orElseThrow(
-                    () -> Jsons.unknownValue(json, "shape", shapeName, file));
+                    () -> Jsons.badValue(json, "shape", shapeName, Shape.shapeNames(), file));
             final Roi result = shape.creator.apply(json, file);
             assert result.getShape() == shape : "Illegal getShape() method of " + result.getClass()
                     + ": it returns " + result.getShape() + " instead of " + shape;
