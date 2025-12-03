@@ -356,7 +356,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
                 getBackgroundAreasInRectangle(zeroLevelFromX, zeroLevelFromY, zeroLevelToX, zeroLevelToY);
         java.awt.image.DataBuffer dataBuffer = converter.toDataBuffer(m);
         if (!backgroundAreas.isEmpty()) {
-            final IPoint shift = IPoint.valueOf(-zeroLevelFromX, -zeroLevelFromY);
+            final IPoint shift = IPoint.of(-zeroLevelFromX, -zeroLevelFromY);
             for (int bankIndex = 0; bankIndex < dataBuffer.getNumBanks(); bankIndex++) {
                 Matrix<? extends UpdatablePArray> bankMatrix = Matrices.matrix(
                         (UpdatablePArray) SimpleMemoryModel.asUpdatableArray(
@@ -449,11 +449,11 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             return result;
         }
         final IRectangularArea area = IRectangularArea.valueOf(
-                IPoint.valueOf(zeroLevelFromX, zeroLevelFromY),
-                IPoint.valueOf(zeroLevelToX - 1, zeroLevelToY - 1));
+                IPoint.of(zeroLevelFromX, zeroLevelFromY),
+                IPoint.of(zeroLevelToX - 1, zeroLevelToY - 1));
         final IRectangularArea allArea = IRectangularArea.valueOf(
-                IPoint.valueOf(0, 0),
-                IPoint.valueOf(dimX - 1, dimY - 1));
+                IPoint.of(0, 0),
+                IPoint.of(dimX - 1, dimY - 1));
         area.difference(result, allArea);
         return result;
     }

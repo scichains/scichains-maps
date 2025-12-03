@@ -249,7 +249,7 @@ class ReindexerAndRetainer {
             // - "Math.min" to be on the safe side: such matrices cannot not used in frames
         }
         return new MapBuffer.Frame(
-                frame.position().min().add(IPoint.valueOf(minX, minY)),
+                frame.position().min().add(IPoint.of(minX, minY)),
                 MultiMatrix.of2DMono(m.subMatrix(minX, minY, maxX + 1, maxY + 1)));
     }
 

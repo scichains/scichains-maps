@@ -167,7 +167,7 @@ public final class RotatingPlanePyramidSource implements PlanePyramidSource {
                 long parentImageWidth, long parentImageHeight, IPoint point) {
             long rotatedX = cos * point.x() + sin * point.y() + bX * parentImageWidth;
             long rotatedY = -sin * point.x() + cos * point.y() + bY * parentImageHeight;
-            return IPoint.valueOf(rotatedX, rotatedY);
+            return IPoint.of(rotatedX, rotatedY);
         }
 
         public IRectangularArea correctRectangle(
@@ -178,8 +178,8 @@ public final class RotatingPlanePyramidSource implements PlanePyramidSource {
             long toY = rectangle.max(1) + 1;
             long[] fromAndTo = correctFromAndTo(parentImageWidth, parentImageHeight, fromX, fromY, toX, toY);
             return IRectangularArea.valueOf(
-                    IPoint.valueOf(fromAndTo[0], fromAndTo[1]),
-                    IPoint.valueOf(fromAndTo[2] - 1, fromAndTo[3] - 1));
+                    IPoint.of(fromAndTo[0], fromAndTo[1]),
+                    IPoint.of(fromAndTo[2] - 1, fromAndTo[3] - 1));
         }
 
 

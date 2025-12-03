@@ -175,28 +175,26 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                         : Math.round(slideHeightInMicrons * (double) ifdMacroWidth / (double) ifdMacroHeight);
                 final double slideHeight = slideHeightInMicrons != null ? slideHeightInMicrons
                         : Math.round(slideWidthInMicrons * (double) ifdMacroHeight / (double) ifdMacroWidth);
-                this.metricWholeSlide = RectangularArea.valueOf(
-                        Point.valueOf(0, 0),
-                        Point.valueOf(slideWidth, slideHeight));
+                this.metricWholeSlide = RectangularArea.of(
+                        Point.of(0, 0),
+                        Point.of(slideWidth, slideHeight));
                 final double imageWidth = imageDimX * zeroLevelPixelSize;
                 final double imageHeight = imageDimY * zeroLevelPixelSize;
                 final double metricLeft = mainImageDescription.imageOnSlideLeftInMicronsAxisRightward();
                 final double metricTop = slideHeight - mainImageDescription.imageOnSlideTopInMicronsAxisUpward();
-                this.metricPyramid = RectangularArea.valueOf(
-                        Point.valueOf(metricLeft, metricTop),
-                        Point.valueOf(metricLeft + imageWidth, metricTop + imageHeight));
+                this.metricPyramid = RectangularArea.of(
+                        Point.of(metricLeft, metricTop),
+                        Point.of(metricLeft + imageWidth, metricTop + imageHeight));
                 this.pixelWholeSlide = IRectangularArea.valueOf(
-                        IPoint.valueOf(0, 0),
-                        IPoint.valueOf(ifdMacroWidth - 1, ifdMacroHeight - 1));
+                        IPoint.of(0, 0),
+                        IPoint.of(ifdMacroWidth - 1, ifdMacroHeight - 1));
                 final long pixelLeft = Math.round(ifdMacroWidth * metricLeft / slideWidth);
                 final long pixelTop = Math.round(ifdMacroHeight * metricTop / slideHeight);
                 this.pixelPyramidAtWholeSlide = IRectangularArea.valueOf(
-                        IPoint.valueOf(pixelLeft, pixelTop),
-                        IPoint.valueOf(
-                                Math.max(pixelLeft,
-                                        Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1),
-                                Math.max(pixelTop,
-                                        Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
+                        IPoint.of(pixelLeft, pixelTop),
+                        IPoint.of(Math.max(pixelLeft,
+                                Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1), Math.max(pixelTop,
+                                Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
                 levelDimX = (long) (imageDimX * metricWholeSlide.size(0) / metricPyramid.size(0));
                 levelDimY = (long) (imageDimY * metricWholeSlide.size(1) / metricPyramid.size(1));
             } else {
@@ -627,7 +625,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             return newResultMatrix(toX - fromX, toY - fromY);
         }
         final IRectangularArea requiredArea = IRectangularArea.valueOf(
-                IPoint.valueOf(fromX, fromY), IPoint.valueOf(toX - 1, toY - 1));
+                IPoint.of(fromX, fromY), IPoint.of(toX - 1, toY - 1));
         if (combineWithWholeSlide) {
             largeData.initWholeSlideSynchronously();
         }

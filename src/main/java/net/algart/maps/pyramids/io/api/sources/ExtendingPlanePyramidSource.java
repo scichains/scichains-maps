@@ -226,7 +226,7 @@ public final class ExtendingPlanePyramidSource extends AbstractPlanePyramidSourc
             final var pr = parentRectangles;
             LOG.log(System.Logger.Level.DEBUG, () -> "Creating default zero-level actual rectangle: " + pr);
         }
-        final IPoint shift = IPoint.valueOf(positionXInExtendedMatrix, positionYInExtendedMatrix);
+        final IPoint shift = IPoint.of(positionXInExtendedMatrix, positionYInExtendedMatrix);
         final List<IRectangularArea> result = new ArrayList<IRectangularArea>(parentRectangles.size());
         for (IRectangularArea parentRectangle : parentRectangles) {
             final IRectangularArea shiftedRectangle = parentRectangle.shift(shift);
@@ -244,7 +244,7 @@ public final class ExtendingPlanePyramidSource extends AbstractPlanePyramidSourc
         if (boundaries == null) {
             return super.zeroLevelActualAreaBoundaries();
         }
-        final IPoint shift = IPoint.valueOf(positionXInExtendedMatrix, positionYInExtendedMatrix);
+        final IPoint shift = IPoint.of(positionXInExtendedMatrix, positionYInExtendedMatrix);
         final List<List<List<IPoint>>> result = new ArrayList<List<List<IPoint>>>();
         for (List<List<IPoint>> area : boundaries) {
             final List<List<IPoint>> shiftedArea = new ArrayList<List<IPoint>>();

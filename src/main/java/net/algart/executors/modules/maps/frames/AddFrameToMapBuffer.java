@@ -129,7 +129,7 @@ public final class AddFrameToMapBuffer extends MultiMatrixFilter {
                 position.toIRectangularArea().min() :
                 position.toIPoint();
         if (originPoint == null) {
-            originPoint = IPoint.valueOf(startX, startY);
+            originPoint = IPoint.of(startX, startY);
         }
         final IRectangularArea rectangleToCrop = getInputNumbers(
                 RECTANGLE_TO_CROP, true).toIRectangularArea();
@@ -138,7 +138,7 @@ public final class AddFrameToMapBuffer extends MultiMatrixFilter {
         long t3 = System.nanoTime();
         final IRectangularArea expanded = mapBuffer.expandRectangleOnMap(
                 frame.position(),
-                IPoint.valueOf(expansionX, expansionY != null ? expansionY : expansionX),
+                IPoint.of(expansionX, expansionY != null ? expansionY : expansionX),
                 true);
         getNumbers(ChangeRectangleInsideMapBuffer.RECTANGLE).setTo(frame.position());
         getNumbers(EXPANDED_RECTANGLE).setTo(expanded);

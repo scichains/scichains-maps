@@ -161,7 +161,7 @@ public final class ReadFromMapBuffer extends ScalarFilter {
         long t2 = System.nanoTime();
         final IRectangularArea expanded = mapBuffer.expandRectangleOnMap(
                 area,
-                IPoint.valueOf(expansionX, expansionY != null ? expansionY : expansionX),
+                IPoint.of(expansionX, expansionY != null ? expansionY : expansionX),
                 false);
         MultiMatrix result = reindex ?
                 mapBuffer.readMatrixReindexedByObjectPairs(expanded, true) :

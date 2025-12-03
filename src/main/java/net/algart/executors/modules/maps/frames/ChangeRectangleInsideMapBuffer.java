@@ -45,25 +45,25 @@ public final class ChangeRectangleInsideMapBuffer extends NumbersFilter {
         LEFT_UP("left-up shift") {
             @Override
             IRectangularArea change(IRectangularArea area, long x, long y) {
-                return area.shift(IPoint.valueOf(-x, -y));
+                return area.shift(IPoint.of(-x, -y));
             }
         },
         RIGHT_UP("right-up shift") {
             @Override
             IRectangularArea change(IRectangularArea area, long x, long y) {
-                return area.shift(IPoint.valueOf(x, -y));
+                return area.shift(IPoint.of(x, -y));
             }
         },
         LEFT_DOWN("left-down shift") {
             @Override
             IRectangularArea change(IRectangularArea area, long x, long y) {
-                return area.shift(IPoint.valueOf(-x, y));
+                return area.shift(IPoint.of(-x, y));
             }
         },
         RIGHT_DOWN("right-down shift") {
             @Override
             IRectangularArea change(IRectangularArea area, long x, long y) {
-                return area.shift(IPoint.valueOf(x, y));
+                return area.shift(IPoint.of(x, y));
             }
         },
         // IMPORTANT! These names MUST be identical to names of DiagonalDirectionOnMap enum from scichains-maps,
@@ -71,7 +71,7 @@ public final class ChangeRectangleInsideMapBuffer extends NumbersFilter {
         EXPAND("expanding") {
             @Override
             IRectangularArea change(IRectangularArea area, long x, long y) {
-                return area.dilate(IPoint.valueOf(x, y));
+                return area.dilate(IPoint.of(x, y));
             }
         };
 

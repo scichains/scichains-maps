@@ -30,25 +30,25 @@ public enum DiagonalDirectionOnMap {
     LEFT_UP {
         @Override
         public IPoint shift(long x, long y) {
-            return IPoint.valueOf(-x, -y);
+            return IPoint.of(-x, -y);
         }
     },
     RIGHT_UP {
         @Override
         public IPoint shift(long x, long y) {
-            return IPoint.valueOf(x, -y);
+            return IPoint.of(x, -y);
         }
     },
     LEFT_DOWN {
         @Override
         public IPoint shift(long x, long y) {
-            return IPoint.valueOf(-x, y);
+            return IPoint.of(-x, y);
         }
     },
     RIGHT_DOWN {
         @Override
         public IPoint shift(long x, long y) {
-            return IPoint.valueOf(x, y);
+            return IPoint.of(x, y);
         }
     };
 

@@ -60,8 +60,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
                 long maxX = Math.min(minX + tileDim, dimX) - 1;
                 long maxY = Math.min(minY + tileDim, dimY) - 1;
                 return IRectangularArea.valueOf(
-                        IPoint.valueOf(minX, minY),
-                        IPoint.valueOf(maxX, maxY));
+                        IPoint.of(minX, minY),
+                        IPoint.of(maxX, maxY));
             }
         },
         LEFT_DOWN() {
@@ -76,8 +76,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
                 long maxX = Math.min(minX + tileDim, dimX) - 1;
                 long maxY = Math.min(minY + tileDim, dimY) - 1;
                 return IRectangularArea.valueOf(
-                        IPoint.valueOf(dimX - 1 - maxX, minY),
-                        IPoint.valueOf(dimX - 1 - minX, maxY));
+                        IPoint.of(dimX - 1 - maxX, minY),
+                        IPoint.of(dimX - 1 - minX, maxY));
             }
         },
         RIGHT_UP() {
@@ -92,8 +92,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
                 long maxX = Math.min(minX + tileDim, dimX) - 1;
                 long maxY = Math.min(minY + tileDim, dimY) - 1;
                 return IRectangularArea.valueOf(
-                        IPoint.valueOf(minX, dimY - 1 - maxY),
-                        IPoint.valueOf(maxX, dimY - 1 - minY));
+                        IPoint.of(minX, dimY - 1 - maxY),
+                        IPoint.of(maxX, dimY - 1 - minY));
             }
         },
         LEFT_UP() {
@@ -109,8 +109,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
                 long maxX = Math.min(minX + tileDim, dimX) - 1;
                 long maxY = Math.min(minY + tileDim, dimY) - 1;
                 return IRectangularArea.valueOf(
-                        IPoint.valueOf(dimX - 1 - maxX, dimY - 1 - maxY),
-                        IPoint.valueOf(dimX - 1 - minX, dimY - 1 - minY));
+                        IPoint.of(dimX - 1 - maxX, dimY - 1 - maxY),
+                        IPoint.of(dimX - 1 - minX, dimY - 1 - minY));
             }
         };
 
@@ -218,9 +218,9 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
         for (IRectangularArea rectangle : rectangles) {
             final List<IPoint> vertices = new ArrayList<IPoint>();
             vertices.add(rectangle.min());
-            vertices.add(IPoint.valueOf(rectangle.max(0), rectangle.min(1)));
+            vertices.add(IPoint.of(rectangle.max(0), rectangle.min(1)));
             vertices.add(rectangle.max());
-            vertices.add(IPoint.valueOf(rectangle.min(0), rectangle.max(1)));
+            vertices.add(IPoint.of(rectangle.min(0), rectangle.max(1)));
             result.add(Collections.singletonList(vertices));
         }
         return result;
@@ -564,8 +564,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
             return null;
         } else {
             return Collections.singletonList(IRectangularArea.valueOf(
-                    IPoint.valueOf(0, 0),
-                    IPoint.valueOf(dimensions[DIM_WIDTH] - 1, dimensions[DIM_HEIGHT - 1])));
+                    IPoint.of(0, 0),
+                    IPoint.of(dimensions[DIM_WIDTH] - 1, dimensions[DIM_HEIGHT - 1])));
         }
     }
 

@@ -313,8 +313,8 @@ public class BorderFinder {
         final ContinuedRankMorphology morphology = ContinuedRankMorphology.getInstance(
                 BasicRankMorphology.getInstance(null, 0.5, RankPrecision.BITS_8),
                 Matrix.ContinuationMode.MIRROR_CYCLIC);
-        final IPoint min = IPoint.valueOf(-checkedSizeAtBackgroundX / 2L, -checkedSizeAtBackgroundY / 2L);
-        final IPoint max = min.add(IPoint.valueOf(checkedSizeAtBackgroundX - 1L, checkedSizeAtBackgroundY - 1L));
+        final IPoint min = IPoint.of(-checkedSizeAtBackgroundX / 2L, -checkedSizeAtBackgroundY / 2L);
+        final IPoint max = min.add(IPoint.of(checkedSizeAtBackgroundX - 1L, checkedSizeAtBackgroundY - 1L));
         morphology.dilation(averaged, slide, Patterns.newRectangularIntegerPattern(min, max));
     }
 

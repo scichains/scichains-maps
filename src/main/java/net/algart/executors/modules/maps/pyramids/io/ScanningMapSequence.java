@@ -47,9 +47,7 @@ public enum ScanningMapSequence {
                 long frameSizeY,
                 long totalDimX,
                 long totalDimY) {
-            return IPoint.valueOf(
-                    lowFrameIndex * frameSizeX,
-                    highFrameIndex * frameSizeY);
+            return IPoint.of(lowFrameIndex * frameSizeX, highFrameIndex * frameSizeY);
         }
 
         @Override
@@ -105,7 +103,7 @@ public enum ScanningMapSequence {
                 long totalDimX,
                 long totalDimY) {
             final long lowFrameCount = lowFrameCount(frameSizeX, frameSizeY, totalDimX, totalDimY);
-            return IPoint.valueOf(
+            return IPoint.of(
                     ((highFrameIndex & 1) == 0 ? lowFrameIndex : lowFrameCount - 1 - lowFrameIndex) * frameSizeX,
                     highFrameIndex * frameSizeY);
         }
@@ -163,9 +161,7 @@ public enum ScanningMapSequence {
                 long frameSizeY,
                 long totalDimX,
                 long totalDimY) {
-            return IPoint.valueOf(
-                    highFrameIndex * frameSizeX,
-                    lowFrameIndex * frameSizeY);
+            return IPoint.of(highFrameIndex * frameSizeX, lowFrameIndex * frameSizeY);
         }
 
         @Override
@@ -221,7 +217,7 @@ public enum ScanningMapSequence {
                 long totalDimX,
                 long totalDimY) {
             final long lowFrameCount = lowFrameCount(frameSizeX, frameSizeY, totalDimX, totalDimY);
-            return IPoint.valueOf(
+            return IPoint.of(
                     highFrameIndex * frameSizeX,
                     ((highFrameIndex & 1) == 0 ? lowFrameIndex : lowFrameCount - 1 - lowFrameIndex) * frameSizeY);
         }

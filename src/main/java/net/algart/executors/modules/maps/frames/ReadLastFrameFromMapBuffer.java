@@ -194,10 +194,10 @@ public final class ReadLastFrameFromMapBuffer extends ScalarFilter {
                     jointExpansionX = jointExpansionX / 100.0 * frameArea.sizeX();
                     jointExpansionY = jointExpansionY / 100.0 * frameArea.sizeY();
                 }
-                expansion = IPoint.valueOf(Math.round(jointExpansionX), Math.round(jointExpansionY));
+                expansion = IPoint.of(Math.round(jointExpansionX), Math.round(jointExpansionY));
             }
             result = stitcher.jointCompletedObjectsOfLastFrame(expansion);
-            final IPoint padding = IPoint.valueOf(zeroPaddingX, zeroPaddingY != null ? zeroPaddingY : zeroPaddingX);
+            final IPoint padding = IPoint.of(zeroPaddingX, zeroPaddingY != null ? zeroPaddingY : zeroPaddingX);
             otherRectangle = result.position().dilate(padding);
         } else {
             stitcher = null;
