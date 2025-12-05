@@ -121,8 +121,8 @@ public class SquaresAtObject {
         long t1 = System.nanoTime();
         final BasicMorphology morphology = BasicMorphology.getInstance(null);
         final UniformGridPattern requiredSquarePattern = Patterns.newRectangularIntegerPattern(
-                IPoint.valueOfEqualCoordinates(dimCount, 0),
-                IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1));
+                IPoint.ofEqualCoordinates(dimCount, 0),
+                IPoint.ofEqualCoordinates(dimCount, fixedSquareSide - 1));
         // - the side of such pattern is fixedSquareSide
         final long reducedSide = fixedSquareSide - overlapOfSquares;
         Matrix<? extends UpdatablePArray> erosion = morphology.erosion(workMatrix, requiredSquarePattern);
@@ -151,10 +151,10 @@ public class SquaresAtObject {
             long tt2 = System.nanoTime();
             final IRectangularArea square;
             if (index != -1) {
-                leftTop = IPoint.valueOf(workMatrix.coordinates(index, null));
-                square = IRectangularArea.valueOf(
+                leftTop = IPoint.of(workMatrix.coordinates(index, null));
+                square = IRectangularArea.of(
                         leftTop,
-                        leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, fixedSquareSide - 1)));
+                        leftTop.add(IPoint.ofEqualCoordinates(dimCount, fixedSquareSide - 1)));
                 // - Note: this square is an inversion of the pattern
                 foundSquares.add(square);
                 // Now we will clear the reduced square on the work matrix...
@@ -162,15 +162,15 @@ public class SquaresAtObject {
                     // ...However, without actual correction of the work matrix, we perform the equivalent
                     // correction of the erosion: removing a square R from the source matrix
                     // leads to removing from the erosion a square R, expanded back to the erosion patter
-                    final IRectangularArea reducedSquare = IRectangularArea.valueOf(
-                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, -fixedSquareSide + 1)),
-                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
+                    final IRectangularArea reducedSquare = IRectangularArea.of(
+                            leftTop.add(IPoint.ofEqualCoordinates(dimCount, -fixedSquareSide + 1)),
+                            leftTop.add(IPoint.ofEqualCoordinates(dimCount, reducedSide - 1)));
                     erosion.subMatrix(reducedSquare, Matrix.ContinuationMode.NULL_CONSTANT).array().fill(0L);
                 } else {
                     // Reference algorithm
-                    final IRectangularArea reducedSquare = IRectangularArea.valueOf(
+                    final IRectangularArea reducedSquare = IRectangularArea.of(
                             leftTop,
-                            leftTop.add(IPoint.valueOfEqualCoordinates(dimCount, reducedSide - 1)));
+                            leftTop.add(IPoint.ofEqualCoordinates(dimCount, reducedSide - 1)));
                     workMatrix.subMatrix(reducedSquare, Matrix.ContinuationMode.NULL_CONSTANT).array().fill(0L);
                     erosion = morphology.erosion(workMatrix, requiredSquarePattern);
                 }
@@ -206,19 +206,19 @@ public class SquaresAtObject {
                     // in a very improbable case of overflow we just will not able to find the maximum exactly
                     workMatrix,
                     Patterns.newRectangularIntegerPattern(
-                            IPoint.valueOfEqualCoordinates(dimCount, -1),
-                            IPoint.valueOfEqualCoordinates(dimCount, 1)));
+                            IPoint.ofEqualCoordinates(dimCount, -1),
+                            IPoint.ofEqualCoordinates(dimCount, 1)));
             long tt2 = System.nanoTime();
             iterativeErosion.process();
             long tt3 = System.nanoTime();
             final Arrays.MinMaxInfo minMaxInfo = new Arrays.MinMaxInfo();
             final UpdatablePIntegerArray resultArray = (UpdatablePIntegerArray) iterativeErosion.result().array();
             Arrays.rangeOf(null, resultArray, minMaxInfo);
-            final IPoint center = IPoint.valueOf(workMatrix.coordinates(minMaxInfo.indexOfMax(), null));
+            final IPoint center = IPoint.of(workMatrix.coordinates(minMaxInfo.indexOfMax(), null));
             final long distanceToEdge = resultArray.getLong(minMaxInfo.indexOfMax());
-            final IRectangularArea square = IRectangularArea.valueOf(
-                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -distanceToEdge)),
-                    center.add(IPoint.valueOfEqualCoordinates(dimCount, distanceToEdge)));
+            final IRectangularArea square = IRectangularArea.of(
+                    center.add(IPoint.ofEqualCoordinates(dimCount, -distanceToEdge)),
+                    center.add(IPoint.ofEqualCoordinates(dimCount, distanceToEdge)));
             final long reducedSide = 2 * distanceToEdge + 1 - overlapOfSquares;
             long tt4 = System.nanoTime();
             debug(System.Logger.Level.TRACE,
@@ -231,9 +231,9 @@ public class SquaresAtObject {
                 break;
             }
             foundSquares.add(square);
-            final IRectangularArea reducedSquare = IRectangularArea.valueOf(
-                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2)),
-                    center.add(IPoint.valueOfEqualCoordinates(dimCount, -reducedSide / 2 + reducedSide - 1)));
+            final IRectangularArea reducedSquare = IRectangularArea.of(
+                    center.add(IPoint.ofEqualCoordinates(dimCount, -reducedSide / 2)),
+                    center.add(IPoint.ofEqualCoordinates(dimCount, -reducedSide / 2 + reducedSide - 1)));
             Matrix<UpdatableBitArray> squareSubMatrix = workMatrix.subMatrix(reducedSquare,
                     Matrix.ContinuationMode.NULL_CONSTANT);
             // - contination mode is set only to be on the safe side:

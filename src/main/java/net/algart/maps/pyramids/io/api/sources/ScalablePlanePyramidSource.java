@@ -448,10 +448,10 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
         if (zeroLevelToX <= zeroLevelFromX || zeroLevelToY <= zeroLevelFromY) {
             return result;
         }
-        final IRectangularArea area = IRectangularArea.valueOf(
+        final IRectangularArea area = IRectangularArea.of(
                 IPoint.of(zeroLevelFromX, zeroLevelFromY),
                 IPoint.of(zeroLevelToX - 1, zeroLevelToY - 1));
-        final IRectangularArea allArea = IRectangularArea.valueOf(
+        final IRectangularArea allArea = IRectangularArea.of(
                 IPoint.of(0, 0),
                 IPoint.of(dimX - 1, dimY - 1));
         area.difference(result, allArea);

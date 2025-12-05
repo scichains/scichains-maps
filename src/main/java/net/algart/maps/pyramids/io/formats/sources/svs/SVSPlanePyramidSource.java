@@ -185,16 +185,18 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 this.metricPyramid = RectangularArea.of(
                         Point.of(metricLeft, metricTop),
                         Point.of(metricLeft + imageWidth, metricTop + imageHeight));
-                this.pixelWholeSlide = IRectangularArea.valueOf(
+                this.pixelWholeSlide = IRectangularArea.of(
                         IPoint.of(0, 0),
                         IPoint.of(ifdMacroWidth - 1, ifdMacroHeight - 1));
                 final long pixelLeft = Math.round(ifdMacroWidth * metricLeft / slideWidth);
                 final long pixelTop = Math.round(ifdMacroHeight * metricTop / slideHeight);
-                this.pixelPyramidAtWholeSlide = IRectangularArea.valueOf(
+                this.pixelPyramidAtWholeSlide = IRectangularArea.of(
                         IPoint.of(pixelLeft, pixelTop),
-                        IPoint.of(Math.max(pixelLeft,
-                                Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1), Math.max(pixelTop,
-                                Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
+                        IPoint.of(
+                                Math.max(pixelLeft,
+                                        Math.round(ifdMacroWidth * (metricLeft + imageWidth) / slideWidth) - 1),
+                                Math.max(pixelTop,
+                                        Math.round(ifdMacroHeight * (metricTop + imageHeight) / slideHeight) - 1)));
                 levelDimX = (long) (imageDimX * metricWholeSlide.size(0) / metricPyramid.size(0));
                 levelDimY = (long) (imageDimY * metricWholeSlide.size(1) / metricPyramid.size(1));
             } else {
@@ -624,8 +626,9 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         if (sizeX == 0 || sizeY == 0) {
             return newResultMatrix(toX - fromX, toY - fromY);
         }
-        final IRectangularArea requiredArea = IRectangularArea.valueOf(
-                IPoint.of(fromX, fromY), IPoint.of(toX - 1, toY - 1));
+        final IRectangularArea requiredArea = IRectangularArea.of(
+                IPoint.of(fromX, fromY),
+                IPoint.of(toX - 1, toY - 1));
         if (combineWithWholeSlide) {
             largeData.initWholeSlideSynchronously();
         }
@@ -855,11 +858,11 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         max = max.max(min);
         // - the last operator is usually not necessary (pyramid area is large enough), but in a strange case
         // of very little pyramid it allows to avoid exception in IRectangularArea.valueOf
-        return IRectangularArea.valueOf(min, max);
+        return IRectangularArea.of(min, max);
     }
 
     private IRectangularArea expandByBorder(IRectangularArea area) {
-        return IRectangularArea.valueOf(
+        return IRectangularArea.of(
                 area.min().addToAllCoordinates(-dataBorderWidth),
                 area.max().addToAllCoordinates(dataBorderWidth));
     }

@@ -177,7 +177,7 @@ public final class RotatingPlanePyramidSource implements PlanePyramidSource {
             long toX = rectangle.max(0) + 1;
             long toY = rectangle.max(1) + 1;
             long[] fromAndTo = correctFromAndTo(parentImageWidth, parentImageHeight, fromX, fromY, toX, toY);
-            return IRectangularArea.valueOf(
+            return IRectangularArea.of(
                     IPoint.of(fromAndTo[0], fromAndTo[1]),
                     IPoint.of(fromAndTo[2] - 1, fromAndTo[3] - 1));
         }

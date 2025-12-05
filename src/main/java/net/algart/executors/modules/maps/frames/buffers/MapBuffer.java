@@ -113,7 +113,7 @@ public final class MapBuffer {
                 }
                 max[k] = Math.addExact(leftTop.coord(k), matrixDimensions[k] - 1);
             }
-            return IRectangularArea.valueOf(leftTop, IPoint.valueOf(max));
+            return IRectangularArea.of(leftTop, IPoint.of(max));
         }
 
         public MultiMatrix matrix() {
@@ -1099,9 +1099,11 @@ public final class MapBuffer {
     }
 
     private static List<IRectangularArea> dilateBy1(Collection<IRectangularArea> areas, boolean straightOnly) {
-        return areas.isEmpty() ? Collections.emptyList() :
-                IRectangularArea.dilate(areas,
-                        IPoint.valueOfEqualCoordinates(areas.iterator().next().coordCount(), 1), straightOnly);
+        return areas.isEmpty() ?
+                Collections.emptyList() :
+                IRectangularArea.dilate(
+                        areas,
+                        IPoint.ofEqualCoordinates(areas.iterator().next().coordCount(), 1), straightOnly);
     }
 
     private static Func incrementingFunc(boolean zerosLabelReservedForBackground, double increment) {
