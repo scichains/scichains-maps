@@ -197,13 +197,14 @@ public class ImagePyramidMetadataJson {
         public Optional<IRectangularArea> containingRectangle() {
             return width <= 0 || height <= 0 ?
                     Optional.empty() :
-                    Optional.of(IRectangularArea.valueOf(left, top, left + width - 1, top + height - 1));
+                    Optional.of(IRectangularArea.of(left, top, left + width - 1, top + height - 1));
         }
 
         @Override
         public Contours contours(int label) {
             final Optional<IRectangularArea> rectangle = containingRectangle();
             final Contours result = Contours.newInstance();
+            //noinspection OptionalIsPresent
             if (rectangle.isPresent()) {
                 final IRectangularArea r = rectangle.get();
                 result.addContour(
@@ -339,7 +340,7 @@ public class ImagePyramidMetadataJson {
             final long longMaxY = (long) Math.ceil(maxY);
             return longMaxX <= longMinX || longMaxY <= longMinY ?
                     Optional.empty() :
-                    Optional.of(IRectangularArea.valueOf(longMinX, longMinY, longMaxX - 1, longMaxY - 1));
+                    Optional.of(IRectangularArea.of(longMinX, longMinY, longMaxX - 1, longMaxY - 1));
         }
 
         @Override
@@ -533,7 +534,7 @@ public class ImagePyramidMetadataJson {
             }
             final long minX = Math.round(r.minX() * scaleX);
             final long minY = Math.round(r.minY() * scaleY);
-            r = IRectangularArea.valueOf(minX, minY, minX + sizeX - 1, minY + sizeY - 1);
+            r = IRectangularArea.of(minX, minY, minX + sizeX - 1, minY + sizeY - 1);
             if (restriction != null) {
                 r = r.intersection(restriction);
             }

@@ -64,7 +64,7 @@ public final class ImagePyramidLevelRois {
             scaleX = (double) levelDimX / (double) planePyramidSource.width(0);
             scaleY = (double) levelDimY / (double) planePyramidSource.height(0);
         }
-        wholeLevel = IRectangularArea.valueOf(0, 0, levelDimX - 1, levelDimY - 1);
+        wholeLevel = IRectangularArea.of(0, 0, levelDimX - 1, levelDimY - 1);
         setInputRoi(null);
         // - initializes inputRoi and inputRoiOrWholeLevel fields
     }

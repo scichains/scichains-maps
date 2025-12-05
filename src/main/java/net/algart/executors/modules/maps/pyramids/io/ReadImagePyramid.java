@@ -600,11 +600,11 @@ public final class ReadImagePyramid extends AbstractImagePyramidOperation implem
                 throw new AssertionError("Empty area to read " + start
                         + "..(" + endX + ", " + endY + ") inside " + actualRoi);
             }
-            area = IRectangularArea.valueOf(start.x(), start.y(), endX, endY);
+            area = IRectangularArea.of(start.x(), start.y(), endX, endY);
         } else {
             final long startX = pixelStartX();
             final long startY = pixelStartY();
-            area = IRectangularArea.valueOf(startX, startY, startX + sizeX - 1, startY + sizeY - 1);
+            area = IRectangularArea.of(startX, startY, startX + sizeX - 1, startY + sizeY - 1);
         }
         IRectangularArea result = area.intersection(selectedLevelRois.wholeLevel());
         if (result == null) {

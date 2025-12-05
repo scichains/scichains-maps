@@ -354,7 +354,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         }
         getScalar(OUTPUT_DIM_X).setTo(toX - fromX);
         getScalar(OUTPUT_DIM_Y).setTo(toY - fromY);
-        getNumbers(OUTPUT_RECTANGLE).setTo(IRectangularArea.valueOf(fromX, fromY, toX - 1, toY - 1));
+        getNumbers(OUTPUT_RECTANGLE).setTo(IRectangularArea.of(fromX, fromY, toX - 1, toY - 1));
         return result;
     }
 

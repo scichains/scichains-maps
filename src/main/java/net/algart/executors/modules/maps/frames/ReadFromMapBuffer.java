@@ -140,7 +140,7 @@ public final class ReadFromMapBuffer extends ScalarFilter {
         IRectangularArea area = getInputNumbers(ChangeRectangleInsideMapBuffer.RECTANGLE, true)
                 .toIRectangularArea();
         if (area == null) {
-            area = IRectangularArea.valueOf(startX, startY, startX + sizeX - 1, startY + sizeY - 1);
+            area = IRectangularArea.of(startX, startY, startX + sizeX - 1, startY + sizeY - 1);
         }
         MultiMatrix result = process(mapBufferId, area);
         getMat(DEFAULT_OUTPUT_PORT).setTo(result);
