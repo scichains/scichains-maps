@@ -634,9 +634,7 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
             if (needAdditionalCompression) {
                 final boolean convertBitToByte;
                 synchronized (elementTypeLock) {
-                    convertBitToByte = needAdditionalCompression
-                            && averagingMode == AveragingMode.AVERAGING
-                            && elementType == boolean.class;
+                    convertBitToByte = averagingMode == AveragingMode.AVERAGING && elementType == boolean.class;
                 }
                 if (convertBitToByte) {
                     Range srcRange = Range.of(0.0, sourceData.array().maxPossibleValue(1.0));
