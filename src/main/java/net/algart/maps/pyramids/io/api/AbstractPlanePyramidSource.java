@@ -718,8 +718,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
             final Class<?> requiredElementType = elementType();
             if (requiredElementType != matrix.elementType()) {
                 Class<PArray> destType = Arrays.type(PArray.class, requiredElementType);
-                final Range srcRange = Range.valueOf(0.0, matrix.array().maxPossibleValue(1.0));
-                final Range destRange = Range.valueOf(0.0, Arrays.maxPossibleValue(destType, 1.0));
+                final Range srcRange = Range.of(0.0, matrix.array().maxPossibleValue(1.0));
+                final Range destRange = Range.of(0.0, Arrays.maxPossibleValue(destType, 1.0));
                 matrix = Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange), destType, matrix);
             }
             this.suitableWholeSlide = matrix;
@@ -842,8 +842,8 @@ public abstract class AbstractPlanePyramidSource implements PlanePyramidSource {
             long t2 = System.nanoTime();
             if (data.elementType() != byte.class) {
                 final Matrix<? extends UpdatablePArray> newData = Arrays.SMM.newByteMatrix(data.dimensions());
-                final Range srcRange = Range.valueOf(0.0, data.array().maxPossibleValue(1.0));
-                final Range destRange = Range.valueOf(0.0, newData.array().maxPossibleValue(1.0));
+                final Range srcRange = Range.of(0.0, data.array().maxPossibleValue(1.0));
+                final Range destRange = Range.of(0.0, newData.array().maxPossibleValue(1.0));
                 Matrices.applyFunc(null, LinearFunc.getInstance(destRange, srcRange), newData, data);
                 data = newData;
             }

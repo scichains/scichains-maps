@@ -639,8 +639,8 @@ public class ScalablePlanePyramidSource implements PlanePyramidSource {
                             && elementType == boolean.class;
                 }
                 if (convertBitToByte) {
-                    Range srcRange = Range.valueOf(0.0, sourceData.array().maxPossibleValue(1.0));
-                    Range destRange = Range.valueOf(0.0, Arrays.maxPossibleIntegerValue(ByteArray.class));
+                    Range srcRange = Range.of(0.0, sourceData.array().maxPossibleValue(1.0));
+                    Range destRange = Range.of(0.0, Arrays.maxPossibleIntegerValue(ByteArray.class));
                     sourceData = Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange),
                             ByteArray.class, sourceData);
                 }

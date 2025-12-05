@@ -556,19 +556,19 @@ public final class MapBuffer {
         IRange[] ranges = originalArea.ranges();
         for (int i = ranges.length - 1; i >= 0; i--) {
             IRange save = ranges[i];
-            ranges[i] = IRange.valueOf(changedArea.min(i), save.max());
-            if (!isCovered(IRectangularArea.valueOf(ranges))) {
+            ranges[i] = IRange.of(changedArea.min(i), save.max());
+            if (!isCovered(IRectangularArea.of(ranges))) {
                 ranges[i] = save;
                 // - failure to change: restoring
             }
             save = ranges[i];
-            ranges[i] = IRange.valueOf(save.min(), changedArea.max(i));
-            if (!isCovered(IRectangularArea.valueOf(ranges))) {
+            ranges[i] = IRange.of(save.min(), changedArea.max(i));
+            if (!isCovered(IRectangularArea.of(ranges))) {
                 ranges[i] = save;
                 // - failure to change: restoring
             }
         }
-        final IRectangularArea result = IRectangularArea.valueOf(ranges);
+        final IRectangularArea result = IRectangularArea.of(ranges);
         if (originalAreaCovered && !isCovered(result)) {
             throw new AssertionError(result + " is not covered by " + this);
         }

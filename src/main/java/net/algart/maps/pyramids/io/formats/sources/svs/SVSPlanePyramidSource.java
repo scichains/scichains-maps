@@ -857,7 +857,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         max = max.addToAllCoordinates(-COMBINING_LITTLE_GAP - 1L);
         max = max.max(min);
         // - the last operator is usually not necessary (pyramid area is large enough), but in a strange case
-        // of very little pyramid it allows to avoid exception in IRectangularArea.valueOf
+        // of very little pyramid it allows to avoid exception in IRectangularArea.of
         return IRectangularArea.of(min, max);
     }
 

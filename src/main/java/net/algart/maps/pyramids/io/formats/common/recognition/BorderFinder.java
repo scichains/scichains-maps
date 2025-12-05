@@ -74,8 +74,8 @@ public class BorderFinder {
         this.dimX = slide.dimX();
         this.dimY = slide.dimY();
         if (packedMacroImage.elementType() != byte.class) {
-            final Range srcRange = Range.valueOf(0.0, packedMacroImage.array().maxPossibleValue(1.0));
-            final Range destRange = Range.valueOf(0.0, Arrays.maxPossibleValue(ByteArray.class, 1.0));
+            final Range srcRange = Range.of(0.0, packedMacroImage.array().maxPossibleValue(1.0));
+            final Range destRange = Range.of(0.0, Arrays.maxPossibleValue(ByteArray.class, 1.0));
             packedMacroImage = Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange),
                     ByteArray.class, packedMacroImage);
         }

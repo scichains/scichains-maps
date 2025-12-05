@@ -167,8 +167,8 @@ public class PlanePyramidTools {
             Matrix<? extends PArray> m = result.get(k);
             if (m != null && m.elementType() != bestElementType) {
                 final Class<PArray> destType = Arrays.type(PArray.class, bestElementType);
-                final Range srcRange = Range.valueOf(0.0, m.array().maxPossibleValue(1.0));
-                final Range destRange = Range.valueOf(0.0, Arrays.maxPossibleValue(destType, 1.0));
+                final Range srcRange = Range.of(0.0, m.array().maxPossibleValue(1.0));
+                final Range destRange = Range.of(0.0, Arrays.maxPossibleValue(destType, 1.0));
                 result.set(k, Matrices.asFuncMatrix(LinearFunc.getInstance(destRange, srcRange), destType, m));
             }
         }
