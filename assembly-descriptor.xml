@@ -22,7 +22,8 @@
                 <!-- Excluding AlgART: it is a standard library, provided by scichains-core
                 (It is excluded as a result of dependence on scichains-core
                 which turns off loading AlgART as a part of algart-tiff;
-                but JUST IN CASE we exclude it here explicitly.) -->
+                but JUST IN CASE we exclude it here explicitly.
+                Please IGNORE the corresponding WARNING while building the maven project.) -->
                 <exclude>net.algart:algart:*</exclude>
             </excludes>
             <outputDirectory>./java/lib</outputDirectory>
