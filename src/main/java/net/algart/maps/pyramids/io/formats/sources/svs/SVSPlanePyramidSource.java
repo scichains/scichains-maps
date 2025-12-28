@@ -39,7 +39,10 @@ import net.algart.math.IRectangularArea;
 import net.algart.math.Point;
 import net.algart.math.RectangularArea;
 import net.algart.matrices.tiff.*;
+import net.algart.matrices.tiff.pyramids.TiffPyramidMetadata;
+import net.algart.matrices.tiff.tags.SvsDescription;
 import net.algart.matrices.tiff.tags.TagCompression;
+import net.algart.matrices.tiff.tags.TagDescription;
 import net.algart.matrices.tiff.tiles.TiffMap;
 import net.algart.matrices.tiff.tiles.TiffReadMap;
 
@@ -81,6 +84,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     private final Path svsFile;
     private final SVSIFDClassifier ifdClassifier;
+    private final TiffPyramidMetadata pyramidMetadata;
+    //TODO!! - replace SVSImageDescription and SVSIFDClassifier with it
     private final List<SVSImageDescription> imageDescriptions;
     private final SVSImageDescription mainImageDescription;
     private final boolean geometrySupported;
@@ -130,9 +135,10 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
             this.elementType = map0.elementType();
             final long imageDimX = map0.dimX();
             final long imageDimY = map0.dimY();
+            this.pyramidMetadata = TiffPyramidMetadata.ofMaps(largeData.maps);
             this.imageDescriptions = new ArrayList<>();
             for (int k = 0; k < ifdCount; k++) {
-                final String description = largeData.maps.get(k).description().orElse(null);
+                final String description = largeData.maps.get(k).description().description();
                 this.imageDescriptions.add(SVSImageDescription.of(description));
                 // Note: though description can be null, SVSImageDescription object will never be null here
             }
@@ -314,12 +320,12 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
                 if (elementType != this.elementType) {
                     throw new TiffException("Invalid element types: \""
                             + elementType + "\" instead of \"" + this.elementType + "\""
-                            + " (image description " + map.description().orElse("N/A") + ")");
+                            + " (image description " + map.description().description("N/A") + ")");
                 }
                 if (map.numberOfChannels() != bandCount) {
                     throw new TiffException("Invalid number of samples per pixel: "
                             + map.numberOfChannels() + " instead of " + bandCount
-                            + " (image description " + map.description().orElse("N/A") + ")");
+                            + " (image description " + map.description().description("N/A") + ")");
                 }
                 actualDimensions.add(new long[]{bandCount, levelDimX, levelDimY});
                 pyramidLevelDimX = newPyramidLevelDimX;
@@ -433,9 +439,8 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
         return geometrySupported;
     }
 
-    // We do not use "get" syntax for correct JSONObject behaviour
-    public List<SVSImageDescription> imageDescriptions() {
-        return Collections.unmodifiableList(imageDescriptions);
+    public TiffPyramidMetadata pyramidMetadata() {
+        return pyramidMetadata;
     }
 
     // We do not use "get" syntax for correct JSONObject behaviour
@@ -570,7 +575,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     @Override
     public Optional<String> metadata() {
-        return mainImageDescription == null ? Optional.empty() : Optional.of(mainImageDescription.toString());
+        return Optional.of(pyramidMetadata.toString());
     }
 
     public void loadResources() {
@@ -740,9 +745,9 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     private static boolean detectMotic(List<? extends TiffMap> maps, SVSImageDescription mainImageDescription)
             throws TiffException {
-        // Warning! It is an evristic algorithm that should be improved in collaboration with Motic!
+        // Warning! It is a heuristic algorithm that should be improved in collaboration with Motic!
         if (mainImageDescription != null && mainImageDescription.isGeometrySupported()) {
-            // current version of Motic slides does not support geometry
+            // the current version of Motic slides does not support geometry
             return false;
         }
         int numberOfLZW = 0;
@@ -869,13 +874,15 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
 
     private String printedDescription(int index) {
         final StringBuilder sb = new StringBuilder();
-        final SVSImageDescription imageDescription = imageDescriptions.get(index);
-        final String subFormatTitle = imageDescription.subFormatTitle();
-        if (subFormatTitle != null) {
-            sb.append(String.format("    [%s]%n", subFormatTitle));
+        final TagDescription imageDescription = pyramidMetadata.description(index);
+        final String name = imageDescription.formatName();
+        if (name != null) {
+            sb.append(String.format("    [%s]%n", name));
         }
-        for (String line : imageDescription.getText()) {
-            sb.append(String.format("    %s%n", line));
+        if (imageDescription instanceof SvsDescription svs) {
+            for (String line : svs.raw()) {
+                sb.append(String.format("    %s%n", line));
+            }
         }
         final String result = sb.toString();
         return result.endsWith("%n") ? result.substring(0, result.length() - 2) : result;

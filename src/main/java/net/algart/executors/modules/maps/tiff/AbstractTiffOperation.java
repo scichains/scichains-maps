@@ -90,7 +90,7 @@ public abstract class AbstractTiffOperation extends FileOperation {
         @SuppressWarnings("resource") final TiffWriter writer = map.owner();
         Objects.requireNonNull(e, "Null executor");
         Objects.requireNonNull(map, "Null map");
-        e.setOutputScalar(OUTPUT_NUMBER_OF_IMAGES, writer.numberOfIFDs());
+        e.setOutputScalar(OUTPUT_NUMBER_OF_IMAGES, writer.numberOfExistingImages());
         e.setOutputScalar(OUTPUT_IMAGE_DIM_X, map.dimX());
         e.setOutputScalar(OUTPUT_IMAGE_DIM_Y, map.dimY());
         e.setOutputScalarIfNecessary(OUTPUT_IFD, () -> map.ifd().toString(TiffIFD.StringFormat.JSON));

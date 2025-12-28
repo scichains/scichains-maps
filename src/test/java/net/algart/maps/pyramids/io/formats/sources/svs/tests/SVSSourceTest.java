@@ -96,13 +96,19 @@ public class SVSSourceTest {
         final int h = (int) Math.min(source.height(level), MAX_IMAGE_DIM);
 
         if (source instanceof SVSPlanePyramidSource svsSource) {
-            SVSImageDescription description = svsSource.mainImageDescription();
+//            SVSImageDescription description = svsSource.mainImageDescription();
+//            if (description != null) {
+//                System.out.printf("Description:%n%s%nGeometry support: %s%n",
+//                        Jsons.toPrettyString(description.toJson()),
+//                        description.isGeometrySupported());
+//            }
+            var description = svsSource.pyramidMetadata().svsDescription();
             if (description != null) {
                 System.out.printf("Description:%n%s%nGeometry support: %s%n",
-                        Jsons.toPrettyString(description.toJson()),
-                        description.isGeometrySupported());
+                        description.jsonString(),
+                        description.hasGeometry());
             }
-            System.out.printf("IFD classification: %s%n", svsSource.getIfdClassifier());
+            System.out.printf("Pyramid structure: %s%n", svsSource.pyramidMetadata());
             System.out.println();
         }
 

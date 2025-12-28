@@ -337,8 +337,8 @@ public final class WriteTiff extends AbstractTiffOperation implements ReadOnlyEx
             final boolean needToClose = needToClose(this, openingMode);
             openFile(path, m, needToClose);
             //noinspection resource
-            getScalar(OUTPUT_IFD_INDEX).setTo(writeMap.owner().numberOfIFDs());
-            // - numberOfIFDs() BEFORE writing is the index of the resulting IFD
+            getScalar(OUTPUT_IFD_INDEX).setTo(writeMap.owner().numberOfExistingImages());
+            // - numberOfExistingImages() BEFORE writing is the index of the resulting IFD
             writeMatrix(m, needToClose);
             if (needToClose) {
                 closeWriter(true);
