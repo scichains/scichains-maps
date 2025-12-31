@@ -270,7 +270,11 @@
                                         <copy todir="${extension.server.home}"
                                               file="${project.basedir}/build/TiffInfo.cmd"/>
                                         <copy todir="${extension.server.home}"
+                                              file="${project.basedir}/build/TiffInfoViewer.cmd"/>
+                                        <copy todir="${extension.server.home}"
                                               file="${project.basedir}/build/TiffCopy.cmd"/>
+                                        <copy todir="${extension.server.home}"
+                                              file="${project.basedir}/build/MakeSvs.cmd"/>
                                     </target>
                                 </configuration>
                             </execution>

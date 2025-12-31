@@ -1,0 +1,1 @@
+java -cp %~dp0\..\..\lib\common\*;%~dp0\java\lib\*;%~dp0\java\lib\scifio\* net.algart.matrices.tiff.app.MakeSvs %*
