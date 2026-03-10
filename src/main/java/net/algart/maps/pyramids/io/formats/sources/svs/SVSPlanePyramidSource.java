@@ -810,6 +810,7 @@ public final class SVSPlanePyramidSource extends AbstractPlanePyramidSource impl
     private Matrix<? extends PArray> readData(int ifdIndex, int fromX, int fromY, int sizeX, int sizeY)
             throws IOException {
         final var map = largeData.maps.get(ifdIndex);
+        //TODO!! store sampleType, not elementType (can be signed)
         map.checkPixelCompatibility(bandCount, TiffSampleType.of(elementType, false));
         return map.readInterleavedMatrix(fromX, fromY, sizeX, sizeY);
     }
