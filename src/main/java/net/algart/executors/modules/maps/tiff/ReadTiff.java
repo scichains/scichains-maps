@@ -61,7 +61,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
     private boolean caching = false;
     private boolean autoUnpackBitsToBytes = false;
     private boolean autoScaleWhenIncreasingBitDepth = true;
-    private boolean autoCorrectInvertedBrightness = false;
+    private boolean autoCorrectColors = false;
     private boolean cropTilesToImageBoundaries = true;
     private int numberOfChannels = 0;
 
@@ -211,12 +211,12 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
         return this;
     }
 
-    public boolean isAutoCorrectInvertedBrightness() {
-        return autoCorrectInvertedBrightness;
+    public boolean isAutoCorrectColors() {
+        return autoCorrectColors;
     }
 
-    public ReadTiff setAutoCorrectInvertedBrightness(boolean autoCorrectInvertedBrightness) {
-        this.autoCorrectInvertedBrightness = autoCorrectInvertedBrightness;
+    public ReadTiff setAutoCorrectColors(boolean autoCorrectColors) {
+        this.autoCorrectColors = autoCorrectColors;
         return this;
     }
 
@@ -317,7 +317,7 @@ public final class ReadTiff extends AbstractTiffOperation implements ReadOnlyExe
             reader = new TiffReader(path, TiffOpenMode.ofRequireTiff(tiffRequired)).setCaching(caching);
             reader.setAutoUnpackBits(TiffReader.UnpackBits.of(autoUnpackBitsToBytes));
             reader.setAutoScaleWhenIncreasingBitDepth(autoScaleWhenIncreasingBitDepth);
-            reader.setAutoCorrectInvertedBrightness(autoCorrectInvertedBrightness);
+            reader.setAutoCorrectInvertedBrightness(autoCorrectColors);
             reader.setCropTilesToImageBoundaries(cropTilesToImageBoundaries);
             this.reader = reader;
             // - note: the assignments sequence guarantees that this method will not return null
