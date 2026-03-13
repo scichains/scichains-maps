@@ -290,7 +290,7 @@
       "default": true
     },
     {
-      "caption": "Auto-correction of inverted brightness",
+      "caption": "Auto-correction of colors",
       "name": "autoCorrectColors",
       "description": "Whether do we need to invert pixel sample values in color spaces with inverted sense of pixel brightness:  \"WhiteIsZero\" and \"Separated\" (CMYK). Set to \"false\" by default, because this flag does not provide correct processing CMYK and more complex models, it simply helps to see a more realistic result.",
       "value_type": "boolean",
